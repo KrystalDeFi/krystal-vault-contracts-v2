@@ -1,0 +1,480 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "int64",
+            "name": "chainId",
+            "type": "int64"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpmAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "orderType",
+            "type": "string"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "string",
+                        "name": "_type",
+                        "type": "string"
+                      },
+                      {
+                        "internalType": "int160",
+                        "name": "sqrtPriceX96",
+                        "type": "int160"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "timeBuffer",
+                        "type": "int64"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "gteTickOffset",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "uint32",
+                            "name": "lteTickOffset",
+                            "type": "uint32"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TickOffsetCondition",
+                        "name": "tickOffsetCondition",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "baseToken",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "uint256",
+                            "name": "gteOffsetSqrtPriceX96",
+                            "type": "uint256"
+                          },
+                          {
+                            "internalType": "uint256",
+                            "name": "lteOffsetSqrtPriceX96",
+                            "type": "uint256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.PriceOffsetCondition",
+                        "name": "priceOffsetCondition",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "int256",
+                            "name": "lteToken0RatioX64",
+                            "type": "int256"
+                          },
+                          {
+                            "internalType": "int256",
+                            "name": "gteToken0RatioX64",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TokenRatioCondition",
+                        "name": "tokenRatioCondition",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct StructHash.Condition",
+                    "name": "rebalanceCondition",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "int256",
+                        "name": "maxGasProportionX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "swapSlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "liquiditySlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "string",
+                        "name": "_type",
+                        "type": "string"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "tickLowerOffset",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "uint32",
+                            "name": "tickUpperOffset",
+                            "type": "uint32"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TickOffsetAction",
+                        "name": "tickOffsetAction",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "baseToken",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "int160",
+                            "name": "lowerOffsetSqrtPriceX96",
+                            "type": "int160"
+                          },
+                          {
+                            "internalType": "int160",
+                            "name": "upperOffsetSqrtPriceX96",
+                            "type": "int160"
+                          }
+                        ],
+                        "internalType": "struct StructHash.PriceOffsetAction",
+                        "name": "priceOffsetAction",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "tickWidth",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "int256",
+                            "name": "token0RatioX64",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TokenRatioAction",
+                        "name": "tokenRatioAction",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct StructHash.RebalanceAction",
+                    "name": "rebalanceAction",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "components": [
+                          {
+                            "internalType": "int256",
+                            "name": "maxGasProportionX64",
+                            "type": "int256"
+                          },
+                          {
+                            "internalType": "int256",
+                            "name": "feeToPrincipalRatioThresholdX64",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.RebalanceAutoCompoundAction",
+                        "name": "action",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct StructHash.RebalanceAutoCompound",
+                    "name": "autoCompound",
+                    "type": "tuple"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "recurring",
+                    "type": "bool"
+                  }
+                ],
+                "internalType": "struct StructHash.RebalanceConfig",
+                "name": "rebalanceConfig",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "bool",
+                        "name": "zeroToOne",
+                        "type": "bool"
+                      },
+                      {
+                        "internalType": "int32",
+                        "name": "gteTickAbsolute",
+                        "type": "int32"
+                      },
+                      {
+                        "internalType": "int32",
+                        "name": "lteTickAbsolute",
+                        "type": "int32"
+                      }
+                    ],
+                    "internalType": "struct StructHash.RangeOrderCondition",
+                    "name": "condition",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "int256",
+                        "name": "maxGasProportionX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "swapSlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "withdrawSlippageX64",
+                        "type": "int256"
+                      }
+                    ],
+                    "internalType": "struct StructHash.RangeOrderAction",
+                    "name": "action",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct StructHash.RangeOrderConfig",
+                "name": "rangeOrderConfig",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "string",
+                        "name": "_type",
+                        "type": "string"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "int256",
+                            "name": "minFeeEarnedUsdX64",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.FeeBasedCondition",
+                        "name": "feeBasedCondition",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "int256",
+                            "name": "intervalInSecond",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TimeBasedCondition",
+                        "name": "timeBasedCondition",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct StructHash.AutoCompoundCondition",
+                    "name": "condition",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "int256",
+                        "name": "maxGasProportionX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "poolSlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "swapSlippageX64",
+                        "type": "int256"
+                      }
+                    ],
+                    "internalType": "struct StructHash.AutoCompoundAction",
+                    "name": "action",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct StructHash.AutoCompoundConfig",
+                "name": "autoCompoundConfig",
+                "type": "tuple"
+              },
+              {
+                "components": [
+                  {
+                    "components": [
+                      {
+                        "internalType": "string",
+                        "name": "_type",
+                        "type": "string"
+                      },
+                      {
+                        "internalType": "int160",
+                        "name": "sqrtPriceX96",
+                        "type": "int160"
+                      },
+                      {
+                        "internalType": "int64",
+                        "name": "timeBuffer",
+                        "type": "int64"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "gteTickOffset",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "uint32",
+                            "name": "lteTickOffset",
+                            "type": "uint32"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TickOffsetCondition",
+                        "name": "tickOffsetCondition",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "uint32",
+                            "name": "baseToken",
+                            "type": "uint32"
+                          },
+                          {
+                            "internalType": "uint256",
+                            "name": "gteOffsetSqrtPriceX96",
+                            "type": "uint256"
+                          },
+                          {
+                            "internalType": "uint256",
+                            "name": "lteOffsetSqrtPriceX96",
+                            "type": "uint256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.PriceOffsetCondition",
+                        "name": "priceOffsetCondition",
+                        "type": "tuple"
+                      },
+                      {
+                        "components": [
+                          {
+                            "internalType": "int256",
+                            "name": "lteToken0RatioX64",
+                            "type": "int256"
+                          },
+                          {
+                            "internalType": "int256",
+                            "name": "gteToken0RatioX64",
+                            "type": "int256"
+                          }
+                        ],
+                        "internalType": "struct StructHash.TokenRatioCondition",
+                        "name": "tokenRatioCondition",
+                        "type": "tuple"
+                      }
+                    ],
+                    "internalType": "struct StructHash.Condition",
+                    "name": "condition",
+                    "type": "tuple"
+                  },
+                  {
+                    "components": [
+                      {
+                        "internalType": "int256",
+                        "name": "maxGasProportionX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "swapSlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "int256",
+                        "name": "liquiditySlippageX64",
+                        "type": "int256"
+                      },
+                      {
+                        "internalType": "address",
+                        "name": "tokenOutAddress",
+                        "type": "address"
+                      }
+                    ],
+                    "internalType": "struct StructHash.AutoExitAction",
+                    "name": "action",
+                    "type": "tuple"
+                  }
+                ],
+                "internalType": "struct StructHash.AutoExitConfig",
+                "name": "autoExitConfig",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct StructHash.OrderConfig",
+            "name": "config",
+            "type": "tuple"
+          },
+          {
+            "internalType": "int64",
+            "name": "signatureTime",
+            "type": "int64"
+          }
+        ],
+        "internalType": "struct StructHash.Order",
+        "name": "order",
+        "type": "tuple"
+      }
+    ],
+    "name": "encode",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "b",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "rules": {
+    "explicit-types": ["warn", "explicit"],
+    "max-states-count": ["warn", 20],
+    "no-unused-import": "warn",
+    "no-unused-vars": "warn",
+    "one-contract-per-file": "warn",
+    "payable-fallback": "warn",
+    "reason-string": [
+      "warn",
+      {
+        "maxLength": 48
+      }
+    ],
+    "gas-custom-errors": "off",
+    "quotes": ["error", "double"],
+    "const-name-snakecase": "warn",
+    "contract-name-capwords": "warn",
+    "event-name-capwords": "warn",
+    "use-forbidden-name": "warn",
+    "var-name-mixedcase": "warn",
+    "imports-on-top": "warn",
+    "visibility-modifier-order": "warn",
+    "avoid-call-value": "warn",
+    "avoid-sha3": "warn",
+    "avoid-suicide": "warn",
+    "avoid-throw": "warn",
+    "avoid-tx-origin": "warn",
+    "check-send-result": "warn",
+    "multiple-sends": "warn",
+    "no-complex-fallback": "warn",
+    "no-inline-assembly": "off",
+    "not-rely-on-block-hash": "warn",
+    "reentrancy": "warn",
+    "state-visibility": "warn",
+    "code-complexity": ["error", 10],
+    "compiler-version": ["error", ">=0.8.28"],
+    "func-name-mixedcase": "off",
+    "func-visibility": ["error", { "ignoreConstructors": true }],
+    "max-line-length": ["off"],
+    "named-parameters-mapping": "off",
+    "no-console": "off",
+    "not-rely-on-time": "off",
+    "avoid-low-level-calls": "off",
+    "no-empty-blocks": "off",
+    "no-global-import": "off"
+  }
+}

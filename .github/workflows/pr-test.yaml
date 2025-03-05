@@ -1,0 +1,48 @@
+name: Run tests on the PR and write the documentation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  pr-test:
+    if: github.actor != 'Krystal-CICD'
+    runs-on: ubuntu-latest
+    steps:
+      # - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.CICD_BOT_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - run: yarn install
+
+      - run: yarn test
+
+      - name: Create new branch and push the document
+        env:
+          GH_TOKEN: ${{ secrets.CICD_BOT_TOKEN }}
+        run: |
+          set -e
+
+          git config user.name "Krystal-CICD"
+          git config user.email "Krystal-CICD@users.noreply.github.com"
+
+          CURRENT_BRANCH=$(echo ${GITHUB_HEAD_REF})
+          git checkout $CURRENT_BRANCH
+          git pull origin $CURRENT_BRANCH
+
+          # Check if there are any changes to commit
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add .
+            git commit -m "Add documentation for PR"
+            git push origin $CURRENT_BRANCH
+            echo "Pushed the documentation to the branch"
+          else
+            echo "No changes to commit"
+          fi

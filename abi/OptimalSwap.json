@@ -1,0 +1,17 @@
+[
+  {
+    "inputs": [],
+    "name": "Invalid_Pool",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Invalid_Tick_Range",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Math_Overflow",
+    "type": "error"
+  }
+]
