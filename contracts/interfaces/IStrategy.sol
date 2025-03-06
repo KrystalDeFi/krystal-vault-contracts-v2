@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import "./ICommon.sol";
 
-interface IStrategy {
+interface IStrategy is ICommon {
   function valueOf(Asset memory asset) external returns (uint256 value);
 
   /// @notice Converts the asset to another assets

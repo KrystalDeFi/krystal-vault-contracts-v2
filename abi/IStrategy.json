@@ -5,6 +5,11 @@
         "components": [
           {
             "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "token",
             "type": "address"
           },
@@ -19,7 +24,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct Asset[]",
+        "internalType": "struct ICommon.Asset[]",
         "name": "assets",
         "type": "tuple[]"
       },
@@ -35,6 +40,11 @@
         "components": [
           {
             "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "token",
             "type": "address"
           },
@@ -49,7 +59,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct Asset[]",
+        "internalType": "struct ICommon.Asset[]",
         "name": "",
         "type": "tuple[]"
       }
@@ -63,26 +73,9 @@
         "components": [
           {
             "internalType": "address",
-            "name": "token",
+            "name": "strategy",
             "type": "address"
           },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct Asset",
-        "name": "existingAsset",
-        "type": "tuple"
-      },
-      {
-        "components": [
           {
             "internalType": "address",
             "name": "token",
@@ -99,7 +92,34 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct Asset[]",
+        "internalType": "struct ICommon.Asset",
+        "name": "existingAsset",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
         "name": "newAssets",
         "type": "tuple[]"
       },
@@ -115,32 +135,9 @@
         "components": [
           {
             "internalType": "address",
-            "name": "token",
+            "name": "strategy",
             "type": "address"
           },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct Asset[]",
-        "name": "asset",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
           {
             "internalType": "address",
             "name": "token",
@@ -157,7 +154,40 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct Asset",
+        "internalType": "struct ICommon.Asset[]",
+        "name": "asset",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
         "name": "asset",
         "type": "tuple"
       }
