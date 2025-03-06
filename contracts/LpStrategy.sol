@@ -4,21 +4,13 @@ pragma solidity ^0.8.28;
 import "./interfaces/IStrategy.sol";
 
 contract LpStrategy is IStrategy {
-  address public router;
-  struct DepositParams {
-    uint256 tokenId;
+  function valueOf(Asset memory asset) external returns (uint256 value) {
   }
 
-  function deposit(uint256 amount, bytes calldata data) external override returns (DepositDetails memory details) {
+  /// @notice Converts the asset to another assets
+  function convert(Asset[] memory assets, bytes calldata data) external returns (Asset[] memory) {
   }
-
-  function getValueInPrinciple(DepositDetails memory details) external override returns (uint256) {
-    return details.amount;
-  }
-
-  function withdraw(uint256 amount) external returns (uint256) {
-  }
-
-  function compound(uint256 value) external returns (uint256) {
+  
+  function convertIntoExisting(Asset memory existingAsset, Asset[] memory newAssets, bytes calldata data) external returns (Asset[] memory asset) {
   }
 }

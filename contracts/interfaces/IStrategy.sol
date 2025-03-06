@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import "./ICommon.sol";
+
 interface IStrategy {
-  struct DepositDetails {
-    address token;
-    uint256 tokenId;
-    uint256 amount;
-  }
+  function valueOf(Asset memory asset) external returns (uint256 value);
 
-  function deposit(uint256 amount, bytes calldata data) external returns (DepositDetails memory);
-
-  function withdraw(uint256 shares) external returns (uint256 amount);
-
-  function getValueInPrinciple(DepositDetails calldata) external returns (uint256 amount);
+  /// @notice Converts the asset to another assets
+  function convert(Asset[] memory assets, bytes calldata data) external returns (Asset[] memory);
+  
+  function convertIntoExisting(Asset memory existingAsset, Asset[] memory newAssets, bytes calldata data) external returns (Asset[] memory asset);
 }

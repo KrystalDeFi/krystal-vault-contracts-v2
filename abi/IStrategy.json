@@ -2,9 +2,26 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
       },
       {
         "internalType": "bytes",
@@ -12,7 +29,7 @@
         "type": "bytes"
       }
     ],
-    "name": "deposit",
+    "name": "convert",
     "outputs": [
       {
         "components": [
@@ -32,9 +49,9 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct IStrategy.DepositDetails",
+        "internalType": "struct Asset[]",
         "name": "",
-        "type": "tuple"
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -60,17 +77,61 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct IStrategy.DepositDetails",
-        "name": "",
+        "internalType": "struct Asset",
+        "name": "existingAsset",
         "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Asset[]",
+        "name": "newAssets",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
       }
     ],
-    "name": "getValueInPrinciple",
+    "name": "convertIntoExisting",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Asset[]",
+        "name": "asset",
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -79,16 +140,33 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "shares",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Asset",
+        "name": "asset",
+        "type": "tuple"
       }
     ],
-    "name": "withdraw",
+    "name": "valueOf",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "value",
         "type": "uint256"
       }
     ],
