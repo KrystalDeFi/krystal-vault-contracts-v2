@@ -16,7 +16,7 @@ contract LpStrategy is IStrategy {
   }
 
   /// @notice Deposits the asset to the strategy
-  function valueOf(Asset memory asset) external returns (uint256 value) {
+  function valueOf(Asset memory asset) external view returns (uint256 value) {
     INFPM(asset.token).positions(asset.tokenId);
   }
 

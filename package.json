@@ -2,7 +2,7 @@
   "name": "krystal-vault-contracts-v2",
   "version": "1.0.0",
   "repository": "git@github.com:KrystalDeFi/krystal-vault-contracts-v2.git",
-  "license": "BUSL-1.1",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "Nguyen Khoi Nguyen <nguyennk92@gmail.com>",
   "scripts": {
     "compile": "hardhat compile",

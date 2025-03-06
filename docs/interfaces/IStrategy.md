@@ -2,31 +2,23 @@
 
 ## IStrategy
 
-### DepositDetails
+### valueOf
 
 ```solidity
-struct DepositDetails {
-  address token;
-  uint256 tokenId;
-  uint256 amount;
-}
+function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
 ```
 
-### deposit
+### convert
 
 ```solidity
-function deposit(uint256 amount, bytes data) external returns (struct IStrategy.DepositDetails)
+function convert(struct ICommon.Asset[] assets, bytes data) external returns (struct ICommon.Asset[])
 ```
 
-### withdraw
+Converts the asset to another assets
+
+### convertIntoExisting
 
 ```solidity
-function withdraw(uint256 shares) external returns (uint256 amount)
-```
-
-### getValueInPrinciple
-
-```solidity
-function getValueInPrinciple(struct IStrategy.DepositDetails) external returns (uint256 amount)
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] asset)
 ```
 

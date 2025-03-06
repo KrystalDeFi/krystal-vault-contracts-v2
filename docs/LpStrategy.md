@@ -2,41 +2,45 @@
 
 ## LpStrategy
 
-### router
+### Instruction
 
 ```solidity
-address router
-```
-
-### DepositParams
-
-```solidity
-struct DepositParams {
-  uint256 tokenId;
+struct Instruction {
+  address abc;
 }
 ```
 
-### deposit
+### principalToken
 
 ```solidity
-function deposit(uint256 amount, bytes data) external returns (struct IStrategy.DepositDetails details)
+address principalToken
 ```
 
-### getValueInPrinciple
+### constructor
 
 ```solidity
-function getValueInPrinciple(struct IStrategy.DepositDetails details) external returns (uint256)
+constructor(address _principalToken) public
 ```
 
-### withdraw
+### valueOf
 
 ```solidity
-function withdraw(uint256 amount) external returns (uint256)
+function valueOf(struct ICommon.Asset asset) external view returns (uint256 value)
 ```
 
-### compound
+Deposits the asset to the strategy
+
+### convert
 
 ```solidity
-function compound(uint256 value) external returns (uint256)
+function convert(struct ICommon.Asset[] assets, bytes data) external returns (struct ICommon.Asset[])
+```
+
+Converts the asset to another assets
+
+### convertIntoExisting
+
+```solidity
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] asset)
 ```
 

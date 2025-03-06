@@ -8,4 +8,16 @@ interface ICommon {
     uint256 tokenId;
     uint256 amount;
   }
+
+  struct VaultCreateParams {
+    uint16 ownerFeeBasisPoint;
+    string name;
+    string symbol;
+    address principalToken;
+    Asset[] assets;
+  }
+
+  error ZeroAddress();
+
+  error TransferFailed();
 }

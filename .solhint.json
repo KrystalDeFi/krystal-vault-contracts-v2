@@ -18,7 +18,6 @@
     "contract-name-capwords": "warn",
     "event-name-capwords": "warn",
     "use-forbidden-name": "warn",
-    "var-name-mixedcase": "warn",
     "imports-on-top": "warn",
     "visibility-modifier-order": "warn",
     "avoid-call-value": "warn",
