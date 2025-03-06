@@ -8,6 +8,7 @@ contract LpStrategy is IStrategy {
   struct Instruction {
     address abc;
   }
+
   address public principalToken;
 
   constructor(address _principalToken) {

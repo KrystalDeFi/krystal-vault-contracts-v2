@@ -8,6 +8,10 @@ interface IStrategy is ICommon {
 
   /// @notice Converts the asset to another assets
   function convert(Asset[] memory assets, bytes calldata data) external returns (Asset[] memory);
-  
-  function convertIntoExisting(Asset memory existingAsset, Asset[] memory newAssets, bytes calldata data) external returns (Asset[] memory asset);
+
+  function convertIntoExisting(
+    Asset memory existingAsset,
+    Asset[] memory newAssets,
+    bytes calldata data
+  ) external returns (Asset[] memory asset);
 }
