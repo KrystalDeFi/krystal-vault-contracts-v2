@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "./interfaces/IStrategy.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+
+import "../../interfaces/IStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
-contract LpStrategy is IStrategy {
-  struct Instruction {
-    address abc;
-  }
-
+contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, IStrategy {
   address public principalToken;
 
-  constructor(address _principalToken) {
+  constructor() {}
+
+  function initialize(address _principalToken) public initializer {
+    __ReentrancyGuard_init();
+
     principalToken = _principalToken;
   }
 
@@ -28,4 +31,6 @@ contract LpStrategy is IStrategy {
     Asset[] memory newAssets,
     bytes calldata data
   ) external returns (Asset[] memory asset) {}
+
+  receive() external payable {}
 }

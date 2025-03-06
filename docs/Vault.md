@@ -32,30 +32,11 @@ constructor() public
 function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) public
 ```
 
-Initializes the vault
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| params | struct ICommon.VaultCreateParams | Vault creation parameters |
-| _owner | address | Owner of the vault |
-| _vaultAutomator | address | Address of the vault automator |
-| wrapAsset | struct ICommon.Asset | wrap asset |
-
 ### deposit
 
 ```solidity
 function deposit(uint256 amount) external returns (uint256 shares)
 ```
-
-Deposits the asset to the vault
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amount | uint256 | Amount to deposit |
 
 ### allocate
 
@@ -63,30 +44,11 @@ Deposits the asset to the vault
 function allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strategy, bytes data) external
 ```
 
-Allocates the assets to the strategy
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| inputAssets | struct ICommon.Asset[] | Input assets to allocate |
-| strategy | contract IStrategy | Strategy to allocate to |
-| data | bytes | Data for the strategy |
-
 ### deallocate
 
 ```solidity
 function deallocate(contract IStrategy strategy, uint256 allocationAmount) external
 ```
-
-Deallocates the assets from the strategy
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| strategy | contract IStrategy | Strategy to deallocate from |
-| allocationAmount | uint256 | Amount to deallocate |
 
 ### getTotalValue
 
@@ -94,13 +56,9 @@ Deallocates the assets from the strategy
 function getTotalValue() external returns (uint256)
 ```
 
-Returns the total value of the vault
-
 ### getAssetAllocations
 
 ```solidity
 function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
 ```
-
-Returns the asset allocations of the vault
 

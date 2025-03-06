@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // modified version of @openzeppelin
 pragma solidity ^0.8.28;
-import "./libraries/StructHash.sol";
+import "../libraries/StructHash.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 abstract contract CustomEIP712 {

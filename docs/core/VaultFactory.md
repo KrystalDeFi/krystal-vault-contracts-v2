@@ -56,6 +56,20 @@ constructor(address _weth, address _vaultImplementation, address _vaultAutomator
 function createVault(struct ICommon.VaultCreateParams params) external payable returns (address vault)
 ```
 
+Create a new vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| params | struct ICommon.VaultCreateParams | Vault creation parameters |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the new vault |
+
 ### pause
 
 ```solidity
@@ -94,12 +108,6 @@ function setVaultAutomator(address _vaultAutomator) public
 
 Set the VaultAutomator address
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _vaultAutomator | address | Address of the new VaultAutomator |
-
 ### setPlatformFeeRecipient
 
 ```solidity
@@ -108,12 +116,6 @@ function setPlatformFeeRecipient(address _platformFeeRecipient) public
 
 Set the default platform fee recipient
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _platformFeeRecipient | address | Address of the new platform fee recipient |
-
 ### setPlatformFeeBasisPoint
 
 ```solidity
@@ -121,10 +123,4 @@ function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public
 ```
 
 Set the default platform fee basis point
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _platformFeeBasisPoint | uint16 | New platform fee basis point |
 
