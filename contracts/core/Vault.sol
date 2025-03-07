@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUp
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
-import "../interfaces/IStrategy.sol";
+import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/IVault.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
@@ -61,6 +61,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Deposits the asset to the vault
   /// @param amount Amount to deposit
   function deposit(uint256 amount) external returns (uint256 shares) {}
+
+  /// @notice Deposits the principal to the vault
+  /// @param amount Amount to deposit
+  function depositPrinciple(uint256 amount) external returns (uint256 shares) {}
 
   /// @notice Allocates the assets to the strategy
   /// @param inputAssets Input assets to allocate

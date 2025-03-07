@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "./ICommon.sol";
+import "../ICommon.sol";
 
 interface IStrategy is ICommon {
+  error InvalidAsset();
+  error InvalidNumberOfAssets();
+  error InvalidInstructionType();
+
   function valueOf(Asset memory asset) external returns (uint256 value);
 
   /// @notice Converts the asset to another assets

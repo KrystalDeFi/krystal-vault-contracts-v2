@@ -20,6 +20,12 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 function deposit(uint256 amount) external returns (uint256 shares)
 ```
 
+### depositPrinciple
+
+```solidity
+function depositPrinciple(uint256 amount) external returns (uint256 shares)
+```
+
 ### allocate
 
 ```solidity

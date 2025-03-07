@@ -190,6 +190,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_principalToken",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "address",

@@ -11,10 +11,9 @@
     "deploy": "./cmd.sh -x deploy",
     "verify": "hardhat verify --network",
     "docgen": "rm -rf ./docs && hardhat docgen",
-    "prettier:check": "prettier --check \"**/*.{json,md,yml}\"",
-    "prettier:write": "prettier --write \"**/*.{json,md,yml}\"",
-    "lint:sol": "solhint \"{script,src,test}/**/*.sol\"",
-    "prettier:write-solidity": "prettier --write --plugin=prettier-plugin-solidity \"**/*.sol\""
+    "prettier:check": "prettier --check --plugin=prettier-plugin-solidity \"**/*.{json,md,yml,sol}\"",
+    "prettier:write": "prettier --write --plugin=prettier-plugin-solidity \"**/*.{json,md,yml,sol}\"",
+    "lint:sol": "solhint \"{script,src,test}/**/*.sol\""
   },
   "dependencies": {
     "@aperture_finance/uni-v3-lib": "^3.0.3",
