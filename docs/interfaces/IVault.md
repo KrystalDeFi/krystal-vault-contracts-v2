@@ -8,6 +8,12 @@
 error InvalidAssetAmount()
 ```
 
+### InvalidSweepAsset
+
+```solidity
+error InvalidSweepAsset()
+```
+
 ### initialize
 
 ```solidity
@@ -48,5 +54,17 @@ function getTotalValue() external returns (uint256)
 
 ```solidity
 function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
+```
+
+### sweepToken
+
+```solidity
+function sweepToken(address[] tokens) external
+```
+
+### sweepNFToken
+
+```solidity
+function sweepNFToken(address[] tokens, uint256[] tokenIds) external
 ```
 

@@ -29,8 +29,12 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
   }
 
   /// @notice Converts the asset to another assets
-  function convert(Asset[] memory assets, bytes calldata data) external returns (Asset[] memory returnAssets) {
+  function convert(
+    Asset[] memory assets,
+    bytes calldata data
+  ) external nonReentrant returns (Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
+
     if (instruction.instructionType == InstructionType.MintPosition) {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
       returnAssets = _mintPosition(assets, params);
@@ -41,6 +45,7 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
       returnAssets = _decreaseLiquidity(assets, params);
     }
+
     revert InvalidInstructionType();
   }
 
@@ -71,7 +76,6 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     IERC20(token0.token).approve(address(params.nfpm), token0.amount);
     IERC20(token1.token).approve(address(params.nfpm), token1.amount);
 
-    returnAssets = new Asset[](3);
     (uint256 tokenId, , uint256 amount0, uint256 amount1) = params.nfpm.mint(
       INFPM.MintParams(
         token0.token,
@@ -87,13 +91,19 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
         block.timestamp
       )
     );
+
+    returnAssets = new Asset[](3);
     returnAssets[0] = Asset(address(0), token0.token, 0, token0.amount - amount0);
     returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1);
     returnAssets[2] = Asset(address(this), address(params.nfpm), tokenId, 1);
 
     // Transfer assets to msg.sender
-    IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0);
-    IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1);
+    if (token0.amount > amount0) {
+      IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0);
+    }
+    if (token1.amount > amount1) {
+      IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1);
+    }
     IERC721(params.nfpm).safeTransferFrom(address(this), msg.sender, tokenId);
   }
 
@@ -134,8 +144,12 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1Added);
 
     // Transfer assets to msg.sender
-    IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0Added);
-    IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1Added);
+    if (token0.amount > amount0Added) {
+      IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0Added);
+    }
+    if (token1.amount > amount1Added) {
+      IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1Added);
+    }
   }
 
   /// @notice Decreases the liquidity of the position
@@ -147,20 +161,30 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     DecreaseLiquidityParams memory params
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
+
     Asset memory lpAsset = assets[0];
-    IERC721(lpAsset.token).safeTransferFrom(msg.sender, lpAsset.token, lpAsset.amount);
+
+    IERC721(lpAsset.token).safeTransferFrom(msg.sender, address(this), lpAsset.tokenId);
+
+    uint256 amount0Collected;
+    uint256 amount1Collected;
+
+    if (params.liquidity != 0) {
+      (amount0Collected, amount1Collected) = INFPM(lpAsset.token).decreaseLiquidity(
+        INFPM.DecreaseLiquidityParams(
+          lpAsset.tokenId,
+          params.liquidity,
+          params.amount0Min,
+          params.amount1Min,
+          block.timestamp
+        )
+      );
+    }
+
     INFPM(lpAsset.token).collect(
       INFPM.CollectParams(lpAsset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
-    (uint256 amount0Collected, uint256 amount1Collected) = INFPM(lpAsset.token).decreaseLiquidity(
-      INFPM.DecreaseLiquidityParams(
-        lpAsset.tokenId,
-        params.liquidity,
-        params.amount0Min,
-        params.amount1Min,
-        block.timestamp
-      )
-    );
+
     (, , address token0, address token1, , , , , , , , ) = INFPM(lpAsset.token).positions(lpAsset.tokenId);
 
     returnAssets = new Asset[](3);
@@ -169,9 +193,13 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     returnAssets[1] = Asset(address(0), token1, 0, amount1Collected);
     returnAssets[2] = lpAsset;
 
+    if (amount0Collected > 0) {
+      IERC20(token0).safeTransfer(msg.sender, amount0Collected);
+    }
+    if (amount1Collected > 0) {
+      IERC20(token1).safeTransfer(msg.sender, amount1Collected);
+    }
     IERC721(lpAsset.token).safeTransferFrom(address(this), msg.sender, lpAsset.tokenId);
-    IERC20(token0).safeTransfer(msg.sender, amount0Collected);
-    IERC20(token1).safeTransfer(msg.sender, amount1Collected);
   }
 
   receive() external payable {}

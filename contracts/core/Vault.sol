@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -19,8 +20,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   address public principalToken;
 
   mapping(address => mapping(uint256 => Asset)) public currentAssets;
-
-  constructor() {}
 
   /// @notice Initializes the vault
   /// @param params Vault creation parameters
@@ -60,17 +59,21 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Deposits the asset to the vault
   /// @param amount Amount to deposit
-  function deposit(uint256 amount) external returns (uint256 shares) {}
+  function deposit(uint256 amount) external nonReentrant returns (uint256 shares) {}
 
   /// @notice Deposits the principal to the vault
   /// @param amount Amount to deposit
-  function depositPrinciple(uint256 amount) external returns (uint256 shares) {}
+  function depositPrinciple(uint256 amount) external nonReentrant returns (uint256 shares) {}
 
   /// @notice Allocates the assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
   /// @param data Data for the strategy
-  function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external {
+  function allocate(
+    Asset[] memory inputAssets,
+    IStrategy strategy,
+    bytes calldata data
+  ) external onlyRole(ADMIN_ROLE_HASH) {
     Asset memory currentAsset;
     for (uint256 i = 0; i < inputAssets.length; i++) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
@@ -94,11 +97,41 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Deallocates the assets from the strategy
   /// @param strategy Strategy to deallocate from
   /// @param allocationAmount Amount to deallocate
-  function deallocate(IStrategy strategy, uint256 allocationAmount) external {}
+  function deallocate(IStrategy strategy, uint256 allocationAmount) external onlyRole(ADMIN_ROLE_HASH) {}
 
   /// @notice Returns the total value of the vault
   function getTotalValue() external returns (uint256) {}
 
   /// @notice Returns the asset allocations of the vault
   function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values) {}
+
+  /// @notice Sweeps the tokens to the caller
+  /// @param tokens Tokens to sweep
+  function sweepToken(address[] memory tokens) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
+    for (uint256 i = 0; i < tokens.length; ) {
+      IERC20 token = IERC20(tokens[i]);
+      require(currentAssets[tokens[i]][0].token == address(0), InvalidSweepAsset());
+      token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Sweeps the non-fungible tokens to the caller
+  /// @param tokens Tokens to sweep
+  /// @param tokenIds Token IDs to sweep
+  function sweepNFToken(
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
+    for (uint256 i = 0; i < tokens.length; ) {
+      IERC721 token = IERC721(tokens[i]);
+      require(currentAssets[tokens[i]][tokenIds[i]].token == address(0), InvalidSweepAsset());
+      token.safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
+      unchecked {
+        i++;
+      }
+    }
+  }
 }

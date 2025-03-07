@@ -7,6 +7,8 @@ import "./strategies/IStrategy.sol";
 interface IVault is ICommon {
   error InvalidAssetAmount();
 
+  error InvalidSweepAsset();
+
   function initialize(
     VaultCreateParams memory params,
     address _owner,
@@ -25,4 +27,8 @@ interface IVault is ICommon {
   function getTotalValue() external returns (uint256);
 
   function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values);
+
+  function sweepToken(address[] memory tokens) external;
+
+  function sweepNFToken(address[] memory tokens, uint256[] memory tokenIds) external;
 }

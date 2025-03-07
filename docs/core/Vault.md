@@ -20,12 +20,6 @@ address principalToken
 mapping(address => mapping(uint256 => struct ICommon.Asset)) currentAssets
 ```
 
-### constructor
-
-```solidity
-constructor() public
-```
-
 ### initialize
 
 ```solidity
@@ -117,4 +111,33 @@ function getAssetAllocations() external returns (struct ICommon.Asset[] assets, 
 ```
 
 Returns the asset allocations of the vault
+
+### sweepToken
+
+```solidity
+function sweepToken(address[] tokens) external
+```
+
+Sweeps the tokens to the caller
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokens | address[] | Tokens to sweep |
+
+### sweepNFToken
+
+```solidity
+function sweepNFToken(address[] tokens, uint256[] tokenIds) external
+```
+
+Sweeps the non-fungible tokens to the caller
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokens | address[] | Tokens to sweep |
+| tokenIds | uint256[] | Token IDs to sweep |
 
