@@ -6,7 +6,22 @@
   },
   {
     "inputs": [],
+    "name": "InvalidAsset",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNumberOfAssets",
     "type": "error"
   },
   {
@@ -103,7 +118,7 @@
           }
         ],
         "internalType": "struct ICommon.Asset[]",
-        "name": "",
+        "name": "returnAssets",
         "type": "tuple[]"
       }
     ],

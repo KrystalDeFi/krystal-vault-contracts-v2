@@ -62,6 +62,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param amount Amount to deposit
   function deposit(uint256 amount) external returns (uint256 shares) {}
 
+  /// @notice Deposits the principal to the vault
+  /// @param amount Amount to deposit
+  function depositPrinciple(uint256 amount) external returns (uint256 shares) {}
+
   /// @notice Allocates the assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to

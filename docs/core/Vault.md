@@ -57,6 +57,20 @@ Deposits the asset to the vault
 | ---- | ---- | ----------- |
 | amount | uint256 | Amount to deposit |
 
+### depositPrinciple
+
+```solidity
+function depositPrinciple(uint256 amount) external returns (uint256 shares)
+```
+
+Deposits the principal to the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount to deposit |
+
 ### allocate
 
 ```solidity
