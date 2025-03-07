@@ -4,12 +4,15 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import "../../interfaces/ILpStrategy.sol";
+import "../../interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrategy {
+  using SafeERC20 for IERC20;
+
   address public principalToken;
 
   constructor() {}
@@ -57,37 +60,40 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
     require(assets[0].token == principalToken || assets[1].token == principalToken, InvalidAsset());
-    require(assets[0].token < assets[1].token, InvalidAsset());
 
-    IERC20(assets[0].token).transferFrom(msg.sender, address(this), assets[0].amount);
-    IERC20(assets[1].token).transferFrom(msg.sender, address(this), assets[1].amount);
+    (Asset memory token0, Asset memory token1) = assets[0].token < assets[1].token
+      ? (assets[0], assets[1])
+      : (assets[1], assets[0]);
 
-    IERC20(assets[0].token).approve(address(params.nfpm), assets[0].amount);
-    IERC20(assets[1].token).approve(address(params.nfpm), assets[1].amount);
+    IERC20(token0.token).safeTransferFrom(msg.sender, address(this), token0.amount);
+    IERC20(token1.token).safeTransferFrom(msg.sender, address(this), token1.amount);
+
+    IERC20(token0.token).approve(address(params.nfpm), token0.amount);
+    IERC20(token1.token).approve(address(params.nfpm), token1.amount);
 
     returnAssets = new Asset[](3);
     (uint256 tokenId, , uint256 amount0, uint256 amount1) = params.nfpm.mint(
       INFPM.MintParams(
-        assets[0].token,
-        assets[1].token,
+        token0.token,
+        token1.token,
         params.fee,
         params.tickLower,
         params.tickUpper,
-        assets[0].amount,
-        assets[1].amount,
+        token0.amount,
+        token1.amount,
         params.amount0Min,
         params.amount1Min,
         address(this),
         block.timestamp
       )
     );
-    returnAssets[0] = Asset(address(0), assets[0].token, 0, assets[0].amount - amount0);
-    returnAssets[1] = Asset(address(0), assets[1].token, 0, assets[1].amount - amount1);
+    returnAssets[0] = Asset(address(0), token0.token, 0, token0.amount - amount0);
+    returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1);
     returnAssets[2] = Asset(address(this), address(params.nfpm), tokenId, 1);
 
     // Transfer assets to msg.sender
-    IERC20(assets[0].token).transfer(msg.sender, assets[0].amount - returnAssets[1].amount);
-    IERC20(assets[1].token).transfer(msg.sender, assets[1].amount - returnAssets[2].amount);
+    IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0);
+    IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1);
     IERC721(params.nfpm).safeTransferFrom(address(this), msg.sender, tokenId);
   }
 
@@ -100,21 +106,23 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     IncreaseLiquidityParams memory params
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 3, InvalidNumberOfAssets());
-    require(assets[0].token < assets[1].token, InvalidAsset());
 
     Asset memory lpAsset = assets[2];
+    (Asset memory token0, Asset memory token1) = assets[0].token < assets[1].token
+      ? (assets[0], assets[1])
+      : (assets[1], assets[0]);
 
-    IERC20(assets[0].token).transferFrom(msg.sender, address(this), assets[0].amount);
-    IERC20(assets[1].token).transferFrom(msg.sender, address(this), assets[1].amount);
+    IERC20(token0.token).safeTransferFrom(msg.sender, address(this), token0.amount);
+    IERC20(token1.token).safeTransferFrom(msg.sender, address(this), token1.amount);
 
-    IERC20(assets[0].token).approve(address(lpAsset.token), assets[0].amount);
-    IERC20(assets[1].token).approve(address(lpAsset.token), assets[1].amount);
+    IERC20(token0.token).approve(address(lpAsset.token), token0.amount);
+    IERC20(token1.token).approve(address(lpAsset.token), token1.amount);
 
     (, uint256 amount0Added, uint256 amount1Added) = INFPM(lpAsset.token).increaseLiquidity(
       INFPM.IncreaseLiquidityParams(
         lpAsset.tokenId,
-        assets[0].amount,
-        assets[1].amount,
+        token0.amount,
+        token1.amount,
         params.amount0Min,
         params.amount1Min,
         block.timestamp
@@ -122,12 +130,12 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     );
 
     returnAssets = new Asset[](2);
-    returnAssets[0] = Asset(address(0), assets[0].token, 0, assets[0].amount - amount0Added);
-    returnAssets[1] = Asset(address(0), assets[1].token, 0, assets[1].amount - amount1Added);
+    returnAssets[0] = Asset(address(0), token0.token, 0, token0.amount - amount0Added);
+    returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1Added);
 
     // Transfer assets to msg.sender
-    IERC20(assets[0].token).transfer(msg.sender, assets[0].amount - amount0Added);
-    IERC20(assets[1].token).transfer(msg.sender, assets[1].amount - amount1Added);
+    IERC20(token0.token).safeTransfer(msg.sender, token0.amount - amount0Added);
+    IERC20(token1.token).safeTransfer(msg.sender, token1.amount - amount1Added);
   }
 
   /// @notice Decreases the liquidity of the position
@@ -162,8 +170,8 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     returnAssets[2] = lpAsset;
 
     IERC721(lpAsset.token).safeTransferFrom(address(this), msg.sender, lpAsset.tokenId);
-    IERC20(token0).transfer(msg.sender, amount0Collected);
-    IERC20(token1).transfer(msg.sender, amount1Collected);
+    IERC20(token0).safeTransfer(msg.sender, amount0Collected);
+    IERC20(token1).safeTransfer(msg.sender, amount1Collected);
   }
 
   receive() external payable {}

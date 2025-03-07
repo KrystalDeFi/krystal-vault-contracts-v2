@@ -55,3 +55,9 @@ struct DecreaseLiquidityParams {
 }
 ```
 
+### initialize
+
+```solidity
+function initialize(address _principalToken) external
+```
+

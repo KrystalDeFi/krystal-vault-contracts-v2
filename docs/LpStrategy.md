@@ -1,12 +1,34 @@
 # Solidity API
 
-## IStrategy
+## LpStrategy
+
+### Instruction
+
+```solidity
+struct Instruction {
+  address abc;
+}
+```
+
+### principalToken
+
+```solidity
+address principalToken
+```
+
+### constructor
+
+```solidity
+constructor(address _principalToken) public
+```
 
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
+function valueOf(struct ICommon.Asset asset) external view returns (uint256 value)
 ```
+
+Deposits the asset to the strategy
 
 ### convert
 

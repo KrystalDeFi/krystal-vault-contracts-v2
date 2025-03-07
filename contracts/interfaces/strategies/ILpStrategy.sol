@@ -38,4 +38,6 @@ interface ILpStrategy is IStrategy {
     uint256 amount0Min;
     uint256 amount1Min;
   }
+
+  function initialize(address _principalToken) external;
 }

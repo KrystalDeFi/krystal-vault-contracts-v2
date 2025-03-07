@@ -1,29 +1,41 @@
 # Solidity API
 
-## IVault
+## Vault
 
-### InvalidAssetAmount
+### ADMIN_ROLE_HASH
 
 ```solidity
-error InvalidAssetAmount()
+bytes32 ADMIN_ROLE_HASH
+```
+
+### principalToken
+
+```solidity
+address principalToken
+```
+
+### currentAssets
+
+```solidity
+mapping(address => mapping(uint256 => struct ICommon.Asset)) currentAssets
+```
+
+### constructor
+
+```solidity
+constructor() public
 ```
 
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) public
 ```
 
 ### deposit
 
 ```solidity
 function deposit(uint256 amount) external returns (uint256 shares)
-```
-
-### depositPrinciple
-
-```solidity
-function depositPrinciple(uint256 amount) external returns (uint256 shares)
 ```
 
 ### allocate

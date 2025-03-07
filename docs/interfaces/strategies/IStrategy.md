@@ -2,6 +2,24 @@
 
 ## IStrategy
 
+### InvalidAsset
+
+```solidity
+error InvalidAsset()
+```
+
+### InvalidNumberOfAssets
+
+```solidity
+error InvalidNumberOfAssets()
+```
+
+### InvalidInstructionType
+
+```solidity
+error InvalidInstructionType()
+```
+
 ### valueOf
 
 ```solidity

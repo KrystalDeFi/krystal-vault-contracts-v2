@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./ICommon.sol";
-import "./IStrategy.sol";
+import "./strategies/IStrategy.sol";
 
 interface IVault is ICommon {
   error InvalidAssetAmount();
@@ -15,6 +15,8 @@ interface IVault is ICommon {
   ) external;
 
   function deposit(uint256 amount) external returns (uint256 shares);
+
+  function depositPrinciple(uint256 amount) external returns (uint256 shares);
 
   function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 
