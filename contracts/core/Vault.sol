@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
@@ -15,10 +17,15 @@ import "../interfaces/IVault.sol";
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
 
+  using EnumerableSet for EnumerableSet.AddressSet;
+  using EnumerableSet for EnumerableSet.UintSet;
+
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
 
   address public principalToken;
 
+  EnumerableSet.AddressSet private tokenAddresses;
+  mapping(address => EnumerableSet.UintSet) private tokenIndices;
   mapping(address => mapping(uint256 => Asset)) public currentAssets;
 
   /// @notice Initializes the vault
@@ -44,16 +51,24 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     principalToken = params.principalToken;
 
-    for (uint256 i = 0; i < params.assets.length; i++) {
+    for (uint256 i = 0; i < params.assets.length; ) {
       require(params.assets[i].token != address(0), ZeroAddress());
       require(params.assets[i].amount != 0, InvalidAssetAmount());
       require(IERC20(params.assets[i].token).balanceOf(address(this)) >= params.assets[i].amount, InvalidAssetAmount());
 
       currentAssets[params.assets[i].token][params.assets[i].tokenId] = params.assets[i];
+      tokenAddresses.add(params.assets[i].token);
+      tokenIndices[params.assets[i].token].add(params.assets[i].tokenId);
+
+      unchecked {
+        i++;
+      }
     }
 
     if (wrapAsset.amount > 0) {
       currentAssets[wrapAsset.token][wrapAsset.tokenId] = wrapAsset;
+      tokenAddresses.add(wrapAsset.token);
+      tokenIndices[wrapAsset.token].add(wrapAsset.tokenId);
     }
   }
 
@@ -75,7 +90,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     bytes calldata data
   ) external onlyRole(ADMIN_ROLE_HASH) {
     Asset memory currentAsset;
-    for (uint256 i = 0; i < inputAssets.length; i++) {
+    for (uint256 i = 0; i < inputAssets.length; ) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
       currentAsset = currentAssets[inputAssets[i].token][inputAssets[i].tokenId];
       require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
@@ -83,14 +98,36 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
       currentAssets[currentAsset.token][currentAsset.tokenId] = currentAsset;
       inputAssets[i].strategy = currentAsset.strategy;
+
+      if (!tokenAddresses.contains(inputAssets[i].token)) {
+        tokenAddresses.add(inputAssets[i].token);
+      }
+      if (!tokenIndices[inputAssets[i].token].contains(inputAssets[i].tokenId)) {
+        tokenIndices[inputAssets[i].token].add(inputAssets[i].tokenId);
+      }
+
+      unchecked {
+        i++;
+      }
     }
 
     Asset[] memory newAssets = strategy.convert(inputAssets, data);
-    for (uint256 i = 0; i < newAssets.length; i++) {
+    for (uint256 i = 0; i < newAssets.length; ) {
       currentAsset = currentAssets[newAssets[i].token][newAssets[i].tokenId];
       currentAsset.amount += newAssets[i].amount;
 
       currentAssets[currentAsset.token][currentAsset.tokenId] = currentAsset;
+
+      if (!tokenAddresses.contains(newAssets[i].token)) {
+        tokenAddresses.add(newAssets[i].token);
+      }
+      if (!tokenIndices[newAssets[i].token].contains(newAssets[i].tokenId)) {
+        tokenIndices[newAssets[i].token].add(newAssets[i].tokenId);
+      }
+
+      unchecked {
+        i++;
+      }
     }
   }
 
@@ -100,9 +137,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function deallocate(IStrategy strategy, uint256 allocationAmount) external onlyRole(ADMIN_ROLE_HASH) {}
 
   /// @notice Returns the total value of the vault
-  function getTotalValue() external returns (uint256) {}
+  /// @return value Total value of the vault in principal token
+  function getTotalValue() external returns (uint256 value) {}
 
   /// @notice Returns the asset allocations of the vault
+  /// @return assets Asset allocations of the vault
+  /// @return values Asset values of the vault
   function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values) {}
 
   /// @notice Sweeps the tokens to the caller
@@ -110,7 +150,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function sweepToken(address[] memory tokens) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
     for (uint256 i = 0; i < tokens.length; ) {
       IERC20 token = IERC20(tokens[i]);
-      require(currentAssets[tokens[i]][0].token == address(0), InvalidSweepAsset());
+      require(!tokenAddresses.contains(tokens[i]), InvalidSweepAsset());
       token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
       unchecked {
         i++;
@@ -127,7 +167,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
     for (uint256 i = 0; i < tokens.length; ) {
       IERC721 token = IERC721(tokens[i]);
-      require(currentAssets[tokens[i]][tokenIds[i]].token == address(0), InvalidSweepAsset());
+      require(
+        !tokenAddresses.contains(tokens[i]) && !tokenIndices[tokens[i]].contains(tokenIds[i]),
+        InvalidSweepAsset()
+      );
       token.safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
       unchecked {
         i++;

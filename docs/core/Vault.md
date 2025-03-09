@@ -99,10 +99,16 @@ Deallocates the assets from the strategy
 ### getTotalValue
 
 ```solidity
-function getTotalValue() external returns (uint256)
+function getTotalValue() external returns (uint256 value)
 ```
 
 Returns the total value of the vault
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| value | uint256 | Total value of the vault in principal token |
 
 ### getAssetAllocations
 
@@ -111,6 +117,13 @@ function getAssetAllocations() external returns (struct ICommon.Asset[] assets, 
 ```
 
 Returns the asset allocations of the vault
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | struct ICommon.Asset[] | Asset allocations of the vault |
+| values | uint256[] | Asset values of the vault |
 
 ### sweepToken
 

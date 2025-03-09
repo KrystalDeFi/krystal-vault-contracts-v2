@@ -224,7 +224,7 @@
           }
         ],
         "internalType": "struct ICommon.Asset[]",
-        "name": "asset",
+        "name": "returnAssets",
         "type": "tuple[]"
       }
     ],

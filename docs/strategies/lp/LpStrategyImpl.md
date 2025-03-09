@@ -20,6 +20,14 @@ constructor() public
 function initialize(address _principalToken) public
 ```
 
+Initializes the strategy
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _principalToken | address | The principal token of the strategy |
+
 ### valueOf
 
 ```solidity
@@ -27,6 +35,12 @@ function valueOf(struct ICommon.Asset asset) external view returns (uint256 valu
 ```
 
 Deposits the asset to the strategy
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct ICommon.Asset | The asset to be calculated |
 
 ### convert
 
@@ -36,11 +50,40 @@ function convert(struct ICommon.Asset[] assets, bytes data) external returns (st
 
 Converts the asset to another assets
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | struct ICommon.Asset[] | The assets to convert |
+| data | bytes | The data for the instruction |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] asset)
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] returnAssets)
 ```
+
+Converts the asset to another assets
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| existingAsset | struct ICommon.Asset | The existing asset to convert |
+| newAssets | struct ICommon.Asset[] | The new assets to convert |
+| data | bytes | The data for the instruction |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
 ### _mintPosition
 

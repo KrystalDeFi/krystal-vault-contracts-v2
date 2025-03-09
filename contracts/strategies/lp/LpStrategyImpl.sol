@@ -17,6 +17,8 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
 
   constructor() {}
 
+  /// @notice Initializes the strategy
+  /// @param _principalToken The principal token of the strategy
   function initialize(address _principalToken) public initializer {
     __ReentrancyGuard_init();
 
@@ -24,11 +26,15 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
   }
 
   /// @notice Deposits the asset to the strategy
+  /// @param asset The asset to be calculated
   function valueOf(Asset memory asset) external view returns (uint256 value) {
     INFPM(asset.token).positions(asset.tokenId);
   }
 
   /// @notice Converts the asset to another assets
+  /// @param assets The assets to convert
+  /// @param data The data for the instruction
+  /// @return returnAssets The assets that were returned to the msg.sender
   function convert(
     Asset[] memory assets,
     bytes calldata data
@@ -49,11 +55,16 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     revert InvalidInstructionType();
   }
 
+  /// @notice Converts the asset to another assets
+  /// @param existingAsset The existing asset to convert
+  /// @param newAssets The new assets to convert
+  /// @param data The data for the instruction
+  /// @return returnAssets The assets that were returned to the msg.sender
   function convertIntoExisting(
     Asset memory existingAsset,
     Asset[] memory newAssets,
     bytes calldata data
-  ) external returns (Asset[] memory asset) {}
+  ) external returns (Asset[] memory returnAssets) {}
 
   /// @notice Mints a new position
   /// @param assets The assets to mint the position, assets[0] = token0, assets[1] = token1
