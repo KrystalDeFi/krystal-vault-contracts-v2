@@ -84,7 +84,7 @@ export const deployVaultContract = async (
       `${step} >>`,
       config.vault?.autoVerifyContract,
       "Vault",
-      existingContract?.["krystalVault"],
+      existingContract?.["vault"],
       "contracts/core/Vault.sol:Vault",
     )) as Vault;
   }
@@ -109,7 +109,7 @@ export const deployWhitelistManagerContract = async (
       `${step} >>`,
       config.whitelistManager?.autoVerifyContract,
       "WhitelistManager",
-      existingContract?.["WhitelistManager"],
+      existingContract?.["whitelistManager"],
       "contracts/core/WhitelistManager.sol:WhitelistManager",
     )) as WhitelistManager;
   }
@@ -133,7 +133,7 @@ export const deployLpStrategyImplContract = async (
         `${step} >>`,
         config.lpStrategyImpl?.autoVerifyContract,
         "LpStrategyImpl",
-        existingContract?.["LpStrategyImpl"],
+        existingContract?.["lpStrategyImpl"]?.[token],
         "contracts/strategies/lp/LpStrategyImpl.sol:LpStrategyImpl",
         `${SALT}_${token}`,
       )) as LpStrategyImpl;
@@ -164,7 +164,7 @@ export const deployLpStrategyContract = async (
         `${step} >>`,
         config.lpStrategy?.autoVerifyContract,
         "LpStrategy",
-        existingContract?.["LpStrategy"],
+        existingContract?.["lpStrategy"]?.[token],
         "contracts/strategies/lp/LpStrategy.sol:LpStrategy",
         `${SALT}_${token}`,
         ["address", "address", "bytes"],
