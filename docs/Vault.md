@@ -29,7 +29,7 @@ constructor() public
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator) public
 ```
 
 ### deposit

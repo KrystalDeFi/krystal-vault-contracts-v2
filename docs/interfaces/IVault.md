@@ -17,7 +17,7 @@ error InvalidSweepAsset()
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator, struct ICommon.Asset wrapAsset) external
 ```
 
 ### deposit

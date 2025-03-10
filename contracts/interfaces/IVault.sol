@@ -12,6 +12,7 @@ interface IVault is ICommon {
   function initialize(
     VaultCreateParams memory params,
     address _owner,
+    address _whitelistManager,
     address _vaultAutomator,
     Asset memory wrapAsset
   ) external;

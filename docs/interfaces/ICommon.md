@@ -37,3 +37,9 @@ error ZeroAddress()
 error TransferFailed()
 ```
 
+### InvalidStrategy
+
+```solidity
+error InvalidStrategy()
+```
+

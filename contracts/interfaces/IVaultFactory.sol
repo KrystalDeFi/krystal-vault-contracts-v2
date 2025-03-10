@@ -10,6 +10,8 @@ interface IVaultFactory is ICommon {
 
   function createVault(VaultCreateParams memory params) external payable returns (address vault);
 
+  function setWhitelistManager(address _whitelistManager) external;
+
   function setVaultImplementation(address _vaultImplementation) external;
 
   function setVaultAutomator(address _vaultAutomator) external;

@@ -17,6 +17,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   using SafeERC20 for IERC20;
 
   address public WETH;
+  address public whitelistManager;
   address public vaultImplementation;
   address public vaultAutomator;
   address public platformFeeRecipient;
@@ -28,17 +29,20 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
 
   constructor(
     address _weth,
+    address _whiteListManager,
     address _vaultImplementation,
     address _vaultAutomator,
     address _platformFeeRecipient,
     uint16 _platformFeeBasisPoint
   ) Ownable(_msgSender()) {
     require(_weth != address(0), ZeroAddress());
+    require(_whiteListManager != address(0), ZeroAddress());
     require(_vaultImplementation != address(0), ZeroAddress());
     require(_vaultAutomator != address(0), ZeroAddress());
     require(_platformFeeRecipient != address(0), ZeroAddress());
 
     WETH = _weth;
+    whitelistManager = _whiteListManager;
     vaultImplementation = _vaultImplementation;
     vaultAutomator = _vaultAutomator;
     platformFeeRecipient = _platformFeeRecipient;
@@ -76,7 +80,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       wrapAsset = Asset({ token: WETH, tokenId: 0, amount: msg.value, strategy: address(0) });
     }
 
-    IVault(vault).initialize(params, _msgSender(), vaultAutomator, wrapAsset);
+    IVault(vault).initialize(params, _msgSender(), whitelistManager, vaultAutomator, wrapAsset);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);
@@ -92,6 +96,13 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   /// @notice Unpause the contract
   function unpause() public onlyOwner {
     _unpause();
+  }
+
+  /// @notice Set the WhitelistManager address
+  /// @param _whitelistManager Address of the new WhitelistManager
+  function setWhitelistManager(address _whitelistManager) public onlyOwner {
+    require(_whitelistManager != address(0), ZeroAddress());
+    whitelistManager = _whitelistManager;
   }
 
   /// @notice Set the Vault implementation
