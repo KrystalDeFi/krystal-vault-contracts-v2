@@ -1,30 +1,32 @@
 export interface IConfig {
   autoVerifyContract?: boolean;
   sleepTime?: number;
-  poolOptimalSwapper: {
+  vault: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  krystalVault: {
+  vaultFactory: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  krystalVaultFactory?: {
+  whitelistManager?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  krystalVaultAutomator?: {
+  lpStrategyImpl?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  uniswapV3Factory?: string;
+  lpStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  lpStrategyPrincipalTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;
   // For platform fee in basis point
   platformFeeBasisPoint?: number;
-  // For owner fee in basis point
-  ownerFeeBasisPoint?: number;
 }
 
 export interface ITestConfig {

@@ -1,10 +1,10 @@
 import { ethers, network, run } from "hardhat";
 import { NetworkConfig } from "../configs/networkConfig";
-import { KrystalVault, KrystalVaultFactory, PoolOptimalSwapper, KrystalVaultAutomator } from "../typechain-types";
 import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
 import { last } from "lodash";
+import { LpStrategy, LpStrategyImpl, Vault, VaultFactory, WhitelistManager } from "../typechain-types";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -15,10 +15,11 @@ if (!networkConfig) {
 }
 
 export interface Contracts {
-  poolOptimalSwapper?: PoolOptimalSwapper;
-  krystalVault?: KrystalVault;
-  krystalVaultFactory?: KrystalVaultFactory;
-  krystalVaultAutomator?: KrystalVaultAutomator;
+  vault?: Vault;
+  whitelistManager?: WhitelistManager;
+  lpStrategyImpl?: Record<string, LpStrategyImpl>;
+  lpStrategy?: Record<string, LpStrategy>;
+  vaultFactory?: VaultFactory;
 }
 
 export const deploy = async (existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> => {
@@ -47,24 +48,28 @@ async function deployContracts(
 ): Promise<Contracts> {
   let step = 0;
 
-  const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract, deployer);
-  const krystalVault = await deployKrystalVaultContract(++step, existingContract, deployer);
-  const krystalVaultAutomator = await deployKrystalVaultAutomatorContract(++step, existingContract, deployer);
+  const vault = await deployVaultContract(++step, existingContract, deployer);
+  const whitelistManager = await deployWhitelistManagerContract(++step, existingContract, deployer);
+  const lpStrategyImpl = await deployLpStrategyImplContract(++step, existingContract, deployer);
 
   const contracts: Contracts = {
-    poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
-    krystalVault: krystalVault.krystalVault,
-    krystalVaultAutomator: krystalVaultAutomator.krystalVaultAutomator,
+    vault: vault.vault,
+    whitelistManager: whitelistManager.whitelistManager,
+    lpStrategyImpl: lpStrategyImpl.lpStrategyImpl,
   };
 
-  contracts.krystalVaultFactory = (
-    await deployKrystalVaultFactoryContract(++step, existingContract, deployer, undefined, contracts)
-  ).krystalVaultFactory;
+  const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
+  const vaultFactory = await deployVaultFactoryContract(++step, existingContract, deployer, undefined, contracts);
+
+  Object.assign(contracts, {
+    lpStrategy: lpStrategy.lpStrategy,
+    vaultFactory: vaultFactory.vaultFactory,
+  });
 
   return contracts;
 }
 
-export const deployPoolOptimalSwapperContract = async (
+export const deployVaultContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   deployer: string,
@@ -72,45 +77,24 @@ export const deployPoolOptimalSwapperContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let poolOptimalSwapper;
-  if (config.poolOptimalSwapper?.enabled) {
-    poolOptimalSwapper = (await deployContract(
+  let vault;
+
+  if (config.vault?.enabled) {
+    vault = (await deployContract(
       `${step} >>`,
-      config.poolOptimalSwapper?.autoVerifyContract,
-      "PoolOptimalSwapper",
-      existingContract?.["PoolOptimalSwapper"],
-      "contracts/PoolOptimalSwapper.sol:PoolOptimalSwapper",
-    )) as PoolOptimalSwapper;
+      config.vault?.autoVerifyContract,
+      "Vault",
+      existingContract?.["vault"],
+      "contracts/core/Vault.sol:Vault",
+    )) as Vault;
   }
+
   return {
-    poolOptimalSwapper,
+    vault,
   };
 };
 
-export const deployKrystalVaultContract = async (
-  step: number,
-  existingContract: Record<string, any> | undefined,
-  deployer: string,
-  customNetworkConfig?: IConfig,
-): Promise<Contracts> => {
-  const config = { ...networkConfig, ...customNetworkConfig };
-
-  let krystalVault;
-  if (config.krystalVault?.enabled) {
-    krystalVault = (await deployContract(
-      `${step} >>`,
-      config.krystalVault?.autoVerifyContract,
-      "KrystalVault",
-      existingContract?.["krystalVault"],
-      "contracts/KrystalVault.sol:KrystalVault",
-    )) as KrystalVault;
-  }
-  return {
-    krystalVault,
-  };
-};
-
-export const deployKrystalVaultFactoryContract = async (
+export const deployWhitelistManagerContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   deployer: string,
@@ -119,53 +103,113 @@ export const deployKrystalVaultFactoryContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let krystalVaultFactory;
-  if (config.krystalVaultFactory?.enabled) {
-    krystalVaultFactory = (await deployContract(
+  let whitelistManager;
+  if (config.whitelistManager?.enabled) {
+    whitelistManager = (await deployContract(
       `${step} >>`,
-      config.krystalVaultFactory?.autoVerifyContract,
-      "KrystalVaultFactory",
-      existingContract?.["krystalVaultFactory"],
-      "contracts/KrystalVaultFactory.sol:KrystalVaultFactory",
+      config.whitelistManager?.autoVerifyContract,
+      "WhitelistManager",
+      existingContract?.["whitelistManager"],
+      "contracts/core/WhitelistManager.sol:WhitelistManager",
+    )) as WhitelistManager;
+  }
+  return {
+    whitelistManager,
+  };
+};
+
+export const deployLpStrategyImplContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpStrategyImpl: Record<string, LpStrategyImpl> = {};
+  if (config.lpStrategyImpl?.enabled) {
+    config.lpStrategyPrincipalTokens?.forEach(async (token: string) => {
+      const lpStrategyImpl = (await deployContract(
+        `${step} >>`,
+        config.lpStrategyImpl?.autoVerifyContract,
+        "LpStrategyImpl",
+        existingContract?.["lpStrategyImpl"]?.[token],
+        "contracts/strategies/lp/LpStrategyImpl.sol:LpStrategyImpl",
+        `${SALT}_${token}`,
+      )) as LpStrategyImpl;
+
+      Object.assign(lpStrategyImpl, { token });
+    });
+  }
+  return {
+    lpStrategyImpl,
+  };
+};
+
+export const deployLpStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpStrategy: Record<string, LpStrategy> = {};
+  if (config.lpStrategy?.enabled) {
+    config.lpStrategyPrincipalTokens?.forEach(async (token: string) => {
+      let initData = (await contracts?.lpStrategyImpl?.[token]?.initialize(token))?.data?.toString() ?? "0x";
+
+      const lpStrategy = (await deployContract(
+        `${step} >>`,
+        config.lpStrategy?.autoVerifyContract,
+        "LpStrategy",
+        existingContract?.["lpStrategy"]?.[token],
+        "contracts/strategies/lp/LpStrategy.sol:LpStrategy",
+        `${SALT}_${token}`,
+        ["address", "address", "bytes"],
+        [contracts?.lpStrategyImpl?.[token]?.target, deployer, initData],
+      )) as LpStrategy;
+
+      Object.assign(lpStrategy, { token });
+    });
+  }
+  return {
+    lpStrategy,
+  };
+};
+
+export const deployVaultFactoryContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let vaultFactory;
+  if (config.vaultFactory?.enabled) {
+    vaultFactory = (await deployContract(
+      `${step} >>`,
+      config.vaultFactory?.autoVerifyContract,
+      "VaultFactory",
+      existingContract?.["vaultFactory"],
+      "contracts/core/VaultFactory.sol:VaultFactory",
+      undefined,
       ["address", "address", "address", "address", "address", "uint16"],
       [
-        config.uniswapV3Factory,
-        existingContract?.["krystalVault"] || contracts?.krystalVault?.target,
-        existingContract?.["krystalVaultAutomator"] || contracts?.krystalVaultAutomator?.target,
-        existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+        config.lpStrategyPrincipalTokens?.[0],
+        existingContract?.["whitelistManager"] || contracts?.whitelistManager?.target,
+        existingContract?.["vault"] || contracts?.vault?.target,
+        config.automatorAddress,
         config.platformFeeRecipient,
         config.platformFeeBasisPoint,
       ],
-    )) as KrystalVaultFactory;
+    )) as VaultFactory;
   }
   return {
-    krystalVaultFactory,
-  };
-};
-
-export const deployKrystalVaultAutomatorContract = async (
-  step: number,
-  existingContract: Record<string, any> | undefined,
-  deployer: string,
-  customNetworkConfig?: IConfig,
-  contracts?: Contracts,
-): Promise<Contracts> => {
-  const config = { ...networkConfig, ...customNetworkConfig };
-
-  let krystalVaultAutomator;
-  if (config.krystalVaultAutomator?.enabled) {
-    krystalVaultAutomator = (await deployContract(
-      `${step} >>`,
-      config.krystalVaultAutomator?.autoVerifyContract,
-      "KrystalVaultAutomator",
-      existingContract?.["krystalVaultAutomator"],
-      "contracts/KrystalVaultAutomator.sol:KrystalVaultAutomator",
-      ["address"],
-      [deployer],
-    )) as KrystalVaultAutomator;
-  }
-  return {
-    krystalVaultAutomator,
+    vaultFactory,
   };
 };
 
@@ -175,6 +219,7 @@ async function deployContract(
   contractName: string,
   contractAddress: string | undefined,
   contractLocation: string | undefined,
+  customSalt?: string,
   argsTypes?: string[],
   args?: any[],
 ): Promise<BaseContract> {
@@ -194,7 +239,7 @@ async function deployContract(
     if (!!argsTypes?.length && !!args?.length && argsTypes.length === args.length) {
       bytecode = solidityPacked(["bytes", "bytes"], [bytecode, encoder.encode(argsTypes || [], args)]);
     }
-    const salt = encodeBytes32String(SALT || "");
+    const salt = encodeBytes32String((customSalt ?? SALT) || "");
     const deployTx = await factory["deployCreate2(bytes32,bytes)"](salt, bytecode);
     const txHash = deployTx.hash;
     const txReceipt = await ethers.provider.getTransactionReceipt(txHash);
