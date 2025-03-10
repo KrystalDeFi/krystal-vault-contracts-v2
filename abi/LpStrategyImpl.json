@@ -26,6 +26,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotInitializing",
     "type": "error"
   },

@@ -26,4 +26,6 @@ interface ICommon {
   error ZeroAddress();
 
   error TransferFailed();
+
+  error InvalidStrategy();
 }

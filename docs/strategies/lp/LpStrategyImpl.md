@@ -148,6 +148,36 @@ Decreases the liquidity of the position
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
+### getUnderlyingAssets
+
+```solidity
+function getUnderlyingAssets(struct ICommon.Asset asset) external view returns (struct ICommon.Asset[] underlyingAssets)
+```
+
+### _getPoolForPosition
+
+```solidity
+function _getPoolForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (contract IUniswapV3Pool pool)
+```
+
+### _getAmountsForPosition
+
+```solidity
+function _getAmountsForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (uint256 amount0, uint256 amount1)
+```
+
+### _getFeesForPosition
+
+```solidity
+function _getFeesForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (uint256 fee0, uint256 fee1)
+```
+
+### _getFeeGrowthInside
+
+```solidity
+function _getFeeGrowthInside(contract IUniswapV3Pool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
+```
+
 ### receive
 
 ```solidity

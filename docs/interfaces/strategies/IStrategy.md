@@ -34,6 +34,12 @@ function convert(struct ICommon.Asset[] assets, bytes data) external returns (st
 
 Converts the asset to another assets
 
+### getUnderlyingAssets
+
+```solidity
+function getUnderlyingAssets(struct ICommon.Asset asset) external returns (struct ICommon.Asset[])
+```
+
 ### convertIntoExisting
 
 ```solidity

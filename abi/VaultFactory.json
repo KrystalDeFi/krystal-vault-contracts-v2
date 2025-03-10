@@ -8,6 +8,11 @@
       },
       {
         "internalType": "address",
+        "name": "_whiteListManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_vaultImplementation",
         "type": "address"
       },
@@ -69,6 +74,11 @@
   {
     "inputs": [],
     "name": "InvalidPrincipalToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidStrategy",
     "type": "error"
   },
   {
@@ -354,6 +364,19 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_whitelistManager",
+        "type": "address"
+      }
+    ],
+    "name": "setWhitelistManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "newOwner",
         "type": "address"
       }
@@ -410,6 +433,19 @@
       }
     ],
     "name": "vaultsByAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "whitelistManager",
     "outputs": [
       {
         "internalType": "address",

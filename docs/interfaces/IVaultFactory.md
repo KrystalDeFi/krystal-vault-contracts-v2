@@ -14,10 +14,22 @@ event VaultCreated()
 error InvalidOwnerFee()
 ```
 
+### InvalidPrincipalToken
+
+```solidity
+error InvalidPrincipalToken()
+```
+
 ### createVault
 
 ```solidity
 function createVault(struct ICommon.VaultCreateParams params) external payable returns (address vault)
+```
+
+### setWhitelistManager
+
+```solidity
+function setWhitelistManager(address _whitelistManager) external
 ```
 
 ### setVaultImplementation

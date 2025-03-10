@@ -13,6 +13,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/IVault.sol";
+import "../interfaces/IWhitelistManager.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
@@ -22,6 +23,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   uint256 public constant SHARES_PRECISION = 1e4;
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
+  IWhitelistManager public whitelistManager;
 
   address public principalToken;
 
@@ -33,8 +35,14 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
   /// @param _vaultAutomator Address of the vault automator
-  function initialize(VaultCreateParams memory params, address _owner, address _vaultAutomator) public initializer {
+  function initialize(
+    VaultCreateParams memory params,
+    address _owner,
+    address _whitelistManager,
+    address _vaultAutomator
+  ) public initializer {
     require(params.principalToken != address(0), ZeroAddress());
+    require(_whitelistManager != address(0), ZeroAddress());
 
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
@@ -44,6 +52,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     _grantRole(ADMIN_ROLE_HASH, _owner);
     _grantRole(ADMIN_ROLE_HASH, _vaultAutomator);
 
+    whitelistManager = IWhitelistManager(_whitelistManager);
     principalToken = params.principalToken;
     Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
     _addAsset(firstAsset);
@@ -96,10 +105,14 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     IStrategy strategy,
     bytes calldata data
   ) external onlyRole(ADMIN_ROLE_HASH) {
+    require(whitelistManager.isWhitelisted(address(strategy)), InvalidStrategy());
+
     Asset memory currentAsset;
+
     for (uint256 i = 0; i < inputAssets.length; ) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
       currentAsset = currentAssets[inputAssets[i].token][inputAssets[i].tokenId];
+
       require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
       // Only allow allocation to a strategy if the asset is not already allocated and is ERC20
       require(currentAsset.strategy == address(0), InvalidAssetStrategy());

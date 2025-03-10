@@ -203,6 +203,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidSweepAsset",
     "type": "error"
   },
@@ -876,6 +881,11 @@
       },
       {
         "internalType": "address",
+        "name": "_whitelistManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_vaultAutomator",
         "type": "address"
       }
@@ -1136,6 +1146,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "whitelistManager",
+    "outputs": [
+      {
+        "internalType": "contract IWhitelistManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

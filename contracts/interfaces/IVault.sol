@@ -11,7 +11,12 @@ interface IVault is ICommon {
   error InvalidAssetTokenId();
   error InvalidAssetType();
 
-  function initialize(VaultCreateParams memory params, address _owner, address _vaultAutomator) external;
+  function initialize(
+    VaultCreateParams memory params,
+    address _owner,
+    address _whitelistManager,
+    address _vaultAutomator
+  ) external;
 
   function deposit(uint256 amount) external returns (uint256 shares);
 
