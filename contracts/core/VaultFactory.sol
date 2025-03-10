@@ -63,6 +63,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       require(params.principalToken == WETH, InvalidPrincipalToken());
       params.principalTokenAmount = msg.value;
       IWETH9(WETH).deposit{ value: msg.value }();
+      IERC20(WETH).safeTransfer(vault, msg.value);
     }
 
     IVault(vault).initialize(params, _msgSender(), whitelistManager, vaultAutomator);
