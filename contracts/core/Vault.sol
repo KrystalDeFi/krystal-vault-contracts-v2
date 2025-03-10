@@ -99,12 +99,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       currentAssets[currentAsset.token][currentAsset.tokenId] = currentAsset;
       inputAssets[i].strategy = currentAsset.strategy;
 
-      if (!tokenAddresses.contains(inputAssets[i].token)) {
-        tokenAddresses.add(inputAssets[i].token);
-      }
-      if (!tokenIndices[inputAssets[i].token].contains(inputAssets[i].tokenId)) {
-        tokenIndices[inputAssets[i].token].add(inputAssets[i].tokenId);
-      }
+      tokenAddresses.add(inputAssets[i].token);
+      tokenIndices[inputAssets[i].token].add(inputAssets[i].tokenId);
 
       unchecked {
         i++;
@@ -118,12 +114,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
       currentAssets[currentAsset.token][currentAsset.tokenId] = currentAsset;
 
-      if (!tokenAddresses.contains(newAssets[i].token)) {
-        tokenAddresses.add(newAssets[i].token);
-      }
-      if (!tokenIndices[newAssets[i].token].contains(newAssets[i].tokenId)) {
-        tokenIndices[newAssets[i].token].add(newAssets[i].tokenId);
-      }
+      tokenAddresses.add(newAssets[i].token);
+      tokenIndices[newAssets[i].token].add(newAssets[i].tokenId);
 
       unchecked {
         i++;
