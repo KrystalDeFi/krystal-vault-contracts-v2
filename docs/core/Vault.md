@@ -46,7 +46,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
-| _whitelistManager | address |  |
+| _whitelistManager | address | Address of the whitelist manager |
 | _vaultAutomator | address | Address of the vault automator |
 
 ### deposit
@@ -63,19 +63,11 @@ Deposits the asset to the vault
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be minted |
 
-### depositPrinciple
-
-```solidity
-function depositPrinciple(uint256 amount) external returns (uint256 shares)
-```
-
-Deposits the principal to the vault
-
-#### Parameters
+#### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| amount | uint256 | Amount to deposit |
+| returnShares | uint256 | Amount of shares minted |
 
 ### allocate
 
@@ -109,24 +101,6 @@ Deallocates the assets from the strategy
 | tokenId | uint256 | asset's token ID |
 | amount | uint256 | Amount to deallocate |
 | data | bytes | Data for strategy execution |
-
-### _addAssets
-
-```solidity
-function _addAssets(struct ICommon.Asset[] newAssets) internal
-```
-
-### _addAsset
-
-```solidity
-function _addAsset(struct ICommon.Asset asset) internal
-```
-
-### _transferAsset
-
-```solidity
-function _transferAsset(struct ICommon.Asset asset, address to) internal
-```
 
 ### getTotalValue
 
@@ -185,4 +159,47 @@ Sweeps the non-fungible tokens to the caller
 | ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 | tokenIds | uint256[] | Token IDs to sweep |
+
+### _addAssets
+
+```solidity
+function _addAssets(struct ICommon.Asset[] newAssets) internal
+```
+
+_Adds multiple assets to the vault_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newAssets | struct ICommon.Asset[] | New assets to add |
+
+### _addAsset
+
+```solidity
+function _addAsset(struct ICommon.Asset asset) internal
+```
+
+_Adds an asset to the vault_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct ICommon.Asset | Asset to add |
+
+### _transferAsset
+
+```solidity
+function _transferAsset(struct ICommon.Asset asset, address to) internal
+```
+
+_Transfers the asset to the recipient_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct ICommon.Asset | Asset to transfer |
+| to | address | Recipient of the asset |
 

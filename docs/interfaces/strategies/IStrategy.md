@@ -32,8 +32,6 @@ function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
 function convert(struct ICommon.Asset[] assets, bytes data) external returns (struct ICommon.Asset[])
 ```
 
-Converts the asset to another assets
-
 ### getUnderlyingAssets
 
 ```solidity

@@ -104,6 +104,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "TransferFailed",
     "type": "error"
@@ -150,6 +161,32 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint16",
+        "name": "platformFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "PlatformFeeBasisPointSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "platformFeeRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "PlatformFeeRecipientSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address",
         "name": "account",
         "type": "address"
@@ -160,8 +197,93 @@
   },
   {
     "anonymous": false,
-    "inputs": [],
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "vaultAutomator",
+        "type": "address"
+      }
+    ],
+    "name": "VaultAutomatorSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "ownerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principalTokenAmount",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICommon.VaultCreateParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
     "name": "VaultCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "vaultImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "VaultImplementationSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "whitelistManager",
+        "type": "address"
+      }
+    ],
+    "name": "WhitelistManagerSet",
     "type": "event"
   },
   {

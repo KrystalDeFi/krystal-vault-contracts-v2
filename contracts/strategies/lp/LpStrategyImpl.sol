@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import "../../interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -15,6 +14,8 @@ import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { FixedPoint128 } from "@uniswap/v3-core/contracts/libraries/FixedPoint128.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+
+import "../../interfaces/strategies/ILpStrategy.sol";
 
 contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrategy {
   using SafeERC20 for IERC20;
@@ -211,6 +212,9 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     IERC721(lpAsset.token).safeTransferFrom(address(this), msg.sender, lpAsset.tokenId);
   }
 
+  /// @notice Gets the underlying assets of the position
+  /// @param asset The asset to get the underlying assets
+  /// @return underlyingAssets The underlying assets of the position
   function getUnderlyingAssets(Asset memory asset) external view returns (Asset[] memory underlyingAssets) {
     require(asset.strategy == address(this), InvalidAsset());
 
@@ -226,12 +230,21 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     underlyingAssets[3] = Asset(AssetType.ERC20, address(0), token1, 0, fee1);
   }
 
+  /// @dev Gets the pool for the position
+  /// @param nfpm The non-fungible position manager
+  /// @param tokenId The token id of the position
+  /// @return pool The pool for the position
   function _getPoolForPosition(INFPM nfpm, uint256 tokenId) internal view returns (IUniswapV3Pool pool) {
     (, , address token0, address token1, uint24 fee, , , , , , , ) = nfpm.positions(tokenId);
     IUniswapV3Factory factory = IUniswapV3Factory(nfpm.factory());
     pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
   }
 
+  /// @dev Gets the amounts for the position
+  /// @param nfpm The non-fungible position manager
+  /// @param tokenId The token id of the position
+  /// @return amount0 The amount of token0
+  /// @return amount1 The amount of token1
   function _getAmountsForPosition(
     INFPM nfpm,
     uint256 tokenId
@@ -249,6 +262,11 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     );
   }
 
+  /// @dev Gets the fees for the position
+  /// @param nfpm The non-fungible position manager
+  /// @param tokenId The token id of the position
+  /// @return fee0 The fee of token0
+  /// @return fee1 The fee of token1
   function _getFeesForPosition(INFPM nfpm, uint256 tokenId) internal view returns (uint256 fee0, uint256 fee1) {
     int24 tickLower;
     int24 tickUpper;
@@ -273,6 +291,13 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     }
   }
 
+  /// @dev Gets the fee growth inside the position
+  /// @param pool The pool for the position
+  /// @param tickLower The lower tick of the position
+  /// @param tickUpper The upper tick of the position
+  /// @param tickCurrent The current tick of the pool
+  /// @return feeGrowthInside0X128 The fee growth of token0
+  /// @return feeGrowthInside1X128 The fee growth of token1
   function _getFeeGrowthInside(
     IUniswapV3Pool pool,
     int24 tickLower,

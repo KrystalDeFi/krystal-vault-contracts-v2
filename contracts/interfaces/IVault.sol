@@ -5,6 +5,16 @@ import "./ICommon.sol";
 import "./strategies/IStrategy.sol";
 
 interface IVault is ICommon {
+  event Deposit(address indexed account, uint256 shares);
+
+  event Allocate(Asset[] inputAssets, IStrategy strategy, Asset[] newAssets);
+
+  event Deallocate(Asset[] inputAssets, Asset[] returnedAssets);
+
+  event SweepToken(address[] tokens);
+
+  event SweepNFToken(address[] tokens, uint256[] tokenIds);
+
   error InvalidAssetAmount();
   error InvalidSweepAsset();
   error InvalidAssetStrategy();
@@ -19,8 +29,6 @@ interface IVault is ICommon {
   ) external;
 
   function deposit(uint256 amount) external returns (uint256 shares);
-
-  function depositPrinciple(uint256 amount) external returns (uint256 shares);
 
   function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 

@@ -71,7 +71,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);
 
-    emit VaultCreated();
+    emit VaultCreated(_msgSender(), vault, params);
   }
 
   /// @notice Pause the contract
@@ -89,6 +89,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   function setWhitelistManager(address _whitelistManager) public onlyOwner {
     require(_whitelistManager != address(0), ZeroAddress());
     whitelistManager = _whitelistManager;
+    emit WhitelistManagerSet(_whitelistManager);
   }
 
   /// @notice Set the Vault implementation
@@ -96,22 +97,26 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   function setVaultImplementation(address _vaultImplementation) public onlyOwner {
     require(_vaultImplementation != address(0), ZeroAddress());
     vaultImplementation = _vaultImplementation;
+    emit VaultImplementationSet(_vaultImplementation);
   }
 
   /// @notice Set the VaultAutomator address
   function setVaultAutomator(address _vaultAutomator) public onlyOwner {
     require(_vaultAutomator != address(0), ZeroAddress());
     vaultAutomator = _vaultAutomator;
+    emit VaultAutomatorSet(_vaultAutomator);
   }
 
   /// @notice Set the default platform fee recipient
   function setPlatformFeeRecipient(address _platformFeeRecipient) public onlyOwner {
     require(_platformFeeRecipient != address(0), ZeroAddress());
     platformFeeRecipient = _platformFeeRecipient;
+    emit PlatformFeeRecipientSet(_platformFeeRecipient);
   }
 
   /// @notice Set the default platform fee basis point
   function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public onlyOwner {
     platformFeeBasisPoint = _platformFeeBasisPoint;
+    emit PlatformFeeBasisPointSet(_platformFeeBasisPoint);
   }
 }

@@ -2,6 +2,36 @@
 
 ## IVault
 
+### Deposit
+
+```solidity
+event Deposit(address account, uint256 shares)
+```
+
+### Allocate
+
+```solidity
+event Allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Asset[] newAssets)
+```
+
+### Deallocate
+
+```solidity
+event Deallocate(struct ICommon.Asset[] inputAssets, struct ICommon.Asset[] returnedAssets)
+```
+
+### SweepToken
+
+```solidity
+event SweepToken(address[] tokens)
+```
+
+### SweepNFToken
+
+```solidity
+event SweepNFToken(address[] tokens, uint256[] tokenIds)
+```
+
 ### InvalidAssetAmount
 
 ```solidity
@@ -42,12 +72,6 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 
 ```solidity
 function deposit(uint256 amount) external returns (uint256 shares)
-```
-
-### depositPrinciple
-
-```solidity
-function depositPrinciple(uint256 amount) external returns (uint256 shares)
 ```
 
 ### allocate
