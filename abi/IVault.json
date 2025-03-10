@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidSweepAsset",
     "type": "error"
   },
@@ -232,6 +237,11 @@
       {
         "internalType": "address",
         "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_whitelistManager",
         "type": "address"
       },
       {

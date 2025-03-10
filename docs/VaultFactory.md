@@ -2,12 +2,6 @@
 
 ## VaultFactory
 
-### WETH
-
-```solidity
-address WETH
-```
-
 ### vaultImplementation
 
 ```solidity
@@ -47,7 +41,7 @@ address[] allVaults
 ### constructor
 
 ```solidity
-constructor(address _weth, address _vaultImplementation, address _vaultAutomator, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
+constructor(address _vaultImplementation, address _vaultAutomator, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
 ```
 
 ### createVault

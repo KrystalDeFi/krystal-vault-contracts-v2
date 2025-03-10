@@ -13,6 +13,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/IVault.sol";
+import "../interfaces/IWhitelistManager.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
@@ -21,6 +22,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   using EnumerableSet for EnumerableSet.UintSet;
 
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
+  IWhitelistManager public whitelistManager;
 
   address public principalToken;
 
@@ -36,10 +38,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function initialize(
     VaultCreateParams memory params,
     address _owner,
+    address _whitelistManager,
     address _vaultAutomator,
     Asset memory wrapAsset
   ) public initializer {
     require(params.principalToken != address(0), ZeroAddress());
+    require(_whitelistManager != address(0), ZeroAddress());
 
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
@@ -49,6 +53,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     _grantRole(ADMIN_ROLE_HASH, _owner);
     _grantRole(ADMIN_ROLE_HASH, _vaultAutomator);
 
+    whitelistManager = IWhitelistManager(_whitelistManager);
     principalToken = params.principalToken;
 
     for (uint256 i = 0; i < params.assets.length; ) {
@@ -89,10 +94,14 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     IStrategy strategy,
     bytes calldata data
   ) external onlyRole(ADMIN_ROLE_HASH) {
+    require(whitelistManager.isWhitelisted(address(strategy)), InvalidStrategy());
+
     Asset memory currentAsset;
+
     for (uint256 i = 0; i < inputAssets.length; ) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
       currentAsset = currentAssets[inputAssets[i].token][inputAssets[i].tokenId];
+
       require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
       currentAsset.amount -= inputAssets[i].amount;
 
@@ -102,6 +111,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       if (!tokenAddresses.contains(inputAssets[i].token)) {
         tokenAddresses.add(inputAssets[i].token);
       }
+
       if (!tokenIndices[inputAssets[i].token].contains(inputAssets[i].tokenId)) {
         tokenIndices[inputAssets[i].token].add(inputAssets[i].tokenId);
       }
@@ -112,15 +122,16 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     }
 
     Asset[] memory newAssets = strategy.convert(inputAssets, data);
+
     for (uint256 i = 0; i < newAssets.length; ) {
       currentAsset = currentAssets[newAssets[i].token][newAssets[i].tokenId];
       currentAsset.amount += newAssets[i].amount;
-
       currentAssets[currentAsset.token][currentAsset.tokenId] = currentAsset;
 
       if (!tokenAddresses.contains(newAssets[i].token)) {
         tokenAddresses.add(newAssets[i].token);
       }
+
       if (!tokenIndices[newAssets[i].token].contains(newAssets[i].tokenId)) {
         tokenIndices[newAssets[i].token].add(newAssets[i].tokenId);
       }

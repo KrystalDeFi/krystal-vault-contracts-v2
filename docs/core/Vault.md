@@ -8,6 +8,12 @@
 bytes32 ADMIN_ROLE_HASH
 ```
 
+### whitelistManager
+
+```solidity
+contract IWhitelistManager whitelistManager
+```
+
 ### principalToken
 
 ```solidity
@@ -23,7 +29,7 @@ mapping(address => mapping(uint256 => struct ICommon.Asset)) currentAssets
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _vaultAutomator, struct ICommon.Asset wrapAsset) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator, struct ICommon.Asset wrapAsset) public
 ```
 
 Initializes the vault
@@ -34,6 +40,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
+| _whitelistManager | address |  |
 | _vaultAutomator | address | Address of the vault automator |
 | wrapAsset | struct ICommon.Asset | wrap asset |
 

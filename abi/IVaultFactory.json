@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -136,6 +141,19 @@
       }
     ],
     "name": "setVaultImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_whitelistManager",
+        "type": "address"
+      }
+    ],
+    "name": "setWhitelistManager",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
