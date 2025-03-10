@@ -3,27 +3,30 @@ import { IConfig, ITestConfig } from "./interfaces";
 export const BaseConfig: Record<string, IConfig> = {
   base_mainnet: {
     sleepTime: 6 * 1000,
-    poolOptimalSwapper: {
+    vault: {
       enabled: true,
       autoVerifyContract: true,
     },
-    krystalVault: {
+    vaultFactory: {
       enabled: true,
       autoVerifyContract: true,
     },
-    krystalVaultAutomator: {
+    whitelistManager: {
       enabled: true,
       autoVerifyContract: true,
     },
-    krystalVaultFactory: {
+    lpStrategyImpl: {
       enabled: true,
       autoVerifyContract: true,
     },
-    uniswapV3Factory: "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+    lpStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    lpStrategyPrincipalTokens: ["0x4200000000000000000000000000000000000006"],
     automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeRecipient: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeBasisPoint: 50,
-    ownerFeeBasisPoint: 50,
   },
 };
 
