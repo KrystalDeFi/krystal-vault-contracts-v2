@@ -55,28 +55,13 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
 
     vault = Clones.clone(vaultImplementation);
 
-    for (uint8 i = 0; i < params.assets.length; ) {
-      require(params.assets[i].token != address(0), ZeroAddress());
-
-      if (params.assets[i].amount > 0) {
-        IERC20(params.assets[i].token).safeTransferFrom(_msgSender(), vault, params.assets[i].amount);
-      }
-
-      unchecked {
-        i++;
-      }
-    }
-
-    Asset memory wrapAsset;
-
     if (msg.value > 0) {
+      require(params.principalToken == WETH, InvalidPrincipalToken());
+      params.principalTokenAmount = msg.value;
       IWETH9(WETH).deposit{ value: msg.value }();
-      IWETH9(WETH).transfer(vault, msg.value);
-
-      wrapAsset = Asset({ token: WETH, tokenId: 0, amount: msg.value, strategy: address(0) });
     }
 
-    IVault(vault).initialize(params, _msgSender(), vaultAutomator, wrapAsset);
+    IVault(vault).initialize(params, _msgSender(), vaultAutomator);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);

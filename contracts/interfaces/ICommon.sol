@@ -2,7 +2,13 @@
 pragma solidity ^0.8.28;
 
 interface ICommon {
+  enum AssetType {
+    ERC20,
+    ERC721,
+    ERC1155
+  }
   struct Asset {
+    AssetType assetType;
     address strategy;
     address token;
     uint256 tokenId;
@@ -14,7 +20,7 @@ interface ICommon {
     string name;
     string symbol;
     address principalToken;
-    Asset[] assets;
+    uint256 principalTokenAmount;
   }
 
   error ZeroAddress();

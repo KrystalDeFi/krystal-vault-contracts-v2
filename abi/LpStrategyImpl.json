@@ -47,6 +47,11 @@
   },
   {
     "inputs": [],
+    "name": "T",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -72,6 +77,11 @@
     "inputs": [
       {
         "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
           {
             "internalType": "address",
             "name": "strategy",
@@ -108,6 +118,11 @@
       {
         "components": [
           {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
             "internalType": "address",
             "name": "strategy",
             "type": "address"
@@ -141,6 +156,11 @@
       {
         "components": [
           {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
             "internalType": "address",
             "name": "strategy",
             "type": "address"
@@ -167,6 +187,11 @@
       },
       {
         "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
           {
             "internalType": "address",
             "name": "strategy",
@@ -203,6 +228,11 @@
       {
         "components": [
           {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
             "internalType": "address",
             "name": "strategy",
             "type": "address"
@@ -229,6 +259,79 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "asset",
+        "type": "tuple"
+      }
+    ],
+    "name": "getUnderlyingAssets",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "underlyingAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -261,6 +364,11 @@
     "inputs": [
       {
         "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
           {
             "internalType": "address",
             "name": "strategy",

@@ -9,6 +9,12 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "../../interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import { FixedPoint128 } from "@uniswap/v3-core/contracts/libraries/FixedPoint128.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrategy {
   using SafeERC20 for IERC20;
@@ -81,9 +87,6 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
       ? (assets[0], assets[1])
       : (assets[1], assets[0]);
 
-    IERC20(token0.token).safeTransferFrom(msg.sender, address(this), token0.amount);
-    IERC20(token1.token).safeTransferFrom(msg.sender, address(this), token1.amount);
-
     IERC20(token0.token).approve(address(params.nfpm), token0.amount);
     IERC20(token1.token).approve(address(params.nfpm), token1.amount);
 
@@ -104,9 +107,9 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     );
 
     returnAssets = new Asset[](3);
-    returnAssets[0] = Asset(address(0), token0.token, 0, token0.amount - amount0);
-    returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1);
-    returnAssets[2] = Asset(address(this), address(params.nfpm), tokenId, 1);
+    returnAssets[0] = Asset(AssetType.ERC20, address(0), token0.token, 0, token0.amount - amount0);
+    returnAssets[1] = Asset(AssetType.ERC20, address(0), token1.token, 0, token1.amount - amount1);
+    returnAssets[2] = Asset(AssetType.ERC721, address(this), address(params.nfpm), tokenId, 1);
 
     // Transfer assets to msg.sender
     if (token0.amount > amount0) {
@@ -133,9 +136,6 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
       ? (assets[0], assets[1])
       : (assets[1], assets[0]);
 
-    IERC20(token0.token).safeTransferFrom(msg.sender, address(this), token0.amount);
-    IERC20(token1.token).safeTransferFrom(msg.sender, address(this), token1.amount);
-
     IERC20(token0.token).approve(address(lpAsset.token), token0.amount);
     IERC20(token1.token).approve(address(lpAsset.token), token1.amount);
 
@@ -151,8 +151,8 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     );
 
     returnAssets = new Asset[](2);
-    returnAssets[0] = Asset(address(0), token0.token, 0, token0.amount - amount0Added);
-    returnAssets[1] = Asset(address(0), token1.token, 0, token1.amount - amount1Added);
+    returnAssets[0] = Asset(AssetType.ERC20, address(0), token0.token, 0, token0.amount - amount0Added);
+    returnAssets[1] = Asset(AssetType.ERC20, address(0), token1.token, 0, token1.amount - amount1Added);
 
     // Transfer assets to msg.sender
     if (token0.amount > amount0Added) {
@@ -174,8 +174,6 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     require(assets.length == 1, InvalidNumberOfAssets());
 
     Asset memory lpAsset = assets[0];
-
-    IERC721(lpAsset.token).safeTransferFrom(msg.sender, address(this), lpAsset.tokenId);
 
     uint256 amount0Collected;
     uint256 amount1Collected;
@@ -200,8 +198,8 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
 
     returnAssets = new Asset[](3);
     // Transfer assets to msg.sender
-    returnAssets[0] = Asset(address(0), token0, 0, amount0Collected);
-    returnAssets[1] = Asset(address(0), token1, 0, amount1Collected);
+    returnAssets[0] = Asset(AssetType.ERC20, address(0), token0, 0, amount0Collected);
+    returnAssets[1] = Asset(AssetType.ERC20, address(0), token1, 0, amount1Collected);
     returnAssets[2] = lpAsset;
 
     if (amount0Collected > 0) {
@@ -211,6 +209,107 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
       IERC20(token1).safeTransfer(msg.sender, amount1Collected);
     }
     IERC721(lpAsset.token).safeTransferFrom(address(this), msg.sender, lpAsset.tokenId);
+  }
+
+  function getUnderlyingAssets(Asset memory asset) external view returns (Asset[] memory underlyingAssets) {
+    require(asset.strategy == address(this), InvalidAsset());
+
+    (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
+    (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
+
+    (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    underlyingAssets = new Asset[](4);
+    underlyingAssets[0] = Asset(AssetType.ERC20, address(0), token0, 0, amount0);
+    underlyingAssets[1] = Asset(AssetType.ERC20, address(0), token1, 0, amount1);
+
+    underlyingAssets[2] = Asset(AssetType.ERC20, address(0), token0, 0, fee0);
+    underlyingAssets[3] = Asset(AssetType.ERC20, address(0), token1, 0, fee1);
+  }
+
+  function _getPoolForPosition(INFPM nfpm, uint256 tokenId) internal view returns (IUniswapV3Pool pool) {
+    (, , address token0, address token1, uint24 fee, , , , , , , ) = nfpm.positions(tokenId);
+    IUniswapV3Factory factory = IUniswapV3Factory(nfpm.factory());
+    pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
+  }
+
+  function _getAmountsForPosition(
+    INFPM nfpm,
+    uint256 tokenId
+  ) internal view returns (uint256 amount0, uint256 amount1) {
+    (, , , , , int24 tickLower, int24 tickUpper, uint128 liquidity, , , , ) = nfpm.positions(tokenId);
+    IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
+    (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
+    uint160 sqrtPriceX96Lower = TickMath.getSqrtRatioAtTick(tickLower);
+    uint160 sqrtPriceX96Upper = TickMath.getSqrtRatioAtTick(tickUpper);
+    (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      sqrtPriceX96Lower,
+      sqrtPriceX96Upper,
+      liquidity
+    );
+  }
+
+  function _getFeesForPosition(INFPM nfpm, uint256 tokenId) internal view returns (uint256 fee0, uint256 fee1) {
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    uint256 feeGrowthInside0LastX128;
+    uint256 feeGrowthInside1LastX128;
+    (, , , , , tickLower, tickUpper, liquidity, feeGrowthInside0LastX128, feeGrowthInside1LastX128, fee0, fee1) = nfpm
+      .positions(tokenId);
+    IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
+    (, int24 tick, , , , , ) = pool.slot0();
+
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      pool,
+      tickLower,
+      tickUpper,
+      tick
+    );
+
+    unchecked {
+      fee0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, FixedPoint128.Q128));
+      fee1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, FixedPoint128.Q128));
+    }
+  }
+
+  function _getFeeGrowthInside(
+    IUniswapV3Pool pool,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    unchecked {
+      (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = pool.ticks(tickLower);
+      (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = pool.ticks(tickUpper);
+      uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
+      uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
+
+      // calculate fee growth below
+      uint256 feeGrowthBelow0X128;
+      uint256 feeGrowthBelow1X128;
+      if (tickCurrent >= tickLower) {
+        feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
+        feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
+      } else {
+        feeGrowthBelow0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128;
+        feeGrowthBelow1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128;
+      }
+
+      // calculate fee growth above
+      uint256 feeGrowthAbove0X128;
+      uint256 feeGrowthAbove1X128;
+      if (tickCurrent < tickUpper) {
+        feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
+        feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
+      } else {
+        feeGrowthAbove0X128 = feeGrowthGlobal0X128 - upperFeeGrowthOutside0X128;
+        feeGrowthAbove1X128 = feeGrowthGlobal1X128 - upperFeeGrowthOutside1X128;
+      }
+
+      feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
+      feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
+    }
   }
 
   receive() external payable {}

@@ -6,15 +6,12 @@ import "./strategies/IStrategy.sol";
 
 interface IVault is ICommon {
   error InvalidAssetAmount();
-
   error InvalidSweepAsset();
+  error InvalidAssetStrategy();
+  error InvalidAssetTokenId();
+  error InvalidAssetType();
 
-  function initialize(
-    VaultCreateParams memory params,
-    address _owner,
-    address _vaultAutomator,
-    Asset memory wrapAsset
-  ) external;
+  function initialize(VaultCreateParams memory params, address _owner, address _vaultAutomator) external;
 
   function deposit(uint256 amount) external returns (uint256 shares);
 
@@ -22,7 +19,7 @@ interface IVault is ICommon {
 
   function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 
-  function deallocate(IStrategy strategy, uint256 allocationAmount) external;
+  function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data) external;
 
   function getTotalValue() external returns (uint256);
 

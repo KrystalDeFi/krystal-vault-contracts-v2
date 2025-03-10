@@ -183,6 +183,21 @@
   },
   {
     "inputs": [],
+    "name": "InvalidAssetStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAssetTokenId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAssetType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -406,9 +421,27 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "SHARES_PRECISION",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
           {
             "internalType": "address",
             "name": "strategy",
@@ -533,6 +566,11 @@
     "name": "currentAssets",
     "outputs": [
       {
+        "internalType": "enum ICommon.AssetType",
+        "name": "assetType",
+        "type": "uint8"
+      },
+      {
         "internalType": "address",
         "name": "strategy",
         "type": "address"
@@ -559,14 +597,24 @@
   {
     "inputs": [
       {
-        "internalType": "contract IStrategy",
-        "name": "strategy",
+        "internalType": "address",
+        "name": "token",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "allocationAmount",
+        "name": "tokenId",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
       }
     ],
     "name": "deallocate",
@@ -591,7 +639,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "shares",
         "type": "uint256"
       }
     ],
@@ -599,7 +647,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "shares",
+        "name": "returnShares",
         "type": "uint256"
       }
     ],
@@ -674,6 +722,11 @@
     "outputs": [
       {
         "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
           {
             "internalType": "address",
             "name": "strategy",
@@ -807,31 +860,9 @@
             "type": "address"
           },
           {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "strategy",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-              },
-              {
-                "internalType": "uint256",
-                "name": "tokenId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct ICommon.Asset[]",
-            "name": "assets",
-            "type": "tuple[]"
+            "internalType": "uint256",
+            "name": "principalTokenAmount",
+            "type": "uint256"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
@@ -847,33 +878,6 @@
         "internalType": "address",
         "name": "_vaultAutomator",
         "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct ICommon.Asset",
-        "name": "wrapAsset",
-        "type": "tuple"
       }
     ],
     "name": "initialize",

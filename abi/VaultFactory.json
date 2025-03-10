@@ -67,6 +67,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidPrincipalToken",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -86,17 +91,6 @@
       }
     ],
     "name": "OwnableUnauthorizedAccount",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
     "type": "error"
   },
   {
@@ -217,31 +211,9 @@
             "type": "address"
           },
           {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "strategy",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-              },
-              {
-                "internalType": "uint256",
-                "name": "tokenId",
-                "type": "uint256"
-              },
-              {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct ICommon.Asset[]",
-            "name": "assets",
-            "type": "tuple[]"
+            "internalType": "uint256",
+            "name": "principalTokenAmount",
+            "type": "uint256"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
