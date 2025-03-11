@@ -2,6 +2,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-abi-exporter";
 import "hardhat-contract-sizer";
 import "solidity-docgen";
+import "@nomicfoundation/hardhat-foundry";
 
 import * as dotenv from "dotenv";
 import { HardhatUserConfig } from "hardhat/types/config";
