@@ -10,10 +10,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { console } from "forge-std/console.sol";
 
 contract LpStrategyTest is Common {
-  address constant WETH = 0x4200000000000000000000000000000000000006;
-  address constant DAI = 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
-  address constant USER = 0x1234567890123456789012345678901234567890;
-  address constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
+  address public constant WETH = 0x4200000000000000000000000000000000000006;
+  address public constant DAI = 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
+  address public constant USER = 0x1234567890123456789012345678901234567890;
+  address public constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
 
   function setUp() public {
     uint256 fork = vm.createFork("https://base.llamarpc.com", 27448360);
@@ -54,9 +54,11 @@ contract LpStrategyTest is Common {
       amount0Min: 0,
       amount1Min: 0
     });
-    ILpStrategy.Instruction memory instruction = ILpStrategy.Instruction({
-      instructionType: ILpStrategy.InstructionType.MintPosition,
-      params: abi.encode(mintParams)
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
+      params: abi.encode(mintParams),
+      abiEncodedUserOrder: new bytes(0),
+      orderSignature: new bytes(0)
     });
     IERC20(WETH).transfer(address(lpStrategy), 1 ether);
     IERC20(DAI).transfer(address(lpStrategy), 2000 ether);
