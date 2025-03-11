@@ -32,11 +32,21 @@ function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
 function convert(struct ICommon.Asset[] assets, bytes data) external returns (struct ICommon.Asset[])
 ```
 
-Converts the asset to another assets
+### harvest
+
+```solidity
+function harvest(struct ICommon.Asset asset) external returns (struct ICommon.Asset[])
+```
+
+### getUnderlyingAssets
+
+```solidity
+function getUnderlyingAssets(struct ICommon.Asset asset) external returns (struct ICommon.Asset[])
+```
 
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] asset)
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[])
 ```
 

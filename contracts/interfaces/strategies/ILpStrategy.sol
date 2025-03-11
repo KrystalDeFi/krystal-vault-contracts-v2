@@ -12,11 +12,6 @@ interface ILpStrategy is IStrategy {
     DecreaseLiquidity
   }
 
-  struct Instruction {
-    InstructionType instructionType;
-    bytes params;
-  }
-
   struct MintPositionParams {
     INFPM nfpm;
     address token0;

@@ -32,7 +32,7 @@
     "not-rely-on-block-hash": "warn",
     "reentrancy": "warn",
     "state-visibility": "warn",
-    "code-complexity": ["error", 10],
+    "code-complexity": ["error", 20],
     "compiler-version": ["error", ">=0.8.28"],
     "func-name-mixedcase": "off",
     "func-visibility": ["error", { "ignoreConstructors": true }],

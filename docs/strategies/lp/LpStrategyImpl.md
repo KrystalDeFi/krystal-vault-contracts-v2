@@ -63,27 +63,17 @@ Converts the asset to another assets
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
+### harvest
+
+```solidity
+function harvest(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] returnAssets)
+```
+
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] returnAssets)
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[] returnAssets)
 ```
-
-Converts the asset to another assets
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| existingAsset | struct ICommon.Asset | The existing asset to convert |
-| newAssets | struct ICommon.Asset[] | The new assets to convert |
-| data | bytes | The data for the instruction |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
 ### _mintPosition
 
@@ -147,6 +137,115 @@ Decreases the liquidity of the position
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+
+### getUnderlyingAssets
+
+```solidity
+function getUnderlyingAssets(struct ICommon.Asset asset) external view returns (struct ICommon.Asset[] underlyingAssets)
+```
+
+Gets the underlying assets of the position
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct ICommon.Asset | The asset to get the underlying assets |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| underlyingAssets | struct ICommon.Asset[] | The underlying assets of the position |
+
+### _getPoolForPosition
+
+```solidity
+function _getPoolForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (contract IUniswapV3Pool pool)
+```
+
+_Gets the pool for the position_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
+| tokenId | uint256 | The token id of the position |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| pool | contract IUniswapV3Pool | The pool for the position |
+
+### _getAmountsForPosition
+
+```solidity
+function _getAmountsForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (uint256 amount0, uint256 amount1)
+```
+
+_Gets the amounts for the position_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
+| tokenId | uint256 | The token id of the position |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | The amount of token0 |
+| amount1 | uint256 | The amount of token1 |
+
+### _getFeesForPosition
+
+```solidity
+function _getFeesForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (uint256 fee0, uint256 fee1)
+```
+
+_Gets the fees for the position_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
+| tokenId | uint256 | The token id of the position |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| fee0 | uint256 | The fee of token0 |
+| fee1 | uint256 | The fee of token1 |
+
+### _getFeeGrowthInside
+
+```solidity
+function _getFeeGrowthInside(contract IUniswapV3Pool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
+```
+
+_Gets the fee growth inside the position_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| pool | contract IUniswapV3Pool | The pool for the position |
+| tickLower | int24 | The lower tick of the position |
+| tickUpper | int24 | The upper tick of the position |
+| tickCurrent | int24 | The current tick of the pool |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| feeGrowthInside0X128 | uint256 | The fee growth of token0 |
+| feeGrowthInside1X128 | uint256 | The fee growth of token1 |
 
 ### receive
 

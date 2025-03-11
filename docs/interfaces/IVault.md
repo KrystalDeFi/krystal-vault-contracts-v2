@@ -14,10 +14,28 @@ error InvalidAssetAmount()
 error InvalidSweepAsset()
 ```
 
+### InvalidAssetStrategy
+
+```solidity
+error InvalidAssetStrategy()
+```
+
+### InvalidAssetTokenId
+
+```solidity
+error InvalidAssetTokenId()
+```
+
+### InvalidAssetType
+
+```solidity
+error InvalidAssetType()
+```
+
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator, struct ICommon.Asset wrapAsset) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator) external
 ```
 
 ### deposit
@@ -41,7 +59,7 @@ function allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strateg
 ### deallocate
 
 ```solidity
-function deallocate(contract IStrategy strategy, uint256 allocationAmount) external
+function deallocate(address token, uint256 tokenId, uint256 amount, bytes data) external
 ```
 
 ### getTotalValue

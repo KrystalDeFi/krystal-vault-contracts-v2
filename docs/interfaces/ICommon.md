@@ -2,10 +2,21 @@
 
 ## ICommon
 
+### AssetType
+
+```solidity
+enum AssetType {
+  ERC20,
+  ERC721,
+  ERC1155
+}
+```
+
 ### Asset
 
 ```solidity
 struct Asset {
+  enum ICommon.AssetType assetType;
   address strategy;
   address token;
   uint256 tokenId;
@@ -21,7 +32,18 @@ struct VaultCreateParams {
   string name;
   string symbol;
   address principalToken;
-  struct ICommon.Asset[] assets;
+  uint256 principalTokenAmount;
+}
+```
+
+### Instruction
+
+```solidity
+struct Instruction {
+  uint8 instructionType;
+  bytes params;
+  bytes abiEncodedUserOrder;
+  bytes orderSignature;
 }
 ```
 

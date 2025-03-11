@@ -7,6 +7,14 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    vaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    vaultZapper: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     vaultFactory: {
       enabled: true,
       autoVerifyContract: true,
