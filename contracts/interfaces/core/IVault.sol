@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "./ICommon.sol";
-import "./strategies/IStrategy.sol";
+import "../ICommon.sol";
+import "../strategies/IStrategy.sol";
 
 interface IVault is ICommon {
   event Deposit(address indexed account, uint256 shares);
@@ -21,6 +21,8 @@ interface IVault is ICommon {
   error InvalidAssetTokenId();
   error InvalidAssetType();
 
+  function vaultOwner() external view returns (address);
+
   function initialize(
     VaultCreateParams memory params,
     address _owner,
@@ -38,7 +40,11 @@ interface IVault is ICommon {
 
   function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values);
 
+  function grantAdminRole(address _address) external;
+
+  function revokeAdminRole(address _address) external;
+
   function sweepToken(address[] memory tokens) external;
 
-  function sweepNFToken(address[] memory tokens, uint256[] memory tokenIds) external;
+  function sweepNFTToken(address[] memory tokens, uint256[] memory tokenIds) external;
 }

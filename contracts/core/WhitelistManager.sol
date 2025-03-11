@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import "../interfaces/IWhitelistManager.sol";
+import "../interfaces/core/IWhitelistManager.sol";
 
 /// @title WhitelistManager
 contract WhitelistManager is Ownable, IWhitelistManager {

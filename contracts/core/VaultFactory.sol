@@ -8,8 +8,8 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import "../interfaces/IVaultFactory.sol";
-import "../interfaces/IVault.sol";
+import "../interfaces/core/IVaultFactory.sol";
+import "../interfaces/core/IVault.sol";
 import "../interfaces/IWETH9.sol";
 
 /// @title VaultFactory

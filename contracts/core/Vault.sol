@@ -12,8 +12,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 import "../interfaces/strategies/IStrategy.sol";
-import "../interfaces/IVault.sol";
-import "../interfaces/IWhitelistManager.sol";
+import "../interfaces/core/IVault.sol";
+import "../interfaces/core/IWhitelistManager.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
@@ -25,6 +25,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   IWhitelistManager public whitelistManager;
 
+  address public override vaultOwner;
   address public principalToken;
 
   EnumerableSet.AddressSet private tokenAddresses;
@@ -54,8 +55,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     _grantRole(ADMIN_ROLE_HASH, _vaultAutomator);
 
     whitelistManager = IWhitelistManager(_whitelistManager);
+    vaultOwner = _owner;
     principalToken = params.principalToken;
     Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
+
     _addAsset(firstAsset);
     _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
 
@@ -207,7 +210,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Sweeps the non-fungible tokens to the caller
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function sweepNFToken(
+  function sweepNFTToken(
     address[] memory tokens,
     uint256[] memory tokenIds
   ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
@@ -225,6 +228,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     }
 
     emit SweepNFToken(tokens, tokenIds);
+  }
+
+  /// @notice grant admin role to the address
+  /// @param _address The address to which the admin role is granted
+  function grantAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    grantRole(ADMIN_ROLE_HASH, _address);
+  }
+
+  /// @notice revoke admin role from the address
+  /// @param _address The address from which the admin role is revoked
+  function revokeAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    revokeRole(ADMIN_ROLE_HASH, _address);
   }
 
   /// @dev Adds multiple assets to the vault

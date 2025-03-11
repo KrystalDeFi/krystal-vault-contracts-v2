@@ -20,6 +20,12 @@ bytes32 ADMIN_ROLE_HASH
 contract IWhitelistManager whitelistManager
 ```
 
+### vaultOwner
+
+```solidity
+address vaultOwner
+```
+
 ### principalToken
 
 ```solidity
@@ -145,10 +151,10 @@ Sweeps the tokens to the caller
 | ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 
-### sweepNFToken
+### sweepNFTToken
 
 ```solidity
-function sweepNFToken(address[] tokens, uint256[] tokenIds) external
+function sweepNFTToken(address[] tokens, uint256[] tokenIds) external
 ```
 
 Sweeps the non-fungible tokens to the caller
@@ -159,6 +165,34 @@ Sweeps the non-fungible tokens to the caller
 | ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 | tokenIds | uint256[] | Token IDs to sweep |
+
+### grantAdminRole
+
+```solidity
+function grantAdminRole(address _address) external
+```
+
+grant admin role to the address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address to which the admin role is granted |
+
+### revokeAdminRole
+
+```solidity
+function revokeAdminRole(address _address) external
+```
+
+revoke admin role from the address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address from which the admin role is revoked |
 
 ### _addAssets
 

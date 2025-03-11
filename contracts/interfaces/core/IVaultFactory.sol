@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "./ICommon.sol";
+import "../ICommon.sol";
 
 interface IVaultFactory is ICommon {
   event VaultCreated(address owner, address vault, VaultCreateParams params);
