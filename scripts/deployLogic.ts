@@ -4,7 +4,15 @@ import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
 import { last } from "lodash";
-import { LpStrategy, LpStrategyImpl, Vault, VaultFactory, WhitelistManager } from "../typechain-types";
+import {
+  LpStrategy,
+  LpStrategyImpl,
+  Vault,
+  VaultAutomator,
+  VaultFactory,
+  VaultZapper,
+  WhitelistManager,
+} from "../typechain-types";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -16,6 +24,8 @@ if (!networkConfig) {
 
 export interface Contracts {
   vault?: Vault;
+  vaultAutomator?: VaultAutomator;
+  vaultZapper?: VaultZapper;
   whitelistManager?: WhitelistManager;
   lpStrategyImpl?: Record<string, LpStrategyImpl>;
   lpStrategy?: Record<string, LpStrategy>;
@@ -49,11 +59,15 @@ async function deployContracts(
   let step = 0;
 
   const vault = await deployVaultContract(++step, existingContract, deployer);
+  const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract, deployer);
+  const vaultZapper = await deployVaultZapperContract(++step, existingContract, deployer);
   const whitelistManager = await deployWhitelistManagerContract(++step, existingContract, deployer);
   const lpStrategyImpl = await deployLpStrategyImplContract(++step, existingContract, deployer);
 
   const contracts: Contracts = {
     vault: vault.vault,
+    vaultAutomator: vaultAutomator.vaultAutomator,
+    vaultZapper: vaultZapper.vaultZapper,
     whitelistManager: whitelistManager.whitelistManager,
     lpStrategyImpl: lpStrategyImpl.lpStrategyImpl,
   };
@@ -91,6 +105,56 @@ export const deployVaultContract = async (
 
   return {
     vault,
+  };
+};
+
+export const deployVaultAutomatorContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let vaultAutomator;
+
+  if (config.vaultAutomator?.enabled) {
+    vaultAutomator = (await deployContract(
+      `${step} >>`,
+      config.vaultAutomator?.autoVerifyContract,
+      "VaultAutomator",
+      existingContract?.["vaultAutomator"],
+      "contracts/core/VaultAutomator.sol:VaultAutomator",
+    )) as VaultAutomator;
+  }
+
+  return {
+    vaultAutomator,
+  };
+};
+
+export const deployVaultZapperContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let vaultZapper;
+
+  if (config.vaultZapper?.enabled) {
+    vaultZapper = (await deployContract(
+      `${step} >>`,
+      config.vaultZapper?.autoVerifyContract,
+      "VaultZapper",
+      existingContract?.["vaultZapper"],
+      "contracts/core/VaultZapper.sol:VaultZapper",
+    )) as VaultZapper;
+  }
+
+  return {
+    vaultZapper,
   };
 };
 
@@ -202,7 +266,7 @@ export const deployVaultFactoryContract = async (
         config.lpStrategyPrincipalTokens?.[0],
         existingContract?.["whitelistManager"] || contracts?.whitelistManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
-        config.automatorAddress,
+        existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
         config.platformFeeRecipient,
         config.platformFeeBasisPoint,
       ],

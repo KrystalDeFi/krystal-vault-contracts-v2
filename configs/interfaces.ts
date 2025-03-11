@@ -5,6 +5,14 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  vaultAutomator: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  vaultZapper: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   vaultFactory: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
