@@ -70,6 +70,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @return returnShares Amount of shares minted
   function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
     uint256 totalSupply = totalSupply();
+
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
@@ -154,6 +155,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     return shares;
   }
 
+  /// @notice Withdraws the asset from the vault
+  /// @param shares Amount of shares to be burned
+  function withdraw(uint256 shares) external nonReentrant {}
+
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
@@ -163,7 +168,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     IStrategy strategy,
     bytes calldata data
   ) external onlyRole(ADMIN_ROLE_HASH) {
-    require(whitelistManager.isWhitelisted(address(strategy)), InvalidStrategy());
+    require(whitelistManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     Asset memory currentAsset;
 
@@ -243,8 +248,37 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault
-  /// @return values Asset values of the vault
-  function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values) {}
+  function getAssetAllocations() external override returns (Asset[] memory assets) {
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
+      address token = tokenAddresses.at(i);
+
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
+        uint256 tokenId = tokenIndices[token].at(j);
+        Asset memory currentAsset = currentAssets[token][tokenId];
+
+        if (currentAsset.strategy != address(0)) {
+          Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
+
+          for (uint256 k = 0; k < strategyAssets.length; ) {
+            assets[assets.length] = strategyAssets[k];
+
+            unchecked {
+              k++;
+            }
+          }
+        } else {
+          assets[assets.length] = currentAsset;
+        }
+
+        unchecked {
+          j++;
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep

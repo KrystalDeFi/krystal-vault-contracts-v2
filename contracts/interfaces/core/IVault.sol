@@ -38,7 +38,7 @@ interface IVault is ICommon {
 
   function getTotalValue() external returns (uint256);
 
-  function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values);
+  function getAssetAllocations() external returns (Asset[] memory assets);
 
   function grantAdminRole(address _address) external;
 

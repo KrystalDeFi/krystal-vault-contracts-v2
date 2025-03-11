@@ -35,4 +35,6 @@ interface ICommon {
   error TransferFailed();
 
   error InvalidStrategy();
+
+  error InvalidSwapRouter();
 }

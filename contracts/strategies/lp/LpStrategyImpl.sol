@@ -34,8 +34,15 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
 
   /// @notice Deposits the asset to the strategy
   /// @param asset The asset to be calculated
-  function valueOf(Asset memory asset) external view returns (uint256 value) {
-    INFPM(asset.token).positions(asset.tokenId);
+  function valueOf(Asset memory asset) external view returns (Asset[] memory assets) {
+    (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
+    (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
+    (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+
+    assets = new Asset[](2);
+
+    assets[0] = Asset(AssetType.ERC20, address(0), token0, 0, fee0 + amount0);
+    assets[1] = Asset(AssetType.ERC20, address(0), token1, 0, fee1 + amount1);
   }
 
   /// @notice Converts the asset to another assets
