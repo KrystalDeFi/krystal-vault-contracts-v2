@@ -36,6 +36,17 @@ struct VaultCreateParams {
 }
 ```
 
+### Instruction
+
+```solidity
+struct Instruction {
+  uint8 instructionType;
+  bytes params;
+  bytes abiEncodedUserOrder;
+  bytes orderSignature;
+}
+```
+
 ### ZeroAddress
 
 ```solidity

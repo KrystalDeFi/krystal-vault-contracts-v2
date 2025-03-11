@@ -14,57 +14,53 @@ bytes32 OPERATOR_ROLE_HASH
 constructor() public
 ```
 
-### executeRebalance
+### executeAllocate
 
 ```solidity
-function executeRebalance(struct IVaultAutomator.ExecuteRebalanceParams params) external
+function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Instruction params) external
 ```
 
-Execute a rebalance on a KrystalVault
+Execute an allocate on a Vault
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| params | struct IVaultAutomator.ExecuteRebalanceParams | ExecuteRebalanceParams |
+| vault | contract IVault |  |
+| inputAssets | struct ICommon.Asset[] | Input assets |
+| strategy | contract IStrategy | Strategy |
+| params | struct ICommon.Instruction | Instruction |
 
-### executeExit
+### executeSweepToken
 
 ```solidity
-function executeExit(contract IVault vault, uint256 amount0Min, uint256 amount1Min, uint16 automatorFee, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeSweepToken(contract IVault vault, address[] tokens) external
 ```
 
-Execute exit on a KrystalVault
+Execute sweep token
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| vault | contract IVault | KrystalVault to exit from |
-| amount0Min | uint256 | Minimum amount of token0 to receive |
-| amount1Min | uint256 | Minimum amount of token1 to receive |
-| automatorFee | uint16 |  |
-| abiEncodedUserOrder | bytes | ABI encoded user order |
-| orderSignature | bytes | Signature of the order |
+| vault | contract IVault | Vault address |
+| tokens | address[] | Tokens to sweep |
 
-### executeCompound
+### executeSweepNFTToken
 
 ```solidity
-function executeCompound(contract IVault vault, uint256 amount0Min, uint256 amount1Min, uint16 automatorFee, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
-Execute compound on a KrystalVault
+Execute sweep NFT token
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| vault | contract IVault | KrystalVault to compound |
-| amount0Min | uint256 | Minimum amount of token0 to receive |
-| amount1Min | uint256 | Minimum amount of token1 to receive |
-| automatorFee | uint16 |  |
-| abiEncodedUserOrder | bytes | ABI encoded user order |
-| orderSignature | bytes | Signature of the order |
+| vault | contract IVault | Vault address |
+| tokens | address[] | Tokens to sweep |
+| tokenIds | uint256[] | Token IDs to sweep |
 
 ### _validateOrder
 
@@ -144,37 +140,6 @@ Revoke operator role
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | operator | address | Operator address |
-
-### executeSweepToken
-
-```solidity
-function executeSweepToken(contract IVault vault, address[] tokens) external
-```
-
-Execute sweep token
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| vault | contract IVault | Vault address |
-| tokens | address[] | Tokens to sweep |
-
-### executeSweepNFTToken
-
-```solidity
-function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
-```
-
-Execute sweep NFT token
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| vault | contract IVault | Vault address |
-| tokens | address[] | Tokens to sweep |
-| tokenIds | uint256[] | Token IDs to sweep |
 
 ### receive
 

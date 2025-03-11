@@ -48,13 +48,13 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
   ) external nonReentrant returns (Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
-    if (instruction.instructionType == InstructionType.MintPosition) {
+    if (instruction.instructionType == uint8(InstructionType.MintPosition)) {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
       returnAssets = _mintPosition(assets, params);
-    } else if (instruction.instructionType == InstructionType.IncreaseLiquidity) {
+    } else if (instruction.instructionType == uint8(InstructionType.IncreaseLiquidity)) {
       IncreaseLiquidityParams memory params = abi.decode(instruction.params, (IncreaseLiquidityParams));
       returnAssets = _increaseLiquidity(assets, params);
-    } else if (instruction.instructionType == InstructionType.DecreaseLiquidity) {
+    } else if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidity)) {
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
       returnAssets = _decreaseLiquidity(assets, params);
     }

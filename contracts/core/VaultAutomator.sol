@@ -17,58 +17,37 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     _grantRole(OPERATOR_ROLE_HASH, _msgSender());
   }
 
-  /// @notice Execute a rebalance on a KrystalVault
-  /// @param params ExecuteRebalanceParams
-  function executeRebalance(
-    ExecuteRebalanceParams calldata params
+  /// @notice Execute an allocate on a Vault
+  /// @param params Instruction
+  /// @param inputAssets Input assets
+  /// @param strategy Strategy
+  function executeAllocate(
+    IVault vault,
+    Asset[] memory inputAssets,
+    IStrategy strategy,
+    Instruction calldata params
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    _validateOrder(params.abiEncodedUserOrder, params.orderSignature, params.vault.vaultOwner());
-    // params.vault.rebalance(
-    //   params.newTickLower,
-    //   params.newTickUpper,
-    //   params.decreaseAmount0Min,
-    //   params.decreaseAmount1Min,
-    //   params.amount0Min,
-    //   params.amount1Min,
-    //   params.automatorFee
-    // );
+    _validateOrder(params.abiEncodedUserOrder, params.orderSignature, vault.vaultOwner());
+    vault.allocate(inputAssets, strategy, abi.encode(params));
   }
 
-  /// @notice Execute exit on a KrystalVault
-  /// @param vault KrystalVault to exit from
-  /// @param amount0Min Minimum amount of token0 to receive
-  /// @param amount1Min Minimum amount of token1 to receive
-  /// @param abiEncodedUserOrder ABI encoded user order
-  /// @param orderSignature Signature of the order
-  function executeExit(
-    IVault vault,
-    uint256 amount0Min,
-    uint256 amount1Min,
-    uint16 automatorFee,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
-  ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    address vaultOwner = vault.vaultOwner();
-    _validateOrder(abiEncodedUserOrder, orderSignature, vaultOwner);
-    // vault.exit(vaultOwner, amount0Min, amount1Min, automatorFee);
+  /// @notice Execute sweep token
+  /// @param vault Vault address
+  /// @param tokens Tokens to sweep
+  function executeSweepToken(IVault vault, address[] memory tokens) external override onlyRole(OPERATOR_ROLE_HASH) {
+    vault.sweepToken(tokens);
   }
 
-  /// @notice Execute compound on a KrystalVault
-  /// @param vault KrystalVault to compound
-  /// @param amount0Min Minimum amount of token0 to receive
-  /// @param amount1Min Minimum amount of token1 to receive
-  /// @param abiEncodedUserOrder ABI encoded user order
-  /// @param orderSignature Signature of the order
-  function executeCompound(
+  /// @notice Execute sweep NFT token
+  /// @param vault Vault address
+  /// @param tokens Tokens to sweep
+  /// @param tokenIds Token IDs to sweep
+  function executeSweepNFTToken(
     IVault vault,
-    uint256 amount0Min,
-    uint256 amount1Min,
-    uint16 automatorFee,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
-  ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
-    // vault.compound(amount0Min, amount1Min, automatorFee);
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
+    vault.sweepNFTToken(tokens, tokenIds);
   }
 
   /// @dev Validate the order
@@ -107,25 +86,6 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param operator Operator address
   function revokeOperator(address operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
     revokeRole(OPERATOR_ROLE_HASH, operator);
-  }
-
-  /// @notice Execute sweep token
-  /// @param vault Vault address
-  /// @param tokens Tokens to sweep
-  function executeSweepToken(IVault vault, address[] memory tokens) external override onlyRole(OPERATOR_ROLE_HASH) {
-    vault.sweepToken(tokens);
-  }
-
-  /// @notice Execute sweep NFT token
-  /// @param vault Vault address
-  /// @param tokens Tokens to sweep
-  /// @param tokenIds Token IDs to sweep
-  function executeSweepNFTToken(
-    IVault vault,
-    address[] memory tokens,
-    uint256[] memory tokenIds
-  ) external override onlyRole(OPERATOR_ROLE_HASH) {
-    vault.sweepNFTToken(tokens, tokenIds);
   }
 
   receive() external payable {}

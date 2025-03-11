@@ -5,37 +5,7 @@
 ### VaultCreated
 
 ```solidity
-event VaultCreated(address owner, address vault, struct ICommon.VaultCreateParams params)
-```
-
-### WhitelistManagerSet
-
-```solidity
-event WhitelistManagerSet(address whitelistManager)
-```
-
-### VaultImplementationSet
-
-```solidity
-event VaultImplementationSet(address vaultImplementation)
-```
-
-### VaultAutomatorSet
-
-```solidity
-event VaultAutomatorSet(address vaultAutomator)
-```
-
-### PlatformFeeRecipientSet
-
-```solidity
-event PlatformFeeRecipientSet(address platformFeeRecipient)
-```
-
-### PlatformFeeBasisPointSet
-
-```solidity
-event PlatformFeeBasisPointSet(uint16 platformFeeBasisPoint)
+event VaultCreated()
 ```
 
 ### InvalidOwnerFee

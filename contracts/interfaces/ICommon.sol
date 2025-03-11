@@ -23,6 +23,13 @@ interface ICommon {
     uint256 principalTokenAmount;
   }
 
+  struct Instruction {
+    uint8 instructionType;
+    bytes params;
+    bytes abiEncodedUserOrder;
+    bytes orderSignature;
+  }
+
   error ZeroAddress();
 
   error TransferFailed();

@@ -13,38 +13,16 @@ interface IVaultAutomator is ICommon {
 
   event CancelOrder(address user, bytes order, bytes signature);
 
-  struct ExecuteRebalanceParams {
-    IVault vault;
-    int24 newTickLower;
-    int24 newTickUpper;
-    uint256 decreaseAmount0Min;
-    uint256 decreaseAmount1Min;
-    uint256 amount0Min;
-    uint256 amount1Min;
-    uint16 automatorFee;
-    bytes abiEncodedUserOrder;
-    bytes orderSignature;
-  }
-
-  function executeRebalance(ExecuteRebalanceParams calldata params) external;
-
-  function executeExit(
+  function executeAllocate(
     IVault vault,
-    uint256 amount0Min,
-    uint256 amount1Min,
-    uint16 automatorFee,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
+    Asset[] memory inputAssets,
+    IStrategy strategy,
+    Instruction calldata params
   ) external;
 
-  function executeCompound(
-    IVault vault,
-    uint256 amount0Min,
-    uint256 amount1Min,
-    uint16 automatorFee,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
-  ) external;
+  function executeSweepToken(IVault vault, address[] memory tokens) external;
+
+  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds) external;
 
   function cancelOrder(bytes calldata abiEncodedUserOrder, bytes calldata orderSignature) external;
 
@@ -53,8 +31,4 @@ interface IVaultAutomator is ICommon {
   function grantOperator(address operator) external;
 
   function revokeOperator(address operator) external;
-
-  function executeSweepToken(IVault vault, address[] memory tokens) external;
-
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds) external;
 }

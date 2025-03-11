@@ -12,15 +12,6 @@ enum InstructionType {
 }
 ```
 
-### Instruction
-
-```solidity
-struct Instruction {
-  enum ILpStrategy.InstructionType instructionType;
-  bytes params;
-}
-```
-
 ### MintPositionParams
 
 ```solidity

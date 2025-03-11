@@ -63,27 +63,17 @@ Converts the asset to another assets
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
+### harvest
+
+```solidity
+function harvest(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] returnAssets)
+```
+
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] newAssets, bytes data) external returns (struct ICommon.Asset[] returnAssets)
+function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[] returnAssets)
 ```
-
-Converts the asset to another assets
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| existingAsset | struct ICommon.Asset | The existing asset to convert |
-| newAssets | struct ICommon.Asset[] | The new assets to convert |
-| data | bytes | The data for the instruction |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
 ### _mintPosition
 

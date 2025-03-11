@@ -108,6 +108,18 @@ Deallocates the assets from the strategy
 | amount | uint256 | Amount to deallocate |
 | data | bytes | Data for strategy execution |
 
+### harvest
+
+```solidity
+function harvest(struct ICommon.Asset asset) external
+```
+
+### _harvest
+
+```solidity
+function _harvest(struct ICommon.Asset asset) internal
+```
+
 ### getTotalValue
 
 ```solidity

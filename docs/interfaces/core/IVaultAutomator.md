@@ -26,39 +26,22 @@ error OrderCancelled()
 event CancelOrder(address user, bytes order, bytes signature)
 ```
 
-### ExecuteRebalanceParams
+### executeAllocate
 
 ```solidity
-struct ExecuteRebalanceParams {
-  contract IVault vault;
-  int24 newTickLower;
-  int24 newTickUpper;
-  uint256 decreaseAmount0Min;
-  uint256 decreaseAmount1Min;
-  uint256 amount0Min;
-  uint256 amount1Min;
-  uint16 automatorFee;
-  bytes abiEncodedUserOrder;
-  bytes orderSignature;
-}
+function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Instruction params) external
 ```
 
-### executeRebalance
+### executeSweepToken
 
 ```solidity
-function executeRebalance(struct IVaultAutomator.ExecuteRebalanceParams params) external
+function executeSweepToken(contract IVault vault, address[] tokens) external
 ```
 
-### executeExit
+### executeSweepNFTToken
 
 ```solidity
-function executeExit(contract IVault vault, uint256 amount0Min, uint256 amount1Min, uint16 automatorFee, bytes abiEncodedUserOrder, bytes orderSignature) external
-```
-
-### executeCompound
-
-```solidity
-function executeCompound(contract IVault vault, uint256 amount0Min, uint256 amount1Min, uint16 automatorFee, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
 ### cancelOrder
@@ -83,17 +66,5 @@ function grantOperator(address operator) external
 
 ```solidity
 function revokeOperator(address operator) external
-```
-
-### executeSweepToken
-
-```solidity
-function executeSweepToken(contract IVault vault, address[] tokens) external
-```
-
-### executeSweepNFTToken
-
-```solidity
-function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
