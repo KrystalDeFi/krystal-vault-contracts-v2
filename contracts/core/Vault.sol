@@ -70,10 +70,26 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @return returnShares Amount of shares minted
   function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
     uint256 totalSupply = totalSupply();
-
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
+        uint256 tokenId = tokenIndices[token].at(j);
+        Asset memory currentAsset = currentAssets[token][tokenId];
+        if (currentAsset.strategy != address(0)) {
+          _harvest(currentAsset);
+        }
+        unchecked {
+          j++;
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
+      address token = tokenAddresses.at(i);
       for (uint256 j = 0; j < tokenIndices[token].length(); ) {
         uint256 tokenId = tokenIndices[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
@@ -82,18 +98,40 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
           Asset[] memory underlyingAssets = IStrategy(currentAsset.strategy).getUnderlyingAssets(currentAsset);
 
           for (uint256 k = 0; k < underlyingAssets.length; ) {
-            uint256 amount = (shares * underlyingAssets[k].amount) / totalSupply;
-
-            IERC20(underlyingAssets[k].token).safeTransferFrom(_msgSender(), address(this), amount);
+            underlyingAssets[k].amount = (shares * underlyingAssets[k].amount) / totalSupply;
+            IERC20(underlyingAssets[k].token).safeTransferFrom(_msgSender(), address(this), underlyingAssets[k].amount);
 
             unchecked {
               k++;
             }
           }
-        } else {
+
+          Asset[] memory newAssets = IStrategy(currentAsset.strategy).convertIntoExisting(
+            currentAsset,
+            underlyingAssets
+          );
+          _addAssets(newAssets);
+        }
+        unchecked {
+          j++;
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
+      address token = tokenAddresses.at(i);
+
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
+        uint256 tokenId = tokenIndices[token].at(j);
+        Asset memory currentAsset = currentAssets[token][tokenId];
+        if (currentAsset.strategy == address(0) && currentAsset.assetType == AssetType.ERC20) {
           uint256 amount = (shares * currentAsset.amount) / totalSupply;
 
           IERC20(token).safeTransferFrom(_msgSender(), address(this), amount);
+          currentAsset.amount += amount;
         }
         unchecked {
           j++;
@@ -182,6 +220,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     emit Deallocate(inputAssets, returnAssets);
   }
 
+  function harvest(Asset memory asset) external onlyRole(ADMIN_ROLE_HASH) {
+    _harvest(asset);
+  }
+
+  function _harvest(Asset memory asset) internal {
+    require(asset.strategy != address(0), InvalidAssetStrategy());
+
+    _transferAsset(asset, asset.strategy);
+    Asset[] memory newAssets = IStrategy(asset.strategy).harvest(asset);
+    _addAssets(newAssets);
+  }
+
   /// @notice Returns the total value of the vault
   /// @return value Total value of the vault in principal token
   function getTotalValue() external returns (uint256 value) {}
@@ -260,7 +310,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     Asset memory currentAsset = currentAssets[asset.token][asset.tokenId];
 
     currentAsset.amount += asset.amount;
-
     currentAssets[asset.token][asset.tokenId] = currentAsset;
 
     tokenAddresses.add(asset.token);

@@ -170,13 +170,8 @@
           }
         ],
         "internalType": "struct ICommon.Asset[]",
-        "name": "newAssets",
+        "name": "assets",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
       }
     ],
     "name": "convertIntoExisting",
@@ -210,7 +205,7 @@
           }
         ],
         "internalType": "struct ICommon.Asset[]",
-        "name": "asset",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -253,6 +248,79 @@
       }
     ],
     "name": "getUnderlyingAssets",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "asset",
+        "type": "tuple"
+      }
+    ],
+    "name": "harvest",
     "outputs": [
       {
         "components": [

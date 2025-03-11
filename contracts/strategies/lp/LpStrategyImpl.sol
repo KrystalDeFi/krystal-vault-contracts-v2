@@ -62,16 +62,40 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     revert InvalidInstructionType();
   }
 
-  /// @notice Converts the asset to another assets
-  /// @param existingAsset The existing asset to convert
-  /// @param newAssets The new assets to convert
-  /// @param data The data for the instruction
-  /// @return returnAssets The assets that were returned to the msg.sender
+  function harvest(Asset memory asset) external returns (Asset[] memory returnAssets) {
+    require(asset.strategy == address(this), InvalidAsset());
+    (uint256 amount0, uint256 amount1) = INFPM(asset.token).decreaseLiquidity(
+      INFPM.DecreaseLiquidityParams(asset.tokenId, 0, 0, 0, type(uint256).max)
+    );
+
+    (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    returnAssets = new Asset[](3);
+    returnAssets[0] = Asset(AssetType.ERC20, address(0), token0, 0, amount0);
+    returnAssets[1] = Asset(AssetType.ERC20, address(0), token1, 0, amount1);
+    returnAssets[2] = asset;
+    if (amount0 > 0) {
+      IERC20(token0).safeTransfer(msg.sender, amount0);
+    }
+    if (amount1 > 0) {
+      IERC20(token1).safeTransfer(msg.sender, amount1);
+    }
+    IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
+  }
+
   function convertIntoExisting(
     Asset memory existingAsset,
-    Asset[] memory newAssets,
-    bytes calldata data
-  ) external returns (Asset[] memory returnAssets) {}
+    Asset[] memory assets
+  ) external nonReentrant returns (Asset[] memory returnAssets) {
+    require(existingAsset.strategy == address(this), InvalidStrategy());
+    require(assets.length == 2, InvalidNumberOfAssets());
+    IncreaseLiquidityParams memory params = IncreaseLiquidityParams(0, 0);
+    Asset[] memory inputAssets = new Asset[](3);
+    inputAssets[0] = assets[0];
+    inputAssets[1] = assets[1];
+    inputAssets[2] = existingAsset;
+
+    returnAssets = _increaseLiquidity(inputAssets, params);
+  }
 
   /// @notice Mints a new position
   /// @param assets The assets to mint the position, assets[0] = token0, assets[1] = token1
@@ -219,15 +243,11 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     require(asset.strategy == address(this), InvalidAsset());
 
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
-    (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
-    underlyingAssets = new Asset[](4);
+    underlyingAssets = new Asset[](2);
     underlyingAssets[0] = Asset(AssetType.ERC20, address(0), token0, 0, amount0);
     underlyingAssets[1] = Asset(AssetType.ERC20, address(0), token1, 0, amount1);
-
-    underlyingAssets[2] = Asset(AssetType.ERC20, address(0), token0, 0, fee0);
-    underlyingAssets[3] = Asset(AssetType.ERC20, address(0), token1, 0, fee1);
   }
 
   /// @dev Gets the pool for the position

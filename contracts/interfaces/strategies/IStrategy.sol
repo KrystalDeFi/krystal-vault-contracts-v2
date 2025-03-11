@@ -12,11 +12,9 @@ interface IStrategy is ICommon {
 
   function convert(Asset[] memory assets, bytes calldata data) external returns (Asset[] memory);
 
+  function harvest(Asset memory asset) external returns (Asset[] memory);
+
   function getUnderlyingAssets(Asset memory asset) external returns (Asset[] memory);
 
-  function convertIntoExisting(
-    Asset memory existingAsset,
-    Asset[] memory newAssets,
-    bytes calldata data
-  ) external returns (Asset[] memory asset);
+  function convertIntoExisting(Asset memory existingAsset, Asset[] memory assets) external returns (Asset[] memory);
 }
