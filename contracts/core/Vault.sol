@@ -99,13 +99,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
           for (uint256 k = 0; k < underlyingAssets.length; ) {
             underlyingAssets[k].amount = (shares * underlyingAssets[k].amount) / totalSupply;
-            IERC20(underlyingAssets[k].token).safeTransferFrom(_msgSender(), address(this), underlyingAssets[k].amount);
+            IERC20(underlyingAssets[k].token).safeTransferFrom(
+              _msgSender(),
+              currentAsset.strategy,
+              underlyingAssets[k].amount
+            );
 
             unchecked {
               k++;
             }
           }
 
+          _transferAsset(currentAsset, currentAsset.strategy);
           Asset[] memory newAssets = IStrategy(currentAsset.strategy).convertIntoExisting(
             currentAsset,
             underlyingAssets
