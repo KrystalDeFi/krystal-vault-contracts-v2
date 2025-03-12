@@ -17,12 +17,15 @@ interface IVaultAutomator is ICommon {
     IVault vault,
     Asset[] memory inputAssets,
     IStrategy strategy,
-    Instruction calldata params
+    bytes calldata allocateCalldata,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
   ) external;
 
   function executeSweepToken(IVault vault, address[] memory tokens) external;
 
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds) external;
+  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
+    external;
 
   function cancelOrder(bytes calldata abiEncodedUserOrder, bytes calldata orderSignature) external;
 

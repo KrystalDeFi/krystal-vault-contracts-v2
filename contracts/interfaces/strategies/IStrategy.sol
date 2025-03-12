@@ -16,5 +16,7 @@ interface IStrategy is ICommon {
 
   function getUnderlyingAssets(Asset memory asset) external returns (Asset[] memory);
 
-  function convertIntoExisting(Asset memory existingAsset, Asset[] memory assets) external returns (Asset[] memory);
+  function convertIntoExisting(Asset memory existingAsset, Asset[] memory assets)
+    external
+    returns (Asset[] memory);
 }

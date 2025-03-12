@@ -7,6 +7,7 @@ interface ICommon {
     ERC721,
     ERC1155
   }
+
   struct Asset {
     AssetType assetType;
     address strategy;
@@ -26,8 +27,6 @@ interface ICommon {
   struct Instruction {
     uint8 instructionType;
     bytes params;
-    bytes abiEncodedUserOrder;
-    bytes orderSignature;
   }
 
   error ZeroAddress();
