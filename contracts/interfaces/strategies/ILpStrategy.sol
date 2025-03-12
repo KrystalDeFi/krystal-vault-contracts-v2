@@ -8,8 +8,11 @@ import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/cont
 interface ILpStrategy is IStrategy {
   enum InstructionType {
     MintPosition,
+    SwapAndMintPosition,
     IncreaseLiquidity,
-    DecreaseLiquidity
+    SwapAndIncreaseLiquidity,
+    DecreaseLiquidity,
+    DecreaseLiquidityAndSwap
   }
 
   struct MintPositionParams {
@@ -23,9 +26,27 @@ interface ILpStrategy is IStrategy {
     uint256 amount1Min;
   }
 
+  struct SwapAndMintPositionParams {
+    INFPM nfpm;
+    address token0;
+    address token1;
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    bytes swapData;
+  }
+
   struct IncreaseLiquidityParams {
     uint256 amount0Min;
     uint256 amount1Min;
+  }
+
+  struct SwapAndIncreaseLiquidityParams {
+    uint256 amount0Min;
+    uint256 amount1Min;
+    bytes swapData;
   }
 
   struct DecreaseLiquidityParams {
@@ -34,5 +55,13 @@ interface ILpStrategy is IStrategy {
     uint256 amount1Min;
   }
 
-  function initialize(address _principalToken) external;
+  struct DecreaseLiquidityAndSwapParams {
+    uint128 liquidity;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    uint256 principleAmountOutMin;
+    bytes swapData;
+  }
+
+  function initialize(address _principalToken, address optimalSwapper) external;
 }

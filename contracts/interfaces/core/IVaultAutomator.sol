@@ -17,7 +17,9 @@ interface IVaultAutomator is ICommon {
     IVault vault,
     Asset[] memory inputAssets,
     IStrategy strategy,
-    Instruction calldata params
+    bytes calldata allocateCalldata,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
   ) external;
 
   function executeSweepToken(IVault vault, address[] memory tokens) external;

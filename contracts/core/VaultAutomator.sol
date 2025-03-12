@@ -18,17 +18,22 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   }
 
   /// @notice Execute an allocate on a Vault
-  /// @param params Instruction
+  /// @param vault Vault
   /// @param inputAssets Input assets
   /// @param strategy Strategy
+  /// @param allocateData allocateData data to be passed to vault's allocate function
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
   function executeAllocate(
     IVault vault,
     Asset[] memory inputAssets,
     IStrategy strategy,
-    Instruction calldata params
+    bytes calldata allocateData,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    _validateOrder(params.abiEncodedUserOrder, params.orderSignature, vault.vaultOwner());
-    vault.allocate(inputAssets, strategy, abi.encode(params));
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    vault.allocate(inputAssets, strategy, allocateData);
   }
 
   /// @notice Execute sweep token

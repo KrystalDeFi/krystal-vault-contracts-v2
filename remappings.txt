@@ -1,0 +1,9 @@
+@aperture_finance/=node_modules/@aperture_finance/
+@openzeppelin/=node_modules/@openzeppelin/
+@pancakeswap/=node_modules/@pancakeswap/
+@uniswap/=node_modules/@uniswap/
+base64-sol/=node_modules/base64-sol/
+eth-gas-reporter/=node_modules/eth-gas-reporter/
+forge-std/=lib/forge-std/src/
+hardhat/=node_modules/hardhat/
+solady/=node_modules/solady/
