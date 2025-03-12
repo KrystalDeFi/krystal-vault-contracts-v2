@@ -2,11 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon, IV3SwapRouter } from "./TestCommon.t.sol";
-import { LpStrategyImpl } from "../contracts/strategies/lp/LpStrategyImpl.sol";
+import { LpStrategy } from "../contracts/strategies/lp/LpStrategy.sol";
 import { ICommon } from "../contracts/interfaces/ICommon.sol";
 import { ILpStrategy } from "../contracts/interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { console } from "forge-std/console.sol";
 import { PoolOptimalSwapper } from "../contracts/core/PoolOptimalSwapper.sol";
@@ -17,7 +16,7 @@ contract LpStrategyTest is TestCommon {
   address public constant USER = 0x1234567890123456789012345678901234567890;
   address public constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
   address public constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
-  LpStrategyImpl public lpStrategy;
+  LpStrategy public lpStrategy;
   IV3SwapRouter public v3SwapRouter;
 
   function setUp() public {
@@ -30,8 +29,7 @@ contract LpStrategyTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
-    lpStrategy = new LpStrategyImpl();
-    lpStrategy.initialize(WETH, address(swapper));
+    lpStrategy = new LpStrategy(WETH, address(swapper));
   }
 
   function test_LpStrategy() public {

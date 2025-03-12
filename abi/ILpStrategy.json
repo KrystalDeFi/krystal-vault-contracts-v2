@@ -366,24 +366,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_principleToken",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "optimalSwapper",
-        "type": "address"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "enum ICommon.AssetType",

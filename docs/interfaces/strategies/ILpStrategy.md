@@ -87,9 +87,3 @@ struct DecreaseLiquidityAndSwapParams {
 }
 ```
 
-### initialize
-
-```solidity
-function initialize(address _principleToken, address optimalSwapper) external
-```
-

@@ -6,7 +6,7 @@ import { sleep } from "./helpers";
 import { last } from "lodash";
 import {
   LpStrategy,
-  LpStrategyImpl,
+  PoolOptimalSwapper,
   Vault,
   VaultAutomator,
   VaultFactory,
@@ -27,7 +27,7 @@ export interface Contracts {
   vaultAutomator?: VaultAutomator;
   vaultZapper?: VaultZapper;
   whitelistManager?: WhitelistManager;
-  lpStrategyImpl?: Record<string, LpStrategyImpl>;
+  poolOptimalSwapper?: PoolOptimalSwapper;
   lpStrategy?: Record<string, LpStrategy>;
   vaultFactory?: VaultFactory;
 }
@@ -62,14 +62,14 @@ async function deployContracts(
   const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract, deployer);
   const vaultZapper = await deployVaultZapperContract(++step, existingContract, deployer);
   const whitelistManager = await deployWhitelistManagerContract(++step, existingContract, deployer);
-  const lpStrategyImpl = await deployLpStrategyImplContract(++step, existingContract, deployer);
+  const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract, deployer);
 
   const contracts: Contracts = {
     vault: vault.vault,
     vaultAutomator: vaultAutomator.vaultAutomator,
     vaultZapper: vaultZapper.vaultZapper,
     whitelistManager: whitelistManager.whitelistManager,
-    lpStrategyImpl: lpStrategyImpl.lpStrategyImpl,
+    poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
   };
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
@@ -182,31 +182,27 @@ export const deployWhitelistManagerContract = async (
   };
 };
 
-export const deployLpStrategyImplContract = async (
+export const deployPoolOptimalSwapperContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   deployer: string,
   customNetworkConfig?: IConfig,
+  contracts?: Contracts,
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let lpStrategyImpl: Record<string, LpStrategyImpl> = {};
-  if (config.lpStrategyImpl?.enabled) {
-    config.lpStrategyPrincipleTokens?.forEach(async (token: string) => {
-      const lpStrategyImpl = (await deployContract(
-        `${step} >>`,
-        config.lpStrategyImpl?.autoVerifyContract,
-        "LpStrategyImpl",
-        existingContract?.["lpStrategyImpl"]?.[token],
-        "contracts/strategies/lp/LpStrategyImpl.sol:LpStrategyImpl",
-        `${SALT}_${token}`,
-      )) as LpStrategyImpl;
-
-      Object.assign(lpStrategyImpl, { token });
-    });
+  let poolOptimalSwapper;
+  if (config.poolOptimalSwapper?.enabled) {
+    poolOptimalSwapper = (await deployContract(
+      `${step} >>`,
+      config.poolOptimalSwapper?.autoVerifyContract,
+      "PoolOptimalSwapper",
+      existingContract?.["poolOptimalSwapper"],
+      "contracts/core/PoolOptimalSwapper.sol:PoolOptimalSwapper",
+    )) as PoolOptimalSwapper;
   }
   return {
-    lpStrategyImpl,
+    poolOptimalSwapper,
   };
 };
 
@@ -222,8 +218,6 @@ export const deployLpStrategyContract = async (
   let lpStrategy: Record<string, LpStrategy> = {};
   if (config.lpStrategy?.enabled) {
     config.lpStrategyPrincipleTokens?.forEach(async (token: string) => {
-      let initData = (await contracts?.lpStrategyImpl?.[token]?.initialize(token))?.data?.toString() ?? "0x";
-
       const lpStrategy = (await deployContract(
         `${step} >>`,
         config.lpStrategy?.autoVerifyContract,
@@ -231,8 +225,8 @@ export const deployLpStrategyContract = async (
         existingContract?.["lpStrategy"]?.[token],
         "contracts/strategies/lp/LpStrategy.sol:LpStrategy",
         `${SALT}_${token}`,
-        ["address", "address", "bytes"],
-        [contracts?.lpStrategyImpl?.[token]?.target, deployer, initData],
+        ["address", "address"],
+        [token, existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target],
       )) as LpStrategy;
 
       Object.assign(lpStrategy, { token });
