@@ -7,4 +7,3 @@
 ```solidity
 constructor(uint256 amountToMint) public
 ```
-

@@ -3,8 +3,7 @@ pragma solidity ^0.8.28;
 
 import "./IStrategy.sol";
 
-import {INonfungiblePositionManager as INFPM} from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 interface ILpStrategy is IStrategy {
   enum InstructionType {

@@ -39,11 +39,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @notice Execute sweep token
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
-  function executeSweepToken(IVault vault, address[] memory tokens)
-    external
-    override
-    onlyRole(OPERATOR_ROLE_HASH)
-  {
+  function executeSweepToken(IVault vault, address[] memory tokens) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepToken(tokens);
   }
 
@@ -51,11 +47,11 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
-    external
-    override
-    onlyRole(OPERATOR_ROLE_HASH)
-  {
+  function executeSweepNFTToken(
+    IVault vault,
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepNFTToken(tokens, tokenIds);
   }
 
@@ -63,11 +59,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param abiEncodedUserOrder ABI encoded user order
   /// @param orderSignature Signature of the order
   /// @param actor Actor of the order
-  function _validateOrder(
-    bytes memory abiEncodedUserOrder,
-    bytes memory orderSignature,
-    address actor
-  ) internal view {
+  function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     address userAddress = _recover(abiEncodedUserOrder, orderSignature);
     require(userAddress == actor, InvalidSignature());
     require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());

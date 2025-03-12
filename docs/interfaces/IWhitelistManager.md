@@ -13,4 +13,3 @@ function whitelistStrategy(address[] _strategies, bool _isWhitelisted) external
 ```solidity
 function isWhitelisted(address _strategy) external view returns (bool _isWhitelisted)
 ```
-

@@ -2,7 +2,7 @@
 
 ## StructHash
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(bytes abiEncodedUserOrder) internal pure returns (bytes32)
@@ -22,7 +22,7 @@ struct RebalanceAutoCompound {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RebalanceAutoCompound obj) internal pure returns (bytes32)
@@ -43,7 +43,7 @@ struct RebalanceAutoCompoundAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RebalanceAutoCompoundAction obj) internal pure returns (bytes32)
@@ -64,7 +64,7 @@ struct TickOffsetCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.TickOffsetCondition obj) internal pure returns (bytes32)
@@ -86,7 +86,7 @@ struct PriceOffsetCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.PriceOffsetCondition obj) internal pure returns (bytes32)
@@ -107,7 +107,7 @@ struct TokenRatioCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.TokenRatioCondition obj) internal pure returns (bytes32)
@@ -132,7 +132,7 @@ struct Condition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.Condition obj) internal pure returns (bytes32)
@@ -153,7 +153,7 @@ struct TickOffsetAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.TickOffsetAction obj) internal pure returns (bytes32)
@@ -175,7 +175,7 @@ struct PriceOffsetAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.PriceOffsetAction obj) internal pure returns (bytes32)
@@ -196,7 +196,7 @@ struct TokenRatioAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.TokenRatioAction obj) internal pure returns (bytes32)
@@ -222,7 +222,7 @@ struct RebalanceAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RebalanceAction obj) internal pure returns (bytes32)
@@ -245,7 +245,7 @@ struct RebalanceConfig {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RebalanceConfig obj) internal pure returns (bytes32)
@@ -267,7 +267,7 @@ struct RangeOrderCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RangeOrderCondition obj) internal pure returns (bytes32)
@@ -289,7 +289,7 @@ struct RangeOrderAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RangeOrderAction obj) internal pure returns (bytes32)
@@ -310,7 +310,7 @@ struct RangeOrderConfig {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.RangeOrderConfig obj) internal pure returns (bytes32)
@@ -330,7 +330,7 @@ struct FeeBasedCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.FeeBasedCondition obj) internal pure returns (bytes32)
@@ -350,7 +350,7 @@ struct TimeBasedCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.TimeBasedCondition obj) internal pure returns (bytes32)
@@ -372,7 +372,7 @@ struct AutoCompoundCondition {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.AutoCompoundCondition obj) internal pure returns (bytes32)
@@ -394,7 +394,7 @@ struct AutoCompoundAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.AutoCompoundAction obj) internal pure returns (bytes32)
@@ -415,7 +415,7 @@ struct AutoCompoundConfig {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.AutoCompoundConfig obj) internal pure returns (bytes32)
@@ -436,7 +436,7 @@ struct AutoExitConfig {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.AutoExitConfig obj) internal pure returns (bytes32)
@@ -459,7 +459,7 @@ struct AutoExitAction {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.AutoExitAction obj) internal pure returns (bytes32)
@@ -482,7 +482,7 @@ struct OrderConfig {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.OrderConfig obj) internal pure returns (bytes32)
@@ -507,9 +507,8 @@ struct Order {
 }
 ```
 
-### _hash
+### \_hash
 
 ```solidity
 function _hash(struct StructHash.Order obj) internal pure returns (bytes32)
 ```
-
