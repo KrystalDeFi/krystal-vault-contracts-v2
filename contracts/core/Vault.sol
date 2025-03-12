@@ -249,6 +249,9 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault
   function getAssetAllocations() external override returns (Asset[] memory assets) {
+    Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
+    uint256 index = 0;
+
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
@@ -258,22 +261,37 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
         if (currentAsset.strategy != address(0)) {
           Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
-
           for (uint256 k = 0; k < strategyAssets.length; ) {
-            assets[assets.length] = strategyAssets[k];
+            tempAssets[index] = strategyAssets[k];
 
             unchecked {
+              index++;
               k++;
             }
           }
         } else {
-          assets[assets.length] = currentAsset;
+          tempAssets[index] = currentAsset;
+
+          unchecked {
+            index++;
+          }
         }
 
         unchecked {
           j++;
         }
       }
+
+      unchecked {
+        i++;
+      }
+    }
+
+    // Create the exact-sized array and copy the results
+    assets = new Asset[](index);
+    for (uint256 i = 0; i < index; ) {
+      assets[i] = tempAssets[i];
+
       unchecked {
         i++;
       }
