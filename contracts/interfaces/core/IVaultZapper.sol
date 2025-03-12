@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import "../IWETH9.sol";
 import "../ICommon.sol";
 import "./IVault.sol";
 
@@ -14,30 +13,23 @@ interface IVaultZapper is ICommon {
     PERFORMANCE_FEE
   }
 
-  enum Protocol {
-    UNI_V3,
-    ALGEBRA_V1
+  struct SwapParams {
+    address swapRouter;
+    IERC20 swapDestToken;
+    uint256 amount;
+    uint256 amountIn;
+    uint256 amountOutMin;
+    address recipient;
+    uint256 deadline;
+    bytes swapData;
   }
 
   struct SwapAndDepositParams {
-    Protocol protocol;
     IVault vault;
-    address swapRouter;
-    uint256 amount0;
-    uint256 amount1;
-    uint256 amount2;
-    address recipient;
-    uint256 deadline;
-    IERC20 swapSourceToken;
-    uint256 amountIn0;
-    uint256 amountOut0Min;
-    bytes swapData0;
-    uint256 amountIn1;
-    uint256 amountOut1Min;
-    bytes swapData1;
-    uint256 amountAddMin0;
-    uint256 amountAddMin1;
     uint64 protocolFeeX64;
+    IERC20 swapSourceToken;
+    uint256 amount;
+    SwapParams[] swaps;
   }
 
   struct WithdrawAndSwapParams {
@@ -50,26 +42,12 @@ interface IVaultZapper is ICommon {
   }
 
   struct SwapAndPrepareAmountsParams {
-    IWETH9 weth;
-    IERC20 token0;
-    IERC20 token1;
-    address swapRouter;
-    uint256 amount0;
-    uint256 amount1;
-    uint256 amount2;
-    address recipient;
-    uint256 deadline;
     IERC20 swapSourceToken;
-    uint256 amountIn0;
-    uint256 amountOut0Min;
-    bytes swapData0;
-    uint256 amountIn1;
-    uint256 amountOut1Min;
-    bytes swapData1;
+    uint256 amount;
+    SwapParams[] swaps;
   }
 
   struct ReturnLeftoverTokensParams {
-    IWETH9 weth;
     address to;
     IERC20 token0;
     IERC20 token1;
@@ -80,13 +58,31 @@ interface IVaultZapper is ICommon {
     bool unwrap;
   }
 
+  struct DeductFeesParams {
+    uint64 feeX64;
+    FeeType feeType;
+    address vault;
+    IERC20 swapSourceToken;
+    uint256 amount;
+    SwapParams[] swaps;
+  }
+
+  struct DeductFeesEventData {
+    IERC20 swapSourceToken;
+    uint256 amount;
+    uint256 feeAmount;
+    SwapParams[] swaps;
+    uint256[] amountsLeft;
+    uint256[] feeAmounts;
+    uint64 feeX64;
+    FeeType feeType;
+  }
+
   error AmountError();
 
   error SlippageError();
 
   error EtherSendFailed();
-
-  error NotSupportedProtocol();
 
   error TransferError();
 
@@ -103,6 +99,10 @@ interface IVaultZapper is ICommon {
   error SameToken();
 
   error InvalidApproval();
+
+  event Swap(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+
+  event VaultDeductFees(address indexed vault, DeductFeesEventData data);
 
   function swapAndDeposit(SwapAndDepositParams memory params) external payable returns (uint256 shares);
 

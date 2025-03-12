@@ -30,7 +30,9 @@ interface IVault is ICommon {
     address _vaultAutomator
   ) external;
 
-  function deposit(uint256 amount) external returns (uint256 shares);
+  function deposit(uint256 shares) external returns (uint256 returnShares);
+
+  function withdraw(uint256 shares) external;
 
   function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 

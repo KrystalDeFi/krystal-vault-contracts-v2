@@ -3,21 +3,30 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+
+import "../interfaces/IWETH9.sol";
 import "../interfaces/core/IVaultZapper.sol";
 import "../interfaces/core/IWhitelistManager.sol";
 
 contract VaultZapper is AccessControl, IVaultZapper {
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   bytes32 public constant WITHDRAWER_ROLE_HASH = keccak256("WITHDRAWER_ROLE");
+  uint256 public constant Q64 = 2 ** 64;
 
   IWhitelistManager public whitelistManager;
   address public feeTaker;
+  IWETH9 public weth;
 
   mapping(FeeType => uint64) private _maxFeeX64;
 
-  constructor(address _whitelistManager, address _feeTaker) {
+  constructor(address _whitelistManager, address _feeTaker, IWETH9 _weth) {
     require(_whitelistManager != address(0), ZeroAddress());
     require(_feeTaker != address(0), ZeroAddress());
+    require(address(_weth) != address(0), ZeroAddress());
 
     _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
     _grantRole(ADMIN_ROLE_HASH, _msgSender());
@@ -25,6 +34,7 @@ contract VaultZapper is AccessControl, IVaultZapper {
 
     whitelistManager = IWhitelistManager(_whitelistManager);
     feeTaker = _feeTaker;
+    weth = _weth;
 
     _maxFeeX64[FeeType.GAS_FEE] = 5534023222112865280; // 30%
     _maxFeeX64[FeeType.LIQUIDITY_FEE] = 5534023222112865280; // 30%
@@ -35,145 +45,167 @@ contract VaultZapper is AccessControl, IVaultZapper {
   /// @param params Swap and add to vault
   /// Send left-over to recipient
   function swapAndDeposit(SwapAndDepositParams memory params) external payable returns (uint256 shares) {
-    (, INonfungiblePositionManager nfpm, IERC20 token0, IERC20 token1, uint256 currentTokenId, , , , ) = params
-      .vault
-      .state();
-    IWETH9 weth = _getWeth9(address(nfpm), params.protocol);
+    uint256 totalIn = 0;
 
-    // validate if amount2 is enough for action
-    if (
-      params.swapSourceToken != token0 &&
-      params.swapSourceToken != token1 &&
-      params.amountIn0 + params.amountIn1 > params.amount2
-    ) {
-      revert AmountError();
+    for (uint256 i = 0; i < params.swaps.length; ) {
+      SwapParams memory swap = params.swaps[i];
+      require(params.swapSourceToken != swap.swapDestToken, SameToken());
+
+      if (swap.amountIn > 0) {
+        totalIn += swap.amountIn;
+      }
+
+      unchecked {
+        i++;
+      }
     }
 
-    _prepareSwap(
-      weth,
-      IERC20(token0),
-      IERC20(token1),
-      params.swapSourceToken,
-      params.amount0,
-      params.amount1,
-      params.amount2
-    );
-    SwapAndDepositParams memory _params = params;
+    require(totalIn >= params.amount, AmountError());
+
+    _prepareSwap(params.swapSourceToken, params.amount, params.swaps);
+
+    if (params.protocolFeeX64 > 0) {
+      (uint256 amount, uint256[] memory amounts, , ) = _deductFees(
+        DeductFeesParams(
+          params.protocolFeeX64,
+          FeeType.LIQUIDITY_FEE,
+          address(params.vault),
+          params.swapSourceToken,
+          params.amount,
+          params.swaps
+        ),
+        true
+      );
+
+      params.amount = amount;
+
+      for (uint256 i = 0; i < params.swaps.length; ) {
+        params.swaps[i].amount = amounts[i];
+
+        unchecked {
+          i++;
+        }
+      }
+    }
 
     (uint256 total0, uint256 total1) = _swapAndPrepareAmounts(
-      SwapAndPrepareAmountsParams(
-        _getWeth9(address(nfpm), params.protocol),
-        token0,
-        token1,
-        params.swapRouter,
-        params.amount0,
-        params.amount1,
-        params.amount2,
-        params.recipient,
-        params.deadline,
-        params.swapSourceToken,
-        params.amountIn0,
-        params.amountOut0Min,
-        params.swapData0,
-        params.amountIn1,
-        params.amountOut1Min,
-        params.swapData1
-      ),
+      SwapAndPrepareAmountsParams(params.swapSourceToken, params.amount, params.swaps),
       msg.value != 0
     );
 
     if (total0 != 0) {
-      _safeResetAndApprove(token0, address(params.vault), total0);
+      _safeResetAndApprove(params.token0, address(params.vault), total0);
     }
     if (total1 != 0) {
-      _safeResetAndApprove(token1, address(params.vault), total1);
+      _safeResetAndApprove(params.token1, address(params.vault), total1);
     }
 
     shares = params.vault.deposit(total0, total1, params.amountAddMin0, params.amountAddMin1, msg.sender);
   }
 
-  function withdrawAndSwap(
-    IVault vault,
-    uint256 shares,
-    address to,
-    uint256 amount0Min,
-    uint256 amount1Min,
-    bytes calldata swapData
-  ) external {
+  function withdrawAndSwap(WithdrawAndSwapParams memory params) external override {
     // Implement withdrawAndSwap logic
-    require(shares > 0, AmountError());
-    IERC20(address(vault)).transferFrom(msg.sender, address(this), shares);
+    require(params.shares > 0, AmountError());
+    IERC20(address(params.vault)).transferFrom(msg.sender, address(this), params.shares);
 
-    (uint256 amount0, uint256 amount1) = vault.withdraw(shares, address(this), amount0Min, amount1Min);
+    // (uint256 amount0, uint256 amount1) = params.vault.withdraw(params.shares, address(this), amount0Min, amount1Min);
   }
 
   // swaps available tokens and prepares max amounts to be added to nfpm
   function _swapAndPrepareAmounts(
     SwapAndPrepareAmountsParams memory params,
     bool unwrap
-  ) internal returns (uint256 total0, uint256 total1) {
-    if (params.swapSourceToken == params.token0) {
-      if (params.amount0 < params.amountIn1) {
-        revert AmountError();
-      }
-      (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
-        params.token0,
-        params.token1,
-        params.amountIn1,
-        params.amountOut1Min,
-        params.swapRouter,
-        params.swapData1
-      );
-      total0 = params.amount0 - amountInDelta;
-      total1 = params.amount1 + amountOutDelta;
-    } else if (params.swapSourceToken == params.token1) {
-      if (params.amount1 < params.amountIn0) {
-        revert AmountError();
-      }
-      (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
-        params.token1,
-        params.token0,
-        params.amountIn0,
-        params.amountOut0Min,
-        params.swapRouter,
-        params.swapData0
-      );
-      total1 = params.amount1 - amountInDelta;
-      total0 = params.amount0 + amountOutDelta;
-    } else if (address(params.swapSourceToken) != address(0)) {
-      (uint256 amountInDelta0, uint256 amountOutDelta0) = _swap(
-        params.swapSourceToken,
-        params.token0,
-        params.amountIn0,
-        params.amountOut0Min,
-        params.swapRouter,
-        params.swapData0
-      );
-      (uint256 amountInDelta1, uint256 amountOutDelta1) = _swap(
-        params.swapSourceToken,
-        params.token1,
-        params.amountIn1,
-        params.amountOut1Min,
-        params.swapRouter,
-        params.swapData1
-      );
-      total0 = params.amount0 + amountOutDelta0;
-      total1 = params.amount1 + amountOutDelta1;
+  ) internal returns (uint256 total, uint256[] memory totals) {
+    bool isIncludeSourceToken = false;
 
-      if (params.amount2 < amountInDelta0 + amountInDelta1) {
-        revert AmountError();
-      }
-      // return third token leftover if any
-      uint256 leftOver = params.amount2 - amountInDelta0 - amountInDelta1;
+    for (uint256 i = 0; i < params.swaps.length; ) {
+      SwapParams memory swap = params.swaps[i];
 
-      if (leftOver != 0) {
-        // IWETH9 weth = _getWeth9(address(params.nfpm), params.protocol);
-        _transferToken(params.weth, params.recipient, params.swapSourceToken, leftOver, unwrap);
+      if (address(params.swapSourceToken) == address(swap.swapDestToken)) {
+        isIncludeSourceToken = true;
+
+        if (swap.amount < swap.amountIn) {
+          revert AmountError();
+        }
+
+        (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
+          params.swapSourceToken,
+          swap.swapDestToken,
+          swap.amountIn,
+          swap.amountOutMin,
+          swap.swapRouter,
+          swap.swapData
+        );
+
+        
       }
-    } else {
-      total0 = params.amount0;
-      total1 = params.amount1;
+
+      unchecked {
+        i++;
+      }
     }
+
+    // if (params.swapSourceToken == params.token0) {
+    //   if (params.amount0 < params.amountIn1) {
+    //     revert AmountError();
+    //   }
+    //   (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
+    //     params.token0,
+    //     params.token1,
+    //     params.amountIn1,
+    //     params.amountOut1Min,
+    //     params.swapRouter,
+    //     params.swapData1
+    //   );
+    //   total = params.amount0 - amountInDelta;
+    //   total1 = params.amount1 + amountOutDelta;
+    // } else if (params.swapSourceToken == params.token1) {
+    //   if (params.amount1 < params.amountIn0) {
+    //     revert AmountError();
+    //   }
+    //   (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
+    //     params.token1,
+    //     params.token0,
+    //     params.amountIn0,
+    //     params.amountOut0Min,
+    //     params.swapRouter,
+    //     params.swapData0
+    //   );
+    //   total1 = params.amount1 - amountInDelta;
+    //   total = params.amount0 + amountOutDelta;
+    // } else if (address(params.swapSourceToken) != address(0)) {
+    //   (uint256 amountInDelta0, uint256 amountOutDelta0) = _swap(
+    //     params.swapSourceToken,
+    //     params.token0,
+    //     params.amountIn0,
+    //     params.amountOut0Min,
+    //     params.swapRouter,
+    //     params.swapData0
+    //   );
+    //   (uint256 amountInDelta1, uint256 amountOutDelta1) = _swap(
+    //     params.swapSourceToken,
+    //     params.token1,
+    //     params.amountIn1,
+    //     params.amountOut1Min,
+    //     params.swapRouter,
+    //     params.swapData1
+    //   );
+    //   total = params.amount0 + amountOutDelta0;
+    //   total1 = params.amount1 + amountOutDelta1;
+
+    //   if (params.amount2 < amountInDelta0 + amountInDelta1) {
+    //     revert AmountError();
+    //   }
+    //   // return third token leftover if any
+    //   uint256 leftOver = params.amount2 - amountInDelta0 - amountInDelta1;
+
+    //   if (leftOver != 0) {
+    //     _transferToken(params.recipient, params.swapSourceToken, leftOver, unwrap);
+    //   }
+    // } else {
+    //   total = params.amount0;
+    //   total1 = params.amount1;
+    // }
   }
 
   // general swap function which uses external router with off-chain calculated swap instructions
@@ -248,7 +280,7 @@ contract VaultZapper is AccessControl, IVaultZapper {
   }
 
   // transfers token (or unwraps WETH and sends ETH)
-  function _transferToken(IWETH9 weth, address to, IERC20 token, uint256 amount, bool unwrap) internal {
+  function _transferToken(address to, IERC20 token, uint256 amount, bool unwrap) internal {
     if (address(weth) == address(token) && unwrap) {
       weth.withdraw(amount);
       (bool sent, ) = to.call{ value: amount }("");
@@ -260,78 +292,142 @@ contract VaultZapper is AccessControl, IVaultZapper {
     }
   }
 
-  function _getWeth9(address nfpm, Protocol /*protocol*/) internal view returns (IWETH9 weth) {
-    weth = IWETH9(INonfungiblePositionManager(nfpm).WETH9());
-  }
+  // @dev checks if required amounts are provided and are exact - wraps any provided ETH as WETH
+  // @notice if less or more provided reverts
+  function _prepareSwap(IERC20 swapSourceToken, uint256 amount, SwapParams[] memory swaps) internal {
+    uint256[] memory amountAdded;
+    uint256 amountSourceAdded;
 
-  // checks if required amounts are provided and are exact - wraps any provided ETH as WETH
-  // if less or more provided reverts
-  function _prepareSwap(
-    IWETH9 weth,
-    IERC20 token0,
-    IERC20 token1,
-    IERC20 otherToken,
-    uint256 amount0,
-    uint256 amount1,
-    uint256 amountOther
-  ) internal {
-    uint256 amountAdded0;
-    uint256 amountAdded1;
-    uint256 amountAddedOther;
+    bool isSwapTokensIncludedWeth = true;
+    bool isIncludedSourceToken = false;
 
     // wrap ether sent
     if (msg.value != 0) {
       weth.deposit{ value: msg.value }();
 
-      if (address(weth) == address(token0)) {
-        amountAdded0 = msg.value;
-        if (amountAdded0 > amount0) {
-          revert TooMuchEtherSent();
+      for (uint256 i = 0; i < swaps.length; ) {
+        SwapParams memory swap = swaps[i];
+
+        if (address(weth) == address(swap.swapDestToken)) {
+          amountAdded.push(msg.value);
+          if (amountAdded[i] > swap.amount) {
+            revert TooMuchEtherSent();
+          }
+        } else {
+          if (i == swaps.length - 1) {
+            isSwapTokensIncludedWeth = false;
+          }
         }
-      } else if (address(weth) == address(token1)) {
-        amountAdded1 = msg.value;
-        if (amountAdded1 > amount1) {
-          revert TooMuchEtherSent();
+
+        unchecked {
+          i++;
         }
-      } else if (address(weth) == address(otherToken)) {
-        amountAddedOther = msg.value;
-        if (amountAddedOther > amountOther) {
-          revert TooMuchEtherSent();
+      }
+
+      if (!isSwapTokensIncludedWeth) {
+        if (address(weth) == address(swapSourceToken)) {
+          amountSourceAdded = msg.value;
+          if (amountSourceAdded > amount) {
+            revert TooMuchEtherSent();
+          }
+        } else {
+          revert NoEtherToken();
         }
-      } else {
-        revert NoEtherToken();
       }
     }
 
     // get missing tokens (fails if not enough provided)
-    if (amount0 > amountAdded0) {
-      uint256 balanceBefore = token0.balanceOf(address(this));
-      SafeERC20.safeTransferFrom(token0, msg.sender, address(this), amount0 - amountAdded0);
-      uint256 balanceAfter = token0.balanceOf(address(this));
-      if (balanceAfter - balanceBefore != amount0 - amountAdded0) {
-        revert TransferError(); // reverts for fee-on-transfer tokens
+    for (uint256 i = 0; i < swaps.length; ) {
+      SwapParams memory swap = swaps[i];
+
+      if (address(swapSourceToken) == address(swap.swapDestToken)) {
+        isIncludedSourceToken = true;
+      }
+
+      if (swap.amount > amountAdded[i]) {
+        uint256 balanceBefore = swap.swapDestToken.balanceOf(address(this));
+        SafeERC20.safeTransferFrom(swap.swapDestToken, msg.sender, address(this), swap.amount - amountAdded[i]);
+        uint256 balanceAfter = swap.swapDestToken.balanceOf(address(this));
+
+        if (balanceAfter - balanceBefore != swap.amount - amountAdded[i]) {
+          revert TransferError();
+        }
+      }
+
+      unchecked {
+        i++;
       }
     }
-    if (amount1 > amountAdded1) {
-      uint256 balanceBefore = token1.balanceOf(address(this));
-      SafeERC20.safeTransferFrom(token1, msg.sender, address(this), amount1 - amountAdded1);
-      uint256 balanceAfter = token1.balanceOf(address(this));
-      if (balanceAfter - balanceBefore != amount1 - amountAdded1) {
-        revert TransferError(); // reverts for fee-on-transfer tokens
+
+    if (amount > amountSourceAdded && address(swapSourceToken) != address(0) && !isIncludedSourceToken) {
+      uint256 balanceBefore = swapSourceToken.balanceOf(address(this));
+      SafeERC20.safeTransferFrom(swapSourceToken, msg.sender, address(this), amount - amountSourceAdded);
+      uint256 balanceAfter = swapSourceToken.balanceOf(address(this));
+
+      if (balanceAfter - balanceBefore != amount - amountSourceAdded) {
+        revert TransferError();
       }
     }
-    if (
-      amountOther > amountAddedOther &&
-      address(otherToken) != address(0) &&
-      token0 != otherToken &&
-      token1 != otherToken
-    ) {
-      uint256 balanceBefore = otherToken.balanceOf(address(this));
-      SafeERC20.safeTransferFrom(otherToken, msg.sender, address(this), amountOther - amountAddedOther);
-      uint256 balanceAfter = otherToken.balanceOf(address(this));
-      if (balanceAfter - balanceBefore != amountOther - amountAddedOther) {
-        revert TransferError(); // reverts for fee-on-transfer tokens
+  }
+
+  /**
+   * @notice calculate fee
+   * @param emitEvent: whether to emit event or not. Since swap and mint have not had token id yet.
+   * we need to emit event latter
+   */
+  function _deductFees(
+    DeductFeesParams memory params,
+    bool emitEvent
+  )
+    internal
+    returns (uint256 amountLeft, uint256[] memory amountsLeft, uint256 feeAmount, uint256[] memory feeAmounts)
+  {
+    if (params.feeX64 > _maxFeeX64[params.feeType]) {
+      revert TooMuchFee();
+    }
+
+    // to save gas, we always need to check if fee exists before deductFees
+    if (params.feeX64 == 0) {
+      revert NoFees();
+    }
+
+    if (params.amount > 0) {
+      feeAmount = FullMath.mulDiv(params.amount, params.feeX64, Q64);
+      amountLeft = params.amount - feeAmount;
+      if (feeAmount > 0) {
+        SafeERC20.safeTransfer(params.swapSourceToken, feeTaker, feeAmount);
       }
+    }
+
+    for (uint256 i = 0; i < params.swaps.length; ) {
+      SwapParams memory swap = params.swaps[i];
+
+      if (swap.amount > 0) {
+        feeAmounts[i] = FullMath.mulDiv(swap.amount, params.feeX64, Q64);
+        amountsLeft[i] = swap.amount - feeAmounts[i];
+        if (feeAmounts[i] > 0) {
+          SafeERC20.safeTransfer(swap.swapDestToken, feeTaker, feeAmounts[i]);
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    if (emitEvent) {
+      emit VaultDeductFees(
+        params.vault,
+        DeductFeesEventData(
+          params.swapSourceToken,
+          params.amount,
+          feeAmount,
+          params.swaps,
+          amountsLeft,
+          feeAmounts,
+          params.feeX64,
+          params.feeType
+        )
+      );
     }
   }
 
@@ -342,10 +438,10 @@ contract VaultZapper is AccessControl, IVaultZapper {
 
     // return leftovers
     if (left0 != 0) {
-      _transferToken(params.weth, params.to, params.token0, left0, params.unwrap);
+      _transferToken(params.to, params.token0, left0, params.unwrap);
     }
     if (left1 != 0) {
-      _transferToken(params.weth, params.to, params.token1, left1, params.unwrap);
+      _transferToken(params.to, params.token1, left1, params.unwrap);
     }
   }
 
