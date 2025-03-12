@@ -21,6 +21,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -364,6 +369,11 @@
         "internalType": "address",
         "name": "_principalToken",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "optimalSwapper",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -409,9 +419,36 @@
     "name": "valueOf",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",

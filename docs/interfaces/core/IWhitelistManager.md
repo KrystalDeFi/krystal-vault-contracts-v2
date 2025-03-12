@@ -8,9 +8,21 @@
 function whitelistStrategy(address[] _strategies, bool _isWhitelisted) external
 ```
 
-### isWhitelisted
+### isWhitelistedStrategy
 
 ```solidity
-function isWhitelisted(address _strategy) external view returns (bool _isWhitelisted)
+function isWhitelistedStrategy(address _strategy) external view returns (bool _isWhitelisted)
+```
+
+### whitelistSwapRouter
+
+```solidity
+function whitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted) external
+```
+
+### isWhitelistedSwapRouter
+
+```solidity
+function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool _isWhitelisted)
 ```
 

@@ -23,7 +23,7 @@ error InvalidInstructionType()
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
+function valueOf(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] assets)
 ```
 
 ### convert

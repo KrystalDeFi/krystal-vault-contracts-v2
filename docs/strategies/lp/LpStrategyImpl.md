@@ -8,6 +8,12 @@
 address principalToken
 ```
 
+### optimalSwapper
+
+```solidity
+contract IOptimalSwapper optimalSwapper
+```
+
 ### constructor
 
 ```solidity
@@ -17,7 +23,7 @@ constructor() public
 ### initialize
 
 ```solidity
-function initialize(address _principalToken) public
+function initialize(address _principalToken, address _optimalSwapper) public
 ```
 
 Initializes the strategy
@@ -27,11 +33,12 @@ Initializes the strategy
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _principalToken | address | The principal token of the strategy |
+| _optimalSwapper | address |  |
 
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external view returns (uint256 value)
+function valueOf(struct ICommon.Asset asset) external view returns (struct ICommon.Asset[] assets)
 ```
 
 Deposits the asset to the strategy
@@ -75,10 +82,10 @@ function harvest(struct ICommon.Asset asset) external returns (struct ICommon.As
 function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[] returnAssets)
 ```
 
-### _mintPosition
+### mintPosition
 
 ```solidity
-function _mintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function mintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
 ```
 
 Mints a new position
@@ -96,10 +103,22 @@ Mints a new position
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
-### _increaseLiquidity
+### swapAndMintPosition
 
 ```solidity
-function _increaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function swapAndMintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.SwapAndMintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### _mintPosition
+
+```solidity
+function _mintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### increaseLiquidity
+
+```solidity
+function increaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
 ```
 
 Increases the liquidity of the position
@@ -117,10 +136,22 @@ Increases the liquidity of the position
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
 
-### _decreaseLiquidity
+### swapAndIncreaseLiquidity
 
 ```solidity
-function _decreaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function swapAndIncreaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.SwapAndIncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### _increaseLiquidity
+
+```solidity
+function _increaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### decreaseLiquidity
+
+```solidity
+function decreaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position
@@ -137,6 +168,24 @@ Decreases the liquidity of the position
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+
+### decreaseLiquidityAndSwap
+
+```solidity
+function decreaseLiquidityAndSwap(struct ICommon.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### _decreaseLiquidity
+
+```solidity
+function _decreaseLiquidity(struct ICommon.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+```
+
+### _optimalSwapFromPrinciple
+
+```solidity
+function _optimalSwapFromPrinciple(uint256 amount, address pool, address token0, address token1, int24 tickLower, int24 tickUpper, bytes swapData) internal returns (uint256 amount0Result, uint256 amount1Result)
+```
 
 ### getUnderlyingAssets
 

@@ -57,8 +57,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     whitelistManager = IWhitelistManager(_whitelistManager);
     vaultOwner = _owner;
     principalToken = params.principalToken;
-    Asset memory firstAsset =
-      Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
+    Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
 
     _addAsset(firstAsset);
     _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
@@ -71,10 +70,11 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @return returnShares Amount of shares minted
   function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
     uint256 totalSupply = totalSupply();
-    for (uint256 i = 0; i < tokenAddresses.length();) {
+
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
-      for (uint256 j = 0; j < tokenIndices[token].length();) {
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
         uint256 tokenId = tokenIndices[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
         if (currentAsset.strategy != address(0)) _harvest(currentAsset);
@@ -87,20 +87,21 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
-    for (uint256 i = 0; i < tokenAddresses.length();) {
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
-      for (uint256 j = 0; j < tokenIndices[token].length();) {
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
         uint256 tokenId = tokenIndices[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
 
         if (currentAsset.strategy != address(0)) {
-          Asset[] memory underlyingAssets =
-            IStrategy(currentAsset.strategy).getUnderlyingAssets(currentAsset);
+          Asset[] memory underlyingAssets = IStrategy(currentAsset.strategy).getUnderlyingAssets(currentAsset);
 
-          for (uint256 k = 0; k < underlyingAssets.length;) {
+          for (uint256 k = 0; k < underlyingAssets.length; ) {
             underlyingAssets[k].amount = (shares * underlyingAssets[k].amount) / totalSupply;
             IERC20(underlyingAssets[k].token).safeTransferFrom(
-              _msgSender(), currentAsset.strategy, underlyingAssets[k].amount
+              _msgSender(),
+              currentAsset.strategy,
+              underlyingAssets[k].amount
             );
 
             unchecked {
@@ -109,8 +110,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
           }
 
           _transferAsset(currentAsset, currentAsset.strategy);
-          Asset[] memory newAssets =
-            IStrategy(currentAsset.strategy).convertIntoExisting(currentAsset, underlyingAssets);
+          Asset[] memory newAssets = IStrategy(currentAsset.strategy).convertIntoExisting(
+            currentAsset,
+            underlyingAssets
+          );
           _addAssets(newAssets);
         }
         unchecked {
@@ -122,10 +125,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
-    for (uint256 i = 0; i < tokenAddresses.length();) {
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
-      for (uint256 j = 0; j < tokenIndices[token].length();) {
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
         uint256 tokenId = tokenIndices[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
         if (currentAsset.strategy == address(0) && currentAsset.assetType == AssetType.ERC20) {
@@ -150,19 +153,24 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     return shares;
   }
 
+  /// @notice Withdraws the asset from the vault
+  /// @param shares Amount of shares to be burned
+  function withdraw(uint256 shares) external nonReentrant {}
+
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
   /// @param data Data for the strategy
-  function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data)
-    external
-    onlyRole(ADMIN_ROLE_HASH)
-  {
-    require(whitelistManager.isWhitelisted(address(strategy)), InvalidStrategy());
+  function allocate(
+    Asset[] memory inputAssets,
+    IStrategy strategy,
+    bytes calldata data
+  ) external onlyRole(ADMIN_ROLE_HASH) {
+    require(whitelistManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     Asset memory currentAsset;
 
-    for (uint256 i = 0; i < inputAssets.length;) {
+    for (uint256 i = 0; i < inputAssets.length; ) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
 
       currentAsset = currentAssets[inputAssets[i].token][inputAssets[i].tokenId];
@@ -196,10 +204,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param tokenId asset's token ID
   /// @param amount Amount to deallocate
   /// @param data Data for strategy execution
-  function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data)
-    external
-    onlyRole(ADMIN_ROLE_HASH)
-  {
+  function deallocate(
+    address token,
+    uint256 tokenId,
+    uint256 amount,
+    bytes calldata data
+  ) external onlyRole(ADMIN_ROLE_HASH) {
     Asset memory currentAsset = currentAssets[token][tokenId];
 
     require(amount != 0, InvalidAssetAmount());
@@ -236,13 +246,60 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault
-  /// @return values Asset values of the vault
-  function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values) {}
+  function getAssetAllocations() external override returns (Asset[] memory assets) {
+    Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
+    uint256 index = 0;
+
+    for (uint256 i = 0; i < tokenAddresses.length(); ) {
+      address token = tokenAddresses.at(i);
+
+      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
+        uint256 tokenId = tokenIndices[token].at(j);
+        Asset memory currentAsset = currentAssets[token][tokenId];
+
+        if (currentAsset.strategy != address(0)) {
+          Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
+          for (uint256 k = 0; k < strategyAssets.length; ) {
+            tempAssets[index] = strategyAssets[k];
+
+            unchecked {
+              index++;
+              k++;
+            }
+          }
+        } else {
+          tempAssets[index] = currentAsset;
+
+          unchecked {
+            index++;
+          }
+        }
+
+        unchecked {
+          j++;
+        }
+      }
+
+      unchecked {
+        i++;
+      }
+    }
+
+    // Create the exact-sized array and copy the results
+    assets = new Asset[](index);
+    for (uint256 i = 0; i < index; ) {
+      assets[i] = tempAssets[i];
+
+      unchecked {
+        i++;
+      }
+    }
+  }
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
   function sweepToken(address[] memory tokens) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
-    for (uint256 i = 0; i < tokens.length;) {
+    for (uint256 i = 0; i < tokens.length; ) {
       IERC20 token = IERC20(tokens[i]);
       require(!tokenAddresses.contains(tokens[i]), InvalidSweepAsset());
       token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
@@ -258,12 +315,11 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Sweeps the non-fungible tokens to the caller
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function sweepNFTToken(address[] memory tokens, uint256[] memory tokenIds)
-    external
-    nonReentrant
-    onlyRole(ADMIN_ROLE_HASH)
-  {
-    for (uint256 i = 0; i < tokens.length;) {
+  function sweepNFTToken(
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
+    for (uint256 i = 0; i < tokens.length; ) {
       IERC721 token = IERC721(tokens[i]);
       require(
         !tokenAddresses.contains(tokens[i]) && !tokenIndices[tokens[i]].contains(tokenIds[i]),
@@ -294,7 +350,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @dev Adds multiple assets to the vault
   /// @param newAssets New assets to add
   function _addAssets(Asset[] memory newAssets) internal {
-    for (uint256 i = 0; i < newAssets.length;) {
+    for (uint256 i = 0; i < newAssets.length; ) {
       _addAsset(newAssets[i]);
 
       unchecked {

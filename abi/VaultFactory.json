@@ -82,6 +82,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

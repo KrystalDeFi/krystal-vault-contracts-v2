@@ -2,7 +2,8 @@
 
 ## OptimalSwap
 
-Optimal library for optimal double-sided Uniswap v3 liquidity provision using closed form solution
+Optimal library for optimal double-sided Uniswap v3 liquidity provision using closed
+form solution
 
 ### MAX_FEE_PIPS
 
@@ -53,8 +54,10 @@ function getOptimalSwap(V3PoolCallee pool, int24 tickLower, int24 tickUpper, uin
 Get swap amount, output amount, swap direction for double-sided optimal deposit
 
 _Given the elegant analytic solution and custom optimizations to Uniswap libraries,
-the amount of gas is at the order of 10k depending on the swap amount and the number of ticks crossed,
-an order of magnitude less than that achieved by binary search, which can be calculated on-chain._
+the amount of gas is at the order of 10k depending on the swap amount and the number of ticks
+crossed,
+an order of magnitude less than that achieved by binary search, which can be calculated
+on-chain._
 
 #### Parameters
 

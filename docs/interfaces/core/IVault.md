@@ -77,7 +77,13 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 ### deposit
 
 ```solidity
-function deposit(uint256 amount) external returns (uint256 shares)
+function deposit(uint256 shares) external returns (uint256 returnShares)
+```
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares) external
 ```
 
 ### allocate
@@ -101,7 +107,7 @@ function getTotalValue() external returns (uint256)
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
+function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
 ```
 
 ### grantAdminRole

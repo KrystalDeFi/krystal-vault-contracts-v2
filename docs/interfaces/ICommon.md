@@ -42,8 +42,6 @@ struct VaultCreateParams {
 struct Instruction {
   uint8 instructionType;
   bytes params;
-  bytes abiEncodedUserOrder;
-  bytes orderSignature;
 }
 ```
 
@@ -63,5 +61,11 @@ error TransferFailed()
 
 ```solidity
 error InvalidStrategy()
+```
+
+### InvalidSwapRouter
+
+```solidity
+error InvalidSwapRouter()
 ```
 

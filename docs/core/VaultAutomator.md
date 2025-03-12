@@ -17,7 +17,7 @@ constructor() public
 ### executeAllocate
 
 ```solidity
-function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Instruction params) external
+function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, bytes allocateData, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 Execute an allocate on a Vault
@@ -26,10 +26,12 @@ Execute an allocate on a Vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| vault | contract IVault |  |
+| vault | contract IVault | Vault |
 | inputAssets | struct ICommon.Asset[] | Input assets |
 | strategy | contract IStrategy | Strategy |
-| params | struct ICommon.Instruction | Instruction |
+| allocateData | bytes | allocateData data to be passed to vault's allocate function |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
 
 ### executeSweepToken
 

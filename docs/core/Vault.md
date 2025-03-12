@@ -75,6 +75,20 @@ Deposits the asset to the vault
 | ---- | ---- | ----------- |
 | returnShares | uint256 | Amount of shares minted |
 
+### withdraw
+
+```solidity
+function withdraw(uint256 shares) external
+```
+
+Withdraws the asset from the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares to be burned |
+
 ### allocate
 
 ```solidity
@@ -137,7 +151,7 @@ Returns the total value of the vault
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
+function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
 ```
 
 Returns the asset allocations of the vault
@@ -147,7 +161,6 @@ Returns the asset allocations of the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct ICommon.Asset[] | Asset allocations of the vault |
-| values | uint256[] | Asset values of the vault |
 
 ### sweepToken
 
