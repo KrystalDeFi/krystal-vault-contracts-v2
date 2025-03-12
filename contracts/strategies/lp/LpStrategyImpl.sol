@@ -57,9 +57,9 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
     } else if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidity)) {
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
       returnAssets = _decreaseLiquidity(assets, params);
+    } else {
+      revert InvalidInstructionType();
     }
-
-    revert InvalidInstructionType();
   }
 
   function harvest(Asset memory asset) external returns (Asset[] memory returnAssets) {
