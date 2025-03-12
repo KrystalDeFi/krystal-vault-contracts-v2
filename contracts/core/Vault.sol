@@ -27,6 +27,9 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   address public override vaultOwner;
   address public principleToken;
+  uint256 public principleTokenAmountMin;
+  bool public allowDeposit;
+  address[] public supportedTokens;
 
   EnumerableSet.AddressSet private tokenAddresses;
   mapping(address => EnumerableSet.UintSet) private tokenIds;
@@ -57,6 +60,9 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     whitelistManager = IWhitelistManager(_whitelistManager);
     vaultOwner = _owner;
     principleToken = params.principleToken;
+    principleTokenAmountMin = params.principleTokenAmountMin;
+    allowDeposit = params.allowDeposit;
+    supportedTokens = params.supportedTokens;
     Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principleToken, 0, params.principleTokenAmount);
 
     _addAsset(firstAsset);
@@ -69,6 +75,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param shares Amount of shares to be minted
   /// @return returnShares Amount of shares minted
   function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
+    require(allowDeposit || (!allowDeposit && _msgSender() == vaultOwner), DepositNotAllowed());
+
     uint256 totalSupply = totalSupply();
 
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
@@ -168,6 +176,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   ) external onlyRole(ADMIN_ROLE_HASH) {
     require(whitelistManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
+    if (supportedTokens.length != 0) {
+      for (uint256 i = 0; i < inputAssets.length; ) {
+        if (inputAssets[i].assetType == AssetType.ERC20) {
+          require(_isSupportedToken(inputAssets[i].token), InvalidAssetToken());
+        }
+
+        unchecked {
+          i++;
+        }
+      }
+    }
+
     Asset memory currentAsset;
 
     for (uint256 i = 0; i < inputAssets.length; ) {
@@ -192,7 +212,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
-    Asset[] memory newAssets = strategy.convert(inputAssets, data);
+    Asset[] memory newAssets = strategy.convert(inputAssets, principleTokenAmountMin, data);
 
     _addAssets(newAssets);
 
@@ -221,7 +241,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     _transferAsset(inputAssets[0], currentAsset.strategy);
 
-    Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, data);
+    Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, principleTokenAmountMin, data);
 
     _addAssets(returnAssets);
 
@@ -347,6 +367,13 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     revokeRole(ADMIN_ROLE_HASH, _address);
   }
 
+  /// @notice Sets the allow deposit flag
+  /// @param _allowDeposit Allow deposit flag
+  function setAllowDeposit(bool _allowDeposit) external override onlyRole(ADMIN_ROLE_HASH) {
+    allowDeposit = _allowDeposit;
+    emit SetAllowDeposit(_allowDeposit);
+  }
+
   /// @dev Adds multiple assets to the vault
   /// @param newAssets New assets to add
   function _addAssets(Asset[] memory newAssets) internal {
@@ -386,5 +413,22 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     } else if (asset.assetType == AssetType.ERC721) {
       IERC721(asset.token).safeTransferFrom(address(this), to, asset.tokenId);
     }
+  }
+
+  /// @dev Checks if the token is supported
+  /// @param token Token to check
+  /// @return bool True if the token is supported
+  function _isSupportedToken(address token) internal view returns (bool) {
+    for (uint256 i = 0; i < supportedTokens.length; ) {
+      if (supportedTokens[i] == token) {
+        return true;
+      }
+
+      unchecked {
+        i++;
+      }
+    }
+
+    return false;
   }
 }
