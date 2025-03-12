@@ -16,9 +16,11 @@ interface ICommon {
   }
 
   struct VaultCreateParams {
+    // [REVIEW]: to be updated one we finalize the fee structure.
     uint16 ownerFeeBasisPoint;
     string name;
     string symbol;
+    // [TODO]: typo: principal => principle
     address principalToken;
     uint256 principalTokenAmount;
   }

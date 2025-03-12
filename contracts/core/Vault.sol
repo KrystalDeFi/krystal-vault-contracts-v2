@@ -29,6 +29,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   address public principalToken;
 
   EnumerableSet.AddressSet private tokenAddresses;
+  // [TODO]: tokenIndices => tokenIds
   mapping(address => EnumerableSet.UintSet) private tokenIndices;
   mapping(address => mapping(uint256 => Asset)) public currentAssets;
 
@@ -68,8 +69,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Deposits the asset to the vault
   /// @param shares Amount of shares to be minted
   /// @return returnShares Amount of shares minted
+  // [REVIEW]: consider rename to `mint` function, regarding the receiving params
   function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
     uint256 totalSupply = totalSupply();
+    // Harvest all of the positios 1st
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
@@ -88,6 +91,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
+    // Add liquidity corresponding to the shares
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
       for (uint256 j = 0; j < tokenIndices[token].length(); ) {
@@ -126,6 +130,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
+    // Add fund corresponding to the shares
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
@@ -147,6 +152,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
+    // [REVIEW]: consider to take in a "recipient" param to save gas, as this function
+    // will mostly be used by another router/zapper contract
     _mint(_msgSender(), shares);
 
     emit Deposit(_msgSender(), shares);

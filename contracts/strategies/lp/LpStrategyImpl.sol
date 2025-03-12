@@ -34,6 +34,7 @@ contract LpStrategyImpl is Initializable, ReentrancyGuardUpgradeable, ILpStrateg
 
   /// @notice Deposits the asset to the strategy
   /// @param asset The asset to be calculated
+  // [TODO]: assign value
   function valueOf(Asset memory asset) external view returns (uint256 value) {
     INFPM(asset.token).positions(asset.tokenId);
   }
