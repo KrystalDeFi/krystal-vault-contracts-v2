@@ -59,9 +59,9 @@ interface ILpStrategy is IStrategy {
     uint128 liquidity;
     uint256 amount0Min;
     uint256 amount1Min;
-    uint256 principalAmountOutMin;
+    uint256 principleAmountOutMin;
     bytes swapData;
   }
 
-  function initialize(address _principalToken, address optimalSwapper) external;
+  function initialize(address _principleToken, address optimalSwapper) external;
 }

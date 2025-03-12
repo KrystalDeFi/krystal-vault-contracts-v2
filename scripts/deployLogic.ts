@@ -192,7 +192,7 @@ export const deployLpStrategyImplContract = async (
 
   let lpStrategyImpl: Record<string, LpStrategyImpl> = {};
   if (config.lpStrategyImpl?.enabled) {
-    config.lpStrategyPrincipalTokens?.forEach(async (token: string) => {
+    config.lpStrategyPrincipleTokens?.forEach(async (token: string) => {
       const lpStrategyImpl = (await deployContract(
         `${step} >>`,
         config.lpStrategyImpl?.autoVerifyContract,
@@ -221,7 +221,7 @@ export const deployLpStrategyContract = async (
 
   let lpStrategy: Record<string, LpStrategy> = {};
   if (config.lpStrategy?.enabled) {
-    config.lpStrategyPrincipalTokens?.forEach(async (token: string) => {
+    config.lpStrategyPrincipleTokens?.forEach(async (token: string) => {
       let initData = (await contracts?.lpStrategyImpl?.[token]?.initialize(token))?.data?.toString() ?? "0x";
 
       const lpStrategy = (await deployContract(
@@ -263,7 +263,7 @@ export const deployVaultFactoryContract = async (
       undefined,
       ["address", "address", "address", "address", "address", "uint16"],
       [
-        config.lpStrategyPrincipalTokens?.[0],
+        config.lpStrategyPrincipleTokens?.[0],
         existingContract?.["whitelistManager"] || contracts?.whitelistManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,

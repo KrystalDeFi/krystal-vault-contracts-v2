@@ -367,7 +367,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_principalToken",
+        "name": "_principleToken",
         "type": "address"
       },
       {

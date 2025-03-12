@@ -66,14 +66,14 @@ Create a new vault
 
 #### Parameters
 
-| Name   | Type                             | Description               |
-| ------ | -------------------------------- | ------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 
 #### Return Values
 
-| Name  | Type    | Description              |
-| ----- | ------- | ------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | vault | address | Address of the new vault |
 
 ### pause
@@ -102,9 +102,9 @@ Set the WhitelistManager address
 
 #### Parameters
 
-| Name               | Type    | Description                         |
-| ------------------ | ------- | ----------------------------------- |
-| \_whitelistManager | address | Address of the new WhitelistManager |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _whitelistManager | address | Address of the new WhitelistManager |
 
 ### setVaultImplementation
 
@@ -116,9 +116,9 @@ Set the Vault implementation
 
 #### Parameters
 
-| Name                  | Type    | Description                             |
-| --------------------- | ------- | --------------------------------------- |
-| \_vaultImplementation | address | Address of the new vault implementation |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vaultImplementation | address | Address of the new vault implementation |
 
 ### setVaultAutomator
 
@@ -143,3 +143,4 @@ function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public
 ```
 
 Set the default platform fee basis point
+

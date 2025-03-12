@@ -26,10 +26,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IWhitelistManager public whitelistManager;
 
   address public override vaultOwner;
-  address public principalToken;
+  address public principleToken;
 
   EnumerableSet.AddressSet private tokenAddresses;
-  mapping(address => EnumerableSet.UintSet) private tokenIndices;
+  mapping(address => EnumerableSet.UintSet) private tokenIds;
   mapping(address => mapping(uint256 => Asset)) public currentAssets;
 
   /// @notice Initializes the vault
@@ -43,7 +43,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     address _whitelistManager,
     address _vaultAutomator
   ) public initializer {
-    require(params.principalToken != address(0), ZeroAddress());
+    require(params.principleToken != address(0), ZeroAddress());
     require(_whitelistManager != address(0), ZeroAddress());
 
     __ERC20_init(params.name, params.symbol);
@@ -56,13 +56,13 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     whitelistManager = IWhitelistManager(_whitelistManager);
     vaultOwner = _owner;
-    principalToken = params.principalToken;
-    Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
+    principleToken = params.principleToken;
+    Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principleToken, 0, params.principleTokenAmount);
 
     _addAsset(firstAsset);
-    _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
+    _mint(_owner, params.principleTokenAmount * SHARES_PRECISION);
 
-    emit Deposit(_owner, params.principalTokenAmount * SHARES_PRECISION);
+    emit Deposit(_owner, params.principleTokenAmount * SHARES_PRECISION);
   }
 
   /// @notice Deposits the asset to the vault
@@ -74,8 +74,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
-      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
-        uint256 tokenId = tokenIndices[token].at(j);
+      for (uint256 j = 0; j < tokenIds[token].length(); ) {
+        uint256 tokenId = tokenIds[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
         if (currentAsset.strategy != address(0)) _harvest(currentAsset);
         unchecked {
@@ -89,8 +89,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
-      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
-        uint256 tokenId = tokenIndices[token].at(j);
+      for (uint256 j = 0; j < tokenIds[token].length(); ) {
+        uint256 tokenId = tokenIds[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
 
         if (currentAsset.strategy != address(0)) {
@@ -128,8 +128,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
-      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
-        uint256 tokenId = tokenIndices[token].at(j);
+      for (uint256 j = 0; j < tokenIds[token].length(); ) {
+        uint256 tokenId = tokenIds[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
         if (currentAsset.strategy == address(0) && currentAsset.assetType == AssetType.ERC20) {
           uint256 amount = (shares * currentAsset.amount) / totalSupply;
@@ -241,7 +241,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   /// @notice Returns the total value of the vault
-  /// @return value Total value of the vault in principal token
+  /// @return value Total value of the vault in principle token
   function getTotalValue() external returns (uint256 value) {}
 
   /// @notice Returns the asset allocations of the vault
@@ -253,8 +253,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     for (uint256 i = 0; i < tokenAddresses.length(); ) {
       address token = tokenAddresses.at(i);
 
-      for (uint256 j = 0; j < tokenIndices[token].length(); ) {
-        uint256 tokenId = tokenIndices[token].at(j);
+      for (uint256 j = 0; j < tokenIds[token].length(); ) {
+        uint256 tokenId = tokenIds[token].at(j);
         Asset memory currentAsset = currentAssets[token][tokenId];
 
         if (currentAsset.strategy != address(0)) {
@@ -313,26 +313,26 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   /// @notice Sweeps the non-fungible tokens to the caller
-  /// @param tokens Tokens to sweep
-  /// @param tokenIds Token IDs to sweep
+  /// @param _tokens Tokens to sweep
+  /// @param _tokenIds Token IDs to sweep
   function sweepNFTToken(
-    address[] memory tokens,
-    uint256[] memory tokenIds
+    address[] memory _tokens,
+    uint256[] memory _tokenIds
   ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
-    for (uint256 i = 0; i < tokens.length; ) {
-      IERC721 token = IERC721(tokens[i]);
+    for (uint256 i = 0; i < _tokens.length; ) {
+      IERC721 token = IERC721(_tokens[i]);
       require(
-        !tokenAddresses.contains(tokens[i]) && !tokenIndices[tokens[i]].contains(tokenIds[i]),
+        !tokenAddresses.contains(_tokens[i]) && !tokenIds[_tokens[i]].contains(_tokenIds[i]),
         InvalidSweepAsset()
       );
-      token.safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
+      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i]);
 
       unchecked {
         i++;
       }
     }
 
-    emit SweepNFToken(tokens, tokenIds);
+    emit SweepNFToken(_tokens, _tokenIds);
   }
 
   /// @notice grant admin role to the address
@@ -368,7 +368,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     currentAssets[asset.token][asset.tokenId] = currentAsset;
 
     tokenAddresses.add(asset.token);
-    tokenIndices[asset.token].add(asset.tokenId);
+    tokenIds[asset.token].add(asset.tokenId);
   }
 
   /// @dev Transfers the asset to the recipient

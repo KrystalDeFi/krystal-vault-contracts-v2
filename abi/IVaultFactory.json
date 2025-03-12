@@ -6,7 +6,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPrincipalToken",
+    "name": "InvalidPrincipleToken",
     "type": "error"
   },
   {
@@ -102,12 +102,12 @@
           },
           {
             "internalType": "address",
-            "name": "principalToken",
+            "name": "principleToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principalTokenAmount",
+            "name": "principleTokenAmount",
             "type": "uint256"
           }
         ],
@@ -167,12 +167,12 @@
           },
           {
             "internalType": "address",
-            "name": "principalToken",
+            "name": "principleToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principalTokenAmount",
+            "name": "principleTokenAmount",
             "type": "uint256"
           }
         ],

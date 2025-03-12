@@ -13,7 +13,7 @@ interface IVault is ICommon {
 
   event SweepToken(address[] tokens);
 
-  event SweepNFToken(address[] tokens, uint256[] tokenIds);
+  event SweepNFToken(address[] _tokens, uint256[] _tokenIds);
 
   error InvalidAssetAmount();
   error InvalidSweepAsset();
@@ -48,5 +48,5 @@ interface IVault is ICommon {
 
   function sweepToken(address[] memory tokens) external;
 
-  function sweepNFTToken(address[] memory tokens, uint256[] memory tokenIds) external;
+  function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
 }

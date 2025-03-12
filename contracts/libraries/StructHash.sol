@@ -10,7 +10,7 @@ library StructHash {
   // keccak256(
   //     "RebalanceAutoCompound(RebalanceAutoCompoundAction
   // action)RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)"
+  // feeToPrincipleRatioThresholdX64)"
   // );
   bytes32 constant RebalanceAutoCompound_TYPEHASH = 0x35d8f787f18def78c8e6fcafa2acf783916baed9dc692c38b4e8a97c853b7477;
 
@@ -24,20 +24,20 @@ library StructHash {
 
   // keccak256(
   //     "RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)"
+  // feeToPrincipleRatioThresholdX64)"
   // );
   bytes32 constant RebalanceAutoCompoundAction_TYPEHASH =
     0x3fa522c715dd2d3373663b38d551ef7f7a5beec25a19992cd26eae7d7df39486;
 
   struct RebalanceAutoCompoundAction {
     int256 maxGasProportionX64;
-    int256 feeToPrincipalRatioThresholdX64;
+    int256 feeToPrincipleRatioThresholdX64;
   }
 
   function _hash(RebalanceAutoCompoundAction memory obj) internal pure returns (bytes32) {
     return
       keccak256(
-        abi.encode(RebalanceAutoCompoundAction_TYPEHASH, obj.maxGasProportionX64, obj.feeToPrincipalRatioThresholdX64)
+        abi.encode(RebalanceAutoCompoundAction_TYPEHASH, obj.maxGasProportionX64, obj.feeToPrincipleRatioThresholdX64)
       );
   }
 
@@ -216,7 +216,7 @@ library StructHash {
   // type,TickOffsetAction tickOffsetAction,PriceOffsetAction priceOffsetAction,TokenRatioAction
   // tokenRatioAction)RebalanceAutoCompound(RebalanceAutoCompoundAction
   // action)RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)TickOffsetAction(uint32 tickLowerOffset,uint32
+  // feeToPrincipleRatioThresholdX64)TickOffsetAction(uint32 tickLowerOffset,uint32
   // tickUpperOffset)TickOffsetCondition(uint32 gteTickOffset,uint32
   // lteTickOffset)TokenRatioAction(uint32 tickWidth,int256
   // token0RatioX64)TokenRatioCondition(int256 lteToken0RatioX64,int256 gteToken0RatioX64)"
@@ -450,7 +450,7 @@ library StructHash {
   // tickOffsetAction,PriceOffsetAction priceOffsetAction,TokenRatioAction
   // tokenRatioAction)RebalanceAutoCompound(RebalanceAutoCompoundAction
   // action)RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)RebalanceConfig(Condition rebalanceCondition,RebalanceAction
+  // feeToPrincipleRatioThresholdX64)RebalanceConfig(Condition rebalanceCondition,RebalanceAction
   // rebalanceAction,RebalanceAutoCompound autoCompound,bool recurring)TickOffsetAction(uint32
   // tickLowerOffset,uint32 tickUpperOffset)TickOffsetCondition(uint32 gteTickOffset,uint32
   // lteTickOffset)TimeBasedCondition(int256 intervalInSecond)TokenRatioAction(uint32
@@ -501,7 +501,7 @@ library StructHash {
   // tickOffsetAction,PriceOffsetAction priceOffsetAction,TokenRatioAction
   // tokenRatioAction)RebalanceAutoCompound(RebalanceAutoCompoundAction
   // action)RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)RebalanceConfig(Condition rebalanceCondition,RebalanceAction
+  // feeToPrincipleRatioThresholdX64)RebalanceConfig(Condition rebalanceCondition,RebalanceAction
   // rebalanceAction,RebalanceAutoCompound autoCompound,bool recurring)TickOffsetAction(uint32
   // tickLowerOffset,uint32 tickUpperOffset)TickOffsetCondition(uint32 gteTickOffset,uint32
   // lteTickOffset)TimeBasedCondition(int256 intervalInSecond)TokenRatioAction(uint32

@@ -31,8 +31,8 @@ struct VaultCreateParams {
   uint16 ownerFeeBasisPoint;
   string name;
   string symbol;
-  address principalToken;
-  uint256 principalTokenAmount;
+  address principleToken;
+  uint256 principleTokenAmount;
 }
 ```
 
@@ -68,3 +68,4 @@ error InvalidStrategy()
 ```solidity
 error InvalidSwapRouter()
 ```
+

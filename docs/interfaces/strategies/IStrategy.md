@@ -49,3 +49,4 @@ function getUnderlyingAssets(struct ICommon.Asset asset) external returns (struc
 ```solidity
 function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[])
 ```
+

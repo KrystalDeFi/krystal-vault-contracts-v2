@@ -29,7 +29,7 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  lpStrategyPrincipalTokens?: string[];
+  lpStrategyPrincipleTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;

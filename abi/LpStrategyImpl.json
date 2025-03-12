@@ -416,7 +416,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_principalToken",
+        "name": "_principleToken",
         "type": "address"
       },
       {
@@ -445,7 +445,7 @@
   },
   {
     "inputs": [],
-    "name": "principalToken",
+    "name": "principleToken",
     "outputs": [
       {
         "internalType": "address",

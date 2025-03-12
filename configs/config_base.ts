@@ -31,7 +31,7 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    lpStrategyPrincipalTokens: ["0x4200000000000000000000000000000000000006"],
+    lpStrategyPrincipleTokens: ["0x4200000000000000000000000000000000000006"],
     automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeRecipient: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeBasisPoint: 50,

@@ -29,7 +29,7 @@ event SweepToken(address[] tokens)
 ### SweepNFToken
 
 ```solidity
-event SweepNFToken(address[] tokens, uint256[] tokenIds)
+event SweepNFToken(address[] _tokens, uint256[] _tokenIds)
 ```
 
 ### InvalidAssetAmount
@@ -131,5 +131,6 @@ function sweepToken(address[] tokens) external
 ### sweepNFTToken
 
 ```solidity
-function sweepNFTToken(address[] tokens, uint256[] tokenIds) external
+function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
+

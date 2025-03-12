@@ -417,7 +417,7 @@ contract LpStrategyTest is TestCommon {
       liquidity: liquidity / 2,
       amount0Min: 0,
       amount1Min: 0,
-      principalAmountOutMin: 0,
+      principleAmountOutMin: 0,
       swapData: ""
     });
     instruction = ICommon.Instruction({

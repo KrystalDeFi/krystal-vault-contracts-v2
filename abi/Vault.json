@@ -543,13 +543,13 @@
       {
         "indexed": false,
         "internalType": "address[]",
-        "name": "tokens",
+        "name": "_tokens",
         "type": "address[]"
       },
       {
         "indexed": false,
         "internalType": "uint256[]",
-        "name": "tokenIds",
+        "name": "_tokenIds",
         "type": "uint256[]"
       }
     ],
@@ -1098,12 +1098,12 @@
           },
           {
             "internalType": "address",
-            "name": "principalToken",
+            "name": "principleToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principalTokenAmount",
+            "name": "principleTokenAmount",
             "type": "uint256"
           }
         ],
@@ -1209,7 +1209,7 @@
   },
   {
     "inputs": [],
-    "name": "principalToken",
+    "name": "principleToken",
     "outputs": [
       {
         "internalType": "address",
@@ -1292,12 +1292,12 @@
     "inputs": [
       {
         "internalType": "address[]",
-        "name": "tokens",
+        "name": "_tokens",
         "type": "address[]"
       },
       {
         "internalType": "uint256[]",
-        "name": "tokenIds",
+        "name": "_tokenIds",
         "type": "uint256[]"
       }
     ],
