@@ -32,4 +32,3 @@ function getOptimalSwapAmounts(address pool, uint256 amount0Desired, uint256 amo
 ```solidity
 function poolSwap(address pool, uint256 amountIn, bool zeroToOne, uint256 amountOutMin, bytes data) external returns (uint256 amountOut, uint256 amountInUsed)
 ```
-

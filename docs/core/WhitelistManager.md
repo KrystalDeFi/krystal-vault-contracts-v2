@@ -30,10 +30,10 @@ Whitelist strategy
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategies | address[] | Array of strategy addresses |
-| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+| Name            | Type      | Description                               |
+| --------------- | --------- | ----------------------------------------- |
+| \_strategies    | address[] | Array of strategy addresses               |
+| \_isWhitelisted | bool      | Boolean value to whitelist or unwhitelist |
 
 ### isWhitelistedStrategy
 
@@ -45,15 +45,15 @@ Check if strategy is whitelisted
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategy | address | Strategy address |
+| Name       | Type    | Description      |
+| ---------- | ------- | ---------------- |
+| \_strategy | address | Strategy address |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if strategy is whitelisted |
+| Name            | Type | Description                              |
+| --------------- | ---- | ---------------------------------------- |
+| \_isWhitelisted | bool | Boolean value if strategy is whitelisted |
 
 ### whitelistSwapRouter
 
@@ -65,10 +65,10 @@ Whitelist swap router
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _swapRouters | address[] | Array of swap router addresses |
-| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+| Name            | Type      | Description                               |
+| --------------- | --------- | ----------------------------------------- |
+| \_swapRouters   | address[] | Array of swap router addresses            |
+| \_isWhitelisted | bool      | Boolean value to whitelist or unwhitelist |
 
 ### isWhitelistedSwapRouter
 
@@ -80,13 +80,12 @@ Check if swap router is whitelisted
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _swapRouter | address | Swap router address |
+| Name         | Type    | Description         |
+| ------------ | ------- | ------------------- |
+| \_swapRouter | address | Swap router address |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if swap router is whitelisted |
-
+| Name            | Type | Description                                 |
+| --------------- | ---- | ------------------------------------------- |
+| \_isWhitelisted | bool | Boolean value if swap router is whitelisted |

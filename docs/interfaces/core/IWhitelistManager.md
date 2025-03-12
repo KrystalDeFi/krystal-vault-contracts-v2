@@ -25,4 +25,3 @@ function whitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted) extern
 ```solidity
 function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool _isWhitelisted)
 ```
-
