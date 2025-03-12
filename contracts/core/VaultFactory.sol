@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 import "../interfaces/core/IVaultFactory.sol";
 import "../interfaces/core/IVault.sol";
@@ -52,9 +52,13 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
-  function createVault(
-    VaultCreateParams memory params
-  ) external payable override whenNotPaused returns (address vault) {
+  function createVault(VaultCreateParams memory params)
+    external
+    payable
+    override
+    whenNotPaused
+    returns (address vault)
+  {
     require(params.ownerFeeBasisPoint <= 1000, InvalidOwnerFee());
 
     vault = Clones.clone(vaultImplementation);
@@ -62,7 +66,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     if (msg.value > 0) {
       require(params.principalToken == WETH, InvalidPrincipalToken());
       params.principalTokenAmount = msg.value;
-      IWETH9(WETH).deposit{ value: msg.value }();
+      IWETH9(WETH).deposit{value: msg.value}();
       IERC20(WETH).safeTransfer(vault, msg.value);
     }
 

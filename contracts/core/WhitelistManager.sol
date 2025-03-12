@@ -14,8 +14,12 @@ contract WhitelistManager is Ownable, IWhitelistManager {
   /// @notice Whitelist strategy
   /// @param _strategies Array of strategy addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
-  function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _strategies.length; ) {
+  function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted)
+    external
+    override
+    onlyOwner
+  {
+    for (uint256 i = 0; i < _strategies.length;) {
       whitelistStrategies[_strategies[i]] = _isWhitelisted;
 
       unchecked {

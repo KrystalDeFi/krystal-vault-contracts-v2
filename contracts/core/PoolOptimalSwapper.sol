@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.28;
 
-import { OptimalSwap, V3PoolCallee } from "../libraries/OptimalSwap.sol";
-import { TernaryLib } from "@aperture_finance/uni-v3-lib/src/TernaryLib.sol";
+import {OptimalSwap, V3PoolCallee} from "../libraries/OptimalSwap.sol";
+import {TernaryLib} from "@aperture_finance/uni-v3-lib/src/TernaryLib.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "../interfaces/core/IOptimalSwapper.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,12 +14,18 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
   using TernaryLib for bool;
   using SafeERC20 for IERC20;
 
-  uint160 internal constant MAX_SQRT_RATIO_LESS_ONE = 1461446703485210103287273052203988822378723970342 - 1;
-  uint160 internal constant XOR_SQRT_RATIO = (4295128739 + 1) ^ (1461446703485210103287273052203988822378723970342 - 1);
+  uint160 internal constant MAX_SQRT_RATIO_LESS_ONE =
+    1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342 - 1;
+  uint160 internal constant XOR_SQRT_RATIO =
+    (4_295_128_739 + 1) ^ (1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342 - 1);
 
   address private currentPool;
   /// @notice Callback function required by Uniswap V3 to finalize swaps
-  function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external override {
+
+  function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata)
+    external
+    override
+  {
     require(msg.sender == currentPool, "Incorrect pool");
 
     if (amount0Delta > 0) {
@@ -31,13 +37,13 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
 
   /// @dev Make a direct `exactIn` pool swap
   /// @param amountIn The amount of token to be swapped
-  /// @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to token0
+  /// @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to
+  /// token0
   /// @return amountOut The amount of token received after swap
-  function _poolSwap(
-    address pool,
-    uint256 amountIn,
-    bool zeroForOne
-  ) internal returns (uint256 amountOut, uint256 amountInUsed) {
+  function _poolSwap(address pool, uint256 amountIn, bool zeroForOne)
+    internal
+    returns (uint256 amountOut, uint256 amountInUsed)
+  {
     if (amountIn != 0) {
       currentPool = pool;
       uint160 sqrtPriceLimitX96;
@@ -46,24 +52,22 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
         sqrtPriceLimitX96 := xor(MAX_SQRT_RATIO_LESS_ONE, mul(XOR_SQRT_RATIO, zeroForOne))
       }
       (int256 amount0Delta, int256 amount1Delta) = V3PoolCallee.wrap(pool).swap(
-        address(this),
-        zeroForOne,
-        int256(amountIn),
-        sqrtPriceLimitX96,
-        ""
+        address(this), zeroForOne, int256(amountIn), sqrtPriceLimitX96, ""
       );
       unchecked {
         amountOut = 0 - zeroForOne.ternary(uint256(amount1Delta), uint256(amount0Delta));
-        amountInUsed = amountIn - zeroForOne.ternary(uint256(amount0Delta), uint256(amount1Delta));
+        amountInUsed = zeroForOne.ternary(uint256(amount0Delta), uint256(amount1Delta));
       }
     }
   }
 
   /// @notice Swap tokens in a Uniswap V3 pool
   /// @param params The parameters for the optimal swap
-  function optimalSwap(
-    OptimalSwapParams memory params
-  ) external override returns (uint256 amount0, uint256 amount1) {
+  function optimalSwap(OptimalSwapParams memory params)
+    external
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
     IERC20 token0 = IERC20(IUniswapV3Pool(params.pool).token0());
     IERC20 token1 = IERC20(IUniswapV3Pool(params.pool).token1());
     token0.transferFrom(msg.sender, address(this), params.amount0Desired);
@@ -73,7 +77,7 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
     uint256 amountOut;
     bool zeroForOne;
     {
-      (amountIn, , zeroForOne, ) = OptimalSwap.getOptimalSwap(
+      (amountIn,, zeroForOne,) = OptimalSwap.getOptimalSwap(
         V3PoolCallee.wrap(params.pool),
         params.tickLower,
         params.tickUpper,
@@ -105,12 +109,8 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
     int24 tickUpper,
     bytes calldata
   ) external view returns (uint256 amount0, uint256 amount1) {
-    (uint256 amountIn, uint256 amountOut, bool zeroForOne, ) = OptimalSwap.getOptimalSwap(
-      V3PoolCallee.wrap(pool),
-      tickLower,
-      tickUpper,
-      amount0Desired,
-      amount1Desired
+    (uint256 amountIn, uint256 amountOut, bool zeroForOne,) = OptimalSwap.getOptimalSwap(
+      V3PoolCallee.wrap(pool), tickLower, tickUpper, amount0Desired, amount1Desired
     );
 
     // balance0 = balance0 + zeroForOne ? - amountIn : amountOut
@@ -127,7 +127,8 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
   /// @notice Swap exactIn tokens through an UniswapV3Pool
   /// @param pool The address of the Uniswap V3 pool
   /// @param amountIn The amount of token to be swapped
-  /// @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to token0
+  /// @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to
+  /// token0
   /// @param amountOutMin The minimum amount of token to receive after swap
   function poolSwap(
     address pool,
@@ -136,11 +137,18 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback {
     uint256 amountOutMin,
     bytes calldata
   ) external override returns (uint256 amountOut, uint256 amountInUsed) {
+    IERC20 token0 = IERC20(IUniswapV3Pool(pool).token0());
+    IERC20 token1 = IERC20(IUniswapV3Pool(pool).token1());
+    if (zeroForOne) token0.transferFrom(msg.sender, address(this), amountIn);
+    else token1.transferFrom(msg.sender, address(this), amountIn);
+
     (amountOut, amountInUsed) = _poolSwap(pool, amountIn, zeroForOne);
     require(amountOut >= amountOutMin, "Insufficient output amount");
-    IERC20(zeroForOne.ternary(IUniswapV3Pool(pool).token1(), IUniswapV3Pool(pool).token0())).transfer(
-      msg.sender,
-      amountOut
-    );
+    IERC20(zeroForOne.ternary(address(token1), address(token0))).transfer(msg.sender, amountOut);
+    if (amountIn > amountInUsed) {
+      IERC20(zeroForOne.ternary(address(token0), address(token1))).transfer(
+        msg.sender, amountIn - amountInUsed
+      );
+    }
   }
 }

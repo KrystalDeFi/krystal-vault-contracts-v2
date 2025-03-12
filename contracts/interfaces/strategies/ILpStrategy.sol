@@ -3,7 +3,8 @@ pragma solidity ^0.8.28;
 
 import "./IStrategy.sol";
 
-import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {INonfungiblePositionManager as INFPM} from
+  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 interface ILpStrategy is IStrategy {
   enum InstructionType {
@@ -59,7 +60,7 @@ interface ILpStrategy is IStrategy {
     uint128 liquidity;
     uint256 amount0Min;
     uint256 amount1Min;
-    uint256 principleAmountOutMin;
+    uint256 principalAmountOutMin;
     bytes swapData;
   }
 

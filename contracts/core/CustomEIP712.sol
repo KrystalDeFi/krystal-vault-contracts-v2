@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // modified version of @openzeppelin
 pragma solidity ^0.8.28;
+
 import "../libraries/StructHash.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -12,7 +13,9 @@ abstract contract CustomEIP712 {
 
   constructor(string memory name, string memory version) {
     DOMAIN_SEPARATOR = keccak256(
-      abi.encode(TYPE_HASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this))
+      abi.encode(
+        TYPE_HASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this)
+      )
     );
   }
 
@@ -40,11 +43,15 @@ abstract contract CustomEIP712 {
    *
    * See {ECDSA-recover}.
    */
-  function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32 digest) {
+  function toTypedDataHash(bytes32 domainSeparator, bytes32 structHash)
+    internal
+    pure
+    returns (bytes32 digest)
+  {
     /// @solidity memory-safe-assembly
     assembly {
       let ptr := mload(0x40)
-      mstore(ptr, hex"19_01")
+      mstore(ptr, hex"1901")
       mstore(add(ptr, 0x02), domainSeparator)
       mstore(add(ptr, 0x22), structHash)
       digest := keccak256(ptr, 0x42)

@@ -7,6 +7,7 @@ interface ICommon {
     ERC721,
     ERC1155
   }
+
   struct Asset {
     AssetType assetType;
     address strategy;

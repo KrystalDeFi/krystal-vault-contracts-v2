@@ -11,7 +11,9 @@ interface IOptimalSwapper {
     bytes data;
   }
 
-  function optimalSwap(OptimalSwapParams memory params) external returns (uint256 amount0Result, uint256 amount1Result);
+  function optimalSwap(OptimalSwapParams memory params)
+    external
+    returns (uint256 amount0Result, uint256 amount1Result);
 
   function getOptimalSwapAmounts(
     address pool,
