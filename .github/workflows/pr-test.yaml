@@ -20,9 +20,14 @@ jobs:
         with:
           node-version: 18
 
-      - run: yarn install
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+  
+      - run: |
+          yarn install
 
-      - run: yarn test
+      - run: |
+          yarn test
 
       - name: Create new branch and push the document
         env:
@@ -46,3 +51,4 @@ jobs:
           else
             echo "No changes to commit"
           fi
+
