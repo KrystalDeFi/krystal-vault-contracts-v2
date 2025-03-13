@@ -20,13 +20,14 @@ jobs:
         with:
           node-version: 18
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+  
       - run: |
-          curl -L https://foundry.paradigm.xyz | bash
-          source /home/runner/.bashrc
-          foundryup
           yarn install
 
-      - run: yarn test
+      - run: |
+          yarn test
 
       - name: Create new branch and push the document
         env:
