@@ -15,7 +15,7 @@ interface IVaultAutomator is ICommon {
 
   function executeAllocate(
     IVault vault,
-    Asset[] memory inputAssets,
+    AssetLib.Asset[] memory inputAssets,
     IStrategy strategy,
     bytes calldata allocateCalldata,
     bytes calldata abiEncodedUserOrder,

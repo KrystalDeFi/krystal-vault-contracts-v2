@@ -2,28 +2,6 @@
 
 ## ICommon
 
-### AssetType
-
-```solidity
-enum AssetType {
-  ERC20,
-  ERC721,
-  ERC1155
-}
-```
-
-### Asset
-
-```solidity
-struct Asset {
-  enum ICommon.AssetType assetType;
-  address strategy;
-  address token;
-  uint256 tokenId;
-  uint256 amount;
-}
-```
-
 ### VaultCreateParams
 
 ```solidity

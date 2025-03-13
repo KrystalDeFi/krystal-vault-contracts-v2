@@ -50,10 +50,10 @@ bool allowDeposit
 address[] supportedTokens
 ```
 
-### currentAssets
+### inventory
 
 ```solidity
-mapping(address => mapping(uint256 => struct ICommon.Asset)) currentAssets
+struct InventoryLib.Inventory inventory
 ```
 
 ### initialize
@@ -110,7 +110,7 @@ Withdraws the asset from the vault
 ### allocate
 
 ```solidity
-function allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strategy, bytes data) external
+function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, bytes data) external
 ```
 
 Allocates un-used assets to the strategy
@@ -119,7 +119,7 @@ Allocates un-used assets to the strategy
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| inputAssets | struct ICommon.Asset[] | Input assets to allocate |
+| inputAssets | struct AssetLib.Asset[] | Input assets to allocate |
 | strategy | contract IStrategy | Strategy to allocate to |
 | data | bytes | Data for the strategy |
 
@@ -143,13 +143,13 @@ Deallocates the assets from the strategy
 ### harvest
 
 ```solidity
-function harvest(struct ICommon.Asset asset) external
+function harvest(struct AssetLib.Asset asset) external
 ```
 
 ### _harvest
 
 ```solidity
-function _harvest(struct ICommon.Asset asset) internal
+function _harvest(struct AssetLib.Asset asset) internal
 ```
 
 ### getTotalValue
@@ -169,7 +169,7 @@ Returns the total value of the vault
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
+function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
 ```
 
 Returns the asset allocations of the vault
@@ -178,7 +178,7 @@ Returns the asset allocations of the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct ICommon.Asset[] | Asset allocations of the vault |
+| assets | struct AssetLib.Asset[] | AssetLib.Asset allocations of the vault |
 
 ### sweepToken
 
@@ -254,7 +254,7 @@ Sets the allow deposit flag
 ### _addAssets
 
 ```solidity
-function _addAssets(struct ICommon.Asset[] newAssets) internal
+function _addAssets(struct AssetLib.Asset[] newAssets) internal
 ```
 
 _Adds multiple assets to the vault_
@@ -263,26 +263,12 @@ _Adds multiple assets to the vault_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| newAssets | struct ICommon.Asset[] | New assets to add |
-
-### _addAsset
-
-```solidity
-function _addAsset(struct ICommon.Asset asset) internal
-```
-
-_Adds an asset to the vault_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| asset | struct ICommon.Asset | Asset to add |
+| newAssets | struct AssetLib.Asset[] | New assets to add |
 
 ### _transferAsset
 
 ```solidity
-function _transferAsset(struct ICommon.Asset asset, address to) internal
+function _transferAsset(struct AssetLib.Asset asset, address to) internal
 ```
 
 _Transfers the asset to the recipient_
@@ -291,7 +277,7 @@ _Transfers the asset to the recipient_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| asset | struct ICommon.Asset | Asset to transfer |
+| asset | struct AssetLib.Asset | AssetLib.Asset to transfer |
 | to | address | Recipient of the asset |
 
 ### _isSupportedToken
@@ -313,4 +299,10 @@ _Checks if the token is supported_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | bool | bool True if the token is supported |
+
+### getInventory
+
+```solidity
+function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
 

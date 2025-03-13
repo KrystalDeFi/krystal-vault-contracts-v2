@@ -23,30 +23,30 @@ error InvalidInstructionType()
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] assets)
+function valueOf(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[] assets)
 ```
 
 ### convert
 
 ```solidity
-function convert(struct ICommon.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct ICommon.Asset[])
+function convert(struct AssetLib.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct AssetLib.Asset[])
 ```
 
 ### harvest
 
 ```solidity
-function harvest(struct ICommon.Asset asset) external returns (struct ICommon.Asset[])
+function harvest(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[])
 ```
 
 ### getUnderlyingAssets
 
 ```solidity
-function getUnderlyingAssets(struct ICommon.Asset asset) external returns (struct ICommon.Asset[])
+function getUnderlyingAssets(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[])
 ```
 
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[])
+function convertIntoExisting(struct AssetLib.Asset existingAsset, struct AssetLib.Asset[] assets) external returns (struct AssetLib.Asset[])
 ```
 

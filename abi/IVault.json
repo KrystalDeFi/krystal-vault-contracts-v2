@@ -60,7 +60,7 @@
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -86,7 +86,7 @@
           }
         ],
         "indexed": false,
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "inputAssets",
         "type": "tuple[]"
       },
@@ -99,7 +99,7 @@
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -125,7 +125,7 @@
           }
         ],
         "indexed": false,
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "newAssets",
         "type": "tuple[]"
       }
@@ -139,7 +139,7 @@
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -165,14 +165,14 @@
           }
         ],
         "indexed": false,
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "inputAssets",
         "type": "tuple[]"
       },
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -198,7 +198,7 @@
           }
         ],
         "indexed": false,
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "returnedAssets",
         "type": "tuple[]"
       }
@@ -275,7 +275,7 @@
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -300,7 +300,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "inputAssets",
         "type": "tuple[]"
       },
@@ -374,7 +374,7 @@
       {
         "components": [
           {
-            "internalType": "enum ICommon.AssetType",
+            "internalType": "enum AssetLib.AssetType",
             "name": "assetType",
             "type": "uint8"
           },
@@ -399,7 +399,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct ICommon.Asset[]",
+        "internalType": "struct AssetLib.Asset[]",
         "name": "assets",
         "type": "tuple[]"
       }

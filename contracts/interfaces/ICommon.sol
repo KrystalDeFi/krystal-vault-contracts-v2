@@ -1,21 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import {AssetLib} from "../libraries/AssetLib.sol";
+
 interface ICommon {
-  enum AssetType {
-    ERC20,
-    ERC721,
-    ERC1155
-  }
-
-  struct Asset {
-    AssetType assetType;
-    address strategy;
-    address token;
-    uint256 tokenId;
-    uint256 amount;
-  }
-
   struct VaultCreateParams {
     uint16 ownerFeeBasisPoint;
     string name;
