@@ -11,13 +11,13 @@ event Deposit(address account, uint256 shares)
 ### Allocate
 
 ```solidity
-event Allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Asset[] newAssets)
+event Allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
 ```
 
 ### Deallocate
 
 ```solidity
-event Deallocate(struct ICommon.Asset[] inputAssets, struct ICommon.Asset[] returnedAssets)
+event Deallocate(struct AssetLib.Asset[] inputAssets, struct AssetLib.Asset[] returnedAssets)
 ```
 
 ### SweepToken
@@ -107,7 +107,7 @@ function withdraw(uint256 shares) external
 ### allocate
 
 ```solidity
-function allocate(struct ICommon.Asset[] inputAssets, contract IStrategy strategy, bytes data) external
+function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, bytes data) external
 ```
 
 ### deallocate
@@ -125,7 +125,7 @@ function getTotalValue() external returns (uint256)
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
+function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
 ```
 
 ### grantAdminRole

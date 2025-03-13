@@ -23,7 +23,7 @@ constructor(address _principalToken, address _optimalSwapper) public
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external view returns (struct ICommon.Asset[] assets)
+function valueOf(struct AssetLib.Asset asset) external view returns (struct AssetLib.Asset[] assets)
 ```
 
 Deposits the asset to the strategy
@@ -32,12 +32,12 @@ Deposits the asset to the strategy
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| asset | struct ICommon.Asset | The asset to be calculated |
+| asset | struct AssetLib.Asset | The asset to be calculated |
 
 ### convert
 
 ```solidity
-function convert(struct ICommon.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct ICommon.Asset[] returnAssets)
+function convert(struct AssetLib.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -46,7 +46,7 @@ Converts the asset to another assets
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct ICommon.Asset[] | The assets to convert |
+| assets | struct AssetLib.Asset[] | The assets to convert |
 | principalTokenAmountMin | uint256 |  |
 | data | bytes | The data for the instruction |
 
@@ -54,24 +54,24 @@ Converts the asset to another assets
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
 ### harvest
 
 ```solidity
-function harvest(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### convertIntoExisting
 
 ```solidity
-function convertIntoExisting(struct ICommon.Asset existingAsset, struct ICommon.Asset[] assets) external returns (struct ICommon.Asset[] returnAssets)
+function convertIntoExisting(struct AssetLib.Asset existingAsset, struct AssetLib.Asset[] assets) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### mintPosition
 
 ```solidity
-function mintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Mints a new position
@@ -80,31 +80,31 @@ Mints a new position
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct ICommon.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
+| assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
 | params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
 ### swapAndMintPosition
 
 ```solidity
-function swapAndMintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.SwapAndMintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function swapAndMintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndMintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _mintPosition
 
 ```solidity
-function _mintPosition(struct ICommon.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function _mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### increaseLiquidity
 
 ```solidity
-function increaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function increaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Increases the liquidity of the position
@@ -113,31 +113,31 @@ Increases the liquidity of the position
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct ICommon.Asset[] | The assets to increase the liquidity assets[2] = lpAsset |
+| assets | struct AssetLib.Asset[] | The assets to increase the liquidity assets[2] = lpAsset |
 | params | struct ILpStrategy.IncreaseLiquidityParams | The parameters for increasing the liquidity |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
 ### swapAndIncreaseLiquidity
 
 ```solidity
-function swapAndIncreaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.SwapAndIncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function swapAndIncreaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndIncreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _increaseLiquidity
 
 ```solidity
-function _increaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function _increaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### decreaseLiquidity
 
 ```solidity
-function decreaseLiquidity(struct ICommon.Asset[] assets, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function decreaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position
@@ -146,25 +146,25 @@ Decreases the liquidity of the position
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct ICommon.Asset[] | The assets to decrease the liquidity assets[0] = lpAsset |
+| assets | struct AssetLib.Asset[] | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct ICommon.Asset[] | The assets that were returned to the msg.sender |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
 ### decreaseLiquidityAndSwap
 
 ```solidity
-function decreaseLiquidityAndSwap(struct ICommon.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function decreaseLiquidityAndSwap(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _decreaseLiquidity
 
 ```solidity
-function _decreaseLiquidity(struct ICommon.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
+function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _optimalSwapFromPrincipal
@@ -176,7 +176,7 @@ function _optimalSwapFromPrincipal(uint256 amount, address pool, address token0,
 ### getUnderlyingAssets
 
 ```solidity
-function getUnderlyingAssets(struct ICommon.Asset asset) external view returns (struct ICommon.Asset[] underlyingAssets)
+function getUnderlyingAssets(struct AssetLib.Asset asset) external view returns (struct AssetLib.Asset[] underlyingAssets)
 ```
 
 Gets the underlying assets of the position
@@ -185,13 +185,13 @@ Gets the underlying assets of the position
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| asset | struct ICommon.Asset | The asset to get the underlying assets |
+| asset | struct AssetLib.Asset | The asset to get the underlying assets |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| underlyingAssets | struct ICommon.Asset[] | The underlying assets of the position |
+| underlyingAssets | struct AssetLib.Asset[] | The underlying assets of the position |
 
 ### _getPoolForPosition
 
