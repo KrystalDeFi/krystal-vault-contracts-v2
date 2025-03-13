@@ -44,10 +44,10 @@ event PlatformFeeBasisPointSet(uint16 platformFeeBasisPoint)
 error InvalidOwnerFee()
 ```
 
-### InvalidPrincipalToken
+### InvalidPrincipleToken
 
 ```solidity
-error InvalidPrincipalToken()
+error InvalidPrincipleToken()
 ```
 
 ### createVault

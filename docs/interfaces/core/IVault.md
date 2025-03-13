@@ -29,7 +29,19 @@ event SweepToken(address[] tokens)
 ### SweepNFToken
 
 ```solidity
-event SweepNFToken(address[] tokens, uint256[] tokenIds)
+event SweepNFToken(address[] _tokens, uint256[] _tokenIds)
+```
+
+### SetAllowDeposit
+
+```solidity
+event SetAllowDeposit(bool _allowDeposit)
+```
+
+### InvalidAssetToken
+
+```solidity
+error InvalidAssetToken()
 ```
 
 ### InvalidAssetAmount
@@ -62,6 +74,12 @@ error InvalidAssetTokenId()
 error InvalidAssetType()
 ```
 
+### DepositNotAllowed
+
+```solidity
+error DepositNotAllowed()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -77,7 +95,13 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 ### deposit
 
 ```solidity
-function deposit(uint256 amount) external returns (uint256 shares)
+function deposit(uint256 shares) external returns (uint256 returnShares)
+```
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares) external
 ```
 
 ### allocate
@@ -101,7 +125,7 @@ function getTotalValue() external returns (uint256)
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
+function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
 ```
 
 ### grantAdminRole
@@ -125,6 +149,12 @@ function sweepToken(address[] tokens) external
 ### sweepNFTToken
 
 ```solidity
-function sweepNFTToken(address[] tokens, uint256[] tokenIds) external
+function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
+```
+
+### setAllowDeposit
+
+```solidity
+function setAllowDeposit(bool _allowDeposit) external
 ```
 

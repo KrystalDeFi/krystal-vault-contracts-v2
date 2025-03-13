@@ -11,8 +11,6 @@ contract OptimalSwapLibTest {
     uint256 sqrtRatioLowerX96,
     uint256 sqrtRatioUpperX96
   ) public pure returns (bool) {
-    return OptimalSwap.isZeroForOne(
-      amount0Desired, amount1Desired, sqrtPriceX96, sqrtRatioLowerX96, sqrtRatioUpperX96
-    );
+    return OptimalSwap.isZeroForOne(amount0Desired, amount1Desired, sqrtPriceX96, sqrtRatioLowerX96, sqrtRatioUpperX96);
   }
 }

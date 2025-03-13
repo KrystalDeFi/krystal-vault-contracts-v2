@@ -6,12 +6,17 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPrincipalToken",
+    "name": "InvalidPrincipleToken",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
     "type": "error"
   },
   {
@@ -97,13 +102,28 @@
           },
           {
             "internalType": "address",
-            "name": "principalToken",
+            "name": "principleToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principalTokenAmount",
+            "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "indexed": false,
@@ -162,13 +182,28 @@
           },
           {
             "internalType": "address",
-            "name": "principalToken",
+            "name": "principleToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principalTokenAmount",
+            "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",

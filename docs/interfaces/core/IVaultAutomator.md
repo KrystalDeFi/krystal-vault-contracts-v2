@@ -29,7 +29,7 @@ event CancelOrder(address user, bytes order, bytes signature)
 ### executeAllocate
 
 ```solidity
-function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, struct ICommon.Instruction params) external
+function executeAllocate(contract IVault vault, struct ICommon.Asset[] inputAssets, contract IStrategy strategy, bytes allocateCalldata, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 ### executeSweepToken

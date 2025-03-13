@@ -23,13 +23,13 @@ error InvalidInstructionType()
 ### valueOf
 
 ```solidity
-function valueOf(struct ICommon.Asset asset) external returns (uint256 value)
+function valueOf(struct ICommon.Asset asset) external returns (struct ICommon.Asset[] assets)
 ```
 
 ### convert
 
 ```solidity
-function convert(struct ICommon.Asset[] assets, bytes data) external returns (struct ICommon.Asset[])
+function convert(struct ICommon.Asset[] assets, uint256 principleTokenAmountMin, bytes data) external returns (struct ICommon.Asset[])
 ```
 
 ### harvest

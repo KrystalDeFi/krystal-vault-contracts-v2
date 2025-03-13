@@ -26,10 +26,28 @@ contract IWhitelistManager whitelistManager
 address vaultOwner
 ```
 
-### principalToken
+### principleToken
 
 ```solidity
-address principalToken
+address principleToken
+```
+
+### principleTokenAmountMin
+
+```solidity
+uint256 principleTokenAmountMin
+```
+
+### allowDeposit
+
+```solidity
+bool allowDeposit
+```
+
+### supportedTokens
+
+```solidity
+address[] supportedTokens
 ```
 
 ### currentAssets
@@ -74,6 +92,20 @@ Deposits the asset to the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | returnShares | uint256 | Amount of shares minted |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares) external
+```
+
+Withdraws the asset from the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares to be burned |
 
 ### allocate
 
@@ -132,12 +164,12 @@ Returns the total value of the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| value | uint256 | Total value of the vault in principal token |
+| value | uint256 | Total value of the vault in principle token |
 
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct ICommon.Asset[] assets, uint256[] values)
+function getAssetAllocations() external returns (struct ICommon.Asset[] assets)
 ```
 
 Returns the asset allocations of the vault
@@ -147,7 +179,6 @@ Returns the asset allocations of the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct ICommon.Asset[] | Asset allocations of the vault |
-| values | uint256[] | Asset values of the vault |
 
 ### sweepToken
 
@@ -166,7 +197,7 @@ Sweeps the tokens to the caller
 ### sweepNFTToken
 
 ```solidity
-function sweepNFTToken(address[] tokens, uint256[] tokenIds) external
+function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
 
 Sweeps the non-fungible tokens to the caller
@@ -175,8 +206,8 @@ Sweeps the non-fungible tokens to the caller
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| tokens | address[] | Tokens to sweep |
-| tokenIds | uint256[] | Token IDs to sweep |
+| _tokens | address[] | Tokens to sweep |
+| _tokenIds | uint256[] | Token IDs to sweep |
 
 ### grantAdminRole
 
@@ -205,6 +236,20 @@ revoke admin role from the address
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _address | address | The address from which the admin role is revoked |
+
+### setAllowDeposit
+
+```solidity
+function setAllowDeposit(bool _allowDeposit) external
+```
+
+Sets the allow deposit flag
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _allowDeposit | bool | Allow deposit flag |
 
 ### _addAssets
 
@@ -248,4 +293,24 @@ _Transfers the asset to the recipient_
 | ---- | ---- | ----------- |
 | asset | struct ICommon.Asset | Asset to transfer |
 | to | address | Recipient of the asset |
+
+### _isSupportedToken
+
+```solidity
+function _isSupportedToken(address token) internal view returns (bool)
+```
+
+_Checks if the token is supported_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | Token to check |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | bool True if the token is supported |
 

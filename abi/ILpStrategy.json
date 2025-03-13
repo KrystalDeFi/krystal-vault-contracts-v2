@@ -16,7 +16,17 @@
   },
   {
     "inputs": [],
+    "name": "InvalidPoolAmountAmountMin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
     "type": "error"
   },
   {
@@ -62,6 +72,11 @@
         "internalType": "struct ICommon.Asset[]",
         "name": "assets",
         "type": "tuple[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "principleTokenAmountMin",
+        "type": "uint256"
       },
       {
         "internalType": "bytes",
@@ -361,19 +376,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_principalToken",
-        "type": "address"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "enum ICommon.AssetType",
@@ -409,9 +411,36 @@
     "name": "valueOf",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",

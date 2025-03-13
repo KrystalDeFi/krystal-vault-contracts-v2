@@ -13,13 +13,17 @@ interface IVault is ICommon {
 
   event SweepToken(address[] tokens);
 
-  event SweepNFToken(address[] tokens, uint256[] tokenIds);
+  event SweepNFToken(address[] _tokens, uint256[] _tokenIds);
 
+  event SetAllowDeposit(bool _allowDeposit);
+
+  error InvalidAssetToken();
   error InvalidAssetAmount();
   error InvalidSweepAsset();
   error InvalidAssetStrategy();
   error InvalidAssetTokenId();
   error InvalidAssetType();
+  error DepositNotAllowed();
 
   function vaultOwner() external view returns (address);
 
@@ -30,7 +34,9 @@ interface IVault is ICommon {
     address _vaultAutomator
   ) external;
 
-  function deposit(uint256 amount) external returns (uint256 shares);
+  function deposit(uint256 shares) external returns (uint256 returnShares);
+
+  function withdraw(uint256 shares) external;
 
   function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 
@@ -38,7 +44,7 @@ interface IVault is ICommon {
 
   function getTotalValue() external returns (uint256);
 
-  function getAssetAllocations() external returns (Asset[] memory assets, uint256[] memory values);
+  function getAssetAllocations() external returns (Asset[] memory assets);
 
   function grantAdminRole(address _address) external;
 
@@ -46,5 +52,7 @@ interface IVault is ICommon {
 
   function sweepToken(address[] memory tokens) external;
 
-  function sweepNFTToken(address[] memory tokens, uint256[] memory tokenIds) external;
+  function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
+
+  function setAllowDeposit(bool _allowDeposit) external;
 }

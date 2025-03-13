@@ -31,8 +31,11 @@ struct VaultCreateParams {
   uint16 ownerFeeBasisPoint;
   string name;
   string symbol;
-  address principalToken;
-  uint256 principalTokenAmount;
+  address principleToken;
+  uint256 principleTokenAmount;
+  uint256 principleTokenAmountMin;
+  bool allowDeposit;
+  address[] supportedTokens;
 }
 ```
 
@@ -42,8 +45,6 @@ struct VaultCreateParams {
 struct Instruction {
   uint8 instructionType;
   bytes params;
-  bytes abiEncodedUserOrder;
-  bytes orderSignature;
 }
 ```
 
@@ -63,5 +64,11 @@ error TransferFailed()
 
 ```solidity
 error InvalidStrategy()
+```
+
+### InvalidSwapRouter
+
+```solidity
+error InvalidSwapRouter()
 ```
 

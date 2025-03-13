@@ -24,8 +24,7 @@ interface IVaultAutomator is ICommon {
 
   function executeSweepToken(IVault vault, address[] memory tokens) external;
 
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
-    external;
+  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds) external;
 
   function cancelOrder(bytes calldata abiEncodedUserOrder, bytes calldata orderSignature) external;
 

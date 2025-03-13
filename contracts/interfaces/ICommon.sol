@@ -20,8 +20,11 @@ interface ICommon {
     uint16 ownerFeeBasisPoint;
     string name;
     string symbol;
-    address principalToken;
-    uint256 principalTokenAmount;
+    address principleToken;
+    uint256 principleTokenAmount;
+    uint256 principleTokenAmountMin;
+    bool allowDeposit;
+    address[] supportedTokens;
   }
 
   struct Instruction {
@@ -34,4 +37,6 @@ interface ICommon {
   error TransferFailed();
 
   error InvalidStrategy();
+
+  error InvalidSwapRouter();
 }

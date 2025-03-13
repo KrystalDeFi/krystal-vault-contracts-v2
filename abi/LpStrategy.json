@@ -3,105 +3,514 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_logic",
+        "name": "_principleToken",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "_admin",
+        "name": "_optimalSwapper",
         "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_data",
-        "type": "bytes"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      }
-    ],
-    "name": "AddressEmptyCode",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "admin",
-        "type": "address"
-      }
-    ],
-    "name": "ERC1967InvalidAdmin",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "implementation",
-        "type": "address"
-      }
-    ],
-    "name": "ERC1967InvalidImplementation",
+    "inputs": [],
+    "name": "InvalidAsset",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "ERC1967NonPayable",
+    "name": "InvalidInstructionType",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "FailedCall",
+    "name": "InvalidNumberOfAssets",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "ProxyDeniedAdminAccess",
+    "name": "InvalidPoolAmountAmountMin",
     "type": "error"
   },
   {
-    "anonymous": false,
+    "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
-        "indexed": false,
         "internalType": "address",
-        "name": "previousAdmin",
+        "name": "token",
         "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "T",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
       },
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "newAdmin",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "principleTokenAmountMin",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
       }
     ],
-    "name": "AdminChanged",
-    "type": "event"
+    "name": "convert",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "returnAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "implementation",
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "existingAsset",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "convertIntoExisting",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "returnAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "asset",
+        "type": "tuple"
+      }
+    ],
+    "name": "getUnderlyingAssets",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "underlyingAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "asset",
+        "type": "tuple"
+      }
+    ],
+    "name": "harvest",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "returnAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "optimalSwapper",
+    "outputs": [
+      {
+        "internalType": "contract IOptimalSwapper",
+        "name": "",
         "type": "address"
       }
     ],
-    "name": "Upgraded",
-    "type": "event"
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "principleToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset",
+        "name": "asset",
+        "type": "tuple"
+      }
+    ],
+    "name": "valueOf",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum ICommon.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICommon.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "stateMutability": "payable",
-    "type": "fallback"
+    "type": "receive"
   }
 ]

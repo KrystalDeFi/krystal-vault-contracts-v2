@@ -79,6 +79,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OrderCancelled",
     "type": "error"
   },
@@ -320,31 +325,19 @@
         "type": "address"
       },
       {
-        "components": [
-          {
-            "internalType": "uint8",
-            "name": "instructionType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bytes",
-            "name": "params",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "abiEncodedUserOrder",
-            "type": "bytes"
-          },
-          {
-            "internalType": "bytes",
-            "name": "orderSignature",
-            "type": "bytes"
-          }
-        ],
-        "internalType": "struct ICommon.Instruction",
-        "name": "params",
-        "type": "tuple"
+        "internalType": "bytes",
+        "name": "allocateData",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "abiEncodedUserOrder",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "orderSignature",
+        "type": "bytes"
       }
     ],
     "name": "executeAllocate",

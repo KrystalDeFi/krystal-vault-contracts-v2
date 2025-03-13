@@ -10,6 +10,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -68,7 +73,26 @@
         "type": "address"
       }
     ],
-    "name": "isWhitelisted",
+    "name": "isWhitelistedStrategy",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistedSwapRouter",
     "outputs": [
       {
         "internalType": "bool",
@@ -147,6 +171,43 @@
     "name": "whitelistStrategy",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_swapRouters",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "whitelistSwapRouter",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "whitelistSwapRouters",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

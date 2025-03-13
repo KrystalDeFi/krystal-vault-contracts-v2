@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
 import "../interfaces/core/IVaultFactory.sol";
 import "../interfaces/core/IVault.sol";
@@ -52,21 +52,17 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
-  function createVault(VaultCreateParams memory params)
-    external
-    payable
-    override
-    whenNotPaused
-    returns (address vault)
-  {
+  function createVault(
+    VaultCreateParams memory params
+  ) external payable override whenNotPaused returns (address vault) {
     require(params.ownerFeeBasisPoint <= 1000, InvalidOwnerFee());
 
     vault = Clones.clone(vaultImplementation);
 
     if (msg.value > 0) {
-      require(params.principalToken == WETH, InvalidPrincipalToken());
-      params.principalTokenAmount = msg.value;
-      IWETH9(WETH).deposit{value: msg.value}();
+      require(params.principleToken == WETH, InvalidPrincipleToken());
+      params.principleTokenAmount = msg.value;
+      IWETH9(WETH).deposit{ value: msg.value }();
       IERC20(WETH).safeTransfer(vault, msg.value);
     }
 
@@ -105,6 +101,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the VaultAutomator address
+  /// @param _vaultAutomator Address of the new VaultAutomator
   function setVaultAutomator(address _vaultAutomator) public onlyOwner {
     require(_vaultAutomator != address(0), ZeroAddress());
     vaultAutomator = _vaultAutomator;
@@ -112,6 +109,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the default platform fee recipient
+  /// @param _platformFeeRecipient Address of the new platform fee recipient
   function setPlatformFeeRecipient(address _platformFeeRecipient) public onlyOwner {
     require(_platformFeeRecipient != address(0), ZeroAddress());
     platformFeeRecipient = _platformFeeRecipient;
@@ -119,6 +117,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the default platform fee basis point
+  /// @param _platformFeeBasisPoint New platform fee basis point
   function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public onlyOwner {
     platformFeeBasisPoint = _platformFeeBasisPoint;
     emit PlatformFeeBasisPointSet(_platformFeeBasisPoint);

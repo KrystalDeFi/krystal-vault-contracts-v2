@@ -21,7 +21,7 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  lpStrategyImpl?: {
+  poolOptimalSwapper?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
@@ -29,7 +29,8 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  lpStrategyPrincipalTokens?: string[];
+  // wrap token of chain must be the first token
+  lpStrategyPrincipleTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;
