@@ -22,6 +22,8 @@ jobs:
 
       - run: |
           curl -L https://foundry.paradigm.xyz | bash
+      
+      - run: |
           foundryup
           yarn install
 
