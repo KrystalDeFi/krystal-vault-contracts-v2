@@ -39,7 +39,7 @@ bytes32 RebalanceAutoCompoundAction_TYPEHASH
 ```solidity
 struct RebalanceAutoCompoundAction {
   int256 maxGasProportionX64;
-  int256 feeToPrincipleRatioThresholdX64;
+  int256 feeToPrincipalRatioThresholdX64;
 }
 ```
 

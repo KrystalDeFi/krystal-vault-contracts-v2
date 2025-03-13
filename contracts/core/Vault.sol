@@ -26,8 +26,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IWhitelistManager public whitelistManager;
 
   address public override vaultOwner;
-  address public principleToken;
-  uint256 public principleTokenAmountMin;
+  address public principalToken;
+  uint256 public principalTokenAmountMin;
   bool public allowDeposit;
   address[] public supportedTokens;
 
@@ -46,7 +46,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     address _whitelistManager,
     address _vaultAutomator
   ) public initializer {
-    require(params.principleToken != address(0), ZeroAddress());
+    require(params.principalToken != address(0), ZeroAddress());
     require(_whitelistManager != address(0), ZeroAddress());
 
     __ERC20_init(params.name, params.symbol);
@@ -59,16 +59,16 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     whitelistManager = IWhitelistManager(_whitelistManager);
     vaultOwner = _owner;
-    principleToken = params.principleToken;
-    principleTokenAmountMin = params.principleTokenAmountMin;
+    principalToken = params.principalToken;
+    principalTokenAmountMin = params.principalTokenAmountMin;
     allowDeposit = params.allowDeposit;
     supportedTokens = params.supportedTokens;
-    Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principleToken, 0, params.principleTokenAmount);
+    Asset memory firstAsset = Asset(AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount);
 
     _addAsset(firstAsset);
-    _mint(_owner, params.principleTokenAmount * SHARES_PRECISION);
+    _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
 
-    emit Deposit(_owner, params.principleTokenAmount * SHARES_PRECISION);
+    emit Deposit(_owner, params.principalTokenAmount * SHARES_PRECISION);
   }
 
   /// @notice Deposits the asset to the vault
@@ -212,7 +212,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
-    Asset[] memory newAssets = strategy.convert(inputAssets, principleTokenAmountMin, data);
+    Asset[] memory newAssets = strategy.convert(inputAssets, principalTokenAmountMin, data);
 
     _addAssets(newAssets);
 
@@ -241,7 +241,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     _transferAsset(inputAssets[0], currentAsset.strategy);
 
-    Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, principleTokenAmountMin, data);
+    Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, principalTokenAmountMin, data);
 
     _addAssets(returnAssets);
 
@@ -261,7 +261,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   /// @notice Returns the total value of the vault
-  /// @return value Total value of the vault in principle token
+  /// @return value Total value of the vault in principal token
   function getTotalValue() external returns (uint256 value) {}
 
   /// @notice Returns the asset allocations of the vault

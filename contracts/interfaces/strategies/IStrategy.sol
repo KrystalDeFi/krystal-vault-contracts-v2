@@ -12,7 +12,7 @@ interface IStrategy is ICommon {
 
   function convert(
     Asset[] memory assets,
-    uint256 principleTokenAmountMin,
+    uint256 principalTokenAmountMin,
     bytes calldata data
   ) external returns (Asset[] memory);
 

@@ -32,7 +32,7 @@ export const BaseConfig: Record<string, IConfig> = {
       autoVerifyContract: true,
     },
     // wrap token of chain must be the first token
-    lpStrategyPrincipleTokens: ["0x4200000000000000000000000000000000000006"],
+    lpStrategyPrincipalTokens: ["0x4200000000000000000000000000000000000006"],
     automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeRecipient: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeBasisPoint: 50,
