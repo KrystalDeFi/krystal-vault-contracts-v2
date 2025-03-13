@@ -20,7 +20,9 @@ jobs:
         with:
           node-version: 18
 
-      - run: yarn install
+      - run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          yarn install
 
       - run: yarn test
 
