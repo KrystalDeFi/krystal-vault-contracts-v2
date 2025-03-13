@@ -47,16 +47,35 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function convert(
     Asset[] memory assets,
+    uint256 principleTokenAmountMin,
     bytes calldata data
   ) external nonReentrant returns (Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
     if (instruction.instructionType == uint8(InstructionType.MintPosition)) {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
+      address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
+      (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
+
+      if (principleToken == params.token0) {
+        require(poolAmount0 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      } else {
+        require(poolAmount1 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      }
+
       return mintPosition(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.SwapAndMintPosition)) {
       SwapAndMintPositionParams memory params = abi.decode(instruction.params, (SwapAndMintPositionParams));
+      address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
+      (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
+
+      if (principleToken == params.token0) {
+        require(poolAmount0 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      } else {
+        require(poolAmount1 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      }
+
       return swapAndMintPosition(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.IncreaseLiquidity)) {
@@ -455,6 +474,21 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       sqrtPriceX96,
       sqrtPriceX96Lower,
       sqrtPriceX96Upper,
+      liquidity
+    );
+  }
+
+  /// @dev Gets the amounts for the pool
+  /// @param pool IUniswapV3Pool
+  /// @return amount0 The amount of token0
+  /// @return amount1 The amount of token1
+  function _getAmountsForPool(IUniswapV3Pool pool) internal view returns (uint256 amount0, uint256 amount1) {
+    (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
+    uint128 liquidity = pool.liquidity();
+    (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      TickMath.MIN_SQRT_RATIO,
+      TickMath.MAX_SQRT_RATIO,
       liquidity
     );
   }

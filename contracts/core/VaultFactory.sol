@@ -101,6 +101,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the VaultAutomator address
+  /// @param _vaultAutomator Address of the new VaultAutomator
   function setVaultAutomator(address _vaultAutomator) public onlyOwner {
     require(_vaultAutomator != address(0), ZeroAddress());
     vaultAutomator = _vaultAutomator;
@@ -108,6 +109,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the default platform fee recipient
+  /// @param _platformFeeRecipient Address of the new platform fee recipient
   function setPlatformFeeRecipient(address _platformFeeRecipient) public onlyOwner {
     require(_platformFeeRecipient != address(0), ZeroAddress());
     platformFeeRecipient = _platformFeeRecipient;
@@ -115,6 +117,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   }
 
   /// @notice Set the default platform fee basis point
+  /// @param _platformFeeBasisPoint New platform fee basis point
   function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public onlyOwner {
     platformFeeBasisPoint = _platformFeeBasisPoint;
     emit PlatformFeeBasisPointSet(_platformFeeBasisPoint);

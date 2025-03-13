@@ -62,4 +62,6 @@ interface ILpStrategy is IStrategy {
     uint256 principleAmountOutMin;
     bytes swapData;
   }
+
+  error InvalidPoolAmountAmountMin();
 }

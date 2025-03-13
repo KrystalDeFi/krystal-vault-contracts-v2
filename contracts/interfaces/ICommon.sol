@@ -22,6 +22,9 @@ interface ICommon {
     string symbol;
     address principleToken;
     uint256 principleTokenAmount;
+    uint256 principleTokenAmountMin;
+    bool allowDeposit;
+    address[] supportedTokens;
   }
 
   struct Instruction {
