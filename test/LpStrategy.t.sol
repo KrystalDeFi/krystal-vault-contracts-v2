@@ -9,6 +9,7 @@ import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/cont
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { console } from "forge-std/console.sol";
 import { PoolOptimalSwapper } from "../contracts/core/PoolOptimalSwapper.sol";
+import { AssetLib } from "../contracts/libraries/AssetLib.sol";
 
 contract LpStrategyTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -35,16 +36,16 @@ contract LpStrategyTest is TestCommon {
   function test_LpStrategy() public {
     console.log("==== test_LpStrategy ====");
 
-    ICommon.Asset[] memory assets = new ICommon.Asset[](2);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: DAI,
       tokenId: 0,
@@ -67,7 +68,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    ICommon.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 0 ether);
@@ -86,23 +87,23 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.IncreaseLiquidity),
       params: abi.encode(increaseParams)
     });
-    assets = new ICommon.Asset[](3);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets = new AssetLib.Asset[](3);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: DAI,
       tokenId: 0,
       amount: 2000 ether
     });
-    assets[2] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC721,
+    assets[2] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC721,
       strategy: address(lpStrategy),
       token: NFPM,
       tokenId: returnAssets[2].tokenId,
@@ -130,9 +131,9 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidity),
       params: abi.encode(decreaseParams)
     });
-    assets = new ICommon.Asset[](1);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC721,
+    assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC721,
       strategy: address(lpStrategy),
       token: NFPM,
       tokenId: returnAssets[2].tokenId,
@@ -151,8 +152,8 @@ contract LpStrategyTest is TestCommon {
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
 
     console.log("==== convertIntoExisting ====");
-    ICommon.Asset memory existing = returnAssets[2];
-    assets = new ICommon.Asset[](2);
+    AssetLib.Asset memory existing = returnAssets[2];
+    assets = new AssetLib.Asset[](2);
     assets[0] = returnAssets[0];
     assets[1] = returnAssets[1];
 
@@ -172,9 +173,9 @@ contract LpStrategyTest is TestCommon {
 
   function test_LpStrategyMintValidate() public {
     console.log("==== test_LpStrategyMintValidation ====");
-    ICommon.Asset[] memory assets = new ICommon.Asset[](1);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
@@ -200,16 +201,16 @@ contract LpStrategyTest is TestCommon {
     vm.expectRevert();
     lpStrategy.convert(assets, 0, abi.encode(instruction));
 
-    assets = new ICommon.Asset[](2);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets = new AssetLib.Asset[](2);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: DAI,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: USDC,
       tokenId: 0,
@@ -237,16 +238,16 @@ contract LpStrategyTest is TestCommon {
 
   function test_lpStrategyIncreaseValidate() public {
     console.log("==== test_lpStrategyIncreaseValidate ====");
-    ICommon.Asset[] memory assets = new ICommon.Asset[](2);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: DAI,
       tokenId: 0,
@@ -284,16 +285,16 @@ contract LpStrategyTest is TestCommon {
   }
 
   function test_LpStrategyDecreaseValidate() public {
-    ICommon.Asset[] memory assets = new ICommon.Asset[](2);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: DAI,
       tokenId: 0,
@@ -316,7 +317,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    ICommon.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
     (, , , , , , , uint128 liquidity, , , , ) = INFPM(NFPM).positions(returnAssets[2].tokenId);
     ILpStrategy.DecreaseLiquidityParams memory decreaseParams = ILpStrategy.DecreaseLiquidityParams({
       liquidity: liquidity + 1,
@@ -327,7 +328,7 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidity),
       params: abi.encode(decreaseParams)
     });
-    assets = new ICommon.Asset[](1);
+    assets = new AssetLib.Asset[](1);
     assets[0] = returnAssets[2];
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
@@ -337,9 +338,9 @@ contract LpStrategyTest is TestCommon {
   function test_LpStrategyOptimalSwap() public {
     console.log("==== test_LpStrategyOptimalSwap ====");
 
-    ICommon.Asset[] memory assets = new ICommon.Asset[](1);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
@@ -363,7 +364,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    ICommon.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, 0, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 9694);
@@ -383,16 +384,16 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(increaseParams)
     });
-    assets = new ICommon.Asset[](2);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC20,
+    assets = new AssetLib.Asset[](2);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 1 ether
     });
-    assets[1] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC721,
+    assets[1] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC721,
       strategy: address(lpStrategy),
       token: NFPM,
       tokenId: returnAssets[2].tokenId,
@@ -422,9 +423,9 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       params: abi.encode(decreaseParams)
     });
-    assets = new ICommon.Asset[](1);
-    assets[0] = ICommon.Asset({
-      assetType: ICommon.AssetType.ERC721,
+    assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC721,
       strategy: address(lpStrategy),
       token: NFPM,
       tokenId: returnAssets[2].tokenId,

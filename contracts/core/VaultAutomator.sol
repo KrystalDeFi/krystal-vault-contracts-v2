@@ -26,7 +26,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param orderSignature Signature of the order
   function executeAllocate(
     IVault vault,
-    Asset[] memory inputAssets,
+    AssetLib.Asset[] memory inputAssets,
     IStrategy strategy,
     bytes calldata allocateData,
     bytes calldata abiEncodedUserOrder,

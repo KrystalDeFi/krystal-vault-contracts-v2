@@ -2,23 +2,27 @@
 pragma solidity ^0.8.28;
 
 import "../ICommon.sol";
+import { AssetLib } from "../../libraries/AssetLib.sol";
 
 interface IStrategy is ICommon {
   error InvalidAsset();
   error InvalidNumberOfAssets();
   error InvalidInstructionType();
 
-  function valueOf(Asset memory asset) external returns (Asset[] memory assets);
+  function valueOf(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory assets);
 
   function convert(
-    Asset[] memory assets,
+    AssetLib.Asset[] memory assets,
     uint256 principalTokenAmountMin,
     bytes calldata data
-  ) external returns (Asset[] memory);
+  ) external returns (AssetLib.Asset[] memory);
 
-  function harvest(Asset memory asset) external returns (Asset[] memory);
+  function harvest(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory);
 
-  function getUnderlyingAssets(Asset memory asset) external returns (Asset[] memory);
+  function getUnderlyingAssets(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory);
 
-  function convertIntoExisting(Asset memory existingAsset, Asset[] memory assets) external returns (Asset[] memory);
+  function convertIntoExisting(
+    AssetLib.Asset memory existingAsset,
+    AssetLib.Asset[] memory assets
+  ) external returns (AssetLib.Asset[] memory);
 }

@@ -7,9 +7,9 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event Deposit(address indexed account, uint256 shares);
 
-  event Allocate(Asset[] inputAssets, IStrategy strategy, Asset[] newAssets);
+  event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
 
-  event Deallocate(Asset[] inputAssets, Asset[] returnedAssets);
+  event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);
 
   event SweepToken(address[] tokens);
 
@@ -38,13 +38,13 @@ interface IVault is ICommon {
 
   function withdraw(uint256 shares) external;
 
-  function allocate(Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
+  function allocate(AssetLib.Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
 
   function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data) external;
 
   function getTotalValue() external returns (uint256);
 
-  function getAssetAllocations() external returns (Asset[] memory assets);
+  function getAssetAllocations() external returns (AssetLib.Asset[] memory assets);
 
   function grantAdminRole(address _address) external;
 
