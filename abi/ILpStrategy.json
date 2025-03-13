@@ -75,7 +75,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "principleTokenAmountMin",
+        "name": "principalTokenAmountMin",
         "type": "uint256"
       },
       {

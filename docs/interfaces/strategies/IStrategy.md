@@ -29,7 +29,7 @@ function valueOf(struct ICommon.Asset asset) external returns (struct ICommon.As
 ### convert
 
 ```solidity
-function convert(struct ICommon.Asset[] assets, uint256 principleTokenAmountMin, bytes data) external returns (struct ICommon.Asset[])
+function convert(struct ICommon.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct ICommon.Asset[])
 ```
 
 ### harvest

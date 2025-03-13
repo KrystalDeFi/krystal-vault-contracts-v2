@@ -82,7 +82,7 @@ struct DecreaseLiquidityAndSwapParams {
   uint128 liquidity;
   uint256 amount0Min;
   uint256 amount1Min;
-  uint256 principleAmountOutMin;
+  uint256 principalAmountOutMin;
   bytes swapData;
 }
 ```

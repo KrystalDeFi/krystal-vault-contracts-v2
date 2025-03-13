@@ -20,11 +20,11 @@ import "../../interfaces/strategies/ILpStrategy.sol";
 contract LpStrategy is ReentrancyGuard, ILpStrategy {
   using SafeERC20 for IERC20;
 
-  address public principleToken;
+  address public principalToken;
   IOptimalSwapper public optimalSwapper;
 
-  constructor(address _principleToken, address _optimalSwapper) {
-    principleToken = _principleToken;
+  constructor(address _principalToken, address _optimalSwapper) {
+    principalToken = _principalToken;
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
   }
 
@@ -47,7 +47,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function convert(
     Asset[] memory assets,
-    uint256 principleTokenAmountMin,
+    uint256 principalTokenAmountMin,
     bytes calldata data
   ) external nonReentrant returns (Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
@@ -57,10 +57,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
       (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
 
-      if (principleToken == params.token0) {
-        require(poolAmount0 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      if (principalToken == params.token0) {
+        require(poolAmount0 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
       } else {
-        require(poolAmount1 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+        require(poolAmount1 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
       }
 
       return mintPosition(assets, params);
@@ -70,10 +70,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
       (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
 
-      if (principleToken == params.token0) {
-        require(poolAmount0 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+      if (principalToken == params.token0) {
+        require(poolAmount0 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
       } else {
-        require(poolAmount1 >= principleTokenAmountMin, InvalidPoolAmountAmountMin());
+        require(poolAmount1 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
       }
 
       return swapAndMintPosition(assets, params);
@@ -152,7 +152,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     MintPositionParams memory params
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
-    require(assets[0].token == principleToken || assets[1].token == principleToken, InvalidAsset());
+    require(assets[0].token == principalToken || assets[1].token == principalToken, InvalidAsset());
 
     returnAssets = _mintPosition(assets, params);
     // Transfer assets to msg.sender
@@ -170,10 +170,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     SwapAndMintPositionParams memory params
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].token == principleToken, InvalidAsset());
+    require(assets[0].token == principalToken, InvalidAsset());
 
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
-    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrinciple(
+    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       assets[0].amount,
       pool,
       params.token0,
@@ -267,14 +267,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     SwapAndIncreaseLiquidityParams memory params
   ) internal returns (Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
-    require(assets[0].token == principleToken, InvalidAsset());
+    require(assets[0].token == principalToken, InvalidAsset());
 
     Asset memory lpAsset = assets[1];
     bytes memory swapData = params.swapData;
 
     (, , address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) = INFPM(lpAsset.token)
       .positions(lpAsset.tokenId);
-    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrinciple(
+    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       assets[0].amount,
       IUniswapV3Factory(INFPM(lpAsset.token).factory()).getPool(token0, token1, fee),
       token0,
@@ -358,7 +358,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       assets[0],
       DecreaseLiquidityParams(params.liquidity, params.amount0Min, params.amount1Min)
     );
-    (Asset memory principleAsset, Asset memory otherAsset) = returnAssets[0].token == principleToken
+    (Asset memory principalAsset, Asset memory otherAsset) = returnAssets[0].token == principalToken
       ? (returnAssets[0], returnAssets[1])
       : (returnAssets[1], returnAssets[0]);
     address pool = address(_getPoolForPosition(INFPM(assets[0].token), assets[0].tokenId));
@@ -367,19 +367,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     (uint256 amountOut, uint256 amountInUsed) = optimalSwapper.poolSwap(
       pool,
       otherAsset.amount,
-      otherAsset.token < principleToken,
-      params.principleAmountOutMin,
+      otherAsset.token < principalToken,
+      params.principalAmountOutMin,
       params.swapData
     );
 
     otherAsset.amount = otherAsset.amount - amountInUsed;
-    principleAsset.amount = principleAsset.amount + amountOut;
+    principalAsset.amount = principalAsset.amount + amountOut;
     returnAssets = new Asset[](3);
-    returnAssets[0] = principleAsset;
+    returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
     returnAssets[2] = assets[0];
-    if (principleAsset.amount > 0) {
-      IERC20(principleAsset.token).safeTransfer(msg.sender, principleAsset.amount);
+    if (principalAsset.amount > 0) {
+      IERC20(principalAsset.token).safeTransfer(msg.sender, principalAsset.amount);
     }
     if (otherAsset.amount > 0) IERC20(otherAsset.token).safeTransfer(msg.sender, otherAsset.amount);
     IERC721(assets[0].token).safeTransferFrom(address(this), msg.sender, assets[0].tokenId);
@@ -415,7 +415,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     returnAssets[2] = lpAsset;
   }
 
-  function _optimalSwapFromPrinciple(
+  function _optimalSwapFromPrincipal(
     uint256 amount,
     address pool,
     address token0,
@@ -424,7 +424,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     int24 tickUpper,
     bytes memory swapData
   ) internal returns (uint256 amount0Result, uint256 amount1Result) {
-    (uint256 amount0, uint256 amount1) = principleToken == token0 ? (amount, 0) : (uint256(0), amount);
+    (uint256 amount0, uint256 amount1) = principalToken == token0 ? (amount, 0) : (uint256(0), amount);
     if (amount0 > 0) IERC20(token0).approve(address(optimalSwapper), amount0);
     if (amount1 > 0) IERC20(token1).approve(address(optimalSwapper), amount1);
     (amount0Result, amount1Result) = optimalSwapper.optimalSwap(

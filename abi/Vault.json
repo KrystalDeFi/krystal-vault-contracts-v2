@@ -1134,17 +1134,17 @@
           },
           {
             "internalType": "address",
-            "name": "principleToken",
+            "name": "principalToken",
             "type": "address"
           },
           {
             "internalType": "uint256",
-            "name": "principleTokenAmount",
+            "name": "principalTokenAmount",
             "type": "uint256"
           },
           {
             "internalType": "uint256",
-            "name": "principleTokenAmountMin",
+            "name": "principalTokenAmountMin",
             "type": "uint256"
           },
           {
@@ -1260,7 +1260,7 @@
   },
   {
     "inputs": [],
-    "name": "principleToken",
+    "name": "principalToken",
     "outputs": [
       {
         "internalType": "address",
@@ -1273,7 +1273,7 @@
   },
   {
     "inputs": [],
-    "name": "principleTokenAmountMin",
+    "name": "principalTokenAmountMin",
     "outputs": [
       {
         "internalType": "uint256",

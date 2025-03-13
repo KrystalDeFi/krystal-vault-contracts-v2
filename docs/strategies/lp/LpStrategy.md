@@ -2,10 +2,10 @@
 
 ## LpStrategy
 
-### principleToken
+### principalToken
 
 ```solidity
-address principleToken
+address principalToken
 ```
 
 ### optimalSwapper
@@ -17,7 +17,7 @@ contract IOptimalSwapper optimalSwapper
 ### constructor
 
 ```solidity
-constructor(address _principleToken, address _optimalSwapper) public
+constructor(address _principalToken, address _optimalSwapper) public
 ```
 
 ### valueOf
@@ -37,7 +37,7 @@ Deposits the asset to the strategy
 ### convert
 
 ```solidity
-function convert(struct ICommon.Asset[] assets, uint256 principleTokenAmountMin, bytes data) external returns (struct ICommon.Asset[] returnAssets)
+function convert(struct ICommon.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct ICommon.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -47,7 +47,7 @@ Converts the asset to another assets
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct ICommon.Asset[] | The assets to convert |
-| principleTokenAmountMin | uint256 |  |
+| principalTokenAmountMin | uint256 |  |
 | data | bytes | The data for the instruction |
 
 #### Return Values
@@ -167,10 +167,10 @@ function decreaseLiquidityAndSwap(struct ICommon.Asset[] assets, struct ILpStrat
 function _decreaseLiquidity(struct ICommon.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct ICommon.Asset[] returnAssets)
 ```
 
-### _optimalSwapFromPrinciple
+### _optimalSwapFromPrincipal
 
 ```solidity
-function _optimalSwapFromPrinciple(uint256 amount, address pool, address token0, address token1, int24 tickLower, int24 tickUpper, bytes swapData) internal returns (uint256 amount0Result, uint256 amount1Result)
+function _optimalSwapFromPrincipal(uint256 amount, address pool, address token0, address token1, int24 tickLower, int24 tickUpper, bytes swapData) internal returns (uint256 amount0Result, uint256 amount1Result)
 ```
 
 ### getUnderlyingAssets

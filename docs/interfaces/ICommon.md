@@ -31,9 +31,9 @@ struct VaultCreateParams {
   uint16 ownerFeeBasisPoint;
   string name;
   string symbol;
-  address principleToken;
-  uint256 principleTokenAmount;
-  uint256 principleTokenAmountMin;
+  address principalToken;
+  uint256 principalTokenAmount;
+  uint256 principalTokenAmountMin;
   bool allowDeposit;
   address[] supportedTokens;
 }

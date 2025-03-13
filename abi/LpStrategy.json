@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_principleToken",
+        "name": "_principalToken",
         "type": "address"
       },
       {
@@ -112,7 +112,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "principleTokenAmountMin",
+        "name": "principalTokenAmountMin",
         "type": "uint256"
       },
       {
@@ -425,7 +425,7 @@
   },
   {
     "inputs": [],
-    "name": "principleToken",
+    "name": "principalToken",
     "outputs": [
       {
         "internalType": "address",

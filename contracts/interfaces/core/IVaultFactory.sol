@@ -17,7 +17,7 @@ interface IVaultFactory is ICommon {
   event PlatformFeeBasisPointSet(uint16 platformFeeBasisPoint);
 
   error InvalidOwnerFee();
-  error InvalidPrincipleToken();
+  error InvalidPrincipalToken();
 
   function createVault(VaultCreateParams memory params) external payable returns (address vault);
 

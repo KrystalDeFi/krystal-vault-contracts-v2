@@ -26,16 +26,16 @@ contract IWhitelistManager whitelistManager
 address vaultOwner
 ```
 
-### principleToken
+### principalToken
 
 ```solidity
-address principleToken
+address principalToken
 ```
 
-### principleTokenAmountMin
+### principalTokenAmountMin
 
 ```solidity
-uint256 principleTokenAmountMin
+uint256 principalTokenAmountMin
 ```
 
 ### allowDeposit
@@ -164,7 +164,7 @@ Returns the total value of the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| value | uint256 | Total value of the vault in principle token |
+| value | uint256 | Total value of the vault in principal token |
 
 ### getAssetAllocations
 

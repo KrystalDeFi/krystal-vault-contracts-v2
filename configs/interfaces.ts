@@ -30,7 +30,7 @@ export interface IConfig {
     autoVerifyContract?: boolean;
   };
   // wrap token of chain must be the first token
-  lpStrategyPrincipleTokens?: string[];
+  lpStrategyPrincipalTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;
