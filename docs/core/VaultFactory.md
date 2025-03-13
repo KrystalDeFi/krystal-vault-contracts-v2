@@ -8,10 +8,10 @@
 address WETH
 ```
 
-### whitelistManager
+### configManager
 
 ```solidity
-address whitelistManager
+address configManager
 ```
 
 ### vaultImplementation
@@ -53,7 +53,7 @@ address[] allVaults
 ### constructor
 
 ```solidity
-constructor(address _weth, address _whiteListManager, address _vaultImplementation, address _vaultAutomator, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
+constructor(address _weth, address _configManager, address _vaultImplementation, address _vaultAutomator, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
 ```
 
 ### createVault
@@ -92,19 +92,19 @@ function unpause() public
 
 Unpause the contract
 
-### setWhitelistManager
+### setConfigManager
 
 ```solidity
-function setWhitelistManager(address _whitelistManager) public
+function setConfigManager(address _configManager) public
 ```
 
-Set the WhitelistManager address
+Set the ConfigManager address
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _whitelistManager | address | Address of the new WhitelistManager |
+| _configManager | address | Address of the new ConfigManager |
 
 ### setVaultImplementation
 

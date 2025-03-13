@@ -63,5 +63,15 @@ interface ILpStrategy is IStrategy {
     bytes swapData;
   }
 
+  struct LpStrategyConfig {
+    uint256 principalTokenAmountMin;
+    uint24 tickWidthMultiplierMin;
+    uint24 tickWidthStableMultiplierMin;
+  }
+
+  error InvalidPool();
+
   error InvalidPoolAmountAmountMin();
+
+  error InvalidTickWidth();
 }

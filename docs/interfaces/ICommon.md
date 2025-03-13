@@ -2,6 +2,17 @@
 
 ## ICommon
 
+### VaultConfig
+
+```solidity
+struct VaultConfig {
+  bool allowDeposit;
+  uint8 rangeStrategyType;
+  uint8 tvlStrategyType;
+  address[] supportedAddresses;
+}
+```
+
 ### VaultCreateParams
 
 ```solidity
@@ -11,9 +22,7 @@ struct VaultCreateParams {
   string symbol;
   address principalToken;
   uint256 principalTokenAmount;
-  uint256 principalTokenAmountMin;
-  bool allowDeposit;
-  address[] supportedTokens;
+  struct ICommon.VaultConfig config;
 }
 ```
 
@@ -36,6 +45,12 @@ error ZeroAddress()
 
 ```solidity
 error TransferFailed()
+```
+
+### InvalidVaultConfig
+
+```solidity
+error InvalidVaultConfig()
 ```
 
 ### InvalidStrategy

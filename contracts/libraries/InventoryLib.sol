@@ -37,7 +37,11 @@ library InventoryLib {
     }
   }
 
-  function getAsset(Inventory storage self, address token, uint256 tokenId) internal view returns (AssetLib.Asset memory) {
+  function getAsset(
+    Inventory storage self,
+    address token,
+    uint256 tokenId
+  ) internal view returns (AssetLib.Asset memory) {
     uint256 index = self.assetIndex[token][tokenId];
     require(index != 0, "InventoryLib: asset not found");
     return self.assets[index - 1];

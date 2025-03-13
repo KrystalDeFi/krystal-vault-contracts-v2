@@ -87,9 +87,31 @@ struct DecreaseLiquidityAndSwapParams {
 }
 ```
 
+### LpStrategyConfig
+
+```solidity
+struct LpStrategyConfig {
+  uint256 principalTokenAmountMin;
+  uint24 tickWidthMultiplierMin;
+  uint24 tickWidthStableMultiplierMin;
+}
+```
+
+### InvalidPool
+
+```solidity
+error InvalidPool()
+```
+
 ### InvalidPoolAmountAmountMin
 
 ```solidity
 error InvalidPoolAmountAmountMin()
+```
+
+### InvalidTickWidth
+
+```solidity
+error InvalidTickWidth()
 ```
 

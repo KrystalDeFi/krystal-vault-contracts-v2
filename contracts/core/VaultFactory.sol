@@ -17,7 +17,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   using SafeERC20 for IERC20;
 
   address public WETH;
-  address public whitelistManager;
+  address public configManager;
   address public vaultImplementation;
   address public vaultAutomator;
   address public platformFeeRecipient;
@@ -29,20 +29,20 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
 
   constructor(
     address _weth,
-    address _whiteListManager,
+    address _configManager,
     address _vaultImplementation,
     address _vaultAutomator,
     address _platformFeeRecipient,
     uint16 _platformFeeBasisPoint
   ) Ownable(_msgSender()) {
     require(_weth != address(0), ZeroAddress());
-    require(_whiteListManager != address(0), ZeroAddress());
+    require(_configManager != address(0), ZeroAddress());
     require(_vaultImplementation != address(0), ZeroAddress());
     require(_vaultAutomator != address(0), ZeroAddress());
     require(_platformFeeRecipient != address(0), ZeroAddress());
 
     WETH = _weth;
-    whitelistManager = _whiteListManager;
+    configManager = _configManager;
     vaultImplementation = _vaultImplementation;
     vaultAutomator = _vaultAutomator;
     platformFeeRecipient = _platformFeeRecipient;
@@ -66,7 +66,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       IERC20(WETH).safeTransfer(vault, msg.value);
     }
 
-    IVault(vault).initialize(params, _msgSender(), whitelistManager, vaultAutomator);
+    IVault(vault).initialize(params, _msgSender(), configManager, vaultAutomator);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);
@@ -84,12 +84,12 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     _unpause();
   }
 
-  /// @notice Set the WhitelistManager address
-  /// @param _whitelistManager Address of the new WhitelistManager
-  function setWhitelistManager(address _whitelistManager) public onlyOwner {
-    require(_whitelistManager != address(0), ZeroAddress());
-    whitelistManager = _whitelistManager;
-    emit WhitelistManagerSet(_whitelistManager);
+  /// @notice Set the ConfigManager address
+  /// @param _configManager Address of the new ConfigManager
+  function setConfigManager(address _configManager) public onlyOwner {
+    require(_configManager != address(0), ZeroAddress());
+    configManager = _configManager;
+    emit ConfigManagerSet(_configManager);
   }
 
   /// @notice Set the Vault implementation

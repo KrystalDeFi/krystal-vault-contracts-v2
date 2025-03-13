@@ -21,6 +21,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -28,6 +33,19 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "configManager",
+        "type": "address"
+      }
+    ],
+    "name": "ConfigManagerSet",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -111,19 +129,31 @@
             "type": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "principalTokenAmountMin",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "allowDeposit",
-            "type": "bool"
-          },
-          {
-            "internalType": "address[]",
-            "name": "supportedTokens",
-            "type": "address[]"
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "allowDeposit",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint8",
+                "name": "rangeStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "tvlStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address[]",
+                "name": "supportedAddresses",
+                "type": "address[]"
+              }
+            ],
+            "internalType": "struct ICommon.VaultConfig",
+            "name": "config",
+            "type": "tuple"
           }
         ],
         "indexed": false,
@@ -146,19 +176,6 @@
       }
     ],
     "name": "VaultImplementationSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "whitelistManager",
-        "type": "address"
-      }
-    ],
-    "name": "WhitelistManagerSet",
     "type": "event"
   },
   {
@@ -191,19 +208,31 @@
             "type": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "principalTokenAmountMin",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "allowDeposit",
-            "type": "bool"
-          },
-          {
-            "internalType": "address[]",
-            "name": "supportedTokens",
-            "type": "address[]"
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "allowDeposit",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint8",
+                "name": "rangeStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "tvlStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address[]",
+                "name": "supportedAddresses",
+                "type": "address[]"
+              }
+            ],
+            "internalType": "struct ICommon.VaultConfig",
+            "name": "config",
+            "type": "tuple"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
@@ -220,6 +249,19 @@
       }
     ],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_configManager",
+        "type": "address"
+      }
+    ],
+    "name": "setConfigManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -270,19 +312,6 @@
       }
     ],
     "name": "setVaultImplementation",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_whitelistManager",
-        "type": "address"
-      }
-    ],
-    "name": "setWhitelistManager",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

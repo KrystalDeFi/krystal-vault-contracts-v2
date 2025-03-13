@@ -16,16 +16,23 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
 
 import "../../interfaces/strategies/ILpStrategy.sol";
+import "../../interfaces/core/IConfigManager.sol";
 
 contract LpStrategy is ReentrancyGuard, ILpStrategy {
   using SafeERC20 for IERC20;
 
   address public principalToken;
   IOptimalSwapper public optimalSwapper;
+  IConfigManager public configManager;
 
-  constructor(address _principalToken, address _optimalSwapper) {
+  constructor(address _principalToken, address _optimalSwapper, address _configManager) {
+    require(_principalToken != address(0), ZeroAddress());
+    require(_optimalSwapper != address(0), ZeroAddress());
+    require(_configManager != address(0), ZeroAddress());
+
     principalToken = _principalToken;
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
+    configManager = IConfigManager(_configManager);
   }
 
   /// @notice Deposits the asset to the strategy
@@ -47,33 +54,41 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function convert(
     AssetLib.Asset[] memory assets,
-    uint256 principalTokenAmountMin,
+    VaultConfig memory config,
     bytes calldata data
   ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
     if (instruction.instructionType == uint8(InstructionType.MintPosition)) {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
-      address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
-      (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
 
-      if (principalToken == params.token0) {
-        require(poolAmount0 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
-      } else {
-        require(poolAmount1 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
+      if (config.allowDeposit) {
+        _validateConfig(
+          params.nfpm,
+          params.fee,
+          params.token0,
+          params.token1,
+          params.tickLower,
+          params.tickUpper,
+          config
+        );
       }
 
       return mintPosition(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.SwapAndMintPosition)) {
       SwapAndMintPositionParams memory params = abi.decode(instruction.params, (SwapAndMintPositionParams));
-      address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
-      (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
 
-      if (principalToken == params.token0) {
-        require(poolAmount0 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
-      } else {
-        require(poolAmount1 >= principalTokenAmountMin, InvalidPoolAmountAmountMin());
+      if (config.allowDeposit) {
+        _validateConfig(
+          params.nfpm,
+          params.fee,
+          params.token0,
+          params.token1,
+          params.tickLower,
+          params.tickUpper,
+          config
+        );
       }
 
       return swapAndMintPosition(assets, params);
@@ -82,24 +97,28 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       require(assets.length == 3, InvalidNumberOfAssets());
 
       IncreaseLiquidityParams memory params = abi.decode(instruction.params, (IncreaseLiquidityParams));
+
       return increaseLiquidity(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.SwapAndIncreaseLiquidity)) {
       require(assets.length == 2, InvalidNumberOfAssets());
 
       SwapAndIncreaseLiquidityParams memory params = abi.decode(instruction.params, (SwapAndIncreaseLiquidityParams));
+
       return swapAndIncreaseLiquidity(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidity)) {
       require(assets.length == 1, InvalidNumberOfAssets());
 
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
+
       return decreaseLiquidity(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidityAndSwap)) {
       require(assets.length == 1, InvalidNumberOfAssets());
 
       DecreaseLiquidityAndSwapParams memory params = abi.decode(instruction.params, (DecreaseLiquidityAndSwapParams));
+
       return decreaseLiquidityAndSwap(assets, params);
     }
     revert InvalidInstructionType();
@@ -580,6 +599,64 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
       feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
     }
+  }
+
+  /// @dev Checks the principal amount in the pool
+  /// @param nfpm The non-fungible position manager
+  /// @param fee The fee of the pool
+  /// @param token0 The token0 of the pool
+  /// @param token1 The token1 of the pool
+  /// @param tickLower The lower tick of the position
+  /// @param tickUpper The upper tick of the position
+  /// @param config The configuration of the strategy
+  function _validateConfig(
+    INFPM nfpm,
+    uint24 fee,
+    address token0,
+    address token1,
+    int24 tickLower,
+    int24 tickUpper,
+    VaultConfig memory config
+  ) internal view {
+    LpStrategyConfig memory lpConfig = abi.decode(
+      configManager.getStrategyConfig(address(this), config.rangeStrategyType),
+      (LpStrategyConfig)
+    );
+
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+    (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
+    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
+
+    // Check if the pool is allowed
+    require(_isPoolAllowed(config, pool), InvalidPool());
+
+    // Check if the pool amount is greater than the minimum amount principal token
+    if (principalToken == token0) {
+      require(poolAmount0 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
+    } else {
+      require(poolAmount1 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
+    }
+
+    // Check if tick width to mint/increase liquidity is greater than the minimum tick width
+    if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
+      require(tickUpper - tickLower >= int24(lpConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth());
+    } else {
+      require(tickUpper - tickLower >= int24(lpConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
+    }
+  }
+
+  function _isPoolAllowed(VaultConfig memory config, address pool) internal pure returns (bool) {
+    for (uint256 i = 0; i < config.supportedAddresses.length; ) {
+      if (config.supportedAddresses[i] == pool) {
+        return true;
+      }
+
+      unchecked {
+        i++;
+      }
+    }
+
+    return false;
   }
 
   receive() external payable {}

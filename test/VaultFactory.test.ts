@@ -32,11 +32,11 @@ describe("VaultFactory", () => {
     const implementationAddress = await implementation.getAddress();
     console.log("implementation deployed at: ", implementationAddress);
 
-    const whitelistManager = await ethers.deployContract("WhitelistManager");
-    await whitelistManager.waitForDeployment();
+    const configManager = await ethers.deployContract("ConfigManager");
+    await configManager.waitForDeployment();
 
-    const whitelistManagerAddress = await whitelistManager.getAddress();
-    console.log("whitelistManager deployed at: ", whitelistManagerAddress);
+    const configManagerAddress = await configManager.getAddress();
+    console.log("configManager deployed at: ", configManagerAddress);
 
     token0 = await ethers.deployContract("TestERC20", [parseEther("1000000")]);
     await token0.waitForDeployment();
@@ -54,7 +54,7 @@ describe("VaultFactory", () => {
 
     factory = await ethers.deployContract("VaultFactory", [
       weth.target,
-      whitelistManagerAddress,
+      configManagerAddress,
       implementationAddress,
       NetworkConfig.base_mainnet.automatorAddress,
       NetworkConfig.base_mainnet.platformFeeRecipient,
