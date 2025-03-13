@@ -2,7 +2,8 @@
 
 ## OptimalSwap
 
-Optimal library for optimal double-sided Uniswap v3 liquidity provision using closed form solution
+Optimal library for optimal double-sided Uniswap v3 liquidity provision using closed
+form solution
 
 ### MAX_FEE_PIPS
 
@@ -52,28 +53,30 @@ function getOptimalSwap(V3PoolCallee pool, int24 tickLower, int24 tickUpper, uin
 
 Get swap amount, output amount, swap direction for double-sided optimal deposit
 
-_Given the elegant analytic solution and custom optimizations to Uniswap libraries, the amount of gas is at the order of
-10k depending on the swap amount and the number of ticks crossed, an order of magnitude less than that achieved by
-binary search, which can be calculated on-chain._
+_Given the elegant analytic solution and custom optimizations to Uniswap libraries,
+the amount of gas is at the order of 10k depending on the swap amount and the number of ticks
+crossed,
+an order of magnitude less than that achieved by binary search, which can be calculated
+on-chain._
 
 #### Parameters
 
-| Name           | Type         | Description                                              |
-| -------------- | ------------ | -------------------------------------------------------- |
-| pool           | V3PoolCallee | Uniswap v3 pool                                          |
-| tickLower      | int24        | The lower tick of the position in which to add liquidity |
-| tickUpper      | int24        | The upper tick of the position in which to add liquidity |
-| amount0Desired | uint256      | The desired amount of token0 to be spent                 |
-| amount1Desired | uint256      | The desired amount of token1 to be spent                 |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| pool | V3PoolCallee | Uniswap v3 pool |
+| tickLower | int24 | The lower tick of the position in which to add liquidity |
+| tickUpper | int24 | The upper tick of the position in which to add liquidity |
+| amount0Desired | uint256 | The desired amount of token0 to be spent |
+| amount1Desired | uint256 | The desired amount of token1 to be spent |
 
 #### Return Values
 
-| Name         | Type    | Description                                                                      |
-| ------------ | ------- | -------------------------------------------------------------------------------- |
-| amountIn     | uint256 | The optimal swap amount                                                          |
-| amountOut    | uint256 | Expected output amount                                                           |
-| zeroForOne   | bool    | The direction of the swap, true for token0 to token1, false for token1 to token0 |
-| sqrtPriceX96 | uint160 | The sqrt(price) after the swap                                                   |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amountIn | uint256 | The optimal swap amount |
+| amountOut | uint256 | Expected output amount |
+| zeroForOne | bool | The direction of the swap, true for token0 to token1, false for token1 to token0 |
+| sqrtPriceX96 | uint160 | The sqrt(price) after the swap |
 
 ### isZeroForOne
 
@@ -85,16 +88,17 @@ _Swap direction to achieve optimal deposit_
 
 #### Parameters
 
-| Name              | Type    | Description                                                     |
-| ----------------- | ------- | --------------------------------------------------------------- |
-| amount0Desired    | uint256 | The desired amount of token0 to be spent                        |
-| amount1Desired    | uint256 | The desired amount of token1 to be spent                        |
-| sqrtPriceX96      | uint256 | sqrt(price) at the last tick of optimal swap                    |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0Desired | uint256 | The desired amount of token0 to be spent |
+| amount1Desired | uint256 | The desired amount of token1 to be spent |
+| sqrtPriceX96 | uint256 | sqrt(price) at the last tick of optimal swap |
 | sqrtRatioLowerX96 | uint256 | The lower sqrt(price) of the position in which to add liquidity |
 | sqrtRatioUpperX96 | uint256 | The upper sqrt(price) of the position in which to add liquidity |
 
 #### Return Values
 
-| Name | Type | Description                                                                      |
-| ---- | ---- | -------------------------------------------------------------------------------- |
-| [0]  | bool | The direction of the swap, true for token0 to token1, false for token1 to token0 |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | The direction of the swap, true for token0 to token1, false for token1 to token0 |
+

@@ -32,6 +32,18 @@ event SweepToken(address[] tokens)
 event SweepNFToken(address[] _tokens, uint256[] _tokenIds)
 ```
 
+### SetAllowDeposit
+
+```solidity
+event SetAllowDeposit(bool _allowDeposit)
+```
+
+### InvalidAssetToken
+
+```solidity
+error InvalidAssetToken()
+```
+
 ### InvalidAssetAmount
 
 ```solidity
@@ -60,6 +72,12 @@ error InvalidAssetTokenId()
 
 ```solidity
 error InvalidAssetType()
+```
+
+### DepositNotAllowed
+
+```solidity
+error DepositNotAllowed()
 ```
 
 ### vaultOwner
@@ -133,3 +151,10 @@ function sweepToken(address[] tokens) external
 ```solidity
 function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
+
+### setAllowDeposit
+
+```solidity
+function setAllowDeposit(bool _allowDeposit) external
+```
+

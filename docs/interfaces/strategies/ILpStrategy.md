@@ -86,3 +86,10 @@ struct DecreaseLiquidityAndSwapParams {
   bytes swapData;
 }
 ```
+
+### InvalidPoolAmountAmountMin
+
+```solidity
+error InvalidPoolAmountAmountMin()
+```
+

@@ -66,14 +66,14 @@ Create a new vault
 
 #### Parameters
 
-| Name   | Type                             | Description               |
-| ------ | -------------------------------- | ------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 
 #### Return Values
 
-| Name  | Type    | Description              |
-| ----- | ------- | ------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | vault | address | Address of the new vault |
 
 ### pause
@@ -102,9 +102,9 @@ Set the WhitelistManager address
 
 #### Parameters
 
-| Name               | Type    | Description                         |
-| ------------------ | ------- | ----------------------------------- |
-| \_whitelistManager | address | Address of the new WhitelistManager |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _whitelistManager | address | Address of the new WhitelistManager |
 
 ### setVaultImplementation
 
@@ -116,9 +116,9 @@ Set the Vault implementation
 
 #### Parameters
 
-| Name                  | Type    | Description                             |
-| --------------------- | ------- | --------------------------------------- |
-| \_vaultImplementation | address | Address of the new vault implementation |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vaultImplementation | address | Address of the new vault implementation |
 
 ### setVaultAutomator
 
@@ -128,6 +128,12 @@ function setVaultAutomator(address _vaultAutomator) public
 
 Set the VaultAutomator address
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vaultAutomator | address | Address of the new VaultAutomator |
+
 ### setPlatformFeeRecipient
 
 ```solidity
@@ -136,6 +142,12 @@ function setPlatformFeeRecipient(address _platformFeeRecipient) public
 
 Set the default platform fee recipient
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _platformFeeRecipient | address | Address of the new platform fee recipient |
+
 ### setPlatformFeeBasisPoint
 
 ```solidity
@@ -143,3 +155,10 @@ function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public
 ```
 
 Set the default platform fee basis point
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _platformFeeBasisPoint | uint16 | New platform fee basis point |
+

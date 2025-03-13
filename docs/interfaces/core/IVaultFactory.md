@@ -85,3 +85,4 @@ function setPlatformFeeRecipient(address _platformFeeRecipient) external
 ```solidity
 function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) external
 ```
+

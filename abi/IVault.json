@@ -1,12 +1,22 @@
 [
   {
     "inputs": [],
+    "name": "DepositNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidAssetAmount",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidAssetStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAssetToken",
     "type": "error"
   },
   {
@@ -213,6 +223,19 @@
       }
     ],
     "name": "Deposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_allowDeposit",
+        "type": "bool"
+      }
+    ],
+    "name": "SetAllowDeposit",
     "type": "event"
   },
   {
@@ -438,6 +461,21 @@
             "internalType": "uint256",
             "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
@@ -474,6 +512,19 @@
       }
     ],
     "name": "revokeAdminRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_allowDeposit",
+        "type": "bool"
+      }
+    ],
+    "name": "setAllowDeposit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

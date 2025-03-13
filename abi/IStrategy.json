@@ -69,6 +69,11 @@
         "type": "tuple[]"
       },
       {
+        "internalType": "uint256",
+        "name": "principleTokenAmountMin",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes",
         "name": "data",
         "type": "bytes"

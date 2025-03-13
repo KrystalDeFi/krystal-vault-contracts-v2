@@ -22,6 +22,11 @@
   },
   {
     "inputs": [],
+    "name": "DepositNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ECDSAInvalidSignature",
     "type": "error"
   },
@@ -184,6 +189,11 @@
   {
     "inputs": [],
     "name": "InvalidAssetStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAssetToken",
     "type": "error"
   },
   {
@@ -542,6 +552,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "bool",
+        "name": "_allowDeposit",
+        "type": "bool"
+      }
+    ],
+    "name": "SetAllowDeposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address[]",
         "name": "_tokens",
         "type": "address[]"
@@ -694,6 +717,19 @@
     "name": "allocate",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "allowDeposit",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1105,6 +1141,21 @@
             "internalType": "uint256",
             "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
@@ -1221,6 +1272,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "principleTokenAmountMin",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -1267,6 +1331,38 @@
     "name": "revokeRole",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_allowDeposit",
+        "type": "bool"
+      }
+    ],
+    "name": "setAllowDeposit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "supportedTokens",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

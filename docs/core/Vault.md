@@ -32,6 +32,24 @@ address vaultOwner
 address principleToken
 ```
 
+### principleTokenAmountMin
+
+```solidity
+uint256 principleTokenAmountMin
+```
+
+### allowDeposit
+
+```solidity
+bool allowDeposit
+```
+
+### supportedTokens
+
+```solidity
+address[] supportedTokens
+```
+
 ### currentAssets
 
 ```solidity
@@ -48,12 +66,12 @@ Initializes the vault
 
 #### Parameters
 
-| Name               | Type                             | Description                      |
-| ------------------ | -------------------------------- | -------------------------------- |
-| params             | struct ICommon.VaultCreateParams | Vault creation parameters        |
-| \_owner            | address                          | Owner of the vault               |
-| \_whitelistManager | address                          | Address of the whitelist manager |
-| \_vaultAutomator   | address                          | Address of the vault automator   |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| params | struct ICommon.VaultCreateParams | Vault creation parameters |
+| _owner | address | Owner of the vault |
+| _whitelistManager | address | Address of the whitelist manager |
+| _vaultAutomator | address | Address of the vault automator |
 
 ### deposit
 
@@ -65,14 +83,14 @@ Deposits the asset to the vault
 
 #### Parameters
 
-| Name   | Type    | Description                   |
-| ------ | ------- | ----------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be minted |
 
 #### Return Values
 
-| Name         | Type    | Description             |
-| ------------ | ------- | ----------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | returnShares | uint256 | Amount of shares minted |
 
 ### withdraw
@@ -85,8 +103,8 @@ Withdraws the asset from the vault
 
 #### Parameters
 
-| Name   | Type    | Description                   |
-| ------ | ------- | ----------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be burned |
 
 ### allocate
@@ -99,11 +117,11 @@ Allocates un-used assets to the strategy
 
 #### Parameters
 
-| Name        | Type                   | Description              |
-| ----------- | ---------------------- | ------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | inputAssets | struct ICommon.Asset[] | Input assets to allocate |
-| strategy    | contract IStrategy     | Strategy to allocate to  |
-| data        | bytes                  | Data for the strategy    |
+| strategy | contract IStrategy | Strategy to allocate to |
+| data | bytes | Data for the strategy |
 
 ### deallocate
 
@@ -115,12 +133,12 @@ Deallocates the assets from the strategy
 
 #### Parameters
 
-| Name    | Type    | Description                 |
-| ------- | ------- | --------------------------- |
-| token   | address | asset's token address       |
-| tokenId | uint256 | asset's token ID            |
-| amount  | uint256 | Amount to deallocate        |
-| data    | bytes   | Data for strategy execution |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | asset's token address |
+| tokenId | uint256 | asset's token ID |
+| amount | uint256 | Amount to deallocate |
+| data | bytes | Data for strategy execution |
 
 ### harvest
 
@@ -128,7 +146,7 @@ Deallocates the assets from the strategy
 function harvest(struct ICommon.Asset asset) external
 ```
 
-### \_harvest
+### _harvest
 
 ```solidity
 function _harvest(struct ICommon.Asset asset) internal
@@ -144,8 +162,8 @@ Returns the total value of the vault
 
 #### Return Values
 
-| Name  | Type    | Description                                 |
-| ----- | ------- | ------------------------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | value | uint256 | Total value of the vault in principle token |
 
 ### getAssetAllocations
@@ -158,8 +176,8 @@ Returns the asset allocations of the vault
 
 #### Return Values
 
-| Name   | Type                   | Description                    |
-| ------ | ---------------------- | ------------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | assets | struct ICommon.Asset[] | Asset allocations of the vault |
 
 ### sweepToken
@@ -172,8 +190,8 @@ Sweeps the tokens to the caller
 
 #### Parameters
 
-| Name   | Type      | Description     |
-| ------ | --------- | --------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 
 ### sweepNFTToken
@@ -186,10 +204,10 @@ Sweeps the non-fungible tokens to the caller
 
 #### Parameters
 
-| Name       | Type      | Description        |
-| ---------- | --------- | ------------------ |
-| \_tokens   | address[] | Tokens to sweep    |
-| \_tokenIds | uint256[] | Token IDs to sweep |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _tokens | address[] | Tokens to sweep |
+| _tokenIds | uint256[] | Token IDs to sweep |
 
 ### grantAdminRole
 
@@ -201,9 +219,9 @@ grant admin role to the address
 
 #### Parameters
 
-| Name      | Type    | Description                                    |
-| --------- | ------- | ---------------------------------------------- |
-| \_address | address | The address to which the admin role is granted |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address to which the admin role is granted |
 
 ### revokeAdminRole
 
@@ -215,11 +233,25 @@ revoke admin role from the address
 
 #### Parameters
 
-| Name      | Type    | Description                                      |
-| --------- | ------- | ------------------------------------------------ |
-| \_address | address | The address from which the admin role is revoked |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address from which the admin role is revoked |
 
-### \_addAssets
+### setAllowDeposit
+
+```solidity
+function setAllowDeposit(bool _allowDeposit) external
+```
+
+Sets the allow deposit flag
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _allowDeposit | bool | Allow deposit flag |
+
+### _addAssets
 
 ```solidity
 function _addAssets(struct ICommon.Asset[] newAssets) internal
@@ -229,11 +261,11 @@ _Adds multiple assets to the vault_
 
 #### Parameters
 
-| Name      | Type                   | Description       |
-| --------- | ---------------------- | ----------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | newAssets | struct ICommon.Asset[] | New assets to add |
 
-### \_addAsset
+### _addAsset
 
 ```solidity
 function _addAsset(struct ICommon.Asset asset) internal
@@ -243,11 +275,11 @@ _Adds an asset to the vault_
 
 #### Parameters
 
-| Name  | Type                 | Description  |
-| ----- | -------------------- | ------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | asset | struct ICommon.Asset | Asset to add |
 
-### \_transferAsset
+### _transferAsset
 
 ```solidity
 function _transferAsset(struct ICommon.Asset asset, address to) internal
@@ -257,7 +289,28 @@ _Transfers the asset to the recipient_
 
 #### Parameters
 
-| Name  | Type                 | Description            |
-| ----- | -------------------- | ---------------------- |
-| asset | struct ICommon.Asset | Asset to transfer      |
-| to    | address              | Recipient of the asset |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct ICommon.Asset | Asset to transfer |
+| to | address | Recipient of the asset |
+
+### _isSupportedToken
+
+```solidity
+function _isSupportedToken(address token) internal view returns (bool)
+```
+
+_Checks if the token is supported_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | Token to check |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | bool True if the token is supported |
+

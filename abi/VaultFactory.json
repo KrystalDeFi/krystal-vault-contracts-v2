@@ -254,6 +254,21 @@
             "internalType": "uint256",
             "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "indexed": false,
@@ -351,6 +366,21 @@
             "internalType": "uint256",
             "name": "principleTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principleTokenAmountMin",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedTokens",
+            "type": "address[]"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",

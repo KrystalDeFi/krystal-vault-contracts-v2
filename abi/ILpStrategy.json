@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidPoolAmountAmountMin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -67,6 +72,11 @@
         "internalType": "struct ICommon.Asset[]",
         "name": "assets",
         "type": "tuple[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "principleTokenAmountMin",
+        "type": "uint256"
       },
       {
         "internalType": "bytes",

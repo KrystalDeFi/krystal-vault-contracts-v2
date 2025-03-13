@@ -33,6 +33,9 @@ struct VaultCreateParams {
   string symbol;
   address principleToken;
   uint256 principleTokenAmount;
+  uint256 principleTokenAmountMin;
+  bool allowDeposit;
+  address[] supportedTokens;
 }
 ```
 
@@ -68,3 +71,4 @@ error InvalidStrategy()
 ```solidity
 error InvalidSwapRouter()
 ```
+
