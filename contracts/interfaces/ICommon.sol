@@ -6,6 +6,7 @@ interface ICommon {
     bool allowDeposit;
     uint8 rangeStrategyType;
     uint8 tvlStrategyType;
+    address principalToken;
     address[] supportedAddresses;
   }
 
