@@ -37,7 +37,3 @@ export interface IConfig {
   // For platform fee in basis point
   platformFeeBasisPoint?: number;
 }
-
-export interface ITestConfig {
-  nfpm: string;
-}
