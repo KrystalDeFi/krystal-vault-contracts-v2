@@ -13,7 +13,7 @@ interface IStrategy is ICommon {
 
   function convert(
     AssetLib.Asset[] memory assets,
-    uint256 principalTokenAmountMin,
+    VaultConfig memory config,
     bytes calldata data
   ) external returns (AssetLib.Asset[] memory);
 

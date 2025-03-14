@@ -11,6 +11,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },

@@ -14,10 +14,16 @@ address principalToken
 contract IOptimalSwapper optimalSwapper
 ```
 
+### configManager
+
+```solidity
+contract IConfigManager configManager
+```
+
 ### constructor
 
 ```solidity
-constructor(address _principalToken, address _optimalSwapper) public
+constructor(address _principalToken, address _optimalSwapper, address _configManager) public
 ```
 
 ### valueOf
@@ -37,7 +43,7 @@ Deposits the asset to the strategy
 ### convert
 
 ```solidity
-function convert(struct AssetLib.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
+function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -47,7 +53,7 @@ Converts the asset to another assets
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to convert |
-| principalTokenAmountMin | uint256 |  |
+| config | struct ICommon.VaultConfig |  |
 | data | bytes | The data for the instruction |
 
 #### Return Values
@@ -302,6 +308,32 @@ _Gets the fee growth inside the position_
 | ---- | ---- | ----------- |
 | feeGrowthInside0X128 | uint256 | The fee growth of token0 |
 | feeGrowthInside1X128 | uint256 | The fee growth of token1 |
+
+### _validateConfig
+
+```solidity
+function _validateConfig(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) internal view
+```
+
+_Checks the principal amount in the pool_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
+| fee | uint24 | The fee of the pool |
+| token0 | address | The token0 of the pool |
+| token1 | address | The token1 of the pool |
+| tickLower | int24 | The lower tick of the position |
+| tickUpper | int24 | The upper tick of the position |
+| config | struct ICommon.VaultConfig | The configuration of the strategy |
+
+### _isPoolAllowed
+
+```solidity
+function _isPoolAllowed(struct ICommon.VaultConfig config, address pool) internal pure returns (bool)
+```
 
 ### receive
 

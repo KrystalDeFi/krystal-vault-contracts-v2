@@ -17,7 +17,7 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  whitelistManager?: {
+  configManager?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };

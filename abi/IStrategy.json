@@ -26,6 +26,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -69,9 +74,31 @@
         "type": "tuple[]"
       },
       {
-        "internalType": "uint256",
-        "name": "principalTokenAmountMin",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "config",
+        "type": "tuple"
       },
       {
         "internalType": "bytes",

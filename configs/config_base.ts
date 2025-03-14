@@ -19,7 +19,7 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    whitelistManager: {
+    configManager: {
       enabled: true,
       autoVerifyContract: true,
     },

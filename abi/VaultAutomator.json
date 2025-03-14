@@ -84,6 +84,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OrderCancelled",
     "type": "error"
   },

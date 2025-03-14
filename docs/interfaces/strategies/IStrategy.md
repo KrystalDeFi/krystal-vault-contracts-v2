@@ -29,7 +29,7 @@ function valueOf(struct AssetLib.Asset asset) external returns (struct AssetLib.
 ### convert
 
 ```solidity
-function convert(struct AssetLib.Asset[] assets, uint256 principalTokenAmountMin, bytes data) external returns (struct AssetLib.Asset[])
+function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config, bytes data) external returns (struct AssetLib.Asset[])
 ```
 
 ### harvest

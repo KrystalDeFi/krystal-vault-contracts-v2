@@ -6,7 +6,7 @@ import "../ICommon.sol";
 interface IVaultFactory is ICommon {
   event VaultCreated(address owner, address vault, VaultCreateParams params);
 
-  event WhitelistManagerSet(address whitelistManager);
+  event ConfigManagerSet(address configManager);
 
   event VaultImplementationSet(address vaultImplementation);
 
@@ -21,7 +21,7 @@ interface IVaultFactory is ICommon {
 
   function createVault(VaultCreateParams memory params) external payable returns (address vault);
 
-  function setWhitelistManager(address _whitelistManager) external;
+  function setConfigManager(address _configManager) external;
 
   function setVaultImplementation(address _vaultImplementation) external;
 

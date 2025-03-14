@@ -15,7 +15,7 @@ interface IVault is ICommon {
 
   event SweepNFToken(address[] _tokens, uint256[] _tokenIds);
 
-  event SetAllowDeposit(bool _allowDeposit);
+  event SetVaultConfig(VaultConfig config);
 
   error InvalidAssetToken();
   error InvalidAssetAmount();
@@ -24,13 +24,14 @@ interface IVault is ICommon {
   error InvalidAssetTokenId();
   error InvalidAssetType();
   error DepositNotAllowed();
+  error MaxPositionsReached();
 
   function vaultOwner() external view returns (address);
 
   function initialize(
     VaultCreateParams memory params,
     address _owner,
-    address _whitelistManager,
+    address _configManager,
     address _vaultAutomator
   ) external;
 
@@ -54,5 +55,5 @@ interface IVault is ICommon {
 
   function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
 
-  function setAllowDeposit(bool _allowDeposit) external;
+  function setVaultConfig(VaultConfig memory _config) external;
 }

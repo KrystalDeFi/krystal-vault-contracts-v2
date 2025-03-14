@@ -8,10 +8,10 @@
 event VaultCreated(address owner, address vault, struct ICommon.VaultCreateParams params)
 ```
 
-### WhitelistManagerSet
+### ConfigManagerSet
 
 ```solidity
-event WhitelistManagerSet(address whitelistManager)
+event ConfigManagerSet(address configManager)
 ```
 
 ### VaultImplementationSet
@@ -56,10 +56,10 @@ error InvalidPrincipalToken()
 function createVault(struct ICommon.VaultCreateParams params) external payable returns (address vault)
 ```
 
-### setWhitelistManager
+### setConfigManager
 
 ```solidity
-function setWhitelistManager(address _whitelistManager) external
+function setConfigManager(address _configManager) external
 ```
 
 ### setVaultImplementation

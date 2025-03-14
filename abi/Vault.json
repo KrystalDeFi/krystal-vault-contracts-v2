@@ -228,6 +228,16 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MaxPositionsReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotInitializing",
     "type": "error"
   },
@@ -551,13 +561,35 @@
     "anonymous": false,
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
         "indexed": false,
-        "internalType": "bool",
-        "name": "_allowDeposit",
-        "type": "bool"
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "config",
+        "type": "tuple"
       }
     ],
-    "name": "SetAllowDeposit",
+    "name": "SetVaultConfig",
     "type": "event"
   },
   {
@@ -720,19 +752,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "allowDeposit",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -794,6 +813,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "configManager",
+    "outputs": [
+      {
+        "internalType": "contract IConfigManager",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -940,46 +972,6 @@
       }
     ],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getInventory",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "assets",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1139,19 +1131,31 @@
             "type": "uint256"
           },
           {
-            "internalType": "uint256",
-            "name": "principalTokenAmountMin",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "allowDeposit",
-            "type": "bool"
-          },
-          {
-            "internalType": "address[]",
-            "name": "supportedTokens",
-            "type": "address[]"
+            "components": [
+              {
+                "internalType": "bool",
+                "name": "allowDeposit",
+                "type": "bool"
+              },
+              {
+                "internalType": "uint8",
+                "name": "rangeStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint8",
+                "name": "tvlStrategyType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "address[]",
+                "name": "supportedAddresses",
+                "type": "address[]"
+              }
+            ],
+            "internalType": "struct ICommon.VaultConfig",
+            "name": "config",
+            "type": "tuple"
           }
         ],
         "internalType": "struct ICommon.VaultCreateParams",
@@ -1165,7 +1169,7 @@
       },
       {
         "internalType": "address",
-        "name": "_whitelistManager",
+        "name": "_configManager",
         "type": "address"
       },
       {
@@ -1268,19 +1272,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "principalTokenAmountMin",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -1332,33 +1323,36 @@
   {
     "inputs": [
       {
-        "internalType": "bool",
-        "name": "_allowDeposit",
-        "type": "bool"
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "_config",
+        "type": "tuple"
       }
     ],
-    "name": "setAllowDeposit",
+    "name": "setVaultConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "supportedTokens",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1492,12 +1486,22 @@
   },
   {
     "inputs": [],
-    "name": "vaultOwner",
+    "name": "vaultConfig",
     "outputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
+        "internalType": "bool",
+        "name": "allowDeposit",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint8",
+        "name": "rangeStrategyType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tvlStrategyType",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -1505,10 +1509,10 @@
   },
   {
     "inputs": [],
-    "name": "whitelistManager",
+    "name": "vaultOwner",
     "outputs": [
       {
-        "internalType": "contract IWhitelistManager",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

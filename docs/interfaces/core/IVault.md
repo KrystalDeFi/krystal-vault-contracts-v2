@@ -32,10 +32,10 @@ event SweepToken(address[] tokens)
 event SweepNFToken(address[] _tokens, uint256[] _tokenIds)
 ```
 
-### SetAllowDeposit
+### SetVaultConfig
 
 ```solidity
-event SetAllowDeposit(bool _allowDeposit)
+event SetVaultConfig(struct ICommon.VaultConfig config)
 ```
 
 ### InvalidAssetToken
@@ -80,6 +80,12 @@ error InvalidAssetType()
 error DepositNotAllowed()
 ```
 
+### MaxPositionsReached
+
+```solidity
+error MaxPositionsReached()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -89,7 +95,7 @@ function vaultOwner() external view returns (address)
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _vaultAutomator) external
 ```
 
 ### deposit
@@ -152,9 +158,9 @@ function sweepToken(address[] tokens) external
 function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
 
-### setAllowDeposit
+### setVaultConfig
 
 ```solidity
-function setAllowDeposit(bool _allowDeposit) external
+function setVaultConfig(struct ICommon.VaultConfig _config) external
 ```
 

@@ -11,7 +11,7 @@ import {
   VaultAutomator,
   VaultFactory,
   VaultZapper,
-  WhitelistManager,
+  ConfigManager,
 } from "../typechain-types";
 
 const { SALT } = process.env;
@@ -26,7 +26,7 @@ export interface Contracts {
   vault?: Vault;
   vaultAutomator?: VaultAutomator;
   vaultZapper?: VaultZapper;
-  whitelistManager?: WhitelistManager;
+  configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
   lpStrategy?: Record<string, LpStrategy>;
   vaultFactory?: VaultFactory;
@@ -61,14 +61,14 @@ async function deployContracts(
   const vault = await deployVaultContract(++step, existingContract, deployer);
   const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract, deployer);
   const vaultZapper = await deployVaultZapperContract(++step, existingContract, deployer);
-  const whitelistManager = await deployWhitelistManagerContract(++step, existingContract, deployer);
+  const configManager = await deployConfigManagerContract(++step, existingContract, deployer);
   const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract, deployer);
 
   const contracts: Contracts = {
     vault: vault.vault,
     vaultAutomator: vaultAutomator.vaultAutomator,
     vaultZapper: vaultZapper.vaultZapper,
-    whitelistManager: whitelistManager.whitelistManager,
+    configManager: configManager.configManager,
     poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
   };
 
@@ -158,7 +158,7 @@ export const deployVaultZapperContract = async (
   };
 };
 
-export const deployWhitelistManagerContract = async (
+export const deployConfigManagerContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   deployer: string,
@@ -167,18 +167,21 @@ export const deployWhitelistManagerContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let whitelistManager;
-  if (config.whitelistManager?.enabled) {
-    whitelistManager = (await deployContract(
+  let configManager;
+  if (config.configManager?.enabled) {
+    configManager = (await deployContract(
       `${step} >>`,
-      config.whitelistManager?.autoVerifyContract,
-      "WhitelistManager",
-      existingContract?.["whitelistManager"],
-      "contracts/core/WhitelistManager.sol:WhitelistManager",
-    )) as WhitelistManager;
+      config.configManager?.autoVerifyContract,
+      "ConfigManager",
+      existingContract?.["configManager"],
+      "contracts/core/ConfigManager.sol:ConfigManager",
+      undefined,
+      ["address[]"],
+      [config.lpStrategyPrincipalTokens?.slice(1)],
+    )) as ConfigManager;
   }
   return {
-    whitelistManager,
+    configManager,
   };
 };
 
@@ -225,8 +228,12 @@ export const deployLpStrategyContract = async (
         existingContract?.["lpStrategy"]?.[token],
         "contracts/strategies/lp/LpStrategy.sol:LpStrategy",
         `${SALT}_${token}`,
-        ["address", "address"],
-        [token, existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target],
+        ["address", "address", "address"],
+        [
+          token,
+          existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+          existingContract?.["configManager"] || contracts?.configManager?.target,
+        ],
       )) as LpStrategy;
 
       Object.assign(lpStrategy, { token });
@@ -258,7 +265,7 @@ export const deployVaultFactoryContract = async (
       ["address", "address", "address", "address", "address", "uint16"],
       [
         config.lpStrategyPrincipalTokens?.[0],
-        existingContract?.["whitelistManager"] || contracts?.whitelistManager?.target,
+        existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
         config.platformFeeRecipient,

@@ -14,10 +14,10 @@ uint256 SHARES_PRECISION
 bytes32 ADMIN_ROLE_HASH
 ```
 
-### whitelistManager
+### configManager
 
 ```solidity
-contract IWhitelistManager whitelistManager
+contract IConfigManager configManager
 ```
 
 ### vaultOwner
@@ -32,34 +32,16 @@ address vaultOwner
 address principalToken
 ```
 
-### principalTokenAmountMin
+### vaultConfig
 
 ```solidity
-uint256 principalTokenAmountMin
-```
-
-### allowDeposit
-
-```solidity
-bool allowDeposit
-```
-
-### supportedTokens
-
-```solidity
-address[] supportedTokens
-```
-
-### inventory
-
-```solidity
-struct InventoryLib.Inventory inventory
+struct ICommon.VaultConfig vaultConfig
 ```
 
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _whitelistManager, address _vaultAutomator) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _vaultAutomator) public
 ```
 
 Initializes the vault
@@ -70,7 +52,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
-| _whitelistManager | address | Address of the whitelist manager |
+| _configManager | address | Address of the whitelist manager |
 | _vaultAutomator | address | Address of the vault automator |
 
 ### deposit
@@ -237,19 +219,19 @@ revoke admin role from the address
 | ---- | ---- | ----------- |
 | _address | address | The address from which the admin role is revoked |
 
-### setAllowDeposit
+### setVaultConfig
 
 ```solidity
-function setAllowDeposit(bool _allowDeposit) external
+function setVaultConfig(struct ICommon.VaultConfig _config) external
 ```
 
-Sets the allow deposit flag
+Sets the vault config
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _allowDeposit | bool | Allow deposit flag |
+| _config | struct ICommon.VaultConfig | New vault config |
 
 ### _addAssets
 
@@ -279,30 +261,4 @@ _Transfers the asset to the recipient_
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | AssetLib.Asset to transfer |
 | to | address | Recipient of the asset |
-
-### _isSupportedToken
-
-```solidity
-function _isSupportedToken(address token) internal view returns (bool)
-```
-
-_Checks if the token is supported_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| token | address | Token to check |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| [0] | bool | bool True if the token is supported |
-
-### getInventory
-
-```solidity
-function getInventory() external view returns (struct AssetLib.Asset[] assets)
-```
 
