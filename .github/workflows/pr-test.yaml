@@ -27,7 +27,7 @@ jobs:
           yarn install
 
       - run: |
-          export RPC_URL=https://rpc-node-lb.krystal.app/?chain_id=8453
+          export RPC_URL=https://base.merkle.io
           yarn test
 
       - name: Create new branch and push the document
