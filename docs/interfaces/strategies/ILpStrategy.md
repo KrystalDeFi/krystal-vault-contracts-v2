@@ -114,4 +114,3 @@ error InvalidPoolAmountAmountMin()
 ```solidity
 error InvalidTickWidth()
 ```
-

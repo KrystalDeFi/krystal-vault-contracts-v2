@@ -12,9 +12,8 @@ abstract contract CustomEIP712 {
   bytes32 public immutable DOMAIN_SEPARATOR;
 
   constructor(string memory name, string memory version) {
-    DOMAIN_SEPARATOR = keccak256(
-      abi.encode(TYPE_HASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this))
-    );
+    DOMAIN_SEPARATOR =
+      keccak256(abi.encode(TYPE_HASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this)));
   }
 
   /// @dev Recover signer of EIP712 signature

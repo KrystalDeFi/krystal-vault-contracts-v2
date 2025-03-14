@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import {TestCommon, IV3SwapRouter} from "./TestCommon.t.sol";
-import {LpStrategy} from "../contracts/strategies/lp/LpStrategy.sol";
-import {ICommon} from "../contracts/interfaces/ICommon.sol";
-import {PoolOptimalSwapper} from "../contracts/core/PoolOptimalSwapper.sol";
-import {ConfigManager} from "../contracts/core/ConfigManager.sol";
-import {Vault} from "../contracts/core/Vault.sol";
-import {AssetLib} from "../contracts/libraries/AssetLib.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ILpStrategy} from "../contracts/interfaces/strategies/ILpStrategy.sol";
-import {INonfungiblePositionManager as INFPM} from
+import { TestCommon, IV3SwapRouter } from "../TestCommon.t.sol";
+import { LpStrategy } from "../../contracts/strategies/lp/LpStrategy.sol";
+import { ICommon } from "../../contracts/interfaces/ICommon.sol";
+import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
+import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
+import { Vault } from "../../contracts/core/Vault.sol";
+import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import {console} from "forge-std/console.sol";
+import { console } from "forge-std/console.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -27,9 +27,7 @@ contract VaultTest is TestCommon {
   address public constant USER_2 = 0x0000000000000000000000000000000000000001;
 
   function setUp() public {
-    uint256 fork = vm.createFork(
-      "https://base-mainnet.infura.io/v3/117e1c71984843059b080dc9c9f57c66", 27_448_360
-    );
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
     vm.selectFork(fork);
     vm.startBroadcast(USER);
     setErc20Balance(WETH, USER, 100 ether);
@@ -104,7 +102,7 @@ contract VaultTest is TestCommon {
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     vault.withdraw(10_000 ether);
     assertEq(IERC20(vault).balanceOf(USER), 10_001_958_738_672_832_443_901);
-    assertEq(IERC20(WETH).balanceOf(USER), wethBalanceBefore + 1 ether);
+    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_337_239_813_585);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
   }
 }

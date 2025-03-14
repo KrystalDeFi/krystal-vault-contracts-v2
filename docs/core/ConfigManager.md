@@ -48,10 +48,10 @@ Whitelist strategy
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategies | address[] | Array of strategy addresses |
-| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+| Name            | Type      | Description                               |
+| --------------- | --------- | ----------------------------------------- |
+| \_strategies    | address[] | Array of strategy addresses               |
+| \_isWhitelisted | bool      | Boolean value to whitelist or unwhitelist |
 
 ### isWhitelistedStrategy
 
@@ -63,15 +63,15 @@ Check if strategy is whitelisted
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategy | address | Strategy address |
+| Name       | Type    | Description      |
+| ---------- | ------- | ---------------- |
+| \_strategy | address | Strategy address |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if strategy is whitelisted |
+| Name            | Type | Description                              |
+| --------------- | ---- | ---------------------------------------- |
+| \_isWhitelisted | bool | Boolean value if strategy is whitelisted |
 
 ### whitelistSwapRouter
 
@@ -83,10 +83,10 @@ Whitelist swap router
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _swapRouters | address[] | Array of swap router addresses |
-| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+| Name            | Type      | Description                               |
+| --------------- | --------- | ----------------------------------------- |
+| \_swapRouters   | address[] | Array of swap router addresses            |
+| \_isWhitelisted | bool      | Boolean value to whitelist or unwhitelist |
 
 ### isWhitelistedSwapRouter
 
@@ -98,15 +98,15 @@ Check if swap router is whitelisted
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _swapRouter | address | Swap router address |
+| Name         | Type    | Description         |
+| ------------ | ------- | ------------------- |
+| \_swapRouter | address | Swap router address |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if swap router is whitelisted |
+| Name            | Type | Description                                 |
+| --------------- | ---- | ------------------------------------------- |
+| \_isWhitelisted | bool | Boolean value if swap router is whitelisted |
 
 ### setStableTokens
 
@@ -118,9 +118,9 @@ Set stable tokens
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _stableTokens | address[] | Array of stable token addresses |
+| Name           | Type      | Description                     |
+| -------------- | --------- | ------------------------------- |
+| \_stableTokens | address[] | Array of stable token addresses |
 
 ### isStableToken
 
@@ -132,15 +132,15 @@ Check if token is stable
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _token | address | Token address |
+| Name    | Type    | Description   |
+| ------- | ------- | ------------- |
+| \_token | address | Token address |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isStable | bool | Boolean value if token is stable |
+| Name       | Type | Description                      |
+| ---------- | ---- | -------------------------------- |
+| \_isStable | bool | Boolean value if token is stable |
 
 ### getStrategyConfig
 
@@ -152,17 +152,17 @@ Get strategy config
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategy | address | Strategy address |
-| _principalToken | address |  |
-| _type | uint8 | Strategy type |
+| Name             | Type    | Description      |
+| ---------------- | ------- | ---------------- |
+| \_strategy       | address | Strategy address |
+| \_principalToken | address |                  |
+| \_type           | uint8   | Strategy type    |
 
 #### Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| [0] | bytes | _config Strategy config |
+| Name | Type  | Description              |
+| ---- | ----- | ------------------------ |
+| [0]  | bytes | \_config Strategy config |
 
 ### setStrategyConfig
 
@@ -174,12 +174,12 @@ Set strategy config
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _strategy | address | Strategy address |
-| _principalToken | address |  |
-| _type | uint8 | Strategy type |
-| _config | bytes | Strategy config |
+| Name             | Type    | Description      |
+| ---------------- | ------- | ---------------- |
+| \_strategy       | address | Strategy address |
+| \_principalToken | address |                  |
+| \_type           | uint8   | Strategy type    |
+| \_config         | bytes   | Strategy config  |
 
 ### setMaxPositions
 
@@ -191,7 +191,6 @@ Set max positions
 
 #### Parameters
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _maxPositions | uint8 | Max positions |
-
+| Name           | Type  | Description   |
+| -------------- | ----- | ------------- |
+| \_maxPositions | uint8 | Max positions |

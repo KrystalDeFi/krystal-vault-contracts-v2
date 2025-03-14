@@ -52,9 +52,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
-  function createVault(
-    VaultCreateParams memory params
-  ) external payable override whenNotPaused returns (address vault) {
+  function createVault(VaultCreateParams memory params) external payable override whenNotPaused returns (address vault) {
     require(params.ownerFeeBasisPoint <= 1000, InvalidOwnerFee());
 
     vault = Clones.clone(vaultImplementation);

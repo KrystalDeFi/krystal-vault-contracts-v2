@@ -18,11 +18,10 @@ interface IConfigManager is ICommon {
 
   function isStableToken(address _token) external view returns (bool _isStableToken);
 
-  function getStrategyConfig(
-    address _strategy,
-    address _principalToken,
-    uint8 _type
-  ) external view returns (bytes memory);
+  function getStrategyConfig(address _strategy, address _principalToken, uint8 _type)
+    external
+    view
+    returns (bytes memory);
 
   function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes memory _config) external;
 

@@ -22,11 +22,7 @@ interface IOptimalSwapper {
     bytes calldata data
   ) external view returns (uint256 amount0, uint256 amount1);
 
-  function poolSwap(
-    address pool,
-    uint256 amountIn,
-    bool zeroToOne,
-    uint256 amountOutMin,
-    bytes calldata data
-  ) external returns (uint256 amountOut, uint256 amountInUsed);
+  function poolSwap(address pool, uint256 amountIn, bool zeroToOne, uint256 amountOutMin, bytes calldata data)
+    external
+    returns (uint256 amountOut, uint256 amountInUsed);
 }

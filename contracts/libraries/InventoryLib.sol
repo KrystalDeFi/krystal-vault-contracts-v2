@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.28;
 
-import {AssetLib} from "./AssetLib.sol";
+import { AssetLib } from "./AssetLib.sol";
 
 library InventoryLib {
   struct Inventory {
@@ -37,11 +37,7 @@ library InventoryLib {
     return self.assets[index - 1];
   }
 
-  function contains(Inventory storage self, address token, uint256 tokenId)
-    internal
-    view
-    returns (bool)
-  {
+  function contains(Inventory storage self, address token, uint256 tokenId) internal view returns (bool) {
     return self.assetIndex[token][tokenId] != 0;
   }
 }
