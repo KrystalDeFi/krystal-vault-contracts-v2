@@ -2,12 +2,6 @@
 
 ## LpStrategy
 
-### principalToken
-
-```solidity
-address principalToken
-```
-
 ### optimalSwapper
 
 ```solidity
@@ -23,27 +17,28 @@ contract IConfigManager configManager
 ### constructor
 
 ```solidity
-constructor(address _principalToken, address _optimalSwapper, address _configManager) public
+constructor(address _optimalSwapper, address _configManager) public
 ```
 
 ### valueOf
 
 ```solidity
-function valueOf(struct AssetLib.Asset asset) external view returns (struct AssetLib.Asset[] assets)
+function valueOf(struct AssetLib.Asset asset, address principalToken) external view returns (uint256 valueInPrincipal)
 ```
 
-Deposits the asset to the strategy
+Get value of the asset in terms of principalToken
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| asset | struct AssetLib.Asset | The asset to be calculated |
+| asset | struct AssetLib.Asset | The asset to get the value |
+| principalToken | address |  |
 
 ### convert
 
 ```solidity
-function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
+function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig vaultConfig, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -53,7 +48,7 @@ Converts the asset to another assets
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to convert |
-| config | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig |  |
 | data | bytes | The data for the instruction |
 
 #### Return Values
@@ -65,19 +60,19 @@ Converts the asset to another assets
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset, address tokenOut) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
-### convertIntoExisting
+### convertFromPrincipal
 
 ```solidity
-function convertIntoExisting(struct AssetLib.Asset existingAsset, struct AssetLib.Asset[] assets) external returns (struct AssetLib.Asset[] returnAssets)
+function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### mintPosition
 
 ```solidity
-function mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Mints a new position
@@ -88,6 +83,7 @@ Mints a new position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
 | params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
+| vaultConfig | struct ICommon.VaultConfig |  |
 
 #### Return Values
 
@@ -98,7 +94,7 @@ Mints a new position
 ### swapAndMintPosition
 
 ```solidity
-function swapAndMintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndMintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function swapAndMintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndMintPositionParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _mintPosition
@@ -110,7 +106,7 @@ function _mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPo
 ### increaseLiquidity
 
 ```solidity
-function increaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function increaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Increases the liquidity of the position
@@ -121,6 +117,7 @@ Increases the liquidity of the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to increase the liquidity assets[2] = lpAsset |
 | params | struct ILpStrategy.IncreaseLiquidityParams | The parameters for increasing the liquidity |
+| vaultConfig | struct ICommon.VaultConfig |  |
 
 #### Return Values
 
@@ -131,7 +128,7 @@ Increases the liquidity of the position
 ### swapAndIncreaseLiquidity
 
 ```solidity
-function swapAndIncreaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndIncreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function swapAndIncreaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndIncreaseLiquidityParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _increaseLiquidity
@@ -164,7 +161,7 @@ Decreases the liquidity of the position
 ### decreaseLiquidityAndSwap
 
 ```solidity
-function decreaseLiquidityAndSwap(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function decreaseLiquidityAndSwap(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _decreaseLiquidity
@@ -176,7 +173,34 @@ function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.De
 ### _optimalSwapFromPrincipal
 
 ```solidity
-function _optimalSwapFromPrincipal(uint256 amount, address pool, address token0, address token1, int24 tickLower, int24 tickUpper, bytes swapData) internal returns (uint256 amount0Result, uint256 amount1Result)
+function _optimalSwapFromPrincipal(uint256 principalTokenAmount, address pool, address principalToken, address otherToken, int24 tickLower, int24 tickUpper, bytes swapData) internal returns (uint256 amount0, uint256 amount1)
+```
+
+Swaps the principal token to the other token
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| principalTokenAmount | uint256 | The principal token |
+| pool | address | The pool to swap |
+| principalToken | address | The principal token |
+| otherToken | address | The other token |
+| tickLower | int24 | The lower tick of the position |
+| tickUpper | int24 | The upper tick of the position |
+| swapData | bytes | The swap data |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | The result amount of pool's token0 |
+| amount1 | uint256 | The result amount of pool's token1 |
+
+### _swapToPrinciple
+
+```solidity
+function _swapToPrinciple(address pool, address principalToken, address token, uint256 amount, uint256 amountOutMin, bytes swapData) internal returns (uint256 amountOut, uint256 amountInUsed)
 ```
 
 ### getUnderlyingAssets
