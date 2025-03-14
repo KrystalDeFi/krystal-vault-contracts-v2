@@ -264,11 +264,6 @@
             "type": "string"
           },
           {
-            "internalType": "address",
-            "name": "principalToken",
-            "type": "address"
-          },
-          {
             "internalType": "uint256",
             "name": "principalTokenAmount",
             "type": "uint256"
@@ -289,6 +284,11 @@
                 "internalType": "uint8",
                 "name": "tvlStrategyType",
                 "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "principalToken",
+                "type": "address"
               },
               {
                 "internalType": "address[]",
@@ -388,11 +388,6 @@
             "type": "string"
           },
           {
-            "internalType": "address",
-            "name": "principalToken",
-            "type": "address"
-          },
-          {
             "internalType": "uint256",
             "name": "principalTokenAmount",
             "type": "uint256"
@@ -413,6 +408,11 @@
                 "internalType": "uint8",
                 "name": "tvlStrategyType",
                 "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "principalToken",
+                "type": "address"
               },
               {
                 "internalType": "address[]",

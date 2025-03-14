@@ -6,6 +6,7 @@ interface ICommon {
     bool allowDeposit;
     uint8 rangeStrategyType;
     uint8 tvlStrategyType;
+    address principalToken;
     address[] supportedAddresses;
   }
 
@@ -13,7 +14,6 @@ interface ICommon {
     uint16 ownerFeeBasisPoint;
     string name;
     string symbol;
-    address principalToken;
     uint256 principalTokenAmount;
     VaultConfig config;
   }

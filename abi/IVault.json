@@ -256,6 +256,11 @@
             "type": "uint8"
           },
           {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
             "internalType": "address[]",
             "name": "supportedAddresses",
             "type": "address[]"
@@ -441,6 +446,46 @@
   },
   {
     "inputs": [],
+    "name": "getInventory",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum AssetLib.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct AssetLib.Asset[]",
+        "name": "assets",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "getTotalValue",
     "outputs": [
       {
@@ -485,11 +530,6 @@
             "type": "string"
           },
           {
-            "internalType": "address",
-            "name": "principalToken",
-            "type": "address"
-          },
-          {
             "internalType": "uint256",
             "name": "principalTokenAmount",
             "type": "uint256"
@@ -510,6 +550,11 @@
                 "internalType": "uint8",
                 "name": "tvlStrategyType",
                 "type": "uint8"
+              },
+              {
+                "internalType": "address",
+                "name": "principalToken",
+                "type": "address"
               },
               {
                 "internalType": "address[]",
@@ -578,6 +623,11 @@
             "internalType": "uint8",
             "name": "tvlStrategyType",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
           },
           {
             "internalType": "address[]",

@@ -9,7 +9,7 @@ interface IStrategy is ICommon {
   error InvalidNumberOfAssets();
   error InvalidInstructionType();
 
-  function valueOf(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory assets);
+  function valueOf(AssetLib.Asset memory asset, address principalToken) external returns (uint256);
 
   function convert(
     AssetLib.Asset[] memory assets,
@@ -17,12 +17,13 @@ interface IStrategy is ICommon {
     bytes calldata data
   ) external returns (AssetLib.Asset[] memory);
 
-  function harvest(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory);
+  function harvest(AssetLib.Asset memory asset, address tokenOut) external returns (AssetLib.Asset[] memory);
 
   function getUnderlyingAssets(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory);
 
-  function convertIntoExisting(
+  function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
-    AssetLib.Asset[] memory assets
+    uint256 principalTokenAmount,
+    VaultConfig memory config
   ) external returns (AssetLib.Asset[] memory);
 }

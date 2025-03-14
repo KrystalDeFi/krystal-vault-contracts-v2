@@ -23,7 +23,7 @@ error InvalidInstructionType()
 ### valueOf
 
 ```solidity
-function valueOf(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[] assets)
+function valueOf(struct AssetLib.Asset asset, address principalToken) external returns (uint256)
 ```
 
 ### convert
@@ -35,7 +35,7 @@ function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig conf
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[])
+function harvest(struct AssetLib.Asset asset, address tokenOut) external returns (struct AssetLib.Asset[])
 ```
 
 ### getUnderlyingAssets
@@ -44,9 +44,9 @@ function harvest(struct AssetLib.Asset asset) external returns (struct AssetLib.
 function getUnderlyingAssets(struct AssetLib.Asset asset) external returns (struct AssetLib.Asset[])
 ```
 
-### convertIntoExisting
+### convertFromPrincipal
 
 ```solidity
-function convertIntoExisting(struct AssetLib.Asset existingAsset, struct AssetLib.Asset[] assets) external returns (struct AssetLib.Asset[])
+function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[])
 ```
 

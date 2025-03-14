@@ -164,3 +164,9 @@ function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 function setVaultConfig(struct ICommon.VaultConfig _config) external
 ```
 
+### getInventory
+
+```solidity
+function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
+

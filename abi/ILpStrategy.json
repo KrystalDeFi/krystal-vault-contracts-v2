@@ -106,6 +106,11 @@
             "type": "uint8"
           },
           {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
             "internalType": "address[]",
             "name": "supportedAddresses",
             "type": "address[]"
@@ -194,39 +199,44 @@
         "type": "tuple"
       },
       {
+        "internalType": "uint256",
+        "name": "principalTokenAmount",
+        "type": "uint256"
+      },
+      {
         "components": [
           {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
             "type": "uint8"
           },
           {
             "internalType": "address",
-            "name": "strategy",
+            "name": "principalToken",
             "type": "address"
           },
           {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
           }
         ],
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "assets",
-        "type": "tuple[]"
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "config",
+        "type": "tuple"
       }
     ],
-    "name": "convertIntoExisting",
+    "name": "convertFromPrincipal",
     "outputs": [
       {
         "components": [
@@ -370,6 +380,11 @@
         "internalType": "struct AssetLib.Asset",
         "name": "asset",
         "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenOut",
+        "type": "address"
       }
     ],
     "name": "harvest",
@@ -443,41 +458,19 @@
         "internalType": "struct AssetLib.Asset",
         "name": "asset",
         "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "principalToken",
+        "type": "address"
       }
     ],
     "name": "valueOf",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "assets",
-        "type": "tuple[]"
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",

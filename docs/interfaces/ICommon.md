@@ -9,6 +9,7 @@ struct VaultConfig {
   bool allowDeposit;
   uint8 rangeStrategyType;
   uint8 tvlStrategyType;
+  address principalToken;
   address[] supportedAddresses;
 }
 ```
@@ -20,7 +21,6 @@ struct VaultCreateParams {
   uint16 ownerFeeBasisPoint;
   string name;
   string symbol;
-  address principalToken;
   uint256 principalTokenAmount;
   struct ICommon.VaultConfig config;
 }

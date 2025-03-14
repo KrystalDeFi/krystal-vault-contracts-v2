@@ -26,12 +26,6 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
-### principalToken
-
-```solidity
-address principalToken
-```
-
 ### vaultConfig
 
 ```solidity
@@ -58,7 +52,7 @@ Initializes the vault
 ### deposit
 
 ```solidity
-function deposit(uint256 shares) external returns (uint256 returnShares)
+function deposit(uint256 principalAmount) external returns (uint256 shares)
 ```
 
 Deposits the asset to the vault
@@ -67,13 +61,13 @@ Deposits the asset to the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| shares | uint256 | Amount of shares to be minted |
+| principalAmount | uint256 | Amount of in principalToken |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnShares | uint256 | Amount of shares minted |
+| shares | uint256 | Amount of shares minted |
 
 ### withdraw
 
@@ -137,7 +131,7 @@ function _harvest(struct AssetLib.Asset asset) internal
 ### getTotalValue
 
 ```solidity
-function getTotalValue() external returns (uint256 value)
+function getTotalValue() public returns (uint256 totalValue)
 ```
 
 Returns the total value of the vault
@@ -146,7 +140,7 @@ Returns the total value of the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| value | uint256 | Total value of the vault in principal token |
+| totalValue | uint256 | Total value of the vault in principal token |
 
 ### getAssetAllocations
 
@@ -160,7 +154,7 @@ Returns the asset allocations of the vault
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | AssetLib.Asset allocations of the vault |
+| assets | struct AssetLib.Asset[] | Asset allocations of the vault |
 
 ### sweepToken
 
@@ -261,4 +255,10 @@ _Transfers the asset to the recipient_
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | AssetLib.Asset to transfer |
 | to | address | Recipient of the asset |
+
+### getInventory
+
+```solidity
+function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
 

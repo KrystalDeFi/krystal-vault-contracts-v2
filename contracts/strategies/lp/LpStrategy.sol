@@ -12,6 +12,7 @@ import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { FixedPoint128 } from "@uniswap/v3-core/contracts/libraries/FixedPoint128.sol";
+import { FixedPoint96 } from "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
 
@@ -21,31 +22,39 @@ import "../../interfaces/core/IConfigManager.sol";
 contract LpStrategy is ReentrancyGuard, ILpStrategy {
   using SafeERC20 for IERC20;
 
-  address public principalToken;
   IOptimalSwapper public optimalSwapper;
   IConfigManager public configManager;
 
-  constructor(address _principalToken, address _optimalSwapper, address _configManager) {
-    require(_principalToken != address(0), ZeroAddress());
+  constructor(address _optimalSwapper, address _configManager) {
     require(_optimalSwapper != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
-
-    principalToken = _principalToken;
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
     configManager = IConfigManager(_configManager);
   }
 
-  /// @notice Deposits the asset to the strategy
-  /// @param asset The asset to be calculated
-  function valueOf(AssetLib.Asset memory asset) external view returns (AssetLib.Asset[] memory assets) {
+  /// @notice Get value of the asset in terms of principalToken
+  /// @param asset The asset to get the value
+  function valueOf(
+    AssetLib.Asset memory asset,
+    address principalToken
+  ) external view returns (uint256 valueInPrincipal) {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
-    (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    (, , address token0, address token1, uint24 fee, , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    amount0 += fee0;
+    amount1 += fee1;
 
-    assets = new AssetLib.Asset[](2);
-
-    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, fee0 + amount0);
-    assets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, fee1 + amount1);
+    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
+    (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3Pool(pool).slot0();
+    uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+    if (token0 == principalToken) {
+      priceX96 = FullMath.mulDiv(FixedPoint96.Q96, FixedPoint96.Q96, priceX96);
+      valueInPrincipal = amount0 + fee0;
+      valueInPrincipal += FullMath.mulDiv(amount1 + fee1, priceX96, FixedPoint96.Q96);
+    } else {
+      valueInPrincipal = amount1 + fee1;
+      valueInPrincipal += FullMath.mulDiv(amount0 + fee0, priceX96, FixedPoint96.Q96);
+    }
   }
 
   /// @notice Converts the asset to another assets
@@ -54,102 +63,95 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function convert(
     AssetLib.Asset[] memory assets,
-    VaultConfig memory config,
+    VaultConfig memory vaultConfig,
     bytes calldata data
   ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
     if (instruction.instructionType == uint8(InstructionType.MintPosition)) {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
-
-      if (config.allowDeposit) {
-        _validateConfig(
-          params.nfpm,
-          params.fee,
-          params.token0,
-          params.token1,
-          params.tickLower,
-          params.tickUpper,
-          config
-        );
-      }
-
-      return mintPosition(assets, params);
+      return mintPosition(assets, params, vaultConfig);
     }
     if (instruction.instructionType == uint8(InstructionType.SwapAndMintPosition)) {
       SwapAndMintPositionParams memory params = abi.decode(instruction.params, (SwapAndMintPositionParams));
-
-      if (config.allowDeposit) {
-        _validateConfig(
-          params.nfpm,
-          params.fee,
-          params.token0,
-          params.token1,
-          params.tickLower,
-          params.tickUpper,
-          config
-        );
-      }
-
-      return swapAndMintPosition(assets, params);
+      return swapAndMintPosition(assets, params, vaultConfig);
     }
     if (instruction.instructionType == uint8(InstructionType.IncreaseLiquidity)) {
-      require(assets.length == 3, InvalidNumberOfAssets());
-
       IncreaseLiquidityParams memory params = abi.decode(instruction.params, (IncreaseLiquidityParams));
-
-      return increaseLiquidity(assets, params);
+      return increaseLiquidity(assets, params, vaultConfig);
     }
     if (instruction.instructionType == uint8(InstructionType.SwapAndIncreaseLiquidity)) {
-      require(assets.length == 2, InvalidNumberOfAssets());
-
       SwapAndIncreaseLiquidityParams memory params = abi.decode(instruction.params, (SwapAndIncreaseLiquidityParams));
-
-      return swapAndIncreaseLiquidity(assets, params);
+      return swapAndIncreaseLiquidity(assets, params, vaultConfig);
     }
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidity)) {
-      require(assets.length == 1, InvalidNumberOfAssets());
-
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
-
       return decreaseLiquidity(assets, params);
     }
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidityAndSwap)) {
-      require(assets.length == 1, InvalidNumberOfAssets());
-
       DecreaseLiquidityAndSwapParams memory params = abi.decode(instruction.params, (DecreaseLiquidityAndSwapParams));
-
-      return decreaseLiquidityAndSwap(assets, params);
+      return decreaseLiquidityAndSwap(assets, params, vaultConfig);
     }
     revert InvalidInstructionType();
   }
 
-  function harvest(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory returnAssets) {
+  ///
+  function harvest(
+    AssetLib.Asset memory asset,
+    address tokenOut
+  ) external returns (AssetLib.Asset[] memory returnAssets) {
     require(asset.strategy == address(this), InvalidAsset());
-    (uint256 amount0, uint256 amount1) = INFPM(asset.token).decreaseLiquidity(
+    (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).decreaseLiquidity(
       INFPM.DecreaseLiquidityParams(asset.tokenId, 0, 0, 0, type(uint256).max)
     );
 
-    (, , address token0, address token1, , , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    (, , address pToken, address swapToken, uint24 fee, , , , , , , ) = INFPM(asset.token).positions(asset.tokenId);
+    if (swapToken == tokenOut) {
+      (principalAmount, swapAmount) = (swapAmount, principalAmount);
+      swapToken = pToken;
+    }
+
+    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
+    (uint256 amountOut, uint256 amountInUsed) = _swapToPrinciple(pool, tokenOut, swapToken, swapAmount, 0, "");
+
     returnAssets = new AssetLib.Asset[](3);
-    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
-    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
+    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
+    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
-    if (amount0 > 0) IERC20(token0).safeTransfer(msg.sender, amount0);
-    if (amount1 > 0) IERC20(token1).safeTransfer(msg.sender, amount1);
+    if (returnAssets[0].amount > 0) {
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
   }
 
-  function convertIntoExisting(
+  function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
-    AssetLib.Asset[] memory assets
+    uint256 principalTokenAmount,
+    VaultConfig memory vaultConfig
   ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     require(existingAsset.strategy == address(this), InvalidStrategy());
-    require(assets.length == 2, InvalidNumberOfAssets());
+
+    (, , address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) = INFPM(
+      existingAsset.token
+    ).positions(existingAsset.tokenId);
+    address otherToken = token0 == vaultConfig.principalToken ? token1 : token0;
+
+    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
+      principalTokenAmount,
+      IUniswapV3Factory(INFPM(existingAsset.token).factory()).getPool(token0, token1, fee),
+      vaultConfig.principalToken,
+      otherToken,
+      tickLower,
+      tickUpper,
+      ""
+    );
     IncreaseLiquidityParams memory params = IncreaseLiquidityParams(0, 0);
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](3);
-    inputAssets[0] = assets[0];
-    inputAssets[1] = assets[1];
+    inputAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
+    inputAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
     inputAssets[2] = existingAsset;
 
     returnAssets = _increaseLiquidity(inputAssets, params);
@@ -168,10 +170,26 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function mintPosition(
     AssetLib.Asset[] memory assets,
-    MintPositionParams memory params
+    MintPositionParams memory params,
+    VaultConfig memory vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
-    require(assets[0].token == principalToken || assets[1].token == principalToken, InvalidAsset());
+    require(
+      assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken,
+      InvalidAsset()
+    );
+
+    if (vaultConfig.allowDeposit) {
+      _validateConfig(
+        params.nfpm,
+        params.fee,
+        params.token0,
+        params.token1,
+        params.tickLower,
+        params.tickUpper,
+        vaultConfig
+      );
+    }
 
     returnAssets = _mintPosition(assets, params);
     // Transfer assets to msg.sender
@@ -186,10 +204,22 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
   function swapAndMintPosition(
     AssetLib.Asset[] memory assets,
-    SwapAndMintPositionParams memory params
+    SwapAndMintPositionParams memory params,
+    VaultConfig memory vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].token == principalToken, InvalidAsset());
+    require(assets[0].token == vaultConfig.principalToken, InvalidAsset());
+    if (vaultConfig.allowDeposit) {
+      _validateConfig(
+        params.nfpm,
+        params.fee,
+        params.token0,
+        params.token1,
+        params.tickLower,
+        params.tickUpper,
+        vaultConfig
+      );
+    }
 
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
@@ -266,9 +296,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
   /// @return returnAssets The assets that were returned to the msg.sender
   function increaseLiquidity(
     AssetLib.Asset[] memory assets,
-    IncreaseLiquidityParams memory params
+    IncreaseLiquidityParams memory params,
+    VaultConfig memory vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 3, InvalidNumberOfAssets());
+    require(assets[2].strategy == address(this), InvalidAsset());
+    require(
+      assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken,
+      InvalidAsset()
+    );
 
     returnAssets = _increaseLiquidity(assets, params);
     // Transfer assets to msg.sender
@@ -283,10 +319,11 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
   function swapAndIncreaseLiquidity(
     AssetLib.Asset[] memory assets,
-    SwapAndIncreaseLiquidityParams memory params
+    SwapAndIncreaseLiquidityParams memory params,
+    VaultConfig memory vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
-    require(assets[0].token == principalToken, InvalidAsset());
+    require(assets[0].token == vaultConfig.principalToken, InvalidAsset());
 
     AssetLib.Asset memory lpAsset = assets[1];
     bytes memory swapData = params.swapData;
@@ -380,10 +417,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
   function decreaseLiquidityAndSwap(
     AssetLib.Asset[] memory assets,
-    DecreaseLiquidityAndSwapParams memory params
+    DecreaseLiquidityAndSwapParams memory params,
+    VaultConfig memory vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
+    address principalToken = vaultConfig.principalToken;
 
     returnAssets = _decreaseLiquidity(
       assets[0],
@@ -446,21 +485,44 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     returnAssets[2] = lpAsset;
   }
 
+  /// @notice Swaps the principal token to the other token
+  /// @param principalTokenAmount The principal token
+  /// @param pool The pool to swap
+  /// @param principalToken The principal token
+  /// @param otherToken The other token
+  /// @param tickLower The lower tick of the position
+  /// @param tickUpper The upper tick of the position
+  /// @param swapData The swap data
+  /// @return amount0 The result amount of pool's token0
+  /// @return amount1 The result amount of pool's token1
   function _optimalSwapFromPrincipal(
-    uint256 amount,
+    uint256 principalTokenAmount,
     address pool,
-    address token0,
-    address token1,
+    address principalToken,
+    address otherToken,
     int24 tickLower,
     int24 tickUpper,
     bytes memory swapData
-  ) internal returns (uint256 amount0Result, uint256 amount1Result) {
-    (uint256 amount0, uint256 amount1) = principalToken == token0 ? (amount, 0) : (uint256(0), amount);
-    if (amount0 > 0) IERC20(token0).approve(address(optimalSwapper), amount0);
-    if (amount1 > 0) IERC20(token1).approve(address(optimalSwapper), amount1);
-    (amount0Result, amount1Result) = optimalSwapper.optimalSwap(
+  ) internal returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1) = principalToken < otherToken ? (principalTokenAmount, 0) : (uint256(0), principalTokenAmount);
+    IERC20(principalToken).approve(address(optimalSwapper), principalTokenAmount);
+    (amount0, amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams(pool, amount0, amount1, tickLower, tickUpper, swapData)
     );
+  }
+
+  function _swapToPrinciple(
+    address pool,
+    address principalToken,
+    address token,
+    uint256 amount,
+    uint256 amountOutMin,
+    bytes memory swapData
+  ) internal returns (uint256 amountOut, uint256 amountInUsed) {
+    require(token != principalToken, InvalidAsset());
+
+    IERC20(token).approve(address(optimalSwapper), amount);
+    (amountOut, amountInUsed) = optimalSwapper.poolSwap(pool, amount, token < principalToken, amountOutMin, swapData);
   }
 
   /// @notice Gets the underlying assets of the position
@@ -619,7 +681,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     VaultConfig memory config
   ) internal view {
     LpStrategyConfig memory lpConfig = abi.decode(
-      configManager.getStrategyConfig(address(this), config.rangeStrategyType),
+      configManager.getStrategyConfig(address(this), config.principalToken, config.rangeStrategyType),
       (LpStrategyConfig)
     );
 
@@ -631,7 +693,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     require(_isPoolAllowed(config, pool), InvalidPool());
 
     // Check if the pool amount is greater than the minimum amount principal token
-    if (principalToken == token0) {
+    if (config.principalToken == token0) {
       require(poolAmount0 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
     } else {
       require(poolAmount1 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
@@ -647,9 +709,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
   function _isPoolAllowed(VaultConfig memory config, address pool) internal pure returns (bool) {
     for (uint256 i = 0; i < config.supportedAddresses.length; ) {
-      if (config.supportedAddresses[i] == pool) {
-        return true;
-      }
+      if (config.supportedAddresses[i] == pool) return true;
 
       unchecked {
         i++;

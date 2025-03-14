@@ -9,7 +9,8 @@ import "../interfaces/core/IConfigManager.sol";
 contract ConfigManager is Ownable, IConfigManager {
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
-  mapping(address => mapping(uint8 => bytes)) public strategyConfigs;
+  // strategy address -> principal token address -> type -> config
+  mapping(address => mapping(address => mapping(uint8 => bytes))) public strategyConfigs;
 
   address[] public stableTokens;
   uint8 public override maxPositions = 10;
@@ -85,16 +86,25 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _strategy Strategy address
   /// @param _type Strategy type
   /// @return _config Strategy config
-  function getStrategyConfig(address _strategy, uint8 _type) external view returns (bytes memory) {
-    return strategyConfigs[_strategy][_type];
+  function getStrategyConfig(
+    address _strategy,
+    address _principalToken,
+    uint8 _type
+  ) external view returns (bytes memory) {
+    return strategyConfigs[_strategy][_principalToken][_type];
   }
 
   /// @notice Set strategy config
   /// @param _strategy Strategy address
   /// @param _type Strategy type
   /// @param _config Strategy config
-  function setStrategyConfig(address _strategy, uint8 _type, bytes memory _config) external onlyOwner {
-    strategyConfigs[_strategy][_type] = _config;
+  function setStrategyConfig(
+    address _strategy,
+    address _principalToken,
+    uint8 _type,
+    bytes memory _config
+  ) external onlyOwner {
+    strategyConfigs[_strategy][_principalToken][_type] = _config;
   }
 
   /// @notice Set max positions

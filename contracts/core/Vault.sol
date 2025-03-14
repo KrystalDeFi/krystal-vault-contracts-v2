@@ -13,9 +13,10 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/core/IVault.sol";
+import "../interfaces/core/IConfigManager.sol";
 import { AssetLib } from "../libraries/AssetLib.sol";
 import { InventoryLib } from "../libraries/InventoryLib.sol";
-import "../interfaces/core/IConfigManager.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
@@ -29,7 +30,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IConfigManager public configManager;
 
   address public override vaultOwner;
-  address public principalToken;
   VaultConfig public vaultConfig;
 
   InventoryLib.Inventory private inventory;
@@ -45,7 +45,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     address _configManager,
     address _vaultAutomator
   ) public initializer {
-    require(params.principalToken != address(0), ZeroAddress());
+    require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(
       !vaultConfig.allowDeposit || (vaultConfig.allowDeposit && vaultConfig.supportedAddresses.length > 0),
@@ -62,12 +62,11 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
-    principalToken = params.principalToken;
     vaultConfig = params.config;
     AssetLib.Asset memory firstAsset = AssetLib.Asset(
       AssetLib.AssetType.ERC20,
       address(0),
-      params.principalToken,
+      params.config.principalToken,
       0,
       params.principalTokenAmount
     );
@@ -79,13 +78,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   /// @notice Deposits the asset to the vault
-  /// @param shares Amount of shares to be minted
-  /// @return returnShares Amount of shares minted
-  function deposit(uint256 shares) external nonReentrant returns (uint256 returnShares) {
+  /// @param principalAmount Amount of in principalToken
+  /// @return shares Amount of shares minted
+  function deposit(uint256 principalAmount) external nonReentrant returns (uint256 shares) {
     require(vaultConfig.allowDeposit || (!vaultConfig.allowDeposit && _msgSender() == vaultOwner), DepositNotAllowed());
-
-    uint256 totalSupply = totalSupply();
-
     for (uint256 i = 0; i < inventory.assets.length; ) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) _harvest(currentAsset);
@@ -93,45 +89,26 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
         i++;
       }
     }
+    address principalToken = vaultConfig.principalToken;
+    uint256 totalSupply = totalSupply();
+    uint256 totalValue = getTotalValue();
+
+    shares = totalSupply == 0
+      ? principalAmount * SHARES_PRECISION
+      : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
 
     for (uint256 i = 0; i < inventory.assets.length; ) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-
       if (currentAsset.strategy != address(0)) {
-        AssetLib.Asset[] memory underlyingAssets = IStrategy(currentAsset.strategy).getUnderlyingAssets(currentAsset);
-
-        for (uint256 k = 0; k < underlyingAssets.length; ) {
-          underlyingAssets[k].amount = (shares * underlyingAssets[k].amount) / totalSupply;
-          IERC20(underlyingAssets[k].token).safeTransferFrom(
-            _msgSender(),
-            currentAsset.strategy,
-            underlyingAssets[k].amount
-          );
-
-          unchecked {
-            k++;
-          }
-        }
-
-        _transferAsset(currentAsset, currentAsset.strategy);
-        AssetLib.Asset[] memory newAssets = IStrategy(currentAsset.strategy).convertIntoExisting(
-          currentAsset,
-          underlyingAssets
+        uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
+        uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
+        _transferAsset(
+          AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
+          currentAsset.strategy
         );
-        _addAssets(newAssets);
-      }
-      unchecked {
-        i++;
-      }
-    }
-
-    for (uint256 i = 0; i < inventory.assets.length; ) {
-      AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20) {
-        uint256 amount = (shares * currentAsset.amount) / totalSupply;
-
-        IERC20(currentAsset.token).safeTransferFrom(_msgSender(), address(this), amount);
-        currentAsset.amount += amount;
+        _addAssets(
+          IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig)
+        );
       }
       unchecked {
         i++;
@@ -139,7 +116,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     }
 
     _mint(_msgSender(), shares);
-
     emit Deposit(_msgSender(), shares);
 
     return shares;
@@ -163,9 +139,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount = 0;
     for (uint256 i = 0; i < inventory.assets.length; ) {
-      if (inventory.assets[i].strategy != address(0)) {
-        strategyCount++;
-      }
+      if (inventory.assets[i].strategy != address(0)) strategyCount++;
       unchecked {
         i++;
       }
@@ -191,7 +165,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     }
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, data);
-
     _addAssets(newAssets);
 
     emit Allocate(inputAssets, strategy, newAssets);
@@ -218,41 +191,56 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     inputAssets[0] = AssetLib.Asset(currentAsset.assetType, currentAsset.strategy, token, tokenId, amount);
 
     _transferAsset(inputAssets[0], currentAsset.strategy);
-
     AssetLib.Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, data);
-
     _addAssets(returnAssets);
 
     emit Deallocate(inputAssets, returnAssets);
   }
 
   function harvest(AssetLib.Asset memory asset) external onlyRole(ADMIN_ROLE_HASH) {
+    require(asset.strategy != address(0), InvalidAssetStrategy());
+
     _harvest(asset);
   }
 
   function _harvest(AssetLib.Asset memory asset) internal {
-    require(asset.strategy != address(0), InvalidAssetStrategy());
-
     _transferAsset(asset, asset.strategy);
-    AssetLib.Asset[] memory newAssets = IStrategy(asset.strategy).harvest(asset);
+    AssetLib.Asset[] memory newAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
     _addAssets(newAssets);
   }
 
   /// @notice Returns the total value of the vault
-  /// @return value Total value of the vault in principal token
-  function getTotalValue() external returns (uint256 value) {}
+  /// @return totalValue Total value of the vault in principal token
+  function getTotalValue() public returns (uint256 totalValue) {
+    totalValue = 0;
+    AssetLib.Asset memory currentAsset;
+    for (uint256 i = 0; i < inventory.assets.length; ) {
+      currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0)) {
+        totalValue += IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken);
+      } else if (currentAsset.token == vaultConfig.principalToken) {
+        totalValue += currentAsset.amount;
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    return totalValue;
+  }
 
   /// @notice Returns the asset allocations of the vault
-  /// @return assets AssetLib.Asset allocations of the vault
+  /// @return assets Asset allocations of the vault
   function getAssetAllocations() external override returns (AssetLib.Asset[] memory assets) {
-    AssetLib.Asset[] memory tempAssets = new AssetLib.Asset[](inventory.assets.length * 10); // Overestimate size
+    /*
+    Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
     uint256 index = 0;
 
     for (uint256 i = 0; i < inventory.assets.length; ) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
 
       if (currentAsset.strategy != address(0)) {
-        AssetLib.Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
+    AssetLib.Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
         for (uint256 k = 0; k < strategyAssets.length; ) {
           tempAssets[index] = strategyAssets[k];
 
@@ -283,6 +271,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
         i++;
       }
     }
+    */
   }
 
   /// @notice Sweeps the tokens to the caller
@@ -340,6 +329,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       !_config.allowDeposit || (_config.allowDeposit && _config.supportedAddresses.length > 0),
       InvalidVaultConfig()
     );
+    require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
     vaultConfig = _config;
 
@@ -368,5 +358,9 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     } else if (asset.assetType == AssetLib.AssetType.ERC721) {
       IERC721(asset.token).safeTransferFrom(address(this), to, asset.tokenId);
     }
+  }
+
+  function getInventory() external view returns (AssetLib.Asset[] memory assets) {
+    return inventory.assets;
   }
 }
