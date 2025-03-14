@@ -14,7 +14,6 @@ interface ICommon {
     uint16 ownerFeeBasisPoint;
     string name;
     string symbol;
-    address principalToken;
     uint256 principalTokenAmount;
     VaultConfig config;
   }

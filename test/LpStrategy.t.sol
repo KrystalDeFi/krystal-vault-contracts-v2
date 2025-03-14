@@ -164,14 +164,14 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
 
-    console.log("==== convertIntoExisting ====");
+    console.log("==== convertFromPrincipal ====");
     AssetLib.Asset memory existing = returnAssets[2];
     assets = new AssetLib.Asset[](1);
     assets[0] = returnAssets[0];
 
     transferAssets(assets, address(lpStrategy));
     IERC721(NFPM).transferFrom(USER, address(lpStrategy), existing.tokenId);
-    returnAssets = lpStrategy.convertIntoExisting(existing, assets, vaultConfig);
+    returnAssets = lpStrategy.convertFromPrincipal(existing, assets[0].amount, vaultConfig);
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1);

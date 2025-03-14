@@ -16,6 +16,7 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import {AssetLib} from "../libraries/AssetLib.sol";
 import {InventoryLib} from "../libraries/InventoryLib.sol";
+import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
   using SafeERC20 for IERC20;
@@ -29,7 +30,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IConfigManager public configManager;
 
   address public override vaultOwner;
-  address public principalToken;
   VaultConfig public vaultConfig;
 
   InventoryLib.Inventory private inventory;
@@ -45,7 +45,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     address _configManager,
     address _vaultAutomator
   ) public initializer {
-    require(params.principalToken != address(0), ZeroAddress());
+    require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(
       !vaultConfig.allowDeposit
@@ -63,10 +63,13 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
-    principalToken = params.principalToken;
     vaultConfig = params.config;
     AssetLib.Asset memory firstAsset = AssetLib.Asset(
-      AssetLib.AssetType.ERC20, address(0), params.principalToken, 0, params.principalTokenAmount
+      AssetLib.AssetType.ERC20,
+      address(0),
+      params.config.principalToken,
+      0,
+      params.principalTokenAmount
     );
 
     inventory.addAsset(firstAsset);
@@ -77,15 +80,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Deposits the asset to the vault
   /// @param principalAmount Amount of in principalToken
-  /// @return returnShares Amount of shares minted
-  function deposit(uint256 principalAmount) external nonReentrant returns (uint256 returnShares) {
+  /// @return shares Amount of shares minted
+  function deposit(uint256 principalAmount) external nonReentrant returns (uint256 shares) {
     require(
       vaultConfig.allowDeposit || (!vaultConfig.allowDeposit && _msgSender() == vaultOwner),
       DepositNotAllowed()
     );
-    /*
-    uint256 totalSupply = totalSupply();
-
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) _harvest(currentAsset);
@@ -93,43 +93,31 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
         i++;
       }
     }
+    address principalToken = vaultConfig.principalToken;
+    uint256 totalSupply = totalSupply();
+    uint256 totalValue = getTotalValue();
+
+    shares = totalSupply == 0
+      ? principalAmount * SHARES_PRECISION
+      : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
 
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-
       if (currentAsset.strategy != address(0)) {
-        AssetLib.Asset[] memory underlyingAssets =
-          IStrategy(currentAsset.strategy).getUnderlyingAssets(currentAsset);
-
-        for (uint256 k = 0; k < underlyingAssets.length;) {
-          underlyingAssets[k].amount = (shares * underlyingAssets[k].amount) / totalSupply;
-          IERC20(underlyingAssets[k].token).safeTransferFrom(
-            _msgSender(), currentAsset.strategy, underlyingAssets[k].amount
-          );
-
-          unchecked {
-            k++;
-          }
-        }
-
-        _transferAsset(currentAsset, currentAsset.strategy);
-        AssetLib.Asset[] memory newAssets =
-          IStrategy(currentAsset.strategy).convertIntoExisting(currentAsset, underlyingAssets);
-        _addAssets(newAssets);
-      }
-      unchecked {
-        i++;
-      }
-    }
-
-    for (uint256 i = 0; i < inventory.assets.length;) {
-      AssetLib.Asset memory currentAsset = inventory.assets[i];
-    if (currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20)
-      {
-        uint256 amount = (shares * currentAsset.amount) / totalSupply;
-
-        IERC20(currentAsset.token).safeTransferFrom(_msgSender(), address(this), amount);
-        currentAsset.amount += amount;
+        uint256 strategyPosValue =
+          IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
+        uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
+        _transferAsset(
+          AssetLib.Asset(
+            AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy
+          ),
+          currentAsset.strategy
+        );
+        _addAssets(
+          IStrategy(currentAsset.strategy).convertFromPrincipal(
+            currentAsset, pAmountForStrategy, vaultConfig
+          )
+        );
       }
       unchecked {
         i++;
@@ -137,11 +125,9 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     }
 
     _mint(_msgSender(), shares);
-
     emit Deposit(_msgSender(), shares);
 
     return shares;
-    */
   }
 
   /// @notice Withdraws the asset from the vault
@@ -220,12 +206,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   function harvest(AssetLib.Asset memory asset) external onlyRole(ADMIN_ROLE_HASH) {
+    require(asset.strategy != address(0), InvalidAssetStrategy());
+
     _harvest(asset);
   }
 
   function _harvest(AssetLib.Asset memory asset) internal {
-    require(asset.strategy != address(0), InvalidAssetStrategy());
-
     _transferAsset(asset, asset.strategy);
     AssetLib.Asset[] memory newAssets =
       IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
@@ -233,8 +219,25 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   }
 
   /// @notice Returns the total value of the vault
-  /// @return value Total value of the vault in principal token
-  function getTotalValue() external returns (uint256 value) {}
+  /// @return totalValue Total value of the vault in principal token
+  function getTotalValue() public returns (uint256 totalValue) {
+    totalValue = 0;
+    AssetLib.Asset memory currentAsset;
+    for (uint256 i = 0; i < inventory.assets.length;) {
+      currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0)) {
+        totalValue +=
+          IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken);
+      } else if (currentAsset.token == vaultConfig.principalToken) {
+        totalValue += currentAsset.amount;
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    return totalValue;
+  }
 
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault

@@ -139,21 +139,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
   }
 
-  function convertIntoExisting(
+  function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
-    AssetLib.Asset[] memory assets,
+    uint256 principalTokenAmount,
     VaultConfig memory vaultConfig
   ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     require(existingAsset.strategy == address(this), InvalidStrategy());
-    require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].token == vaultConfig.principalToken, InvalidAsset());
 
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(existingAsset.token).positions(existingAsset.tokenId);
     address otherToken = token0 == vaultConfig.principalToken ? token1 : token0;
 
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
-      assets[0].amount,
+      principalTokenAmount,
       IUniswapV3Factory(INFPM(existingAsset.token).factory()).getPool(token0, token1, fee),
       vaultConfig.principalToken,
       otherToken,
