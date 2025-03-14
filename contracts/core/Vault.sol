@@ -14,11 +14,18 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
-import { AssetLib } from "../libraries/AssetLib.sol";
-import { InventoryLib } from "../libraries/InventoryLib.sol";
-import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import {AssetLib} from "../libraries/AssetLib.sol";
+import {InventoryLib} from "../libraries/InventoryLib.sol";
+import {FullMath} from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
+contract Vault is
+  AccessControlUpgradeable,
+  ERC20PermitUpgradeable,
+  ReentrancyGuard,
+  IVault,
+  ERC721Holder
+{
   using SafeERC20 for IERC20;
 
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -97,11 +104,21 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       ? principalAmount * SHARES_PRECISION
       : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
 
-    for (uint256 i = 0; i < inventory.assets.length; ) {
+    IERC20(vaultConfig.principalToken).safeTransferFrom(
+      _msgSender(), address(this), principalAmount
+    );
+    inventory.addAsset(
+      AssetLib.Asset(
+        AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, principalAmount
+      )
+    );
+
+    for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) {
         uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
         uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
+        _transferAsset(currentAsset, currentAsset.strategy);
         _transferAsset(
           AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
           currentAsset.strategy
@@ -123,7 +140,30 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Withdraws the asset from the vault
   /// @param shares Amount of shares to be burned
-  function withdraw(uint256 shares) external nonReentrant {}
+  function withdraw(uint256 shares) external nonReentrant {
+    require(shares != 0, InvalidShares());
+    uint256 totalSupply = totalSupply();
+
+    _burn(_msgSender(), shares);
+
+    for (uint256 i = 0; i < inventory.assets.length;) {
+      AssetLib.Asset memory currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0)) {
+        _transferAsset(currentAsset, currentAsset.strategy);
+        AssetLib.Asset[] memory assets = IStrategy(currentAsset.strategy).convertToPrincipal(
+          currentAsset, shares, totalSupply, vaultConfig
+        );
+        _addAssets(assets);
+        _transferAssets(assets, _msgSender());
+      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20) {
+        currentAsset.amount = FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
+        _transferAsset(currentAsset, _msgSender());
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
 
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
@@ -341,6 +381,16 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function _addAssets(AssetLib.Asset[] memory newAssets) internal {
     for (uint256 i = 0; i < newAssets.length; ) {
       inventory.addAsset(newAssets[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _transferAssets(AssetLib.Asset[] memory assets, address to) internal {
+    for (uint256 i = 0; i < assets.length;) {
+      _transferAsset(assets[i], to);
 
       unchecked {
         i++;

@@ -26,4 +26,11 @@ interface IStrategy is ICommon {
     uint256 principalTokenAmount,
     VaultConfig memory config
   ) external returns (AssetLib.Asset[] memory);
+
+  function convertToPrincipal(
+    AssetLib.Asset memory existingAsset,
+    uint256 shares,
+    uint256 totalSupply,
+    VaultConfig memory config
+  ) external returns (AssetLib.Asset[] memory);
 }

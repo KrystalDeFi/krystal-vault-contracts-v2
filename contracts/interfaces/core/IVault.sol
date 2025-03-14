@@ -25,6 +25,7 @@ interface IVault is ICommon {
   error InvalidAssetType();
   error DepositNotAllowed();
   error MaxPositionsReached();
+  error InvalidShares();
 
   function vaultOwner() external view returns (address);
 
