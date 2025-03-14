@@ -54,8 +54,8 @@ contract ConfigManagerTest is TestCommon {
     stableTokens[0] = configManager.stableTokens(0);
     stableTokens[1] = configManager.stableTokens(1);
 
-    assertTrue(stableTokens[0] == DAI);
-    assertTrue(stableTokens[1] == USDC);
+    assertEq(stableTokens[0], DAI);
+    assertEq(stableTokens[1], USDC);
 
     assertFalse(configManager.isStableToken(NULL_ADDRESS));
 
@@ -67,7 +67,7 @@ contract ConfigManagerTest is TestCommon {
     address[] memory stableTokens2 = new address[](1);
     stableTokens2[0] = configManager.stableTokens(0);
 
-    assertTrue(stableTokens2[0] == DAI);
+    assertEq(stableTokens2[0], DAI);
     assertTrue(configManager.isStableToken(DAI));
     assertFalse(configManager.isStableToken(USDC));
 
@@ -83,9 +83,9 @@ contract ConfigManagerTest is TestCommon {
     stableTokens3[1] = configManager.stableTokens(1);
     stableTokens3[2] = configManager.stableTokens(2);
 
-    assertTrue(stableTokens3[0] == DAI);
-    assertTrue(stableTokens3[1] == USDC);
-    assertTrue(stableTokens3[2] == NULL_ADDRESS);
+    assertEq(stableTokens3[0], DAI);
+    assertEq(stableTokens3[1], USDC);
+    assertEq(stableTokens3[2], NULL_ADDRESS);
     assertTrue(configManager.isStableToken(DAI));
     assertTrue(configManager.isStableToken(USDC));
     assertTrue(configManager.isStableToken(NULL_ADDRESS));
@@ -108,18 +108,18 @@ contract ConfigManagerTest is TestCommon {
 
     ILpStrategy.LpStrategyConfig memory lpStrategyConfig2 = abi.decode(strategyConfig, (ILpStrategy.LpStrategyConfig));
 
-    assertTrue(lpStrategyConfig2.principalTokenAmountMin == 100);
-    assertTrue(lpStrategyConfig2.tickWidthMultiplierMin == 200);
-    assertTrue(lpStrategyConfig2.tickWidthStableMultiplierMin == 300);
+    assertEq(lpStrategyConfig2.principalTokenAmountMin, 100);
+    assertEq(lpStrategyConfig2.tickWidthMultiplierMin, 200);
+    assertEq(lpStrategyConfig2.tickWidthStableMultiplierMin, 300);
   }
 
   function test_MaxPositions() public {
     console.log("==== test_MaxPositions ====");
 
-    assertTrue(configManager.maxPositions() == 10);
+    assertEq(configManager.maxPositions(), 10);
 
     configManager.setMaxPositions(20);
 
-    assertTrue(configManager.maxPositions() == 20);
+    assertEq(configManager.maxPositions(), 20);
   }
 }
