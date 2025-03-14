@@ -56,4 +56,6 @@ interface IVault is ICommon {
   function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
 
   function setVaultConfig(VaultConfig memory _config) external;
+
+  function getInventory() external view returns (AssetLib.Asset[] memory assets);
 }
