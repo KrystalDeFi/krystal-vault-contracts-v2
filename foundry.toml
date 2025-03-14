@@ -32,12 +32,15 @@ include_push_bytes = true
 shrink_sequence = true
 
 [fmt]
-bracket_spacing = false
+bracket_spacing = true
 int_types = "long"
-line_length = 100
+line_length = 120
 multiline_func_header = "attributes_first"
 number_underscore = "thousands"
 quote_style = "double"
 single_line_statement_blocks = "single"
 tab_width = 2
 wrap_comments = true
+prose_wrap = "always"
+trailing_comma = "all"
+use_tabs = false
