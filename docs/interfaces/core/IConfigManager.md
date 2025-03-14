@@ -47,13 +47,13 @@ function isStableToken(address _token) external view returns (bool _isStableToke
 ### getStrategyConfig
 
 ```solidity
-function getStrategyConfig(address _strategy, uint8 _type) external view returns (bytes)
+function getStrategyConfig(address _strategy, address _principalToken, uint8 _type) external view returns (bytes)
 ```
 
 ### setStrategyConfig
 
 ```solidity
-function setStrategyConfig(address _strategy, uint8 _type, bytes _config) external
+function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes _config) external
 ```
 
 ### setMaxPositions

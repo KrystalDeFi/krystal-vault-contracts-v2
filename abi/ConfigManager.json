@@ -84,6 +84,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "_principalToken",
+        "type": "address"
+      },
+      {
         "internalType": "uint8",
         "name": "_type",
         "type": "uint8"
@@ -224,6 +229,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "_principalToken",
+        "type": "address"
+      },
+      {
         "internalType": "uint8",
         "name": "_type",
         "type": "uint8"
@@ -260,6 +270,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
       {
         "internalType": "address",
         "name": "",

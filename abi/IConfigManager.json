@@ -32,6 +32,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "_principalToken",
+        "type": "address"
+      },
+      {
         "internalType": "uint8",
         "name": "_type",
         "type": "uint8"
@@ -149,6 +154,11 @@
       {
         "internalType": "address",
         "name": "_strategy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_principalToken",
         "type": "address"
       },
       {

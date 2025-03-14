@@ -17,7 +17,7 @@ mapping(address => bool) whitelistSwapRouters
 ### strategyConfigs
 
 ```solidity
-mapping(address => mapping(uint8 => bytes)) strategyConfigs
+mapping(address => mapping(address => mapping(uint8 => bytes))) strategyConfigs
 ```
 
 ### stableTokens
@@ -145,7 +145,7 @@ Check if token is stable
 ### getStrategyConfig
 
 ```solidity
-function getStrategyConfig(address _strategy, uint8 _type) external view returns (bytes)
+function getStrategyConfig(address _strategy, address _principalToken, uint8 _type) external view returns (bytes)
 ```
 
 Get strategy config
@@ -155,6 +155,7 @@ Get strategy config
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
+| _principalToken | address |  |
 | _type | uint8 | Strategy type |
 
 #### Return Values
@@ -166,7 +167,7 @@ Get strategy config
 ### setStrategyConfig
 
 ```solidity
-function setStrategyConfig(address _strategy, uint8 _type, bytes _config) external
+function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes _config) external
 ```
 
 Set strategy config
@@ -176,6 +177,7 @@ Set strategy config
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
+| _principalToken | address |  |
 | _type | uint8 | Strategy type |
 | _config | bytes | Strategy config |
 
