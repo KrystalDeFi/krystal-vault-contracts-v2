@@ -147,5 +147,3 @@ gasReporterOutput.json
 ignition/deployments/chain-31337
 
 cache_forge/*
-
-cache_forge/solidity-files-cache.json
