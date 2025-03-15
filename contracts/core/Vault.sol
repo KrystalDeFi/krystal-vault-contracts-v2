@@ -17,8 +17,9 @@ import "../interfaces/core/IConfigManager.sol";
 import { AssetLib } from "../libraries/AssetLib.sol";
 import { InventoryLib } from "../libraries/InventoryLib.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault {
+contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault, ERC721Holder {
   using SafeERC20 for IERC20;
 
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -39,12 +40,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param _owner Owner of the vault
   /// @param _configManager Address of the whitelist manager
   /// @param _vaultAutomator Address of the vault automator
-  function initialize(
-    VaultCreateParams memory params,
-    address _owner,
-    address _configManager,
-    address _vaultAutomator
-  ) public initializer {
+  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _vaultAutomator)
+    public
+    initializer
+  {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(
@@ -63,13 +62,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
     vaultConfig = params.config;
-    AssetLib.Asset memory firstAsset = AssetLib.Asset(
-      AssetLib.AssetType.ERC20,
-      address(0),
-      params.config.principalToken,
-      0,
-      params.principalTokenAmount
-    );
+    AssetLib.Asset memory firstAsset =
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.config.principalToken, 0, params.principalTokenAmount);
 
     inventory.addAsset(firstAsset);
     _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
@@ -82,7 +76,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @return shares Amount of shares minted
   function deposit(uint256 principalAmount) external nonReentrant returns (uint256 shares) {
     require(vaultConfig.allowDeposit || (!vaultConfig.allowDeposit && _msgSender() == vaultOwner), DepositNotAllowed());
-    for (uint256 i = 0; i < inventory.assets.length; ) {
+    for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) _harvest(currentAsset);
       unchecked {
@@ -93,22 +87,25 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     uint256 totalSupply = totalSupply();
     uint256 totalValue = getTotalValue();
 
-    shares = totalSupply == 0
-      ? principalAmount * SHARES_PRECISION
-      : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+    shares =
+      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
 
-    for (uint256 i = 0; i < inventory.assets.length; ) {
+    IERC20(vaultConfig.principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
+    inventory.addAsset(
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, principalAmount)
+    );
+
+    for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) {
         uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
         uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
+        _transferAsset(currentAsset, currentAsset.strategy);
         _transferAsset(
           AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
           currentAsset.strategy
         );
-        _addAssets(
-          IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig)
-        );
+        _addAssets(IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig));
       }
       unchecked {
         i++;
@@ -123,22 +120,43 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Withdraws the asset from the vault
   /// @param shares Amount of shares to be burned
-  function withdraw(uint256 shares) external nonReentrant {}
+  function withdraw(uint256 shares) external nonReentrant {
+    require(shares != 0, InvalidShares());
+    uint256 totalSupply = totalSupply();
+
+    _burn(_msgSender(), shares);
+
+    for (uint256 i = 0; i < inventory.assets.length;) {
+      AssetLib.Asset memory currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0)) {
+        _transferAsset(currentAsset, currentAsset.strategy);
+        AssetLib.Asset[] memory assets =
+          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, totalSupply, vaultConfig);
+        _addAssets(assets);
+        _transferAssets(assets, _msgSender());
+      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20) {
+        currentAsset.amount = FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
+        _transferAsset(currentAsset, _msgSender());
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
 
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
   /// @param data Data for the strategy
-  function allocate(
-    AssetLib.Asset[] memory inputAssets,
-    IStrategy strategy,
-    bytes calldata data
-  ) external onlyRole(ADMIN_ROLE_HASH) {
+  function allocate(AssetLib.Asset[] memory inputAssets, IStrategy strategy, bytes calldata data)
+    external
+    onlyRole(ADMIN_ROLE_HASH)
+  {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount = 0;
-    for (uint256 i = 0; i < inventory.assets.length; ) {
+    for (uint256 i = 0; i < inventory.assets.length;) {
       if (inventory.assets[i].strategy != address(0)) strategyCount++;
       unchecked {
         i++;
@@ -148,7 +166,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     AssetLib.Asset memory currentAsset;
 
-    for (uint256 i = 0; i < inputAssets.length; ) {
+    for (uint256 i = 0; i < inputAssets.length;) {
       require(inputAssets[i].amount != 0, InvalidAssetAmount());
 
       currentAsset = inventory.getAsset(inputAssets[i].token, inputAssets[i].tokenId);
@@ -175,12 +193,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param tokenId asset's token ID
   /// @param amount Amount to deallocate
   /// @param data Data for strategy execution
-  function deallocate(
-    address token,
-    uint256 tokenId,
-    uint256 amount,
-    bytes calldata data
-  ) external onlyRole(ADMIN_ROLE_HASH) {
+  function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data)
+    external
+    onlyRole(ADMIN_ROLE_HASH)
+  {
     AssetLib.Asset memory currentAsset = inventory.getAsset(token, tokenId);
 
     require(amount != 0, InvalidAssetAmount());
@@ -214,7 +230,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function getTotalValue() public returns (uint256 totalValue) {
     totalValue = 0;
     AssetLib.Asset memory currentAsset;
-    for (uint256 i = 0; i < inventory.assets.length; ) {
+    for (uint256 i = 0; i < inventory.assets.length;) {
       currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) {
         totalValue += IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken);
@@ -277,7 +293,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
   function sweepToken(address[] memory tokens) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
-    for (uint256 i = 0; i < tokens.length; ) {
+    for (uint256 i = 0; i < tokens.length;) {
       IERC20 token = IERC20(tokens[i]);
       require(!inventory.contains(tokens[i], 0), InvalidSweepAsset());
       token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
@@ -293,11 +309,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Sweeps the non-fungible tokens to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepNFTToken(
-    address[] memory _tokens,
-    uint256[] memory _tokenIds
-  ) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
-    for (uint256 i = 0; i < _tokens.length; ) {
+  function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds)
+    external
+    nonReentrant
+    onlyRole(ADMIN_ROLE_HASH)
+  {
+    for (uint256 i = 0; i < _tokens.length;) {
       IERC721 token = IERC721(_tokens[i]);
       require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
       token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i]);
@@ -326,8 +343,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param _config New vault config
   function setVaultConfig(VaultConfig memory _config) external override onlyRole(ADMIN_ROLE_HASH) {
     require(
-      !_config.allowDeposit || (_config.allowDeposit && _config.supportedAddresses.length > 0),
-      InvalidVaultConfig()
+      !_config.allowDeposit || (_config.allowDeposit && _config.supportedAddresses.length > 0), InvalidVaultConfig()
     );
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
@@ -339,8 +355,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @dev Adds multiple assets to the vault
   /// @param newAssets New assets to add
   function _addAssets(AssetLib.Asset[] memory newAssets) internal {
-    for (uint256 i = 0; i < newAssets.length; ) {
+    for (uint256 i = 0; i < newAssets.length;) {
       inventory.addAsset(newAssets[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _transferAssets(AssetLib.Asset[] memory assets, address to) internal {
+    for (uint256 i = 0; i < assets.length;) {
+      _transferAsset(assets[i], to);
 
       unchecked {
         i++;

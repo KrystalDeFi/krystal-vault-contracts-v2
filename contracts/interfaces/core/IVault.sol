@@ -25,15 +25,12 @@ interface IVault is ICommon {
   error InvalidAssetType();
   error DepositNotAllowed();
   error MaxPositionsReached();
+  error InvalidShares();
 
   function vaultOwner() external view returns (address);
 
-  function initialize(
-    VaultCreateParams memory params,
-    address _owner,
-    address _configManager,
-    address _vaultAutomator
-  ) external;
+  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _vaultAutomator)
+    external;
 
   function deposit(uint256 shares) external returns (uint256 returnShares);
 

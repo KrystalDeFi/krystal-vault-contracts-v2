@@ -86,6 +86,12 @@ error DepositNotAllowed()
 error MaxPositionsReached()
 ```
 
+### InvalidShares
+
+```solidity
+error InvalidShares()
+```
+
 ### vaultOwner
 
 ```solidity

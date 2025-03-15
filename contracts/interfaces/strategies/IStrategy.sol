@@ -11,11 +11,9 @@ interface IStrategy is ICommon {
 
   function valueOf(AssetLib.Asset memory asset, address principalToken) external returns (uint256);
 
-  function convert(
-    AssetLib.Asset[] memory assets,
-    VaultConfig memory config,
-    bytes calldata data
-  ) external returns (AssetLib.Asset[] memory);
+  function convert(AssetLib.Asset[] memory assets, VaultConfig memory config, bytes calldata data)
+    external
+    returns (AssetLib.Asset[] memory);
 
   function harvest(AssetLib.Asset memory asset, address tokenOut) external returns (AssetLib.Asset[] memory);
 
@@ -24,6 +22,13 @@ interface IStrategy is ICommon {
   function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
     uint256 principalTokenAmount,
+    VaultConfig memory config
+  ) external returns (AssetLib.Asset[] memory);
+
+  function convertToPrincipal(
+    AssetLib.Asset memory existingAsset,
+    uint256 shares,
+    uint256 totalSupply,
     VaultConfig memory config
   ) external returns (AssetLib.Asset[] memory);
 }

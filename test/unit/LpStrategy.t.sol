@@ -5,7 +5,8 @@ import { console } from "forge-std/console.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { INonfungiblePositionManager as INFPM } from
+  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 import { TestCommon, IV3SwapRouter, WETH, DAI, USER, USDC, NFPM } from "../TestCommon.t.sol";
 
@@ -93,10 +94,8 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     console.log("==== increasePosition ====");
-    ILpStrategy.IncreaseLiquidityParams memory increaseParams = ILpStrategy.IncreaseLiquidityParams({
-      amount0Min: 0,
-      amount1Min: 0
-    });
+    ILpStrategy.IncreaseLiquidityParams memory increaseParams =
+      ILpStrategy.IncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0 });
     instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.IncreaseLiquidity),
       params: abi.encode(increaseParams)
@@ -170,14 +169,16 @@ contract LpStrategyTest is TestCommon {
     assertEq(tickLower, -443_580);
     assertEq(tickUpper, 443_580);
     console.log("==== decreasePosition ====");
-    (, , , , , , , uint128 liquidity, , , , ) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    ILpStrategy.DecreaseLiquidityParams memory decreaseParams = ILpStrategy.DecreaseLiquidityParams({
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
+    ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
       liquidity: liquidity / 2,
       amount0Min: 0,
-      amount1Min: 0
+      amount1Min: 0,
+      principalAmountOutMin: 0,
+      swapData: ""
     });
     instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidity),
+      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       params: abi.encode(decreaseParams)
     });
     assets = new AssetLib.Asset[](1);
@@ -210,7 +211,7 @@ contract LpStrategyTest is TestCommon {
     returnAssets = lpStrategy.convertFromPrincipal(existing, assets[0].amount, vaultConfig);
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 1);
+    assertEq(returnAssets[0].amount, 0);
     assertEq(returnAssets[1].token, DAI);
     assertEq(returnAssets[1].amount, 16);
     assertEq(returnAssets[2].token, NFPM);
@@ -319,10 +320,8 @@ contract LpStrategyTest is TestCommon {
     });
     transferAssets(assets, address(lpStrategy));
     lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
-    ILpStrategy.IncreaseLiquidityParams memory increaseParams = ILpStrategy.IncreaseLiquidityParams({
-      amount0Min: 0,
-      amount1Min: 0
-    });
+    ILpStrategy.IncreaseLiquidityParams memory increaseParams =
+      ILpStrategy.IncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0 });
     instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.IncreaseLiquidity),
       params: abi.encode(increaseParams)
@@ -366,12 +365,9 @@ contract LpStrategyTest is TestCommon {
     });
     transferAssets(assets, address(lpStrategy));
     AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
-    (, , , , , , , uint128 liquidity, , , , ) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    ILpStrategy.DecreaseLiquidityParams memory decreaseParams = ILpStrategy.DecreaseLiquidityParams({
-      liquidity: liquidity + 1,
-      amount0Min: 0,
-      amount1Min: 0
-    });
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
+    ILpStrategy.DecreaseLiquidityParams memory decreaseParams =
+      ILpStrategy.DecreaseLiquidityParams({ liquidity: liquidity + 1, amount0Min: 0, amount1Min: 0 });
     instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidity),
       params: abi.encode(decreaseParams)
@@ -521,11 +517,8 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     console.log("==== swapAndIncreasePosition ====");
-    ILpStrategy.SwapAndIncreaseLiquidityParams memory increaseParams = ILpStrategy.SwapAndIncreaseLiquidityParams({
-      amount0Min: 0,
-      amount1Min: 0,
-      swapData: ""
-    });
+    ILpStrategy.SwapAndIncreaseLiquidityParams memory increaseParams =
+      ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
     instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(increaseParams)
@@ -619,7 +612,7 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     console.log("==== decreasePositionAndSwap ====");
-    (, , , , , , , uint128 liquidity, , , , ) = INFPM(NFPM).positions(returnAssets[2].tokenId);
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
     ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
       liquidity: liquidity / 2,
       amount0Min: 0,
