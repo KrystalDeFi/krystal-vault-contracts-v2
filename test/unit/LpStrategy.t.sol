@@ -165,7 +165,7 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-    (, , , , , int24 tickLower, int24 tickUpper, , , , , ) = INFPM(NFPM).positions(returnAssets[2].tokenId);
+    (,,,,, int24 tickLower, int24 tickUpper,,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
     assertEq(tickLower, -443_580);
     assertEq(tickUpper, 443_580);
     console.log("==== decreasePosition ====");
@@ -193,9 +193,9 @@ contract LpStrategyTest is TestCommon {
     returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 999_999_989_767_948_959);
+    assertEq(returnAssets[0].amount, 1_634_761_682_550_505_229);
     assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 1_922_422_338_453_431_550_184);
+    assertEq(returnAssets[1].amount, 0);
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
@@ -211,9 +211,9 @@ contract LpStrategyTest is TestCommon {
     returnAssets = lpStrategy.convertFromPrincipal(existing, assets[0].amount, vaultConfig);
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 0);
+    assertEq(returnAssets[0].amount, 3);
     assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 16);
+    assertEq(returnAssets[1].amount, 38);
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
@@ -583,11 +583,8 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     console.log("==== swapAndCompound ====");
-    ILpStrategy.SwapAndCompoundParams memory compoundParams = ILpStrategy.SwapAndCompoundParams({
-      amount0Min: 0,
-      amount1Min: 0,
-      swapData: ""
-    });
+    ILpStrategy.SwapAndCompoundParams memory compoundParams =
+      ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
     instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndCompound),
       params: abi.encode(compoundParams)

@@ -84,6 +84,22 @@ harvest the asset
 function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
+convert the asset to the principal token
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| existingAsset | struct AssetLib.Asset | The existing asset to convert |
+| principalTokenAmount | uint256 | The amount of principal token |
+| vaultConfig | struct ICommon.VaultConfig |  |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
+
 ### convertToPrincipal
 
 ```solidity
