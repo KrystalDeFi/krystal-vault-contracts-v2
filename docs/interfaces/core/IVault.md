@@ -86,6 +86,12 @@ error DepositNotAllowed()
 error MaxPositionsReached()
 ```
 
+### InvalidShares
+
+```solidity
+error InvalidShares()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -169,3 +175,4 @@ function setVaultConfig(struct ICommon.VaultConfig _config) external
 ```solidity
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
 ```
+

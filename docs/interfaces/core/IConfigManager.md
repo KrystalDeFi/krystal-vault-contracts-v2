@@ -61,3 +61,4 @@ function setStrategyConfig(address _strategy, address _principalToken, uint8 _ty
 ```solidity
 function setMaxPositions(uint8 _maxPositions) external
 ```
+

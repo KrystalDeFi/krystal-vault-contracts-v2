@@ -34,3 +34,4 @@ function getAsset(struct InventoryLib.Inventory self, address token, uint256 tok
 ```solidity
 function contains(struct InventoryLib.Inventory self, address token, uint256 tokenId) internal view returns (bool)
 ```
+

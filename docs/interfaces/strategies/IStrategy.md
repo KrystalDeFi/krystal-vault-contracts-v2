@@ -49,3 +49,10 @@ function getUnderlyingAssets(struct AssetLib.Asset asset) external returns (stru
 ```solidity
 function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[])
 ```
+
+### convertToPrincipal
+
+```solidity
+function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[])
+```
+

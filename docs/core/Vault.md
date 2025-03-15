@@ -42,12 +42,12 @@ Initializes the vault
 
 #### Parameters
 
-| Name             | Type                             | Description                      |
-| ---------------- | -------------------------------- | -------------------------------- |
-| params           | struct ICommon.VaultCreateParams | Vault creation parameters        |
-| \_owner          | address                          | Owner of the vault               |
-| \_configManager  | address                          | Address of the whitelist manager |
-| \_vaultAutomator | address                          | Address of the vault automator   |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| params | struct ICommon.VaultCreateParams | Vault creation parameters |
+| _owner | address | Owner of the vault |
+| _configManager | address | Address of the whitelist manager |
+| _vaultAutomator | address | Address of the vault automator |
 
 ### deposit
 
@@ -59,14 +59,14 @@ Deposits the asset to the vault
 
 #### Parameters
 
-| Name            | Type    | Description                 |
-| --------------- | ------- | --------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | principalAmount | uint256 | Amount of in principalToken |
 
 #### Return Values
 
-| Name   | Type    | Description             |
-| ------ | ------- | ----------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares minted |
 
 ### withdraw
@@ -79,8 +79,8 @@ Withdraws the asset from the vault
 
 #### Parameters
 
-| Name   | Type    | Description                   |
-| ------ | ------- | ----------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be burned |
 
 ### allocate
@@ -93,11 +93,11 @@ Allocates un-used assets to the strategy
 
 #### Parameters
 
-| Name        | Type                    | Description              |
-| ----------- | ----------------------- | ------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | inputAssets | struct AssetLib.Asset[] | Input assets to allocate |
-| strategy    | contract IStrategy      | Strategy to allocate to  |
-| data        | bytes                   | Data for the strategy    |
+| strategy | contract IStrategy | Strategy to allocate to |
+| data | bytes | Data for the strategy |
 
 ### deallocate
 
@@ -109,12 +109,12 @@ Deallocates the assets from the strategy
 
 #### Parameters
 
-| Name    | Type    | Description                 |
-| ------- | ------- | --------------------------- |
-| token   | address | asset's token address       |
-| tokenId | uint256 | asset's token ID            |
-| amount  | uint256 | Amount to deallocate        |
-| data    | bytes   | Data for strategy execution |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | asset's token address |
+| tokenId | uint256 | asset's token ID |
+| amount | uint256 | Amount to deallocate |
+| data | bytes | Data for strategy execution |
 
 ### harvest
 
@@ -122,7 +122,7 @@ Deallocates the assets from the strategy
 function harvest(struct AssetLib.Asset asset) external
 ```
 
-### \_harvest
+### _harvest
 
 ```solidity
 function _harvest(struct AssetLib.Asset asset) internal
@@ -138,8 +138,8 @@ Returns the total value of the vault
 
 #### Return Values
 
-| Name       | Type    | Description                                 |
-| ---------- | ------- | ------------------------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | totalValue | uint256 | Total value of the vault in principal token |
 
 ### getAssetAllocations
@@ -152,8 +152,8 @@ Returns the asset allocations of the vault
 
 #### Return Values
 
-| Name   | Type                    | Description                    |
-| ------ | ----------------------- | ------------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | Asset allocations of the vault |
 
 ### sweepToken
@@ -166,8 +166,8 @@ Sweeps the tokens to the caller
 
 #### Parameters
 
-| Name   | Type      | Description     |
-| ------ | --------- | --------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 
 ### sweepNFTToken
@@ -180,10 +180,10 @@ Sweeps the non-fungible tokens to the caller
 
 #### Parameters
 
-| Name       | Type      | Description        |
-| ---------- | --------- | ------------------ |
-| \_tokens   | address[] | Tokens to sweep    |
-| \_tokenIds | uint256[] | Token IDs to sweep |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _tokens | address[] | Tokens to sweep |
+| _tokenIds | uint256[] | Token IDs to sweep |
 
 ### grantAdminRole
 
@@ -195,9 +195,9 @@ grant admin role to the address
 
 #### Parameters
 
-| Name      | Type    | Description                                    |
-| --------- | ------- | ---------------------------------------------- |
-| \_address | address | The address to which the admin role is granted |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address to which the admin role is granted |
 
 ### revokeAdminRole
 
@@ -209,9 +209,9 @@ revoke admin role from the address
 
 #### Parameters
 
-| Name      | Type    | Description                                      |
-| --------- | ------- | ------------------------------------------------ |
-| \_address | address | The address from which the admin role is revoked |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address from which the admin role is revoked |
 
 ### setVaultConfig
 
@@ -223,11 +223,11 @@ Sets the vault config
 
 #### Parameters
 
-| Name     | Type                       | Description      |
-| -------- | -------------------------- | ---------------- |
-| \_config | struct ICommon.VaultConfig | New vault config |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _config | struct ICommon.VaultConfig | New vault config |
 
-### \_addAssets
+### _addAssets
 
 ```solidity
 function _addAssets(struct AssetLib.Asset[] newAssets) internal
@@ -237,11 +237,17 @@ _Adds multiple assets to the vault_
 
 #### Parameters
 
-| Name      | Type                    | Description       |
-| --------- | ----------------------- | ----------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | newAssets | struct AssetLib.Asset[] | New assets to add |
 
-### \_transferAsset
+### _transferAssets
+
+```solidity
+function _transferAssets(struct AssetLib.Asset[] assets, address to) internal
+```
+
+### _transferAsset
 
 ```solidity
 function _transferAsset(struct AssetLib.Asset asset, address to) internal
@@ -251,13 +257,14 @@ _Transfers the asset to the recipient_
 
 #### Parameters
 
-| Name  | Type                  | Description                |
-| ----- | --------------------- | -------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | AssetLib.Asset to transfer |
-| to    | address               | Recipient of the asset     |
+| to | address | Recipient of the asset |
 
 ### getInventory
 
 ```solidity
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
 ```
+

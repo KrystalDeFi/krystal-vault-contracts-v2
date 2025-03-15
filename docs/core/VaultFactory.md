@@ -66,14 +66,14 @@ Create a new vault
 
 #### Parameters
 
-| Name   | Type                             | Description               |
-| ------ | -------------------------------- | ------------------------- |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 
 #### Return Values
 
-| Name  | Type    | Description              |
-| ----- | ------- | ------------------------ |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 | vault | address | Address of the new vault |
 
 ### pause
@@ -102,9 +102,9 @@ Set the ConfigManager address
 
 #### Parameters
 
-| Name            | Type    | Description                      |
-| --------------- | ------- | -------------------------------- |
-| \_configManager | address | Address of the new ConfigManager |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _configManager | address | Address of the new ConfigManager |
 
 ### setVaultImplementation
 
@@ -116,9 +116,9 @@ Set the Vault implementation
 
 #### Parameters
 
-| Name                  | Type    | Description                             |
-| --------------------- | ------- | --------------------------------------- |
-| \_vaultImplementation | address | Address of the new vault implementation |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vaultImplementation | address | Address of the new vault implementation |
 
 ### setVaultAutomator
 
@@ -130,9 +130,9 @@ Set the VaultAutomator address
 
 #### Parameters
 
-| Name             | Type    | Description                       |
-| ---------------- | ------- | --------------------------------- |
-| \_vaultAutomator | address | Address of the new VaultAutomator |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _vaultAutomator | address | Address of the new VaultAutomator |
 
 ### setPlatformFeeRecipient
 
@@ -144,9 +144,9 @@ Set the default platform fee recipient
 
 #### Parameters
 
-| Name                   | Type    | Description                               |
-| ---------------------- | ------- | ----------------------------------------- |
-| \_platformFeeRecipient | address | Address of the new platform fee recipient |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _platformFeeRecipient | address | Address of the new platform fee recipient |
 
 ### setPlatformFeeBasisPoint
 
@@ -158,6 +158,7 @@ Set the default platform fee basis point
 
 #### Parameters
 
-| Name                    | Type   | Description                  |
-| ----------------------- | ------ | ---------------------------- |
-| \_platformFeeBasisPoint | uint16 | New platform fee basis point |
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _platformFeeBasisPoint | uint16 | New platform fee basis point |
+
