@@ -11,8 +11,8 @@
     "deploy": "./cmd.sh -x deploy",
     "verify": "hardhat verify --network",
     "docgen": "rm -rf ./docs && hardhat docgen",
-    "prettier:check": "prettier --check --plugin=prettier-plugin-solidity \"**/*.{json,md,yml,sol}\"",
-    "prettier:write": "prettier --write --plugin=prettier-plugin-solidity \"**/*.{json,md,yml,sol}\"",
+    "prettier:check": "prettier --check --plugin=prettier-plugin-solidity \"**/*.{json,yml,sol}\"",
+    "prettier:write": "prettier --write --plugin=prettier-plugin-solidity \"**/*.{json,yml,sol}\"",
     "lint:sol": "solhint \"{script,src,test}/**/*.sol\""
   },
   "dependencies": {

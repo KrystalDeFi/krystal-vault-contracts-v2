@@ -72,30 +72,59 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       MintPositionParams memory params = abi.decode(instruction.params, (MintPositionParams));
       return mintPosition(assets, params, vaultConfig);
     }
+
     if (instruction.instructionType == uint8(InstructionType.SwapAndMintPosition)) {
       SwapAndMintPositionParams memory params = abi.decode(instruction.params, (SwapAndMintPositionParams));
       return swapAndMintPosition(assets, params, vaultConfig);
     }
+
     if (instruction.instructionType == uint8(InstructionType.IncreaseLiquidity)) {
       IncreaseLiquidityParams memory params = abi.decode(instruction.params, (IncreaseLiquidityParams));
       return increaseLiquidity(assets, params, vaultConfig);
     }
+
     if (instruction.instructionType == uint8(InstructionType.SwapAndIncreaseLiquidity)) {
       SwapAndIncreaseLiquidityParams memory params = abi.decode(instruction.params, (SwapAndIncreaseLiquidityParams));
       return swapAndIncreaseLiquidity(assets, params, vaultConfig);
     }
+
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidity)) {
       DecreaseLiquidityParams memory params = abi.decode(instruction.params, (DecreaseLiquidityParams));
       return decreaseLiquidity(assets, params);
     }
+
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidityAndSwap)) {
       DecreaseLiquidityAndSwapParams memory params = abi.decode(instruction.params, (DecreaseLiquidityAndSwapParams));
       return decreaseLiquidityAndSwap(assets, params, vaultConfig);
     }
+
+    if (instruction.instructionType == uint8(InstructionType.RebalancePosition)) {
+      RebalancePositionParams memory params = abi.decode(instruction.params, (RebalancePositionParams));
+      return rebalancePosition(assets, params, vaultConfig);
+    }
+
+    if (instruction.instructionType == uint8(InstructionType.SwapAndRebalancePosition)) {
+      SwapAndRebalancePositionParams memory params = abi.decode(instruction.params, (SwapAndRebalancePositionParams));
+      return swapAndRebalancePosition(assets, params, vaultConfig);
+    }
+
+    if (instruction.instructionType == uint8(InstructionType.Compound)) {
+      CompoundParams memory params = abi.decode(instruction.params, (CompoundParams));
+      return compound(assets, params);
+    }
+
+    if (instruction.instructionType == uint8(InstructionType.SwapAndCompound)) {
+      SwapAndCompoundParams memory params = abi.decode(instruction.params, (SwapAndCompoundParams));
+      return swapAndCompound(assets, params);
+    }
+
     revert InvalidInstructionType();
   }
 
-  ///
+  /// @notice harvest the asset
+  /// @param asset The asset to harvest
+  /// @param tokenOut The token to swap to
+  /// @return returnAssets The assets that were returned to the msg.sender
   function harvest(
     AssetLib.Asset memory asset,
     address tokenOut
@@ -112,7 +141,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     }
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
-    (uint256 amountOut, uint256 amountInUsed) = _swapToPrinciple(pool, tokenOut, swapToken, swapAmount, 0, "");
+    (uint256 amountOut, uint256 amountInUsed) = _swapToPrinciple(
+      SwapToPrincipalParams({
+        pool: pool,
+        principalToken: tokenOut,
+        token: swapToken,
+        amount: swapAmount,
+        amountOutMin: 0,
+        swapData: ""
+      })
+    );
 
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
@@ -127,6 +165,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
   }
 
+  /// @notice convert the asset to the principal token
+  /// @param existingAsset The existing asset to convert
+  /// @param principalTokenAmount The amount of principal token
+  /// @return returnAssets The assets that were returned to the msg.sender
   function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
     uint256 principalTokenAmount,
@@ -140,13 +182,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     address otherToken = token0 == vaultConfig.principalToken ? token1 : token0;
 
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
-      principalTokenAmount,
-      IUniswapV3Factory(INFPM(existingAsset.token).factory()).getPool(token0, token1, fee),
-      vaultConfig.principalToken,
-      otherToken,
-      tickLower,
-      tickUpper,
-      ""
+      SwapFromPrincipalParams({
+        principalTokenAmount: principalTokenAmount,
+        pool: IUniswapV3Factory(INFPM(existingAsset.token).factory()).getPool(token0, token1, fee),
+        principalToken: vaultConfig.principalToken,
+        otherToken: otherToken,
+        tickLower: tickLower,
+        tickUpper: tickUpper,
+        swapData: ""
+      })
     );
     IncreaseLiquidityParams memory params = IncreaseLiquidityParams(0, 0);
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](3);
@@ -202,6 +246,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
+  /// @notice Swaps the principal token to the other token and mints a new position
+  /// @param assets The assets to swap and mint, assets[0] = principalToken
+  /// @param params The parameters for swapping and minting the position
+  /// @return returnAssets The assets that were returned to the msg.sender
   function swapAndMintPosition(
     AssetLib.Asset[] memory assets,
     SwapAndMintPositionParams memory params,
@@ -223,13 +271,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
-      assets[0].amount,
-      pool,
-      params.token0,
-      params.token1,
-      params.tickLower,
-      params.tickUpper,
-      params.swapData
+      SwapFromPrincipalParams({
+        principalTokenAmount: assets[0].amount,
+        pool: pool,
+        principalToken: params.token0,
+        otherToken: params.token1,
+        tickLower: params.tickLower,
+        tickUpper: params.tickUpper,
+        swapData: params.swapData
+      })
     );
 
     assets = new AssetLib.Asset[](2);
@@ -257,6 +307,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
+  /// @notice mints a new position
+  /// @param assets The assets to mint the position, assets[0] = token0, assets[1] = token1
+  /// @param params The parameters for minting the position
+  /// @return returnAssets The assets that were returned to the msg.sender
   function _mintPosition(
     AssetLib.Asset[] memory assets,
     MintPositionParams memory params
@@ -317,6 +371,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
+  /// @notice Swaps the principal token to the other token and increases the liquidity of the position
+  /// @param assets The assets to swap and increase liquidity, assets[2] = lpAsset
+  /// @param params The parameters for swapping and increasing the liquidity
+  /// @return returnAssets The assets that were returned to the msg.sender
   function swapAndIncreaseLiquidity(
     AssetLib.Asset[] memory assets,
     SwapAndIncreaseLiquidityParams memory params,
@@ -331,13 +389,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     (, , address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) = INFPM(lpAsset.token)
       .positions(lpAsset.tokenId);
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
-      assets[0].amount,
-      IUniswapV3Factory(INFPM(lpAsset.token).factory()).getPool(token0, token1, fee),
-      token0,
-      token1,
-      tickLower,
-      tickUpper,
-      swapData
+      SwapFromPrincipalParams({
+        principalTokenAmount: assets[0].amount,
+        pool: IUniswapV3Factory(INFPM(lpAsset.token).factory()).getPool(token0, token1, fee),
+        principalToken: token0,
+        otherToken: token1,
+        tickLower: tickLower,
+        tickUpper: tickUpper,
+        swapData: swapData
+      })
     );
     assets = new AssetLib.Asset[](3);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
@@ -353,6 +413,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
+  /// @notice increases the liquidity of the position
+  /// @param assets The assets to increase the liquidity assets[2] = lpAsset
+  /// @param params The parameters for increasing the liquidity
+  /// @return returnAssets The assets that were returned to the msg.sender
   function _increaseLiquidity(
     AssetLib.Asset[] memory assets,
     IncreaseLiquidityParams memory params
@@ -415,6 +479,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
+  /// @notice Decreases the liquidity of the position and swaps the other token to the principal token
+  /// @param assets The assets to decrease the liquidity assets[0] = lpAsset
+  /// @param params The parameters for decreasing the liquidity and swapping
+  /// @return returnAssets The assets that were returned to the msg.sender
   function decreaseLiquidityAndSwap(
     AssetLib.Asset[] memory assets,
     DecreaseLiquidityAndSwapParams memory params,
@@ -455,6 +523,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     IERC721(assets[0].token).safeTransferFrom(address(this), msg.sender, assets[0].tokenId);
   }
 
+  /// @notice Decreases the liquidity of the position
+  /// @param lpAsset The assets to decrease the liquidity assets[0] = lpAsset
+  /// @param params The parameters for decreasing the liquidity
+  /// @return returnAssets The assets that were returned to the msg.sender
   function _decreaseLiquidity(
     AssetLib.Asset memory lpAsset,
     DecreaseLiquidityParams memory params
@@ -462,7 +534,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     uint256 amount0Collected;
     uint256 amount1Collected;
 
-    (amount0Collected, amount1Collected) = INFPM(lpAsset.token).decreaseLiquidity(
+    INFPM(lpAsset.token).decreaseLiquidity(
       INFPM.DecreaseLiquidityParams(
         lpAsset.tokenId,
         params.liquidity,
@@ -472,7 +544,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       )
     );
 
-    INFPM(lpAsset.token).collect(
+    (amount0Collected, amount1Collected) = INFPM(lpAsset.token).collect(
       INFPM.CollectParams(lpAsset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
 
@@ -485,44 +557,257 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     returnAssets[2] = lpAsset;
   }
 
+  /// @notice Rebalances the position
+  /// @param assets The assets to rebalance, assets[0] = token0, assets[1] = token1, assets[2] = lpAsset
+  /// @param params The parameters for rebalancing the position
+  /// @return returnAssets The assets that were returned to the msg.sender
+  function rebalancePosition(
+    AssetLib.Asset[] memory assets,
+    RebalancePositionParams memory params,
+    VaultConfig memory vaultConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 1, InvalidNumberOfAssets());
+    require(assets[0].strategy == address(this), InvalidAsset());
+
+    (, , address token0, address token1, uint24 fee, , , uint128 liquidity, , , , ) = INFPM(assets[0].token).positions(
+      assets[0].tokenId
+    );
+
+    if (vaultConfig.allowDeposit)
+      _validateTickWidth(INFPM(assets[0].token), fee, token0, token1, params.tickLower, params.tickUpper, vaultConfig);
+
+    returnAssets = _decreaseLiquidity(
+      assets[0],
+      DecreaseLiquidityParams({
+        liquidity: liquidity,
+        amount0Min: params.decreasedAmount0Min,
+        amount1Min: params.decreasedAmount1Min
+      })
+    );
+
+    returnAssets = _mintPosition(
+      returnAssets,
+      MintPositionParams({
+        nfpm: INFPM(assets[0].token),
+        token0: token0,
+        token1: token1,
+        fee: fee,
+        tickLower: params.tickLower,
+        tickUpper: params.tickUpper,
+        amount0Min: params.amount0Min,
+        amount1Min: params.amount1Min
+      })
+    );
+
+    if (returnAssets[0].amount > 0) {
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
+    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  }
+
+  /// @notice Swaps the principal token to the other token and rebalances the position
+  /// @param assets The assets to swap and rebalance, assets[0] = principalToken, assets[1] = lpAsset
+  /// @param params The parameters for swapping and rebalancing the position
+  /// @return returnAssets The assets that were returned to the msg.sender
+  function swapAndRebalancePosition(
+    AssetLib.Asset[] memory assets,
+    SwapAndRebalancePositionParams memory params,
+    VaultConfig memory vaultConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 1, InvalidNumberOfAssets());
+    require(assets[0].strategy == address(this), InvalidAsset());
+
+    (, , address token0, address token1, uint24 fee, , , uint128 liquidity, , , , ) = INFPM(assets[0].token).positions(
+      assets[0].tokenId
+    );
+
+    if (vaultConfig.allowDeposit)
+      _validateTickWidth(INFPM(assets[0].token), fee, token0, token1, params.tickLower, params.tickUpper, vaultConfig);
+
+    returnAssets = _decreaseLiquidity(
+      assets[0],
+      DecreaseLiquidityParams({
+        liquidity: liquidity,
+        amount0Min: params.decreasedAmount0Min,
+        amount1Min: params.decreasedAmount1Min
+      })
+    );
+
+    address pool = IUniswapV3Factory(INFPM(returnAssets[2].token).factory()).getPool(token0, token1, fee);
+    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
+      SwapFromPrincipalParams({
+        principalTokenAmount: returnAssets[0].amount,
+        pool: pool,
+        principalToken: token0,
+        otherToken: token1,
+        tickLower: params.tickLower,
+        tickUpper: params.tickUpper,
+        swapData: params.swapData
+      })
+    );
+
+    returnAssets = new AssetLib.Asset[](2);
+    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
+    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
+
+    returnAssets = _mintPosition(
+      returnAssets,
+      MintPositionParams({
+        nfpm: INFPM(assets[0].token),
+        token0: token0,
+        token1: token1,
+        fee: fee,
+        tickLower: params.tickLower,
+        tickUpper: params.tickUpper,
+        amount0Min: params.amount0Min,
+        amount1Min: params.amount1Min
+      })
+    );
+
+    if (returnAssets[0].amount > 0) {
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
+    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  }
+
+  /// @notice Compounds the position
+  /// @param assets The assets to compound, assets[0] = lpAsset
+  /// @param params The parameters for compounding the position
+  /// @return returnAssets The assets that were returned to the msg.sender
+  function compound(
+    AssetLib.Asset[] memory assets,
+    CompoundParams memory params
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 1, InvalidNumberOfAssets());
+    require(assets[0].strategy == address(this), InvalidAsset());
+
+    (, , , , , , , uint128 liquidity, , , , ) = INFPM(assets[0].token).positions(assets[0].tokenId);
+
+    returnAssets = _decreaseLiquidity(
+      assets[0],
+      DecreaseLiquidityParams({ liquidity: liquidity, amount0Min: params.amount0Min, amount1Min: params.amount1Min })
+    );
+
+    returnAssets = _increaseLiquidity(
+      returnAssets,
+      IncreaseLiquidityParams({ amount0Min: params.amount0Min, amount1Min: params.amount1Min })
+    );
+
+    if (returnAssets[0].amount > 0) {
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
+    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  }
+
+  /// @notice Swaps the principal token to the other token and compounds the position
+  /// @param assets The assets to swap and compound, assets[0] = principalToken
+  /// @param params The parameters for swapping and compounding the position
+  /// @return returnAssets The assets that were returned to the msg.sender
+  function swapAndCompound(
+    AssetLib.Asset[] memory assets,
+    SwapAndCompoundParams memory params
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 1, InvalidNumberOfAssets());
+    require(assets[0].strategy == address(this), InvalidAsset());
+
+    (
+      ,
+      ,
+      address token0,
+      address token1,
+      uint24 fee,
+      int24 tickLower,
+      int24 tickUpper,
+      uint128 liquidity,
+      ,
+      ,
+      ,
+
+    ) = INFPM(assets[0].token).positions(assets[0].tokenId);
+
+    returnAssets = _decreaseLiquidity(
+      assets[0],
+      DecreaseLiquidityParams({ liquidity: liquidity, amount0Min: params.amount0Min, amount1Min: params.amount1Min })
+    );
+
+    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
+      SwapFromPrincipalParams({
+        principalTokenAmount: returnAssets[0].amount,
+        pool: IUniswapV3Factory(INFPM(assets[0].token).factory()).getPool(token0, token1, fee),
+        principalToken: token0,
+        otherToken: token1,
+        tickLower: tickLower,
+        tickUpper: tickUpper,
+        swapData: params.swapData
+      })
+    );
+
+    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
+    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
+
+    returnAssets = _increaseLiquidity(
+      returnAssets,
+      IncreaseLiquidityParams({ amount0Min: params.amount0Min, amount1Min: params.amount1Min })
+    );
+
+    if (returnAssets[0].amount > 0) {
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
+    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  }
+
   /// @notice Swaps the principal token to the other token
-  /// @param principalTokenAmount The principal token
-  /// @param pool The pool to swap
-  /// @param principalToken The principal token
-  /// @param otherToken The other token
-  /// @param tickLower The lower tick of the position
-  /// @param tickUpper The upper tick of the position
-  /// @param swapData The swap data
-  /// @return amount0 The result amount of pool's token0
-  /// @return amount1 The result amount of pool's token1
+  /// @param params The parameters for swapping the principal token
+  /// @return amount0 The amount of token0
+  /// @return amount1 The amount of token1
   function _optimalSwapFromPrincipal(
-    uint256 principalTokenAmount,
-    address pool,
-    address principalToken,
-    address otherToken,
-    int24 tickLower,
-    int24 tickUpper,
-    bytes memory swapData
+    SwapFromPrincipalParams memory params
   ) internal returns (uint256 amount0, uint256 amount1) {
-    (amount0, amount1) = principalToken < otherToken ? (principalTokenAmount, 0) : (uint256(0), principalTokenAmount);
-    IERC20(principalToken).approve(address(optimalSwapper), principalTokenAmount);
+    (amount0, amount1) = params.principalToken < params.otherToken
+      ? (params.principalTokenAmount, 0)
+      : (uint256(0), params.principalTokenAmount);
+    IERC20(params.principalToken).approve(address(optimalSwapper), params.principalTokenAmount);
     (amount0, amount1) = optimalSwapper.optimalSwap(
-      IOptimalSwapper.OptimalSwapParams(pool, amount0, amount1, tickLower, tickUpper, swapData)
+      IOptimalSwapper.OptimalSwapParams(
+        params.pool,
+        amount0,
+        amount1,
+        params.tickLower,
+        params.tickUpper,
+        params.swapData
+      )
     );
   }
 
+  /// @notice Swaps the token to the principal token
+  /// @param params The parameters for swapping the token
+  /// @return amountOut The result amount of principal token
+  /// @return amountInUsed The amount of token used
   function _swapToPrinciple(
-    address pool,
-    address principalToken,
-    address token,
-    uint256 amount,
-    uint256 amountOutMin,
-    bytes memory swapData
+    SwapToPrincipalParams memory params
   ) internal returns (uint256 amountOut, uint256 amountInUsed) {
-    require(token != principalToken, InvalidAsset());
+    require(params.token != params.principalToken, InvalidAsset());
 
-    IERC20(token).approve(address(optimalSwapper), amount);
-    (amountOut, amountInUsed) = optimalSwapper.poolSwap(pool, amount, token < principalToken, amountOutMin, swapData);
+    IERC20(params.token).approve(address(optimalSwapper), params.amount);
+    (amountOut, amountInUsed) = optimalSwapper.poolSwap(
+      params.pool,
+      params.amount,
+      params.token < params.principalToken,
+      params.amountOutMin,
+      params.swapData
+    );
   }
 
   /// @notice Gets the underlying assets of the position
@@ -687,7 +972,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
 
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
-    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
@@ -699,6 +983,34 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
       require(poolAmount1 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
     }
 
+    _validateTickWidth(nfpm, fee, token0, token1, tickLower, tickUpper, config);
+  }
+
+  /// @dev Checks the tick width of the position
+  /// @param nfpm The non-fungible position manager
+  /// @param fee The fee of the pool
+  /// @param token0 The token0 of the pool
+  /// @param token1 The token1 of the pool
+  /// @param tickLower The lower tick of the position
+  /// @param tickUpper The upper tick of the position
+  /// @param config The configuration of the strategy
+  function _validateTickWidth(
+    INFPM nfpm,
+    uint24 fee,
+    address token0,
+    address token1,
+    int24 tickLower,
+    int24 tickUpper,
+    VaultConfig memory config
+  ) internal view {
+    LpStrategyConfig memory lpConfig = abi.decode(
+      configManager.getStrategyConfig(address(this), config.principalToken, config.rangeStrategyType),
+      (LpStrategyConfig)
+    );
+
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
+
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
       require(tickUpper - tickLower >= int24(lpConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth());
@@ -707,6 +1019,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy {
     }
   }
 
+  /// @dev Checks if the pool is allowed
+  /// @param config The configuration of the strategy
+  /// @param pool The pool to check
+  /// @return allowed If the pool is allowed
   function _isPoolAllowed(VaultConfig memory config, address pool) internal pure returns (bool) {
     for (uint256 i = 0; i < config.supportedAddresses.length; ) {
       if (config.supportedAddresses[i] == pool) return true;

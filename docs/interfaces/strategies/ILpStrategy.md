@@ -11,7 +11,11 @@ enum InstructionType {
   IncreaseLiquidity,
   SwapAndIncreaseLiquidity,
   DecreaseLiquidity,
-  DecreaseLiquidityAndSwap
+  DecreaseLiquidityAndSwap,
+  RebalancePosition,
+  SwapAndRebalancePosition,
+  Compound,
+  SwapAndCompound
 }
 ```
 
@@ -83,6 +87,79 @@ struct DecreaseLiquidityAndSwapParams {
   uint256 amount0Min;
   uint256 amount1Min;
   uint256 principalAmountOutMin;
+  bytes swapData;
+}
+```
+
+### RebalancePositionParams
+
+```solidity
+struct RebalancePositionParams {
+  int24 tickLower;
+  int24 tickUpper;
+  uint256 decreasedAmount0Min;
+  uint256 decreasedAmount1Min;
+  uint256 amount0Min;
+  uint256 amount1Min;
+}
+```
+
+### SwapAndRebalancePositionParams
+
+```solidity
+struct SwapAndRebalancePositionParams {
+  int24 tickLower;
+  int24 tickUpper;
+  uint256 decreasedAmount0Min;
+  uint256 decreasedAmount1Min;
+  uint256 amount0Min;
+  uint256 amount1Min;
+  bytes swapData;
+}
+```
+
+### CompoundParams
+
+```solidity
+struct CompoundParams {
+  uint256 amount0Min;
+  uint256 amount1Min;
+}
+```
+
+### SwapAndCompoundParams
+
+```solidity
+struct SwapAndCompoundParams {
+  uint256 amount0Min;
+  uint256 amount1Min;
+  bytes swapData;
+}
+```
+
+### SwapFromPrincipalParams
+
+```solidity
+struct SwapFromPrincipalParams {
+  uint256 principalTokenAmount;
+  address pool;
+  address principalToken;
+  address otherToken;
+  int24 tickLower;
+  int24 tickUpper;
+  bytes swapData;
+}
+```
+
+### SwapToPrincipalParams
+
+```solidity
+struct SwapToPrincipalParams {
+  address pool;
+  address principalToken;
+  address token;
+  uint256 amount;
+  uint256 amountOutMin;
   bytes swapData;
 }
 ```
