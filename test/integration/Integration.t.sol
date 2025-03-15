@@ -10,5 +10,5 @@ contract IntegrationTest is TestCommon {
     vm.startBroadcast(USER);
   }
 
-  function test_Integration() public {}
+  function test_Integration() public { }
 }

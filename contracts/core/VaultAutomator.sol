@@ -47,11 +47,11 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepNFTToken(
-    IVault vault,
-    address[] memory tokens,
-    uint256[] memory tokenIds
-  ) external override onlyRole(OPERATOR_ROLE_HASH) {
+  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
+    external
+    override
+    onlyRole(OPERATOR_ROLE_HASH)
+  {
     vault.sweepNFTToken(tokens, tokenIds);
   }
 
@@ -93,5 +93,5 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     revokeRole(OPERATOR_ROLE_HASH, operator);
   }
 
-  receive() external payable {}
+  receive() external payable { }
 }

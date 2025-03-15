@@ -23,7 +23,7 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _strategies Array of strategy addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
   function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _strategies.length; ) {
+    for (uint256 i = 0; i < _strategies.length;) {
       whitelistStrategies[_strategies[i]] = _isWhitelisted;
 
       unchecked {
@@ -43,7 +43,7 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _swapRouters Array of swap router addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
   function whitelistSwapRouter(address[] memory _swapRouters, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _swapRouters.length; ) {
+    for (uint256 i = 0; i < _swapRouters.length;) {
       whitelistSwapRouters[_swapRouters[i]] = _isWhitelisted;
 
       unchecked {
@@ -69,10 +69,8 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _token Token address
   /// @return _isStable Boolean value if token is stable
   function isStableToken(address _token) external view returns (bool _isStable) {
-    for (uint256 i = 0; i < stableTokens.length; ) {
-      if (stableTokens[i] == _token) {
-        return true;
-      }
+    for (uint256 i = 0; i < stableTokens.length;) {
+      if (stableTokens[i] == _token) return true;
 
       unchecked {
         i++;
@@ -86,11 +84,11 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _strategy Strategy address
   /// @param _type Strategy type
   /// @return _config Strategy config
-  function getStrategyConfig(
-    address _strategy,
-    address _principalToken,
-    uint8 _type
-  ) external view returns (bytes memory) {
+  function getStrategyConfig(address _strategy, address _principalToken, uint8 _type)
+    external
+    view
+    returns (bytes memory)
+  {
     return strategyConfigs[_strategy][_principalToken][_type];
   }
 
@@ -98,12 +96,10 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _strategy Strategy address
   /// @param _type Strategy type
   /// @param _config Strategy config
-  function setStrategyConfig(
-    address _strategy,
-    address _principalToken,
-    uint8 _type,
-    bytes memory _config
-  ) external onlyOwner {
+  function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes memory _config)
+    external
+    onlyOwner
+  {
     strategyConfigs[_strategy][_principalToken][_type] = _config;
   }
 

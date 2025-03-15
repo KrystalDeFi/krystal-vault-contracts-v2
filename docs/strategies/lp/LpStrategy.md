@@ -69,6 +69,12 @@ function harvest(struct AssetLib.Asset asset, address tokenOut) external returns
 function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
+### convertToPrincipal
+
+```solidity
+function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[] returnAssets)
+```
+
 ### mintPosition
 
 ```solidity

@@ -95,8 +95,8 @@ contract VaultFactoryTest is TestCommon {
 
     address vaultOwner = vaultInstance.vaultOwner();
     address vaultConfigManager = address(vaultInstance.configManager());
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vaultInstance
-      .vaultConfig();
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) =
+      vaultInstance.vaultConfig();
     ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
       allowDeposit: allowDeposit,
       rangeStrategyType: rangeStrategyType,

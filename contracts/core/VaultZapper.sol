@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "../interfaces/core/IVaultZapper.sol";
 
 contract VaultZapper is IVaultZapper {
-  constructor() {}
+  constructor() { }
 
-  function swapAndDeposit() external override {}
+  function swapAndDeposit() external override { }
 
-  function withdrawAndSwap() external override {}
+  function withdrawAndSwap() external override { }
 }
