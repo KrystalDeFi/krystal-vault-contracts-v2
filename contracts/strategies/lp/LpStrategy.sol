@@ -896,6 +896,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
+    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
@@ -907,7 +908,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       require(poolAmount1 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
     }
 
-    _validateTickWidth(nfpm, fee, token0, token1, tickLower, tickUpper, config);
+    // Check if tick width to mint/increase liquidity is greater than the minimum tick width
+    if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
+      require(tickUpper - tickLower >= int24(lpConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth());
+    } else {
+      require(tickUpper - tickLower >= int24(lpConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
+    }
   }
 
   /// @dev Checks the tick width of the position
