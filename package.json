@@ -7,7 +7,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "size": "hardhat size-contracts",
-    "test": "forge test -vvv --via-ir && yarn docgen",
+    "test": "forge test -vvv --via-ir --force && yarn docgen",
     "deploy": "./cmd.sh -x deploy",
     "verify": "hardhat verify --network",
     "docgen": "rm -rf ./docs && hardhat docgen",

@@ -236,27 +236,6 @@ increases the liquidity of the position
 | ---- | ---- | ----------- |
 | returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
-### decreaseLiquidity
-
-```solidity
-function decreaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
-```
-
-Decreases the liquidity of the position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | The assets to decrease the liquidity assets[0] = lpAsset |
-| params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
-
 ### decreaseLiquidityAndSwap
 
 ```solidity
@@ -300,28 +279,6 @@ Decreases the liquidity of the position
 | ---- | ---- | ----------- |
 | returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
-### rebalancePosition
-
-```solidity
-function rebalancePosition(struct AssetLib.Asset[] assets, struct ILpStrategy.RebalancePositionParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
-```
-
-Rebalances the position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | The assets to rebalance, assets[0] = token0, assets[1] = token1, assets[2] = lpAsset |
-| params | struct ILpStrategy.RebalancePositionParams | The parameters for rebalancing the position |
-| vaultConfig | struct ICommon.VaultConfig |  |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
-
 ### swapAndRebalancePosition
 
 ```solidity
@@ -337,27 +294,6 @@ Swaps the principal token to the other token and rebalances the position
 | assets | struct AssetLib.Asset[] | The assets to swap and rebalance, assets[0] = principalToken, assets[1] = lpAsset |
 | params | struct ILpStrategy.SwapAndRebalancePositionParams | The parameters for swapping and rebalancing the position |
 | vaultConfig | struct ICommon.VaultConfig |  |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
-
-### compound
-
-```solidity
-function compound(struct AssetLib.Asset[] assets, struct ILpStrategy.CompoundParams params) internal returns (struct AssetLib.Asset[] returnAssets)
-```
-
-Compounds the position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | The assets to compound, assets[0] = lpAsset |
-| params | struct ILpStrategy.CompoundParams | The parameters for compounding the position |
 
 #### Return Values
 

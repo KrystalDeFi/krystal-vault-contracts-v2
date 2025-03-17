@@ -10,11 +10,8 @@ enum InstructionType {
   SwapAndMintPosition,
   IncreaseLiquidity,
   SwapAndIncreaseLiquidity,
-  DecreaseLiquidity,
   DecreaseLiquidityAndSwap,
-  RebalancePosition,
   SwapAndRebalancePosition,
-  Compound,
   SwapAndCompound
 }
 ```
@@ -91,19 +88,6 @@ struct DecreaseLiquidityAndSwapParams {
 }
 ```
 
-### RebalancePositionParams
-
-```solidity
-struct RebalancePositionParams {
-  int24 tickLower;
-  int24 tickUpper;
-  uint256 decreasedAmount0Min;
-  uint256 decreasedAmount1Min;
-  uint256 amount0Min;
-  uint256 amount1Min;
-}
-```
-
 ### SwapAndRebalancePositionParams
 
 ```solidity
@@ -115,15 +99,6 @@ struct SwapAndRebalancePositionParams {
   uint256 amount0Min;
   uint256 amount1Min;
   bytes swapData;
-}
-```
-
-### CompoundParams
-
-```solidity
-struct CompoundParams {
-  uint256 amount0Min;
-  uint256 amount1Min;
 }
 ```
 
