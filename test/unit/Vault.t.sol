@@ -102,7 +102,7 @@ contract VaultTest is TestCommon {
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     vault.withdraw(10_000 ether);
     assertEq(IERC20(vault).balanceOf(USER), 10_001_958_738_672_832_443_901);
-    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_337_239_813_585);
+    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_339_347_767_056);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
   }
 }

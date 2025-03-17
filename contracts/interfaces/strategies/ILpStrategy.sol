@@ -12,8 +12,9 @@ interface ILpStrategy is IStrategy {
     SwapAndMintPosition,
     IncreaseLiquidity,
     SwapAndIncreaseLiquidity,
-    DecreaseLiquidity,
-    DecreaseLiquidityAndSwap
+    DecreaseLiquidityAndSwap,
+    SwapAndRebalancePosition,
+    SwapAndCompound
   }
 
   struct MintPositionParams {
@@ -61,6 +62,41 @@ interface ILpStrategy is IStrategy {
     uint256 amount0Min;
     uint256 amount1Min;
     uint256 principalAmountOutMin;
+    bytes swapData;
+  }
+
+  struct SwapAndRebalancePositionParams {
+    int24 tickLower;
+    int24 tickUpper;
+    uint256 decreasedAmount0Min;
+    uint256 decreasedAmount1Min;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    bytes swapData;
+  }
+
+  struct SwapAndCompoundParams {
+    uint256 amount0Min;
+    uint256 amount1Min;
+    bytes swapData;
+  }
+
+  struct SwapFromPrincipalParams {
+    uint256 principalTokenAmount;
+    address pool;
+    address principalToken;
+    address otherToken;
+    int24 tickLower;
+    int24 tickUpper;
+    bytes swapData;
+  }
+
+  struct SwapToPrincipalParams {
+    address pool;
+    address principalToken;
+    address token;
+    uint256 amount;
+    uint256 amountOutMin;
     bytes swapData;
   }
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { console } from "forge-std/console.sol";
 
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { TestCommon, USER, WETH, DAI, USDC } from "../TestCommon.t.sol";
 
@@ -45,6 +46,8 @@ contract VaultFactoryTest is TestCommon {
 
   function test_createVault() public {
     console.log("==== test_createVault ====");
+
+    IERC20(WETH).approve(address(vaultFactory), 1 ether);
 
     // Error pass
     vaultFactory.pause();
