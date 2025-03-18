@@ -75,7 +75,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param principalAmount Amount of in principalToken
   /// @return shares Amount of shares minted
   function deposit(uint256 principalAmount) external nonReentrant returns (uint256 shares) {
-    require(vaultConfig.allowDeposit || (!vaultConfig.allowDeposit && _msgSender() == vaultOwner), DepositNotAllowed());
+    require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) _harvest(currentAsset);
