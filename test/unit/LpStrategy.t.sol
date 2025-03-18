@@ -15,7 +15,7 @@ import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lp/LpStrategy.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 
 contract LpStrategyTest is TestCommon {
@@ -36,7 +36,11 @@ contract LpStrategyTest is TestCommon {
     address[] memory stableTokens = new address[](2);
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
-    ConfigManager configManager = new ConfigManager(stableTokens);
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = USER;
+
+    ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     vaultConfig = ICommon.VaultConfig({

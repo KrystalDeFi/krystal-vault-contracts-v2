@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon, IV3SwapRouter } from "../TestCommon.t.sol";
-import { LpStrategy } from "../../contracts/strategies/lp/LpStrategy.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
@@ -39,7 +39,11 @@ contract VaultTest is TestCommon {
     address[] memory stableTokens = new address[](2);
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
-    ConfigManager configManager = new ConfigManager(stableTokens);
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = USER;
+
+    ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     address[] memory strategies = new address[](1);
@@ -62,7 +66,7 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0.5 ether,
       config: vaultConfig
     });
-    vault.initialize(params, USER, address(configManager), address(0));
+    vault.initialize(params, USER, address(configManager));
   }
 
   function test_Vault() public {

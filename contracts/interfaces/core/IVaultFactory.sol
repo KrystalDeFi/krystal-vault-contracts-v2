@@ -10,8 +10,6 @@ interface IVaultFactory is ICommon {
 
   event VaultImplementationSet(address vaultImplementation);
 
-  event VaultAutomatorSet(address vaultAutomator);
-
   event PlatformFeeRecipientSet(address platformFeeRecipient);
 
   event PlatformFeeBasisPointSet(uint16 platformFeeBasisPoint);
@@ -24,8 +22,6 @@ interface IVaultFactory is ICommon {
   function setConfigManager(address _configManager) external;
 
   function setVaultImplementation(address _vaultImplementation) external;
-
-  function setVaultAutomator(address _vaultAutomator) external;
 
   function setPlatformFeeRecipient(address _platformFeeRecipient) external;
 

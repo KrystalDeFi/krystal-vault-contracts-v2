@@ -19,7 +19,6 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   address public WETH;
   address public configManager;
   address public vaultImplementation;
-  address public vaultAutomator;
   address public platformFeeRecipient;
   uint16 public platformFeeBasisPoint;
 
@@ -31,20 +30,17 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     address _weth,
     address _configManager,
     address _vaultImplementation,
-    address _vaultAutomator,
     address _platformFeeRecipient,
     uint16 _platformFeeBasisPoint
   ) Ownable(_msgSender()) {
     require(_weth != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(_vaultImplementation != address(0), ZeroAddress());
-    require(_vaultAutomator != address(0), ZeroAddress());
     require(_platformFeeRecipient != address(0), ZeroAddress());
 
     WETH = _weth;
     configManager = _configManager;
     vaultImplementation = _vaultImplementation;
-    vaultAutomator = _vaultAutomator;
     platformFeeRecipient = _platformFeeRecipient;
     platformFeeBasisPoint = _platformFeeBasisPoint;
   }
@@ -66,7 +62,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       IERC20(params.config.principalToken).safeTransferFrom(_msgSender(), vault, params.principalTokenAmount);
     }
 
-    IVault(vault).initialize(params, _msgSender(), configManager, vaultAutomator);
+    IVault(vault).initialize(params, _msgSender(), configManager);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);
@@ -98,14 +94,6 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     require(_vaultImplementation != address(0), ZeroAddress());
     vaultImplementation = _vaultImplementation;
     emit VaultImplementationSet(_vaultImplementation);
-  }
-
-  /// @notice Set the VaultAutomator address
-  /// @param _vaultAutomator Address of the new VaultAutomator
-  function setVaultAutomator(address _vaultAutomator) public onlyOwner {
-    require(_vaultAutomator != address(0), ZeroAddress());
-    vaultAutomator = _vaultAutomator;
-    emit VaultAutomatorSet(_vaultAutomator);
   }
 
   /// @notice Set the default platform fee recipient

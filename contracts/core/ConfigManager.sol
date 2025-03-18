@@ -9,14 +9,23 @@ import "../interfaces/core/IConfigManager.sol";
 contract ConfigManager is Ownable, IConfigManager {
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
+  mapping(address => bool) public whitelistAutomators;
   // strategy address -> principal token address -> type -> config
   mapping(address => mapping(address => mapping(uint8 => bytes))) public strategyConfigs;
 
   address[] public stableTokens;
   uint8 public override maxPositions = 10;
 
-  constructor(address[] memory _stableTokens) Ownable(_msgSender()) {
+  constructor(address[] memory _stableTokens, address[] memory _whitelistAutomator) Ownable(_msgSender()) {
     stableTokens = _stableTokens;
+
+    for (uint256 i = 0; i < _whitelistAutomator.length;) {
+      whitelistAutomators[_whitelistAutomator[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @notice Whitelist strategy
@@ -57,6 +66,26 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @return _isWhitelisted Boolean value if swap router is whitelisted
   function isWhitelistedSwapRouter(address _swapRouter) external view override returns (bool _isWhitelisted) {
     return whitelistSwapRouters[_swapRouter];
+  }
+
+  /// @notice Whitelist automator
+  /// @param _automators Array of automator addresses
+  /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
+  function whitelistAutomator(address[] memory _automators, bool _isWhitelisted) external override onlyOwner {
+    for (uint256 i = 0; i < _automators.length;) {
+      whitelistAutomators[_automators[i]] = _isWhitelisted;
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Check if automator is whitelisted
+  /// @param _automator Automator address
+  /// @return _isWhitelisted Boolean value if automator is whitelisted
+  function isWhitelistedAutomator(address _automator) external view override returns (bool _isWhitelisted) {
+    return whitelistAutomators[_automator];
   }
 
   /// @notice Set stable tokens

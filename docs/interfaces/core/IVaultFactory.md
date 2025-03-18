@@ -20,12 +20,6 @@ event ConfigManagerSet(address configManager)
 event VaultImplementationSet(address vaultImplementation)
 ```
 
-### VaultAutomatorSet
-
-```solidity
-event VaultAutomatorSet(address vaultAutomator)
-```
-
 ### PlatformFeeRecipientSet
 
 ```solidity
@@ -66,12 +60,6 @@ function setConfigManager(address _configManager) external
 
 ```solidity
 function setVaultImplementation(address _vaultImplementation) external
-```
-
-### setVaultAutomator
-
-```solidity
-function setVaultAutomator(address _vaultAutomator) external
 ```
 
 ### setPlatformFeeRecipient

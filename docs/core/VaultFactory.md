@@ -20,12 +20,6 @@ address configManager
 address vaultImplementation
 ```
 
-### vaultAutomator
-
-```solidity
-address vaultAutomator
-```
-
 ### platformFeeRecipient
 
 ```solidity
@@ -53,7 +47,7 @@ address[] allVaults
 ### constructor
 
 ```solidity
-constructor(address _weth, address _configManager, address _vaultImplementation, address _vaultAutomator, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
+constructor(address _weth, address _configManager, address _vaultImplementation, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
 ```
 
 ### createVault
@@ -119,20 +113,6 @@ Set the Vault implementation
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _vaultImplementation | address | Address of the new vault implementation |
-
-### setVaultAutomator
-
-```solidity
-function setVaultAutomator(address _vaultAutomator) public
-```
-
-Set the VaultAutomator address
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _vaultAutomator | address | Address of the new VaultAutomator |
 
 ### setPlatformFeeRecipient
 

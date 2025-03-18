@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "../../contracts/core/VaultAutomator.sol";
+import "../../contracts/strategies/lpUniV3/VaultAutomator.sol";
 
 contract VaultAutomatorLpStrategy is VaultAutomator {
   function hashTypedDataV4(bytes32 structHash) external view virtual returns (bytes32) {

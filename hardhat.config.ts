@@ -44,7 +44,7 @@ const config: HardhatUserConfig = {
     clear: true,
     path: "./abi",
     runOnCompile: true,
-    flat: true,
+    flat: false,
     spacing: 2,
     pretty: false,
   },

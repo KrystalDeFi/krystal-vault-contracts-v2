@@ -92,6 +92,12 @@ error MaxPositionsReached()
 error InvalidShares()
 ```
 
+### Unauthorized
+
+```solidity
+error Unauthorized()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -101,7 +107,7 @@ function vaultOwner() external view returns (address)
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _vaultAutomator) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager) external
 ```
 
 ### deposit
