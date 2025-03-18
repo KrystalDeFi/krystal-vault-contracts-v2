@@ -218,13 +218,13 @@ revoke admin role from the address
 | ---- | ---- | ----------- |
 | _address | address | The address from which the admin role is revoked |
 
-### setVaultConfig
+### allowDeposit
 
 ```solidity
-function setVaultConfig(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config) external
 ```
 
-Sets the vault config
+Turn on allow deposit
 
 #### Parameters
 

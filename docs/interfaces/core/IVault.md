@@ -170,10 +170,10 @@ function sweepToken(address[] tokens) external
 function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
 
-### setVaultConfig
+### allowDeposit
 
 ```solidity
-function setVaultConfig(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config) external
 ```
 
 ### getInventory
