@@ -166,6 +166,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InsufficientShares",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -275,11 +280,6 @@
   {
     "inputs": [],
     "name": "Unauthorized",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "VaultValueSlippage",
     "type": "error"
   },
   {
@@ -906,7 +906,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "maxVaultValue",
+        "name": "minShares",
         "type": "uint256"
       }
     ],
