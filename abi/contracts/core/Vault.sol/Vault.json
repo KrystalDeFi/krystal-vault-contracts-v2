@@ -279,6 +279,11 @@
   },
   {
     "inputs": [],
+    "name": "VaultValueSlippage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
   },
@@ -897,6 +902,11 @@
       {
         "internalType": "uint256",
         "name": "principalAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxVaultValue",
         "type": "uint256"
       }
     ],

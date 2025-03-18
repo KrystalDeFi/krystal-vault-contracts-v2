@@ -98,6 +98,12 @@ error InvalidShares()
 error Unauthorized()
 ```
 
+### VaultValueSlippage
+
+```solidity
+error VaultValueSlippage()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -113,7 +119,7 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 ### deposit
 
 ```solidity
-function deposit(uint256 shares) external returns (uint256 returnShares)
+function deposit(uint256 principalAmount, uint256 maxVaultValue) external returns (uint256 returnShares)
 ```
 
 ### withdraw

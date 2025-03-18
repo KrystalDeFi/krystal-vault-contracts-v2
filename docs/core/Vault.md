@@ -57,7 +57,7 @@ Initializes the vault
 ### deposit
 
 ```solidity
-function deposit(uint256 principalAmount) external returns (uint256 shares)
+function deposit(uint256 principalAmount, uint256 maxVaultValue) external returns (uint256 shares)
 ```
 
 Deposits the asset to the vault
@@ -67,6 +67,7 @@ Deposits the asset to the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | principalAmount | uint256 | Amount of in principalToken |
+| maxVaultValue | uint256 |  |
 
 #### Return Values
 
