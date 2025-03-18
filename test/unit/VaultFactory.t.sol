@@ -38,11 +38,11 @@ contract VaultFactoryTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
   }
 
   function test_createVault() public {

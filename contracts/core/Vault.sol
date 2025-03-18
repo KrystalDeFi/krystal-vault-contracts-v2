@@ -49,10 +49,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function initialize(VaultCreateParams memory params, address _owner, address _configManager) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
-    require(
-      !vaultConfig.allowDeposit || vaultConfig.supportedAddresses.length > 0,
-      InvalidVaultConfig()
-    );
+    require(!vaultConfig.allowDeposit || vaultConfig.supportedAddresses.length > 0, InvalidVaultConfig());
 
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
@@ -344,7 +341,11 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Sets the vault config
   /// @param _config New vault config
   function setVaultConfig(VaultConfig memory _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(!_config.allowDeposit || _config.supportedAddresses.length > 0, InvalidVaultConfig());
+    require(
+      vaultConfig.allowDeposit != _config.allowDeposit
+        && (!_config.allowDeposit || _config.supportedAddresses.length > 0),
+      InvalidVaultConfig()
+    );
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
     vaultConfig = _config;

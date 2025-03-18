@@ -3,7 +3,7 @@ import { NetworkConfig } from "../configs/networkConfig";
 import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
-import { last } from "lodash";
+import { isArray, last } from "lodash";
 import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typechain-types/contracts/core";
 import { LpStrategy, VaultAutomator as LpUniV3VaultAutomator } from "../typechain-types/contracts/strategies/lpUniV3";
 
@@ -20,7 +20,7 @@ export interface Contracts {
   vaultAutomator?: any[];
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
-  lpStrategy?: Record<string, LpStrategy>;
+  lpStrategy?: LpStrategy;
   vaultFactory?: VaultFactory;
 }
 
@@ -147,9 +147,10 @@ export const deployConfigManagerContract = async (
       existingContract?.["configManager"],
       "contracts/core/ConfigManager.sol:ConfigManager",
       undefined,
-      ["address[]", "address[]"],
+      ["address", "address[]", "address[]"],
       [
-        config.lpStrategyPrincipalTokens?.slice(1),
+        deployer,
+        config.stableTokens,
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.map((c) => c?.target),
       ],
     )) as ConfigManager;
@@ -192,26 +193,21 @@ export const deployLpStrategyContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let lpStrategy: Record<string, LpStrategy> = {};
+  let lpStrategy;
   if (config.lpStrategy?.enabled) {
-    config.lpStrategyPrincipalTokens?.forEach(async (token: string) => {
-      const lpStrategy = (await deployContract(
-        `${step} >>`,
-        config.lpStrategy?.autoVerifyContract,
-        "LpStrategy",
-        existingContract?.["lpStrategy"]?.[token],
-        "contracts/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
-        `${SALT}_${token}`,
-        ["address", "address", "address"],
-        [
-          token,
-          existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
-          existingContract?.["configManager"] || contracts?.configManager?.target,
-        ],
-      )) as LpStrategy;
-
-      Object.assign(lpStrategy, { token });
-    });
+    lpStrategy = (await deployContract(
+      `${step} >>`,
+      config.lpStrategy?.autoVerifyContract,
+      "LpStrategy",
+      existingContract?.["lpStrategy"],
+      "contracts/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
+      undefined,
+      ["address", "address"],
+      [
+        existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+      ],
+    )) as LpStrategy;
   }
   return {
     lpStrategy,
@@ -236,9 +232,10 @@ export const deployVaultFactoryContract = async (
       existingContract?.["vaultFactory"],
       "contracts/core/VaultFactory.sol:VaultFactory",
       undefined,
-      ["address", "address", "address", "address", "uint16"],
+      ["address", "address", "address", "address", "address", "uint16"],
       [
-        config.lpStrategyPrincipalTokens?.[0],
+        deployer,
+        config.wrapToken,
         existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
         config.platformFeeRecipient,
@@ -277,9 +274,14 @@ async function deployContract(
     if (!!argsTypes?.length && !!args?.length && argsTypes.length === args.length) {
       bytecode = solidityPacked(["bytes", "bytes"], [bytecode, encoder.encode(argsTypes || [], args)]);
     }
-    const salt = encodeBytes32String((customSalt ?? SALT) || "");
-    const deployTx = await factory["deployCreate2(bytes32,bytes)"](salt, bytecode);
-    const txHash = deployTx.hash;
+    const salt = encodeBytes32String((customSalt ? customSalt : SALT) || "");
+    let deployTx;
+    try {
+      deployTx = await factory["deployCreate2(bytes32,bytes)"](salt, bytecode);
+    } catch (e: any) {
+      log(2, "failed to deploy contract", e);
+    }
+    const txHash = deployTx?.hash || "";
     const txReceipt = await ethers.provider.getTransactionReceipt(txHash);
     const contractAddress = "0x" + last(txReceipt?.logs)?.topics?.[1]?.slice(26);
     contract = await ethers.getContractAt(contractName, contractAddress);
@@ -331,7 +333,7 @@ export function convertToAddressObject(obj: Record<string, any> | Array<any> | B
   if (obj === undefined) return obj;
   if (obj instanceof BaseContract) {
     return obj.target;
-  } else if (Array.isArray(obj)) {
+  } else if (isArray(obj)) {
     return obj.map((k) => convertToAddressObject(obj[k]));
   } else if (typeof obj == "string") {
     return obj;

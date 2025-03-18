@@ -51,7 +51,7 @@ contract VaultAutomatorTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = address(vaultAutomatorLpStrategy);
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
 
@@ -61,7 +61,7 @@ contract VaultAutomatorTest is TestCommon {
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
   }
 
   function test_executeAllocateLpStrategy() public {
@@ -126,7 +126,7 @@ contract VaultAutomatorTest is TestCommon {
 
     // assertEq(IERC20(vaultAddress).balanceOf(vaultOwner), 1 ether * vault.SHARES_PRECISION());
 
-    AssetLib.Asset[] memory vaultAssets = IVault(vaultAddress).getInventory();
+    // AssetLib.Asset[] memory vaultAssets = IVault(vaultAddress).getInventory();
 
     // assertEq(vaultAssets.length, 3);
     // assertEq(vaultAssets[2].strategy, address(lpStrategy));

@@ -41,7 +41,7 @@ uint8 maxPositions
 ### constructor
 
 ```solidity
-constructor(address[] _stableTokens, address[] _whitelistAutomator) public
+constructor(address _owner, address[] _stableTokens, address[] _whitelistAutomator) public
 ```
 
 ### whitelistStrategy

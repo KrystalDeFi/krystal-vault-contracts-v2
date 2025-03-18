@@ -16,7 +16,7 @@ contract ConfigManager is Ownable, IConfigManager {
   address[] public stableTokens;
   uint8 public override maxPositions = 10;
 
-  constructor(address[] memory _stableTokens, address[] memory _whitelistAutomator) Ownable(_msgSender()) {
+  constructor(address _owner, address[] memory _stableTokens, address[] memory _whitelistAutomator) Ownable(_owner) {
     stableTokens = _stableTokens;
 
     for (uint256 i = 0; i < _whitelistAutomator.length;) {

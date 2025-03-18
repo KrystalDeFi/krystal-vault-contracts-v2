@@ -9,10 +9,6 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  vaultZapper: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
   vaultFactory: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -29,8 +25,8 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  // wrap token of chain must be the first token
-  lpStrategyPrincipalTokens?: string[];
+  wrapToken?: string;
+  stableTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;

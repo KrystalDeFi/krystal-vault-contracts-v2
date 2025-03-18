@@ -20,6 +20,7 @@ const config: HardhatUserConfig = {
       {
         version: "0.8.28",
         settings: {
+          viaIR: true,
           optimizer: {
             enabled: true,
             runs: 2000,
@@ -68,6 +69,7 @@ const config: HardhatUserConfig = {
       accounts: {
         count: 10,
       },
+      hardfork: "cancun",
     },
   },
   etherscan: {
@@ -104,6 +106,7 @@ if (PRIVATE_KEY) {
     chainId: 8453,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
+    hardfork: "cancun",
   };
 }
 

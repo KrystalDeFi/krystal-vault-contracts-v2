@@ -24,7 +24,7 @@ contract ConfigManagerTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
   }
 
   function test_WhitelistStrategy() public {

@@ -27,12 +27,14 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   address[] public allVaults;
 
   constructor(
+    address _owner,
     address _weth,
     address _configManager,
     address _vaultImplementation,
     address _platformFeeRecipient,
     uint16 _platformFeeBasisPoint
-  ) Ownable(_msgSender()) {
+  ) Ownable(_owner) {
+    require(_owner != address(0), ZeroAddress());
     require(_weth != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(_vaultImplementation != address(0), ZeroAddress());
@@ -58,7 +60,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       params.principalTokenAmount = msg.value;
       IWETH9(WETH).deposit{ value: msg.value }();
       IERC20(WETH).safeTransfer(vault, msg.value);
-    } else {
+    } else if (params.principalTokenAmount > 0) {
       IERC20(params.config.principalToken).safeTransferFrom(_msgSender(), vault, params.principalTokenAmount);
     }
 

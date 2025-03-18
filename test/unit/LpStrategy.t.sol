@@ -40,7 +40,7 @@ contract LpStrategyTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    ConfigManager configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     vaultConfig = ICommon.VaultConfig({

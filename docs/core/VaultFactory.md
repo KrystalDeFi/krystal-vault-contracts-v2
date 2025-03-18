@@ -47,7 +47,7 @@ address[] allVaults
 ### constructor
 
 ```solidity
-constructor(address _weth, address _configManager, address _vaultImplementation, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
+constructor(address _owner, address _weth, address _configManager, address _vaultImplementation, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
 ```
 
 ### createVault
