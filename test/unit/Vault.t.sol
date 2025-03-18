@@ -92,7 +92,7 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     IERC20(WETH).approve(address(vault), 100 ether);
-    vault.deposit(0.5 ether);
+    vault.deposit(0.5 ether, type(uint256).max);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
@@ -100,7 +100,7 @@ contract VaultTest is TestCommon {
     vault.allocate(assets, lpStrategy, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
-    vault.deposit(1 ether);
+    vault.deposit(1 ether, type(uint256).max);
     assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
 
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
