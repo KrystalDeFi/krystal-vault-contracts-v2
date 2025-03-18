@@ -47,13 +47,25 @@ function isWhitelistedAutomator(address _automator) external view returns (bool 
 ### setStableTokens
 
 ```solidity
-function setStableTokens(address[] _stableTokens) external
+function setStableTokens(address[] _stableTokens, bool _isStable) external
 ```
 
 ### isStableToken
 
 ```solidity
 function isStableToken(address _token) external view returns (bool _isStableToken)
+```
+
+### setPeggedTokens
+
+```solidity
+function setPeggedTokens(address[] _peggedTokens, bool _isPegged) external
+```
+
+### isPeggedToken
+
+```solidity
+function isPeggedToken(address _token) external view returns (bool _isPeggedToken)
 ```
 
 ### getStrategyConfig

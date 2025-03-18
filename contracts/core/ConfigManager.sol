@@ -13,11 +13,32 @@ contract ConfigManager is Ownable, IConfigManager {
   // strategy address -> principal token address -> type -> config
   mapping(address => mapping(address => mapping(uint8 => bytes))) public strategyConfigs;
 
-  address[] public stableTokens;
+  mapping(address => bool) public stableTokens;
+  mapping(address => bool) public peggedTokens;
+
   uint8 public override maxPositions = 10;
 
-  constructor(address _owner, address[] memory _stableTokens, address[] memory _whitelistAutomator) Ownable(_owner) {
-    stableTokens = _stableTokens;
+  constructor(
+    address _owner,
+    address[] memory _stableTokens,
+    address[] memory _peggedTokens,
+    address[] memory _whitelistAutomator
+  ) Ownable(_owner) {
+    for (uint256 i = 0; i < _stableTokens.length;) {
+      stableTokens[_stableTokens[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    for (uint256 i = 0; i < _peggedTokens.length;) {
+      peggedTokens[_peggedTokens[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
 
     for (uint256 i = 0; i < _whitelistAutomator.length;) {
       whitelistAutomators[_whitelistAutomator[i]] = true;
@@ -90,23 +111,42 @@ contract ConfigManager is Ownable, IConfigManager {
 
   /// @notice Set stable tokens
   /// @param _stableTokens Array of stable token addresses
-  function setStableTokens(address[] memory _stableTokens) external onlyOwner {
-    stableTokens = _stableTokens;
+  /// @param _isStable Boolean value to set stable or unstable
+  function setStableTokens(address[] memory _stableTokens, bool _isStable) external onlyOwner {
+    for (uint256 i = 0; i < _stableTokens.length;) {
+      stableTokens[_stableTokens[i]] = _isStable;
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @notice Check if token is stable
   /// @param _token Token address
   /// @return _isStable Boolean value if token is stable
   function isStableToken(address _token) external view returns (bool _isStable) {
-    for (uint256 i = 0; i < stableTokens.length;) {
-      if (stableTokens[i] == _token) return true;
+    return stableTokens[_token];
+  }
+
+  /// @notice Set pegged tokens
+  /// @param _peggedTokens Array of pegged token addresses
+  /// @param _isPegged Boolean value to set pegged or unpegged
+  function setPeggedTokens(address[] memory _peggedTokens, bool _isPegged) external onlyOwner {
+    for (uint256 i = 0; i < _peggedTokens.length;) {
+      peggedTokens[_peggedTokens[i]] = _isPegged;
 
       unchecked {
         i++;
       }
     }
+  }
 
-    return false;
+  /// @notice Check if token is pegged
+  /// @param _token Token address
+  /// @return _isPegged Boolean value if token is pegged
+  function isPeggedToken(address _token) external view returns (bool _isPegged) {
+    return peggedTokens[_token];
   }
 
   /// @notice Get strategy config

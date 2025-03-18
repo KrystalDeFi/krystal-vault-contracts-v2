@@ -33,6 +33,7 @@ export const BaseConfig: Record<string, IConfig> = {
       "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2", // USDT
       "0x50c5725949a6f0c72e6c4a641f24049a917db0cb", // DAI
     ],
+    peggedTokens: [],
     automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeRecipient: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
     platformFeeBasisPoint: 50,

@@ -37,10 +37,12 @@ contract LpStrategyTest is TestCommon {
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
 
+    address[] memory peggedTokens = new address[](0);
+
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    ConfigManager configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
+    ConfigManager configManager = new ConfigManager(USER, stableTokens, peggedTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     vaultConfig = ICommon.VaultConfig({

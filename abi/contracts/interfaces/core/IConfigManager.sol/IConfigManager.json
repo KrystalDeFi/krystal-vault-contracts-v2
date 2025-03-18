@@ -66,6 +66,25 @@
         "type": "address"
       }
     ],
+    "name": "isPeggedToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isPeggedToken",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
     "name": "isStableToken",
     "outputs": [
       {
@@ -164,8 +183,31 @@
     "inputs": [
       {
         "internalType": "address[]",
+        "name": "_peggedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isPegged",
+        "type": "bool"
+      }
+    ],
+    "name": "setPeggedTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
         "name": "_stableTokens",
         "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isStable",
+        "type": "bool"
       }
     ],
     "name": "setStableTokens",

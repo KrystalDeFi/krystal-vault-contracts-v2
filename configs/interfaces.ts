@@ -27,6 +27,7 @@ export interface IConfig {
   };
   wrapToken?: string;
   stableTokens?: string[];
+  peggedTokens?: string[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;

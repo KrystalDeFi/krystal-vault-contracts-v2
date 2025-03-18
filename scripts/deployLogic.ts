@@ -147,10 +147,11 @@ export const deployConfigManagerContract = async (
       existingContract?.["configManager"],
       "contracts/core/ConfigManager.sol:ConfigManager",
       undefined,
-      ["address", "address[]", "address[]"],
+      ["address", "address[]", "address[]", "address[]"],
       [
         deployer,
         config.stableTokens,
+        config.peggedTokens,
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.map((c) => c?.target),
       ],
     )) as ConfigManager;

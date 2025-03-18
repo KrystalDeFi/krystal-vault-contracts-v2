@@ -21,10 +21,12 @@ contract ConfigManagerTest is TestCommon {
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
 
+    address[] memory peggedTokens = new address[](0);
+
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, stableTokens, peggedTokens, whitelistAutomator);
   }
 
   function test_WhitelistStrategy() public {
@@ -69,45 +71,55 @@ contract ConfigManagerTest is TestCommon {
   function test_StableTokens() public {
     console.log("==== test_StableTokens ====");
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = configManager.stableTokens(0);
-    stableTokens[1] = configManager.stableTokens(1);
-
-    assertEq(stableTokens[0], DAI);
-    assertEq(stableTokens[1], USDC);
+    assertTrue(configManager.isStableToken(DAI));
+    assertTrue(configManager.isStableToken(USDC));
 
     assertFalse(configManager.isStableToken(NULL_ADDRESS));
 
     address[] memory newStableTokens = new address[](1);
     newStableTokens[0] = DAI;
 
-    configManager.setStableTokens(newStableTokens);
+    configManager.setStableTokens(newStableTokens, true);
 
-    address[] memory stableTokens2 = new address[](1);
-    stableTokens2[0] = configManager.stableTokens(0);
-
-    assertEq(stableTokens2[0], DAI);
     assertTrue(configManager.isStableToken(DAI));
-    assertFalse(configManager.isStableToken(USDC));
 
     address[] memory newStableTokens2 = new address[](3);
     newStableTokens2[0] = DAI;
     newStableTokens2[1] = USDC;
     newStableTokens2[2] = NULL_ADDRESS;
 
-    configManager.setStableTokens(newStableTokens2);
+    configManager.setStableTokens(newStableTokens2, true);
 
-    address[] memory stableTokens3 = new address[](3);
-    stableTokens3[0] = configManager.stableTokens(0);
-    stableTokens3[1] = configManager.stableTokens(1);
-    stableTokens3[2] = configManager.stableTokens(2);
-
-    assertEq(stableTokens3[0], DAI);
-    assertEq(stableTokens3[1], USDC);
-    assertEq(stableTokens3[2], NULL_ADDRESS);
     assertTrue(configManager.isStableToken(DAI));
     assertTrue(configManager.isStableToken(USDC));
     assertTrue(configManager.isStableToken(NULL_ADDRESS));
+  }
+
+  function test_PeggedTokens() public {
+    console.log("==== test_PeggedTokens ====");
+
+    assertFalse(configManager.isPeggedToken(DAI));
+    assertFalse(configManager.isPeggedToken(USDC));
+    assertFalse(configManager.isPeggedToken(NULL_ADDRESS));
+
+    address[] memory newPeggedTokens = new address[](1);
+    newPeggedTokens[0] = DAI;
+
+    configManager.setPeggedTokens(newPeggedTokens, true);
+
+    assertTrue(configManager.isPeggedToken(DAI));
+    assertFalse(configManager.isPeggedToken(USDC));
+
+    address[] memory newPeggedTokens2 = new address[](3);
+    newPeggedTokens2[0] = DAI;
+    newPeggedTokens2[1] = USDC;
+    newPeggedTokens2[2] = NULL_ADDRESS;
+
+    configManager.setPeggedTokens(newPeggedTokens2, true);
+
+    assertTrue(configManager.isPeggedToken(DAI));
+    assertTrue(configManager.isPeggedToken(USDC));
+    assertTrue(configManager.isPeggedToken(NULL_ADDRESS));
   }
 
   function test_StrategyConfigs() public {
