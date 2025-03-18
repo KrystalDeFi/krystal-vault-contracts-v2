@@ -18,11 +18,6 @@
       },
       {
         "internalType": "address",
-        "name": "_vaultAutomator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_platformFeeRecipient",
         "type": "address"
       },
@@ -216,19 +211,6 @@
       }
     ],
     "name": "Unpaused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "vaultAutomator",
-        "type": "address"
-      }
-    ],
-    "name": "VaultAutomatorSet",
     "type": "event"
   },
   {
@@ -550,19 +532,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_vaultAutomator",
-        "type": "address"
-      }
-    ],
-    "name": "setVaultAutomator",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "_vaultImplementation",
         "type": "address"
       }
@@ -590,19 +559,6 @@
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "vaultAutomator",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

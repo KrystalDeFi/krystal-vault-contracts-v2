@@ -32,10 +32,16 @@ address vaultOwner
 struct ICommon.VaultConfig vaultConfig
 ```
 
+### onlyAdminOrAutomator
+
+```solidity
+modifier onlyAdminOrAutomator()
+```
+
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _vaultAutomator) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager) public
 ```
 
 Initializes the vault
@@ -47,7 +53,6 @@ Initializes the vault
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
 | _configManager | address | Address of the whitelist manager |
-| _vaultAutomator | address | Address of the vault automator |
 
 ### deposit
 

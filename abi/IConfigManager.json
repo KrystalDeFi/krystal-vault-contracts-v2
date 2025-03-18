@@ -76,6 +76,25 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_automator",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistedAutomator",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_strategy",
         "type": "address"
       }
@@ -173,6 +192,24 @@
       }
     ],
     "name": "setStrategyConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_automators",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "whitelistAutomator",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

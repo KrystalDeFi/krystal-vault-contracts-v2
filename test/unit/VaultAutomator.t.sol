@@ -42,11 +42,16 @@ contract VaultAutomatorTest is TestCommon {
     vm.deal(USER, 100 ether);
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy();
 
     address[] memory stableTokens = new address[](2);
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
-    configManager = new ConfigManager(stableTokens);
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = address(vaultAutomatorLpStrategy);
+
+    configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
 
@@ -56,10 +61,7 @@ contract VaultAutomatorTest is TestCommon {
 
     vault = new Vault();
 
-    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy();
-
-    vaultFactory =
-      new VaultFactory(WETH, address(configManager), address(vault), address(vaultAutomatorLpStrategy), USER, 1000);
+    vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
   }
 
   function test_executeAllocateLpStrategy() public {

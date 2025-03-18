@@ -269,6 +269,11 @@
   },
   {
     "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
   },
@@ -1220,11 +1225,6 @@
       {
         "internalType": "address",
         "name": "_configManager",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_vaultAutomator",
         "type": "address"
       }
     ],

@@ -32,6 +32,18 @@ function whitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted) extern
 function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool _isWhitelisted)
 ```
 
+### whitelistAutomator
+
+```solidity
+function whitelistAutomator(address[] _automators, bool _isWhitelisted) external
+```
+
+### isWhitelistedAutomator
+
+```solidity
+function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
+```
+
 ### setStableTokens
 
 ```solidity

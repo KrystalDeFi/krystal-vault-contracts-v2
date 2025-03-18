@@ -5,6 +5,11 @@
         "internalType": "address[]",
         "name": "_stableTokens",
         "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistAutomator",
+        "type": "address[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -118,6 +123,25 @@
       {
         "internalType": "bool",
         "name": "_isStable",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_automator",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistedAutomator",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
         "type": "bool"
       }
     ],
@@ -308,6 +332,43 @@
     "name": "transferOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_automators",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "whitelistAutomator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "whitelistAutomators",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

@@ -14,6 +14,10 @@ interface IConfigManager is ICommon {
 
   function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool _isWhitelisted);
 
+  function whitelistAutomator(address[] memory _automators, bool _isWhitelisted) external;
+
+  function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted);
+
   function setStableTokens(address[] memory _stableTokens) external;
 
   function isStableToken(address _token) external view returns (bool _isStableToken);

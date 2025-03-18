@@ -20,7 +20,11 @@ contract ConfigManagerTest is TestCommon {
     address[] memory stableTokens = new address[](2);
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
-    configManager = new ConfigManager(stableTokens);
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = USER;
+
+    configManager = new ConfigManager(stableTokens, whitelistAutomator);
   }
 
   function test_WhitelistStrategy() public {
@@ -45,6 +49,21 @@ contract ConfigManagerTest is TestCommon {
 
     assertTrue(configManager.isWhitelistedSwapRouter(NULL_ADDRESS));
     assertFalse(configManager.isWhitelistedSwapRouter(DAI));
+  }
+
+  function test_WhitelistAutomator() public {
+    console.log("==== test_WhitelistAutomator ====");
+
+    assertTrue(configManager.isWhitelistedAutomator(USER));
+    assertFalse(configManager.isWhitelistedAutomator(DAI));
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = DAI;
+
+    configManager.whitelistAutomator(whitelistAutomator, true);
+
+    assertTrue(configManager.isWhitelistedAutomator(DAI));
+    assertFalse(configManager.isWhitelistedAutomator(USDC));
   }
 
   function test_StableTokens() public {

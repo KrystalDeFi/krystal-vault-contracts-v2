@@ -39,7 +39,11 @@ contract VaultTest is TestCommon {
     address[] memory stableTokens = new address[](2);
     stableTokens[0] = DAI;
     stableTokens[1] = USDC;
-    ConfigManager configManager = new ConfigManager(stableTokens);
+
+    address[] memory whitelistAutomator = new address[](1);
+    whitelistAutomator[0] = USER;
+
+    ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     address[] memory strategies = new address[](1);
@@ -62,7 +66,7 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0.5 ether,
       config: vaultConfig
     });
-    vault.initialize(params, USER, address(configManager), address(0));
+    vault.initialize(params, USER, address(configManager));
   }
 
   function test_Vault() public {

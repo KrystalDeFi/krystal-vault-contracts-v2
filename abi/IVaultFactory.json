@@ -79,19 +79,6 @@
       {
         "indexed": false,
         "internalType": "address",
-        "name": "vaultAutomator",
-        "type": "address"
-      }
-    ],
-    "name": "VaultAutomatorSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
         "name": "owner",
         "type": "address"
       },
@@ -286,19 +273,6 @@
       }
     ],
     "name": "setPlatformFeeRecipient",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_vaultAutomator",
-        "type": "address"
-      }
-    ],
-    "name": "setVaultAutomator",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

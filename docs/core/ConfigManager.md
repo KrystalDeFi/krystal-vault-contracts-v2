@@ -14,6 +14,12 @@ mapping(address => bool) whitelistStrategies
 mapping(address => bool) whitelistSwapRouters
 ```
 
+### whitelistAutomators
+
+```solidity
+mapping(address => bool) whitelistAutomators
+```
+
 ### strategyConfigs
 
 ```solidity
@@ -35,7 +41,7 @@ uint8 maxPositions
 ### constructor
 
 ```solidity
-constructor(address[] _stableTokens) public
+constructor(address[] _stableTokens, address[] _whitelistAutomator) public
 ```
 
 ### whitelistStrategy
@@ -107,6 +113,41 @@ Check if swap router is whitelisted
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _isWhitelisted | bool | Boolean value if swap router is whitelisted |
+
+### whitelistAutomator
+
+```solidity
+function whitelistAutomator(address[] _automators, bool _isWhitelisted) external
+```
+
+Whitelist automator
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _automators | address[] | Array of automator addresses |
+| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+
+### isWhitelistedAutomator
+
+```solidity
+function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
+```
+
+Check if automator is whitelisted
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _automator | address | Automator address |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _isWhitelisted | bool | Boolean value if automator is whitelisted |
 
 ### setStableTokens
 

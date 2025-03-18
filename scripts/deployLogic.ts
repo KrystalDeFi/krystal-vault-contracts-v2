@@ -4,15 +4,7 @@ import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
 import { last } from "lodash";
-import {
-  LpStrategy,
-  PoolOptimalSwapper,
-  Vault,
-  VaultAutomator,
-  VaultFactory,
-  VaultZapper,
-  ConfigManager,
-} from "../typechain-types";
+import { LpStrategy, PoolOptimalSwapper, Vault, VaultAutomator, VaultFactory, ConfigManager } from "../typechain-types";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -24,8 +16,7 @@ if (!networkConfig) {
 
 export interface Contracts {
   vault?: Vault;
-  vaultAutomator?: VaultAutomator;
-  vaultZapper?: VaultZapper;
+  vaultAutomator?: VaultAutomator[];
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
   lpStrategy?: Record<string, LpStrategy>;
@@ -60,17 +51,19 @@ async function deployContracts(
 
   const vault = await deployVaultContract(++step, existingContract, deployer);
   const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract, deployer);
-  const vaultZapper = await deployVaultZapperContract(++step, existingContract, deployer);
-  const configManager = await deployConfigManagerContract(++step, existingContract, deployer);
   const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract, deployer);
 
   const contracts: Contracts = {
     vault: vault.vault,
     vaultAutomator: vaultAutomator.vaultAutomator,
-    vaultZapper: vaultZapper.vaultZapper,
-    configManager: configManager.configManager,
     poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
   };
+
+  const configManager = await deployConfigManagerContract(++step, existingContract, deployer, undefined, contracts);
+
+  Object.assign(contracts, {
+    configManager: configManager.configManager,
+  });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
   const vaultFactory = await deployVaultFactoryContract(++step, existingContract, deployer, undefined, contracts);
@@ -116,45 +109,22 @@ export const deployVaultAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let vaultAutomator;
+  let vaultAutomators: VaultAutomator[] = [];
 
   if (config.vaultAutomator?.enabled) {
-    vaultAutomator = (await deployContract(
-      `${step} >>`,
-      config.vaultAutomator?.autoVerifyContract,
-      "VaultAutomator",
-      existingContract?.["vaultAutomator"],
-      "contracts/core/VaultAutomator.sol:VaultAutomator",
-    )) as VaultAutomator;
+    vaultAutomators.push(
+      (await deployContract(
+        `${step} >>`,
+        config.vaultAutomator?.autoVerifyContract,
+        "VaultAutomator",
+        existingContract?.["vaultAutomator"],
+        "contracts/core/VaultAutomator.sol:VaultAutomator",
+      )) as VaultAutomator,
+    );
   }
 
   return {
-    vaultAutomator,
-  };
-};
-
-export const deployVaultZapperContract = async (
-  step: number,
-  existingContract: Record<string, any> | undefined,
-  deployer: string,
-  customNetworkConfig?: IConfig,
-): Promise<Contracts> => {
-  const config = { ...networkConfig, ...customNetworkConfig };
-
-  let vaultZapper;
-
-  if (config.vaultZapper?.enabled) {
-    vaultZapper = (await deployContract(
-      `${step} >>`,
-      config.vaultZapper?.autoVerifyContract,
-      "VaultZapper",
-      existingContract?.["vaultZapper"],
-      "contracts/core/VaultZapper.sol:VaultZapper",
-    )) as VaultZapper;
-  }
-
-  return {
-    vaultZapper,
+    vaultAutomator: vaultAutomators,
   };
 };
 
@@ -176,8 +146,11 @@ export const deployConfigManagerContract = async (
       existingContract?.["configManager"],
       "contracts/core/ConfigManager.sol:ConfigManager",
       undefined,
-      ["address[]"],
-      [config.lpStrategyPrincipalTokens?.slice(1)],
+      ["address[]", "address[]"],
+      [
+        config.lpStrategyPrincipalTokens?.slice(1),
+        existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.map((c) => c?.target),
+      ],
     )) as ConfigManager;
   }
   return {
@@ -262,12 +235,11 @@ export const deployVaultFactoryContract = async (
       existingContract?.["vaultFactory"],
       "contracts/core/VaultFactory.sol:VaultFactory",
       undefined,
-      ["address", "address", "address", "address", "address", "uint16"],
+      ["address", "address", "address", "address", "uint16"],
       [
         config.lpStrategyPrincipalTokens?.[0],
         existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
-        existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
         config.platformFeeRecipient,
         config.platformFeeBasisPoint,
       ],

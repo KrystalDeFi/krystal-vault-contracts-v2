@@ -35,15 +35,18 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   InventoryLib.Inventory private inventory;
 
+  modifier onlyAdminOrAutomator() {
+    require(
+      hasRole(ADMIN_ROLE_HASH, _msgSender()) || configManager.isWhitelistedAutomator(_msgSender()), Unauthorized()
+    );
+    _;
+  }
+
   /// @notice Initializes the vault
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
   /// @param _configManager Address of the whitelist manager
-  /// @param _vaultAutomator Address of the vault automator
-  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _vaultAutomator)
-    public
-    initializer
-  {
+  function initialize(VaultCreateParams memory params, address _owner, address _configManager) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(
@@ -57,7 +60,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     _grantRole(ADMIN_ROLE_HASH, _owner);
-    _grantRole(ADMIN_ROLE_HASH, _vaultAutomator);
 
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
@@ -150,7 +152,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param data Data for the strategy
   function allocate(AssetLib.Asset[] memory inputAssets, IStrategy strategy, bytes calldata data)
     external
-    onlyRole(ADMIN_ROLE_HASH)
+    onlyAdminOrAutomator
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
@@ -195,7 +197,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param data Data for strategy execution
   function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data)
     external
-    onlyRole(ADMIN_ROLE_HASH)
+    onlyAdminOrAutomator
   {
     AssetLib.Asset memory currentAsset = inventory.getAsset(token, tokenId);
 
@@ -213,7 +215,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     emit Deallocate(inputAssets, returnAssets);
   }
 
-  function harvest(AssetLib.Asset memory asset) external onlyRole(ADMIN_ROLE_HASH) {
+  function harvest(AssetLib.Asset memory asset) external onlyAdminOrAutomator {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     _harvest(asset);
@@ -292,7 +294,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
-  function sweepToken(address[] memory tokens) external nonReentrant onlyRole(ADMIN_ROLE_HASH) {
+  function sweepToken(address[] memory tokens) external nonReentrant onlyAdminOrAutomator {
     for (uint256 i = 0; i < tokens.length;) {
       IERC20 token = IERC20(tokens[i]);
       require(!inventory.contains(tokens[i], 0), InvalidSweepAsset());
@@ -312,7 +314,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds)
     external
     nonReentrant
-    onlyRole(ADMIN_ROLE_HASH)
+    onlyAdminOrAutomator
   {
     for (uint256 i = 0; i < _tokens.length;) {
       IERC721 token = IERC721(_tokens[i]);
@@ -341,7 +343,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Sets the vault config
   /// @param _config New vault config
-  function setVaultConfig(VaultConfig memory _config) external override onlyRole(ADMIN_ROLE_HASH) {
+  function setVaultConfig(VaultConfig memory _config) external override onlyAdminOrAutomator {
     require(
       !_config.allowDeposit || (_config.allowDeposit && _config.supportedAddresses.length > 0), InvalidVaultConfig()
     );
