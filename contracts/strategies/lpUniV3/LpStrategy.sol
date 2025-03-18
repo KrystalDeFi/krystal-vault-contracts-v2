@@ -786,10 +786,11 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     int24 tickUpper,
     VaultConfig memory config
   ) internal view {
-    LpStrategyConfig memory lpConfig = abi.decode(
-      configManager.getStrategyConfig(address(this), config.principalToken, config.rangeStrategyType),
-      (LpStrategyConfig)
-    );
+    LpStrategyConfig memory lpConfig =
+      abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
+
+    LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
+    LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
 
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
@@ -800,16 +801,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     // Check if the pool amount is greater than the minimum amount principal token
     if (config.principalToken == token0) {
-      require(poolAmount0 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
+      require(poolAmount0 >= tvlConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
     } else {
-      require(poolAmount1 >= lpConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
+      require(poolAmount1 >= tvlConfig.principalTokenAmountMin, InvalidPoolAmountAmountMin());
     }
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
-      require(tickUpper - tickLower >= int24(lpConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth());
+      require(
+        tickUpper - tickLower >= int24(rangeConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth()
+      );
     } else {
-      require(tickUpper - tickLower >= int24(lpConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
+      require(tickUpper - tickLower >= int24(rangeConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
     }
   }
 
@@ -830,19 +833,21 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     int24 tickUpper,
     VaultConfig memory config
   ) internal view {
-    LpStrategyConfig memory lpConfig = abi.decode(
-      configManager.getStrategyConfig(address(this), config.principalToken, config.rangeStrategyType),
-      (LpStrategyConfig)
-    );
+    LpStrategyConfig memory lpConfig =
+      abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
+
+    LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
 
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
-      require(tickUpper - tickLower >= int24(lpConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth());
+      require(
+        tickUpper - tickLower >= int24(rangeConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth()
+      );
     } else {
-      require(tickUpper - tickLower >= int24(lpConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
+      require(tickUpper - tickLower >= int24(rangeConfig.tickWidthMultiplierMin) * tickSpacing, InvalidTickWidth());
     }
   }
 

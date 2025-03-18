@@ -10,8 +10,40 @@ contract ConfigManager is Ownable, IConfigManager {
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
   mapping(address => bool) public whitelistAutomators;
-  // strategy address -> principal token address -> type -> config
-  mapping(address => mapping(address => mapping(uint8 => bytes))) public strategyConfigs;
+
+  // strategy address -> principal token address -> encoded config
+  /* 
+    E.g.: LpStrategy -> WETH -> encoded config
+    address(LpStrategy): {
+      address(WETH): abi.encode({
+        // Multiple by tick spacing
+        rangeConfigs: [
+          // Narrow
+          {
+            tickWidthMultiplierMin: 20,
+            tickWidthStableMultiplierMin: 10
+          },
+          // Wide
+          {
+            tickWidthMultiplierMin: 10,
+            tickWidthStableMultiplierMin: 5
+          }
+        ],
+        // Min by token amount
+        tvlConfigs: [
+          // Low
+          {
+            principalTokenAmountMin: 100,
+          },
+          // High
+          {
+            principalTokenAmountMin: 1000000,
+          }
+        ],
+      });
+    }
+  */
+  mapping(address => mapping(address => bytes)) public strategyConfigs;
 
   mapping(address => bool) public stableTokens;
   mapping(address => bool) public peggedTokens;
@@ -151,25 +183,16 @@ contract ConfigManager is Ownable, IConfigManager {
 
   /// @notice Get strategy config
   /// @param _strategy Strategy address
-  /// @param _type Strategy type
   /// @return _config Strategy config
-  function getStrategyConfig(address _strategy, address _principalToken, uint8 _type)
-    external
-    view
-    returns (bytes memory)
-  {
-    return strategyConfigs[_strategy][_principalToken][_type];
+  function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes memory) {
+    return strategyConfigs[_strategy][_principalToken];
   }
 
   /// @notice Set strategy config
   /// @param _strategy Strategy address
-  /// @param _type Strategy type
   /// @param _config Strategy config
-  function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes memory _config)
-    external
-    onlyOwner
-  {
-    strategyConfigs[_strategy][_principalToken][_type] = _config;
+  function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external onlyOwner {
+    strategyConfigs[_strategy][_principalToken] = _config;
   }
 
   /// @notice Set max positions

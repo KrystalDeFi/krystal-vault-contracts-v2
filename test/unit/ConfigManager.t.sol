@@ -126,22 +126,28 @@ contract ConfigManagerTest is TestCommon {
     console.log("==== test_StrategyConfigs ====");
 
     ILpStrategy.LpStrategyConfig memory lpStrategyConfig = ILpStrategy.LpStrategyConfig({
-      principalTokenAmountMin: 100,
-      tickWidthMultiplierMin: 200,
-      tickWidthStableMultiplierMin: 300
+      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
     });
+
+    lpStrategyConfig.rangeConfigs[0] =
+      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 200, tickWidthStableMultiplierMin: 300 });
+
+    lpStrategyConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 100 });
 
     bytes memory config = abi.encode(lpStrategyConfig);
 
-    configManager.setStrategyConfig(NULL_ADDRESS, DAI, 1, config);
+    configManager.setStrategyConfig(NULL_ADDRESS, DAI, config);
 
-    bytes memory strategyConfig = configManager.getStrategyConfig(NULL_ADDRESS, DAI, 1);
+    bytes memory strategyConfig = configManager.getStrategyConfig(NULL_ADDRESS, DAI);
 
     ILpStrategy.LpStrategyConfig memory lpStrategyConfig2 = abi.decode(strategyConfig, (ILpStrategy.LpStrategyConfig));
+    ILpStrategy.LpStrategyRangeConfig memory rangeConfig = lpStrategyConfig2.rangeConfigs[0];
+    ILpStrategy.LpStrategyTvlConfig memory tvlConfig = lpStrategyConfig2.tvlConfigs[0];
 
-    assertEq(lpStrategyConfig2.principalTokenAmountMin, 100);
-    assertEq(lpStrategyConfig2.tickWidthMultiplierMin, 200);
-    assertEq(lpStrategyConfig2.tickWidthStableMultiplierMin, 300);
+    assertEq(tvlConfig.principalTokenAmountMin, 100);
+    assertEq(rangeConfig.tickWidthMultiplierMin, 200);
+    assertEq(rangeConfig.tickWidthStableMultiplierMin, 300);
   }
 
   function test_MaxPositions() public {

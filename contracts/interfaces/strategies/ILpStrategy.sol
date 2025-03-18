@@ -101,9 +101,17 @@ interface ILpStrategy is IStrategy {
   }
 
   struct LpStrategyConfig {
-    uint256 principalTokenAmountMin;
+    LpStrategyRangeConfig[] rangeConfigs;
+    LpStrategyTvlConfig[] tvlConfigs;
+  }
+
+  struct LpStrategyRangeConfig {
     uint24 tickWidthMultiplierMin;
     uint24 tickWidthStableMultiplierMin;
+  }
+
+  struct LpStrategyTvlConfig {
+    uint256 principalTokenAmountMin;
   }
 
   error InvalidPool();

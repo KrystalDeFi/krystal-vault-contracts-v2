@@ -107,11 +107,6 @@
         "internalType": "address",
         "name": "_principalToken",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
       }
     ],
     "name": "getStrategyConfig",
@@ -334,11 +329,6 @@
         "type": "address"
       },
       {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
-      },
-      {
         "internalType": "bytes",
         "name": "_config",
         "type": "bytes"
@@ -379,11 +369,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
       }
     ],
     "name": "strategyConfigs",
