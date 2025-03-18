@@ -15,7 +15,7 @@ import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lp/LpStrategy.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 
 contract LpStrategyTest is TestCommon {

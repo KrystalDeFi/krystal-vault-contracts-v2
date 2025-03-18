@@ -64,6 +64,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidOperator",
     "type": "error"
   },

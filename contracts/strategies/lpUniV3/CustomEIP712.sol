@@ -2,7 +2,7 @@
 // modified version of @openzeppelin
 pragma solidity ^0.8.28;
 
-import "../libraries/StructHash.sol";
+import "../../libraries//strategies/LpUniV3StructHash.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 abstract contract CustomEIP712 {

@@ -213,6 +213,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidShares",
     "type": "error"
   },

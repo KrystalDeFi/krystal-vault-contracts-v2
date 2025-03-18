@@ -14,12 +14,6 @@ error InvalidAsset()
 error InvalidNumberOfAssets()
 ```
 
-### InvalidInstructionType
-
-```solidity
-error InvalidInstructionType()
-```
-
 ### valueOf
 
 ```solidity

@@ -4,7 +4,8 @@ import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
 import { last } from "lodash";
-import { LpStrategy, PoolOptimalSwapper, Vault, VaultAutomator, VaultFactory, ConfigManager } from "../typechain-types";
+import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typechain-types/contracts/core";
+import { LpStrategy, VaultAutomator as LpUniV3VaultAutomator } from "../typechain-types/contracts/strategies/lpUniV3";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -16,7 +17,7 @@ if (!networkConfig) {
 
 export interface Contracts {
   vault?: Vault;
-  vaultAutomator?: VaultAutomator[];
+  vaultAutomator?: any[];
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
   lpStrategy?: Record<string, LpStrategy>;
@@ -109,7 +110,7 @@ export const deployVaultAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let vaultAutomators: VaultAutomator[] = [];
+  let vaultAutomators: any[] = [];
 
   if (config.vaultAutomator?.enabled) {
     vaultAutomators.push(
@@ -117,9 +118,9 @@ export const deployVaultAutomatorContract = async (
         `${step} >>`,
         config.vaultAutomator?.autoVerifyContract,
         "VaultAutomator",
-        existingContract?.["vaultAutomator"],
-        "contracts/core/VaultAutomator.sol:VaultAutomator",
-      )) as VaultAutomator,
+        existingContract?.["vaultAutomator"]?.[0],
+        "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
+      )) as LpUniV3VaultAutomator,
     );
   }
 
@@ -199,7 +200,7 @@ export const deployLpStrategyContract = async (
         config.lpStrategy?.autoVerifyContract,
         "LpStrategy",
         existingContract?.["lpStrategy"]?.[token],
-        "contracts/strategies/lp/LpStrategy.sol:LpStrategy",
+        "contracts/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
         `${SALT}_${token}`,
         ["address", "address", "address"],
         [

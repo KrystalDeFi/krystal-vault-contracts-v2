@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon, IV3SwapRouter } from "../TestCommon.t.sol";
-import { LpStrategy } from "../../contracts/strategies/lp/LpStrategy.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";

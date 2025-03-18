@@ -63,6 +63,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidOwnerFee",
     "type": "error"
   },

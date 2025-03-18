@@ -32,4 +32,6 @@ interface ICommon {
   error InvalidStrategy();
 
   error InvalidSwapRouter();
+
+  error InvalidInstructionType();
 }

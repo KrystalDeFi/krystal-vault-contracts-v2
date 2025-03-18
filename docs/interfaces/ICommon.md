@@ -65,3 +65,9 @@ error InvalidStrategy()
 error InvalidSwapRouter()
 ```
 
+### InvalidInstructionType
+
+```solidity
+error InvalidInstructionType()
+```
+

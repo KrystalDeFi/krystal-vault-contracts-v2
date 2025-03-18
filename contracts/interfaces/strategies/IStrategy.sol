@@ -7,7 +7,6 @@ import { AssetLib } from "../../libraries/AssetLib.sol";
 interface IStrategy is ICommon {
   error InvalidAsset();
   error InvalidNumberOfAssets();
-  error InvalidInstructionType();
 
   function valueOf(AssetLib.Asset memory asset, address principalToken) external returns (uint256);
 

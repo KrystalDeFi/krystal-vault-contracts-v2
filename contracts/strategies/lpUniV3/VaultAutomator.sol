@@ -5,7 +5,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 import "./CustomEIP712.sol";
-import "../interfaces/core/IVaultAutomator.sol";
+import "../../interfaces/core/IVaultAutomator.sol";
+import "../../interfaces/strategies/ILpStrategy.sol";
 
 contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
@@ -33,6 +34,12 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     bytes calldata orderSignature
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    Instruction memory instruction = abi.decode(allocateData, (Instruction));
+    require(
+      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition)
+        || instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound),
+      InvalidInstructionType()
+    );
     vault.allocate(inputAssets, strategy, allocateData);
   }
 

@@ -15,12 +15,10 @@ import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
 import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
-import { VaultAutomator } from "../../contracts/core/VaultAutomator.sol";
 
 contract VaultFactoryTest is TestCommon {
   ConfigManager public configManager;
   Vault public vault;
-  VaultAutomator public vaultAutomator;
 
   VaultFactory public vaultFactory;
 
@@ -43,7 +41,6 @@ contract VaultFactoryTest is TestCommon {
     configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     vault = new Vault();
-    vaultAutomator = new VaultAutomator();
 
     vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
   }
