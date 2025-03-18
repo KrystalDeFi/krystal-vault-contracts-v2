@@ -98,6 +98,12 @@ error InvalidShares()
 error Unauthorized()
 ```
 
+### InsufficientShares
+
+```solidity
+error InsufficientShares()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -113,7 +119,7 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 ### deposit
 
 ```solidity
-function deposit(uint256 shares) external returns (uint256 returnShares)
+function deposit(uint256 principalAmount, uint256 minShares) external returns (uint256 returnShares)
 ```
 
 ### withdraw

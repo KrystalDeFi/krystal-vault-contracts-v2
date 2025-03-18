@@ -72,7 +72,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Deposits the asset to the vault
   /// @param principalAmount Amount of in principalToken
   /// @return shares Amount of shares minted
-  function deposit(uint256 principalAmount) external nonReentrant returns (uint256 shares) {
+  function deposit(uint256 principalAmount, uint256 minShares) external nonReentrant returns (uint256 shares) {
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
@@ -87,6 +87,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     shares =
       totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+    require(shares >= minShares, InsufficientShares());
 
     IERC20(vaultConfig.principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
     inventory.addAsset(
