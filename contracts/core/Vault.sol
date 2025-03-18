@@ -49,10 +49,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function initialize(VaultCreateParams memory params, address _owner, address _configManager) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
-    require(
-      !vaultConfig.allowDeposit || vaultConfig.supportedAddresses.length > 0,
-      InvalidVaultConfig()
-    );
+    require(!vaultConfig.allowDeposit || vaultConfig.supportedAddresses.length > 0, InvalidVaultConfig());
 
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
@@ -76,7 +73,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @notice Deposits the asset to the vault
   /// @param principalAmount Amount of in principalToken
   /// @return shares Amount of shares minted
-  function deposit(uint256 principalAmount, uint256 maxVaultValue) external nonReentrant returns (uint256 shares) {
+  function deposit(uint256 principalAmount, uint256 minShares) external nonReentrant returns (uint256 shares) {
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
@@ -88,10 +85,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     address principalToken = vaultConfig.principalToken;
     uint256 totalSupply = totalSupply();
     uint256 totalValue = getTotalValue();
-    require(totalValue < maxVaultValue, VaultValueSlippage());
 
     shares =
       totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+    require(shares >= minShares, InsufficientShares());
 
     IERC20(vaultConfig.principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
     inventory.addAsset(
