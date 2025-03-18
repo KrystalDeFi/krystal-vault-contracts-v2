@@ -166,6 +166,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InsufficientShares",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -897,6 +902,11 @@
       {
         "internalType": "uint256",
         "name": "principalAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minShares",
         "type": "uint256"
       }
     ],

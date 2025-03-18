@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientShares",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidAssetAmount",
     "type": "error"
   },
@@ -404,7 +409,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "shares",
+        "name": "principalAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minShares",
         "type": "uint256"
       }
     ],
