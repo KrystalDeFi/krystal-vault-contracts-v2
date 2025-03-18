@@ -36,8 +36,9 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
     require(
-      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition)
-        || instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound),
+      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition) ||
+        instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound) ||
+        instruction.instructionType == uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       InvalidInstructionType()
     );
     vault.allocate(inputAssets, strategy, allocateData);
@@ -54,11 +55,11 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
-    external
-    override
-    onlyRole(OPERATOR_ROLE_HASH)
-  {
+  function executeSweepNFTToken(
+    IVault vault,
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepNFTToken(tokens, tokenIds);
   }
 
@@ -100,5 +101,5 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     revokeRole(OPERATOR_ROLE_HASH, operator);
   }
 
-  receive() external payable { }
+  receive() external payable {}
 }
