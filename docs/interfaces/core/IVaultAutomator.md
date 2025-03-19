@@ -38,10 +38,16 @@ function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAss
 function executeSweepToken(contract IVault vault, address[] tokens) external
 ```
 
-### executeSweepNFTToken
+### executeSweepERC721
 
 ```solidity
-function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
+function executeSweepERC721(contract IVault vault, address[] tokens, uint256[] tokenIds) external
+```
+
+### executeSweepERC1155
+
+```solidity
+function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds, uint256[] amounts) external
 ```
 
 ### cancelOrder

@@ -15,7 +15,9 @@ interface IVault is ICommon {
 
   event SweepToken(address[] tokens);
 
-  event SweepNFToken(address[] _tokens, uint256[] _tokenIds);
+  event SweepERC721(address[] _tokens, uint256[] _tokenIds);
+
+  event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts);
 
   event SetVaultConfig(VaultConfig config);
 
@@ -53,7 +55,9 @@ interface IVault is ICommon {
 
   function sweepToken(address[] memory tokens) external;
 
-  function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
+  function sweepERC721(address[] memory _tokens, uint256[] memory _tokenIds) external;
+
+  function sweepERC1155(address[] memory _tokens, uint256[] memory _tokenIds, uint256[] memory _amounts) external;
 
   function allowDeposit(VaultConfig memory _config) external;
 

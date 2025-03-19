@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -16,8 +17,17 @@ import { AssetLib } from "../libraries/AssetLib.sol";
 import { InventoryLib } from "../libraries/InventoryLib.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault, ERC721Holder {
+contract Vault is
+  AccessControlUpgradeable,
+  ERC20PermitUpgradeable,
+  ReentrancyGuard,
+  IVault,
+  ERC721Holder,
+  ERC1155Holder
+{
   using SafeERC20 for IERC20;
 
   using InventoryLib for InventoryLib.Inventory;
@@ -315,14 +325,10 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     emit SweepToken(tokens);
   }
 
-  /// @notice Sweeps the non-fungible tokens to the caller
+  /// @notice Sweeps the non-fungible tokens ERC721 to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds)
-    external
-    nonReentrant
-    onlyAdminOrAutomator
-  {
+  function sweepERC721(address[] memory _tokens, uint256[] memory _tokenIds) external nonReentrant onlyAdminOrAutomator {
     for (uint256 i = 0; i < _tokens.length;) {
       IERC721 token = IERC721(_tokens[i]);
       require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
@@ -333,7 +339,29 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       }
     }
 
-    emit SweepNFToken(_tokens, _tokenIds);
+    emit SweepERC721(_tokens, _tokenIds);
+  }
+
+  /// @notice Sweep ERC1155 tokens to the caller
+  /// @param _tokens Tokens to sweep
+  /// @param _tokenIds Token IDs to sweep
+  /// @param _amounts Amounts to sweep
+  function sweepERC1155(address[] memory _tokens, uint256[] memory _tokenIds, uint256[] memory _amounts)
+    external
+    nonReentrant
+    onlyAdminOrAutomator
+  {
+    for (uint256 i = 0; i < _tokens.length;) {
+      IERC1155 token = IERC1155(_tokens[i]);
+      require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
+      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], _amounts[i], "");
+
+      unchecked {
+        i++;
+      }
+    }
+
+    emit SweepERC1155(_tokens, _tokenIds, _amounts);
   }
 
   /// @notice grant admin role to the address
@@ -396,6 +424,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
       IERC20(asset.token).safeTransfer(to, asset.amount);
     } else if (asset.assetType == AssetLib.AssetType.ERC721) {
       IERC721(asset.token).safeTransferFrom(address(this), to, asset.tokenId);
+    } else if (asset.assetType == AssetLib.AssetType.ERC1155) {
+      IERC1155(asset.token).safeTransferFrom(address(this), to, asset.tokenId, asset.amount, "");
     }
   }
 
@@ -420,5 +450,15 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     tvlStrategyType = vaultConfig.tvlStrategyType;
     principalToken = vaultConfig.principalToken;
     supportedAddresses = vaultConfig.supportedAddresses;
+  }
+
+  function supportsInterface(bytes4 interfaceId)
+    public
+    view
+    virtual
+    override(AccessControlUpgradeable, ERC1155Holder)
+    returns (bool)
+  {
+    return super.supportsInterface(interfaceId);
   }
 }
