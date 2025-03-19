@@ -18,8 +18,7 @@
     [] Ratio between the assets should remain unchanged
     [] Received principal tokens should match the diff of the Vault Value
 
-
-[] User can't deposit non[]principal token
+[] User can't deposit non-principal token
 
 
 ### Allow Deposit
@@ -52,4 +51,3 @@
 [] User can't add to a LP which the pool is just created within the same block (to avoid flash-loan attack)
     [] Or if there is some way we could check the TVL in the previous block?
 [] User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
-
