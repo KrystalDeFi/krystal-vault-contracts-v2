@@ -194,3 +194,9 @@ function allowDeposit(struct ICommon.VaultConfig _config) external
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
 ```
 
+### getVaultConfig
+
+```solidity
+function getVaultConfig() external view returns (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
+```
+

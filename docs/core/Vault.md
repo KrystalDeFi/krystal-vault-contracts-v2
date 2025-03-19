@@ -26,12 +26,6 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
-### vaultConfig
-
-```solidity
-struct ICommon.VaultConfig vaultConfig
-```
-
 ### onlyAdminOrAutomator
 
 ```solidity
@@ -272,5 +266,11 @@ _Transfers the asset to the recipient_
 
 ```solidity
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
+
+### getVaultConfig
+
+```solidity
+function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
 ```
 

@@ -1136,6 +1136,39 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getVaultConfig",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isAllowDeposit",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint8",
+        "name": "rangeStrategyType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tvlStrategyType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "principalToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "supportedAddresses",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -1592,34 +1625,6 @@
       }
     ],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "vaultConfig",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "allowDeposit",
-        "type": "bool"
-      },
-      {
-        "internalType": "uint8",
-        "name": "rangeStrategyType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint8",
-        "name": "tvlStrategyType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "address",
-        "name": "principalToken",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
