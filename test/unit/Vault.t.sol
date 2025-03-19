@@ -111,4 +111,26 @@ contract VaultTest is TestCommon {
     assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_339_347_767_056);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
   }
+
+
+  function test_allow_deposit() public {
+    console.log("==== User can turn ON allow_deposit for his private vault ====");
+    vaultConfig.allowDeposit = true;
+    vaultConfig.supportedAddresses = new address[](1);
+    console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
+    console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
+    vault.allowDeposit(vaultConfig);
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vault.vaultConfig();
+    assertEq(allowDeposit, true);
+    console.log("The vault is public now");
+
+    console.log("==== User can't turn OFF allow_deposit for his public vault ====");
+    vaultConfig.allowDeposit = false;
+    vaultConfig.supportedAddresses = new address[](0);
+    console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);    
+    vm.expectRevert(ICommon.InvalidVaultConfig.selector);
+    vault.allowDeposit(vaultConfig);
+  }
 }
