@@ -1,18 +1,29 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { TestCommon, IV3SwapRouter } from "../TestCommon.t.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { Vault } from "../../contracts/core/Vault.sol";
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { INonfungiblePositionManager as INFPM } from
+import { TestCommon, IV3SwapRouter
+} from "../TestCommon.t.sol";
+import { LpStrategy
+} from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
+import { ICommon
+} from "../../contracts/interfaces/ICommon.sol";
+import { PoolOptimalSwapper
+} from "../../contracts/core/PoolOptimalSwapper.sol";
+import { ConfigManager
+} from "../../contracts/core/ConfigManager.sol";
+import { Vault
+} from "../../contracts/core/Vault.sol";
+import { AssetLib
+} from "../../contracts/libraries/AssetLib.sol";
+import { IERC20
+} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ILpStrategy
+} from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { INonfungiblePositionManager as INFPM
+} from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import { console } from "forge-std/console.sol";
+import { console
+} from "forge-std/console.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -27,27 +38,39 @@ contract VaultTest is TestCommon {
   address public constant USER_2 = 0x0000000000000000000000000000000000000001;
 
   function setUp() public {
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"),
+    27_448_360);
     vm.selectFork(fork);
     vm.startBroadcast(USER);
-    setErc20Balance(WETH, USER, 100 ether);
-    setErc20Balance(DAI, USER, 100_000 ether);
-    setErc20Balance(USDC, USER, 1_000_000_000); // 6 decimals ~ 1000$
+    setErc20Balance(WETH, USER,
+    100 ether);
+    setErc20Balance(DAI, USER,
+    100_000 ether);
+    setErc20Balance(USDC, USER,
+    1_000_000_000); // 6 decimals ~ 1000$
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
     address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    stableTokens[
+      0
+    ] = DAI;
+    stableTokens[
+      1
+    ] = USDC;
 
     address[] memory whitelistAutomator = new address[](1);
-    whitelistAutomator[0] = USER;
+    whitelistAutomator[
+      0
+    ] = USER;
 
     ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     address[] memory strategies = new address[](1);
-    strategies[0] = address(lpStrategy);
+    strategies[
+      0
+    ] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
     vaultConfig = ICommon.VaultConfig({
       principalToken: WETH,
@@ -58,7 +81,8 @@ contract VaultTest is TestCommon {
     });
 
     vault = new Vault();
-    IERC20(WETH).transfer(address(vault), 0.5 ether);
+    IERC20(WETH).transfer(address(vault),
+    0.5 ether);
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
       ownerFeeBasisPoint: 100,
       name: "TestVault",
@@ -70,10 +94,15 @@ contract VaultTest is TestCommon {
   }
 
   function test_Vault() public {
-    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    assertEq(IERC20(vault).balanceOf(USER),
+    0.5 ether * vault.SHARES_PRECISION());
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    assets[
+      0
+    ] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH,
+    0,
+    0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
@@ -91,22 +120,41 @@ contract VaultTest is TestCommon {
     });
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
-    IERC20(WETH).approve(address(vault), 100 ether);
-    vault.deposit(0.5 ether, 0);
+    IERC20(WETH).approve(address(vault),
+    100 ether);
+    vault.deposit(0.5 ether,
+    0);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
-    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+    assertEq(IERC20(vault).balanceOf(USER),
+    1 ether * vault.SHARES_PRECISION());
 
     vault.allocate(assets, lpStrategy, abi.encode(instruction));
-    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+    assertEq(IERC20(vault).balanceOf(USER),
+    1 ether * vault.SHARES_PRECISION());
 
-    vault.deposit(1 ether, 0);
-    assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
+    vault.deposit(1 ether,
+    0);
+    assertEq(IERC20(vault).balanceOf(USER),
+    20_001_958_738_672_832_443_901);
 
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     vault.withdraw(10_000 ether);
-    assertEq(IERC20(vault).balanceOf(USER), 10_001_958_738_672_832_443_901);
-    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_339_347_767_056);
+    assertEq(IERC20(vault).balanceOf(USER),
+    10_001_958_738_672_832_443_901);
+    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore,
+    999_506_339_347_767_056);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+  }
+
+  function test_allow_deposit() public {
+    console.log("==== User can turn ON allow_deposit for his private vault ====");
+    vaultConfig.allowDeposit = true;
+    console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
+    console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
+    vault.setVaultConfig(vaultConfig);
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vault.vaultConfig();
+    assertEq(allowDeposit, true);
   }
 }
