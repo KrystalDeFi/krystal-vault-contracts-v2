@@ -75,7 +75,7 @@ Deposits the asset to the vault
 function withdraw(uint256 shares) external
 ```
 
-Withdraws the asset from the vault
+Withdraws the asset as principal token from the vault
 
 #### Parameters
 
@@ -131,7 +131,7 @@ function _harvest(struct AssetLib.Asset asset) internal
 ### getTotalValue
 
 ```solidity
-function getTotalValue() public returns (uint256 totalValue)
+function getTotalValue() public view returns (uint256 totalValue)
 ```
 
 Returns the total value of the vault
@@ -145,7 +145,7 @@ Returns the total value of the vault
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
+function getAssetAllocations() external view returns (struct AssetLib.Asset[] assets)
 ```
 
 Returns the asset allocations of the vault

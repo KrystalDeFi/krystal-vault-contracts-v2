@@ -17,7 +17,7 @@ error InvalidNumberOfAssets()
 ### valueOf
 
 ```solidity
-function valueOf(struct AssetLib.Asset asset, address principalToken) external returns (uint256)
+function valueOf(struct AssetLib.Asset asset, address principalToken) external view returns (uint256)
 ```
 
 ### convert
