@@ -26,18 +26,6 @@ mapping(address => bool) whitelistAutomators
 mapping(address => mapping(address => bytes)) strategyConfigs
 ```
 
-### stableTokens
-
-```solidity
-mapping(address => bool) stableTokens
-```
-
-### peggedTokens
-
-```solidity
-mapping(address => bool) peggedTokens
-```
-
 ### maxPositions
 
 ```solidity
@@ -47,7 +35,7 @@ uint8 maxPositions
 ### constructor
 
 ```solidity
-constructor(address _owner, address[] _stableTokens, address[] _peggedTokens, address[] _whitelistAutomator) public
+constructor(address _owner, address[] _whitelistAutomator, address[] _typedTokens, uint256[] _typedTokenTypes) public
 ```
 
 ### whitelistStrategy
@@ -155,75 +143,56 @@ Check if automator is whitelisted
 | ---- | ---- | ----------- |
 | _isWhitelisted | bool | Boolean value if automator is whitelisted |
 
-### setStableTokens
+### getTypedTokens
 
 ```solidity
-function setStableTokens(address[] _stableTokens, bool _isStable) external
+function getTypedTokens() external view returns (address[] _typedTokens, uint256[] _typedTokenTypes)
 ```
 
-Set stable tokens
+Get typed tokens
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _typedTokens | address[] | Typed tokens |
+| _typedTokenTypes | uint256[] | Typed token types |
+
+### setTypedTokens
+
+```solidity
+function setTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes) external
+```
+
+Set typed tokens
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _stableTokens | address[] | Array of stable token addresses |
-| _isStable | bool | Boolean value to set stable or unstable |
+| _typedTokens | address[] | Array of typed token addresses |
+| _typedTokenTypes | uint256[] | Array of typed token types |
 
-### isStableToken
+### isMatchedWithType
 
 ```solidity
-function isStableToken(address _token) external view returns (bool _isStable)
+function isMatchedWithType(address _token, uint256 _type) external view returns (bool _isMatched)
 ```
 
-Check if token is stable
+Check if token is matched with type
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _token | address | Token address |
+| _type | uint256 | Token type |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isStable | bool | Boolean value if token is stable |
-
-### setPeggedTokens
-
-```solidity
-function setPeggedTokens(address[] _peggedTokens, bool _isPegged) external
-```
-
-Set pegged tokens
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _peggedTokens | address[] | Array of pegged token addresses |
-| _isPegged | bool | Boolean value to set pegged or unpegged |
-
-### isPeggedToken
-
-```solidity
-function isPeggedToken(address _token) external view returns (bool _isPegged)
-```
-
-Check if token is pegged
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _token | address | Token address |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _isPegged | bool | Boolean value if token is pegged |
+| _isMatched | bool | Boolean value if token is stable |
 
 ### getStrategyConfig
 

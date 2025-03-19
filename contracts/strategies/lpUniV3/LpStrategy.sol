@@ -816,7 +816,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     }
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
+    if (
+      configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
+        && configManager.isMatchedWithType(token1, uint256(TokenType.Stable))
+    ) {
       require(
         tickUpper - tickLower >= int24(rangeConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth()
       );
@@ -851,7 +854,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    if (configManager.isStableToken(token0) && configManager.isStableToken(token1)) {
+    if (
+      configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
+        && configManager.isMatchedWithType(token1, uint256(TokenType.Stable))
+    ) {
       require(
         tickUpper - tickLower >= int24(rangeConfig.tickWidthStableMultiplierMin) * tickSpacing, InvalidTickWidth()
       );

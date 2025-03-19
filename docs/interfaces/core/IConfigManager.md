@@ -44,28 +44,22 @@ function whitelistAutomator(address[] _automators, bool _isWhitelisted) external
 function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
 ```
 
-### setStableTokens
+### getTypedTokens
 
 ```solidity
-function setStableTokens(address[] _stableTokens, bool _isStable) external
+function getTypedTokens() external view returns (address[] _typedTokens, uint256[] _typedTokenTypes)
 ```
 
-### isStableToken
+### setTypedTokens
 
 ```solidity
-function isStableToken(address _token) external view returns (bool _isStableToken)
+function setTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes) external
 ```
 
-### setPeggedTokens
+### isMatchedWithType
 
 ```solidity
-function setPeggedTokens(address[] _peggedTokens, bool _isPegged) external
-```
-
-### isPeggedToken
-
-```solidity
-function isPeggedToken(address _token) external view returns (bool _isPeggedToken)
+function isMatchedWithType(address _token, uint256 _type) external view returns (bool)
 ```
 
 ### getStrategyConfig

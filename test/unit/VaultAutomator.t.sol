@@ -44,16 +44,18 @@ contract VaultAutomatorTest is TestCommon {
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy();
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
 
-    address[] memory peggedTokens = new address[](0);
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = address(vaultAutomatorLpStrategy);
 
-    configManager = new ConfigManager(USER, stableTokens, peggedTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
 

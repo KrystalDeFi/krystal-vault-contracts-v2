@@ -17,16 +17,18 @@ contract ConfigManagerTest is TestCommon {
 
     vm.startBroadcast(USER);
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
 
-    address[] memory peggedTokens = new address[](0);
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, stableTokens, peggedTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
   }
 
   function test_WhitelistStrategy() public {
@@ -71,55 +73,36 @@ contract ConfigManagerTest is TestCommon {
   function test_StableTokens() public {
     console.log("==== test_StableTokens ====");
 
-    assertTrue(configManager.isStableToken(DAI));
-    assertTrue(configManager.isStableToken(USDC));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
 
-    assertFalse(configManager.isStableToken(NULL_ADDRESS));
+    assertFalse(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
 
     address[] memory newStableTokens = new address[](1);
     newStableTokens[0] = DAI;
 
-    configManager.setStableTokens(newStableTokens, true);
+    uint256[] memory newStableTokenTypes = new uint256[](1);
+    newStableTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
 
-    assertTrue(configManager.isStableToken(DAI));
+    configManager.setTypedTokens(newStableTokens, newStableTokenTypes);
+
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
 
     address[] memory newStableTokens2 = new address[](3);
     newStableTokens2[0] = DAI;
     newStableTokens2[1] = USDC;
     newStableTokens2[2] = NULL_ADDRESS;
 
-    configManager.setStableTokens(newStableTokens2, true);
+    uint256[] memory newStableTokenTypes2 = new uint256[](3);
+    newStableTokenTypes2[0] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes2[1] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes2[2] = uint256(ILpStrategy.TokenType.Stable);
 
-    assertTrue(configManager.isStableToken(DAI));
-    assertTrue(configManager.isStableToken(USDC));
-    assertTrue(configManager.isStableToken(NULL_ADDRESS));
-  }
+    configManager.setTypedTokens(newStableTokens2, newStableTokenTypes2);
 
-  function test_PeggedTokens() public {
-    console.log("==== test_PeggedTokens ====");
-
-    assertFalse(configManager.isPeggedToken(DAI));
-    assertFalse(configManager.isPeggedToken(USDC));
-    assertFalse(configManager.isPeggedToken(NULL_ADDRESS));
-
-    address[] memory newPeggedTokens = new address[](1);
-    newPeggedTokens[0] = DAI;
-
-    configManager.setPeggedTokens(newPeggedTokens, true);
-
-    assertTrue(configManager.isPeggedToken(DAI));
-    assertFalse(configManager.isPeggedToken(USDC));
-
-    address[] memory newPeggedTokens2 = new address[](3);
-    newPeggedTokens2[0] = DAI;
-    newPeggedTokens2[1] = USDC;
-    newPeggedTokens2[2] = NULL_ADDRESS;
-
-    configManager.setPeggedTokens(newPeggedTokens2, true);
-
-    assertTrue(configManager.isPeggedToken(DAI));
-    assertTrue(configManager.isPeggedToken(USDC));
-    assertTrue(configManager.isPeggedToken(NULL_ADDRESS));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
   }
 
   function test_StrategyConfigs() public {

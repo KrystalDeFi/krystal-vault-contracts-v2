@@ -2,11 +2,14 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 import "../interfaces/core/IConfigManager.sol";
 
 /// @title ConfigManager
 contract ConfigManager is Ownable, IConfigManager {
+  using EnumerableMap for EnumerableMap.AddressToUintMap;
+
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
   mapping(address => bool) public whitelistAutomators;
@@ -45,27 +48,21 @@ contract ConfigManager is Ownable, IConfigManager {
   */
   mapping(address => mapping(address => bytes)) public strategyConfigs;
 
-  mapping(address => bool) public stableTokens;
-  mapping(address => bool) public peggedTokens;
+  // 0 = stable token
+  // 1 = pegged token
+  // ...
+  EnumerableMap.AddressToUintMap private typedTokens;
 
   uint8 public override maxPositions = 10;
 
   constructor(
     address _owner,
-    address[] memory _stableTokens,
-    address[] memory _peggedTokens,
-    address[] memory _whitelistAutomator
+    address[] memory _whitelistAutomator,
+    address[] memory _typedTokens,
+    uint256[] memory _typedTokenTypes
   ) Ownable(_owner) {
-    for (uint256 i = 0; i < _stableTokens.length;) {
-      stableTokens[_stableTokens[i]] = true;
-
-      unchecked {
-        i++;
-      }
-    }
-
-    for (uint256 i = 0; i < _peggedTokens.length;) {
-      peggedTokens[_peggedTokens[i]] = true;
+    for (uint256 i = 0; i < _typedTokens.length;) {
+      typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
 
       unchecked {
         i++;
@@ -141,12 +138,23 @@ contract ConfigManager is Ownable, IConfigManager {
     return whitelistAutomators[_automator];
   }
 
-  /// @notice Set stable tokens
-  /// @param _stableTokens Array of stable token addresses
-  /// @param _isStable Boolean value to set stable or unstable
-  function setStableTokens(address[] memory _stableTokens, bool _isStable) external onlyOwner {
-    for (uint256 i = 0; i < _stableTokens.length;) {
-      stableTokens[_stableTokens[i]] = _isStable;
+  /// @notice Get typed tokens
+  /// @return _typedTokens Typed tokens
+  /// @return _typedTokenTypes Typed token types
+  function getTypedTokens()
+    external
+    view
+    override
+    returns (address[] memory _typedTokens, uint256[] memory _typedTokenTypes)
+  {
+    uint256 length = typedTokens.length();
+    _typedTokens = new address[](length);
+    _typedTokenTypes = new uint256[](length);
+
+    for (uint256 i = 0; i < length;) {
+      (address key, uint256 value) = typedTokens.at(i);
+      _typedTokens[i] = key;
+      _typedTokenTypes[i] = value;
 
       unchecked {
         i++;
@@ -154,19 +162,12 @@ contract ConfigManager is Ownable, IConfigManager {
     }
   }
 
-  /// @notice Check if token is stable
-  /// @param _token Token address
-  /// @return _isStable Boolean value if token is stable
-  function isStableToken(address _token) external view returns (bool _isStable) {
-    return stableTokens[_token];
-  }
-
-  /// @notice Set pegged tokens
-  /// @param _peggedTokens Array of pegged token addresses
-  /// @param _isPegged Boolean value to set pegged or unpegged
-  function setPeggedTokens(address[] memory _peggedTokens, bool _isPegged) external onlyOwner {
-    for (uint256 i = 0; i < _peggedTokens.length;) {
-      peggedTokens[_peggedTokens[i]] = _isPegged;
+  /// @notice Set typed tokens
+  /// @param _typedTokens Array of typed token addresses
+  /// @param _typedTokenTypes Array of typed token types
+  function setTypedTokens(address[] memory _typedTokens, uint256[] memory _typedTokenTypes) external onlyOwner {
+    for (uint256 i = 0; i < _typedTokens.length;) {
+      typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
 
       unchecked {
         i++;
@@ -174,11 +175,12 @@ contract ConfigManager is Ownable, IConfigManager {
     }
   }
 
-  /// @notice Check if token is pegged
+  /// @notice Check if token is matched with type
   /// @param _token Token address
-  /// @return _isPegged Boolean value if token is pegged
-  function isPeggedToken(address _token) external view returns (bool _isPegged) {
-    return peggedTokens[_token];
+  /// @param _type Token type
+  /// @return _isMatched Boolean value if token is stable
+  function isMatchedWithType(address _token, uint256 _type) external view override returns (bool _isMatched) {
+    return typedTokens.contains(_token) && typedTokens.get(_token) == _type;
   }
 
   /// @notice Get strategy config

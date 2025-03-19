@@ -16,6 +16,15 @@ enum InstructionType {
 }
 ```
 
+### TokenType
+
+```solidity
+enum TokenType {
+  Stable,
+  Pegged
+}
+```
+
 ### MintPositionParams
 
 ```solidity

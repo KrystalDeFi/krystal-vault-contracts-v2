@@ -17,6 +17,11 @@ interface ILpStrategy is IStrategy {
     SwapAndCompound
   }
 
+  enum TokenType {
+    Stable,
+    Pegged
+  }
+
   struct MintPositionParams {
     INFPM nfpm;
     address token0;
