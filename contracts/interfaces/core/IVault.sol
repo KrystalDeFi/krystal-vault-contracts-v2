@@ -7,6 +7,8 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event Deposit(address indexed account, uint256 shares);
 
+  event Withdraw(address indexed account, uint256 shares);
+
   event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
 
   event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);
@@ -53,7 +55,18 @@ interface IVault is ICommon {
 
   function sweepNFTToken(address[] memory _tokens, uint256[] memory _tokenIds) external;
 
-  function setVaultConfig(VaultConfig memory _config) external;
+  function allowDeposit(VaultConfig memory _config) external;
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets);
+
+  function getVaultConfig()
+    external
+    view
+    returns (
+      bool allowDeposit,
+      uint8 rangeStrategyType,
+      uint8 tvlStrategyType,
+      address principalToken,
+      address[] memory supportedAddresses
+    );
 }

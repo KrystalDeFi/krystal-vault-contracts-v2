@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
@@ -22,8 +20,6 @@ import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721H
 contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGuard, IVault, ERC721Holder {
   using SafeERC20 for IERC20;
 
-  using EnumerableSet for EnumerableSet.AddressSet;
-  using EnumerableSet for EnumerableSet.UintSet;
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
@@ -31,7 +27,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IConfigManager public configManager;
 
   address public override vaultOwner;
-  VaultConfig public vaultConfig;
+  VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
 
@@ -49,7 +45,6 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function initialize(VaultCreateParams memory params, address _owner, address _configManager) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
-    require(!vaultConfig.allowDeposit || vaultConfig.supportedAddresses.length > 0, InvalidVaultConfig());
 
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
@@ -118,7 +113,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     return shares;
   }
 
-  /// @notice Withdraws the asset from the vault
+  /// @notice Withdraws the asset as principal token from the vault
   /// @param shares Amount of shares to be burned
   function withdraw(uint256 shares) external nonReentrant {
     require(shares != 0, InvalidShares());
@@ -126,22 +121,36 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     _burn(_msgSender(), shares);
 
-    for (uint256 i = 0; i < inventory.assets.length;) {
+    uint256 returnAmount;
+    for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) {
         _transferAsset(currentAsset, currentAsset.strategy);
         AssetLib.Asset[] memory assets =
           IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, totalSupply, vaultConfig);
         _addAssets(assets);
-        _transferAssets(assets, _msgSender());
-      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20) {
-        currentAsset.amount = FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
-        _transferAsset(currentAsset, _msgSender());
+        for (uint256 k; k < assets.length;) {
+          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == vaultConfig.principalToken) {
+            returnAmount += assets[k].amount;
+          }
+          unchecked {
+            k++;
+          }
+        }
+      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token == vaultConfig.principalToken)
+      {
+        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
       }
       unchecked {
         i++;
       }
     }
+
+    _transferAsset(
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
+    );
+
+    emit Withdraw(_msgSender(), shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -227,7 +236,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the total value of the vault
   /// @return totalValue Total value of the vault in principal token
-  function getTotalValue() public returns (uint256 totalValue) {
+  function getTotalValue() public view returns (uint256 totalValue) {
     totalValue = 0;
     AssetLib.Asset memory currentAsset;
     for (uint256 i = 0; i < inventory.assets.length;) {
@@ -247,7 +256,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault
-  function getAssetAllocations() external override returns (AssetLib.Asset[] memory assets) {
+  function getAssetAllocations() external view override returns (AssetLib.Asset[] memory assets) {
     /*
     Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
     uint256 index = 0;
@@ -339,11 +348,17 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     revokeRole(ADMIN_ROLE_HASH, _address);
   }
 
-  /// @notice Sets the vault config
+  /// @notice Turn on allow deposit
   /// @param _config New vault config
-  function setVaultConfig(VaultConfig memory _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(!_config.allowDeposit || _config.supportedAddresses.length > 0, InvalidVaultConfig());
+  function allowDeposit(VaultConfig memory _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(!vaultConfig.allowDeposit && _config.allowDeposit, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
+
+    for (uint256 i = 0; i < inventory.assets.length; i++) {
+      if (inventory.assets[i].strategy != address(0)) {
+        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], vaultConfig);
+      }
+    }
 
     vaultConfig = _config;
 
@@ -386,5 +401,24 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets) {
     return inventory.assets;
+  }
+
+  function getVaultConfig()
+    external
+    view
+    override
+    returns (
+      bool isAllowDeposit,
+      uint8 rangeStrategyType,
+      uint8 tvlStrategyType,
+      address principalToken,
+      address[] memory supportedAddresses
+    )
+  {
+    isAllowDeposit = vaultConfig.allowDeposit;
+    rangeStrategyType = vaultConfig.rangeStrategyType;
+    tvlStrategyType = vaultConfig.tvlStrategyType;
+    principalToken = vaultConfig.principalToken;
+    supportedAddresses = vaultConfig.supportedAddresses;
   }
 }

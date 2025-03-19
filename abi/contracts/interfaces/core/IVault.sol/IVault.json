@@ -328,6 +328,25 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      }
+    ],
+    "name": "Withdraw",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -373,6 +392,46 @@
       }
     ],
     "name": "allocate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "name": "allowDeposit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -523,6 +582,39 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getVaultConfig",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "allowDeposit",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint8",
+        "name": "rangeStrategyType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tvlStrategyType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "principalToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "supportedAddresses",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -621,46 +713,6 @@
       }
     ],
     "name": "revokeAdminRole",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "bool",
-            "name": "allowDeposit",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint8",
-            "name": "rangeStrategyType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint8",
-            "name": "tvlStrategyType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "principalToken",
-            "type": "address"
-          },
-          {
-            "internalType": "address[]",
-            "name": "supportedAddresses",
-            "type": "address[]"
-          }
-        ],
-        "internalType": "struct ICommon.VaultConfig",
-        "name": "_config",
-        "type": "tuple"
-      }
-    ],
-    "name": "setVaultConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

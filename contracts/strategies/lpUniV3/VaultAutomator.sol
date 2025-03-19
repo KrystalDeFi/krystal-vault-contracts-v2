@@ -13,9 +13,9 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
 
   mapping(bytes32 => bool) private _cancelledOrder;
 
-  constructor() CustomEIP712("V3AutomationOrder", "4.0") {
-    _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-    _grantRole(OPERATOR_ROLE_HASH, _msgSender());
+  constructor(address _owner) CustomEIP712("V3AutomationOrder", "4.0") {
+    _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+    _grantRole(OPERATOR_ROLE_HASH, _owner);
   }
 
   /// @notice Execute an allocate on a Vault

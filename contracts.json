@@ -1,1 +1,10 @@
-{}
+{
+  "base_mainnet": {
+    "vault": "0xa7223877d238ebdbc996110a29c33928d3e897b6",
+    "vaultAutomator": ["0xe0ac14d819e826ce2c23f03e37f9ba5c0688cab1"],
+    "poolOptimalSwapper": "0x9540f3bf9dbb74ad90e5adf050ca44d27bb3421f",
+    "configManager": "0xaa1d09b3374c305b41064bf730e4942ace67f214",
+    "lpStrategy": "0xccd82508ff367518cf9cebb80ec9e7d4e85a44e5",
+    "vaultFactory": "0x49acc7e8ea554ebbb836e524ab08301f7494238d"
+  }
+}

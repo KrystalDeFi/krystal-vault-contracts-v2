@@ -15,6 +15,7 @@ import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
 import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
+import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 
 contract VaultFactoryTest is TestCommon {
   ConfigManager public configManager;
@@ -31,18 +32,22 @@ contract VaultFactoryTest is TestCommon {
     setErc20Balance(WETH, USER, 100 ether);
     vm.deal(USER, 100 ether);
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
+
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
   }
 
   function test_createVault() public {
@@ -99,8 +104,8 @@ contract VaultFactoryTest is TestCommon {
 
     address vaultOwner = vaultInstance.vaultOwner();
     address vaultConfigManager = address(vaultInstance.configManager());
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) =
-      vaultInstance.vaultConfig();
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,) =
+      vaultInstance.getVaultConfig();
     ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
       allowDeposit: allowDeposit,
       rangeStrategyType: rangeStrategyType,

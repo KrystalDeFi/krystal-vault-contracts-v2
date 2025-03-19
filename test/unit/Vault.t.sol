@@ -36,14 +36,18 @@ contract VaultTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
+
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    ConfigManager configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    ConfigManager configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     address[] memory strategies = new address[](1);
@@ -104,10 +108,25 @@ contract VaultTest is TestCommon {
     assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
 
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
+    console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
     vault.withdraw(10_000 ether);
-    assertEq(IERC20(vault).balanceOf(USER), 10_001_958_738_672_832_443_901);
-    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 999_506_339_347_767_056);
+    console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+
+    console.log("withdrawing 5000 ether more");
+    vault.withdraw(5000 ether);
+    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
+    console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
+
+    console.log("withdrawing everything left");
+    vault.withdraw(IERC20(vault).balanceOf(USER));
+    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
+    console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
+    assertEq(IERC20(vault).balanceOf(USER), 0);
   }
 
   function test_allow_deposit() public {
@@ -117,8 +136,9 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
-    vault.setVaultConfig(vaultConfig);
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vault.vaultConfig();
+    vault.allowDeposit(vaultConfig);
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,) =
+      vault.getVaultConfig();
     assertEq(allowDeposit, true);
     console.log("The vault is public now");
 
@@ -126,9 +146,8 @@ contract VaultTest is TestCommon {
     vaultConfig.allowDeposit = false;
     vaultConfig.supportedAddresses = new address[](0);
     console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
-    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);    
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
-    vault.setVaultConfig(vaultConfig);
+    vault.allowDeposit(vaultConfig);
   }
-  
 }

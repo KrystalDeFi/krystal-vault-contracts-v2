@@ -44,28 +44,34 @@ function whitelistAutomator(address[] _automators, bool _isWhitelisted) external
 function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
 ```
 
-### setStableTokens
+### getTypedTokens
 
 ```solidity
-function setStableTokens(address[] _stableTokens) external
+function getTypedTokens() external view returns (address[] _typedTokens, uint256[] _typedTokenTypes)
 ```
 
-### isStableToken
+### setTypedTokens
 
 ```solidity
-function isStableToken(address _token) external view returns (bool _isStableToken)
+function setTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes) external
+```
+
+### isMatchedWithType
+
+```solidity
+function isMatchedWithType(address _token, uint256 _type) external view returns (bool)
 ```
 
 ### getStrategyConfig
 
 ```solidity
-function getStrategyConfig(address _strategy, address _principalToken, uint8 _type) external view returns (bytes)
+function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes)
 ```
 
 ### setStrategyConfig
 
 ```solidity
-function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes _config) external
+function setStrategyConfig(address _strategy, address _principalToken, bytes _config) external
 ```
 
 ### setMaxPositions

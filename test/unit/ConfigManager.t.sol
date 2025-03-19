@@ -17,14 +17,18 @@ contract ConfigManagerTest is TestCommon {
 
     vm.startBroadcast(USER);
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
+
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
   }
 
   function test_WhitelistStrategy() public {
@@ -69,67 +73,64 @@ contract ConfigManagerTest is TestCommon {
   function test_StableTokens() public {
     console.log("==== test_StableTokens ====");
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = configManager.stableTokens(0);
-    stableTokens[1] = configManager.stableTokens(1);
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
 
-    assertEq(stableTokens[0], DAI);
-    assertEq(stableTokens[1], USDC);
-
-    assertFalse(configManager.isStableToken(NULL_ADDRESS));
+    assertFalse(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
 
     address[] memory newStableTokens = new address[](1);
     newStableTokens[0] = DAI;
 
-    configManager.setStableTokens(newStableTokens);
+    uint256[] memory newStableTokenTypes = new uint256[](1);
+    newStableTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
 
-    address[] memory stableTokens2 = new address[](1);
-    stableTokens2[0] = configManager.stableTokens(0);
+    configManager.setTypedTokens(newStableTokens, newStableTokenTypes);
 
-    assertEq(stableTokens2[0], DAI);
-    assertTrue(configManager.isStableToken(DAI));
-    assertFalse(configManager.isStableToken(USDC));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
 
     address[] memory newStableTokens2 = new address[](3);
     newStableTokens2[0] = DAI;
     newStableTokens2[1] = USDC;
     newStableTokens2[2] = NULL_ADDRESS;
 
-    configManager.setStableTokens(newStableTokens2);
+    uint256[] memory newStableTokenTypes2 = new uint256[](3);
+    newStableTokenTypes2[0] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes2[1] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes2[2] = uint256(ILpStrategy.TokenType.Stable);
 
-    address[] memory stableTokens3 = new address[](3);
-    stableTokens3[0] = configManager.stableTokens(0);
-    stableTokens3[1] = configManager.stableTokens(1);
-    stableTokens3[2] = configManager.stableTokens(2);
+    configManager.setTypedTokens(newStableTokens2, newStableTokenTypes2);
 
-    assertEq(stableTokens3[0], DAI);
-    assertEq(stableTokens3[1], USDC);
-    assertEq(stableTokens3[2], NULL_ADDRESS);
-    assertTrue(configManager.isStableToken(DAI));
-    assertTrue(configManager.isStableToken(USDC));
-    assertTrue(configManager.isStableToken(NULL_ADDRESS));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
   }
 
   function test_StrategyConfigs() public {
     console.log("==== test_StrategyConfigs ====");
 
     ILpStrategy.LpStrategyConfig memory lpStrategyConfig = ILpStrategy.LpStrategyConfig({
-      principalTokenAmountMin: 100,
-      tickWidthMultiplierMin: 200,
-      tickWidthStableMultiplierMin: 300
+      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
     });
+
+    lpStrategyConfig.rangeConfigs[0] =
+      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 200, tickWidthStableMultiplierMin: 300 });
+
+    lpStrategyConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 100 });
 
     bytes memory config = abi.encode(lpStrategyConfig);
 
-    configManager.setStrategyConfig(NULL_ADDRESS, DAI, 1, config);
+    configManager.setStrategyConfig(NULL_ADDRESS, DAI, config);
 
-    bytes memory strategyConfig = configManager.getStrategyConfig(NULL_ADDRESS, DAI, 1);
+    bytes memory strategyConfig = configManager.getStrategyConfig(NULL_ADDRESS, DAI);
 
     ILpStrategy.LpStrategyConfig memory lpStrategyConfig2 = abi.decode(strategyConfig, (ILpStrategy.LpStrategyConfig));
+    ILpStrategy.LpStrategyRangeConfig memory rangeConfig = lpStrategyConfig2.rangeConfigs[0];
+    ILpStrategy.LpStrategyTvlConfig memory tvlConfig = lpStrategyConfig2.tvlConfigs[0];
 
-    assertEq(lpStrategyConfig2.principalTokenAmountMin, 100);
-    assertEq(lpStrategyConfig2.tickWidthMultiplierMin, 200);
-    assertEq(lpStrategyConfig2.tickWidthStableMultiplierMin, 300);
+    assertEq(tvlConfig.principalTokenAmountMin, 100);
+    assertEq(rangeConfig.tickWidthMultiplierMin, 200);
+    assertEq(rangeConfig.tickWidthStableMultiplierMin, 300);
   }
 
   function test_MaxPositions() public {

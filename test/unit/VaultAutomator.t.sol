@@ -42,16 +42,20 @@ contract VaultAutomatorTest is TestCommon {
     vm.deal(USER, 100 ether);
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy();
+    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy(USER);
 
-    address[] memory stableTokens = new address[](2);
-    stableTokens[0] = DAI;
-    stableTokens[1] = USDC;
+    address[] memory typedTokens = new address[](2);
+    typedTokens[0] = DAI;
+    typedTokens[1] = USDC;
+
+    uint256[] memory typedTokenTypes = new uint256[](2);
+    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = address(vaultAutomatorLpStrategy);
 
-    configManager = new ConfigManager(stableTokens, whitelistAutomator);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
 
@@ -61,7 +65,7 @@ contract VaultAutomatorTest is TestCommon {
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
   }
 
   function test_executeAllocateLpStrategy() public {
@@ -126,7 +130,7 @@ contract VaultAutomatorTest is TestCommon {
 
     // assertEq(IERC20(vaultAddress).balanceOf(vaultOwner), 1 ether * vault.SHARES_PRECISION());
 
-    AssetLib.Asset[] memory vaultAssets = IVault(vaultAddress).getInventory();
+    // AssetLib.Asset[] memory vaultAssets = IVault(vaultAddress).getInventory();
 
     // assertEq(vaultAssets.length, 3);
     // assertEq(vaultAssets[2].strategy, address(lpStrategy));

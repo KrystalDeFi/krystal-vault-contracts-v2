@@ -8,7 +8,7 @@ interface IStrategy is ICommon {
   error InvalidAsset();
   error InvalidNumberOfAssets();
 
-  function valueOf(AssetLib.Asset memory asset, address principalToken) external returns (uint256);
+  function valueOf(AssetLib.Asset memory asset, address principalToken) external view returns (uint256);
 
   function convert(AssetLib.Asset[] memory assets, VaultConfig memory config, bytes calldata data)
     external
@@ -30,4 +30,6 @@ interface IStrategy is ICommon {
     uint256 totalSupply,
     VaultConfig memory config
   ) external returns (AssetLib.Asset[] memory);
+
+  function revalidate(AssetLib.Asset memory asset, VaultConfig memory config) external;
 }

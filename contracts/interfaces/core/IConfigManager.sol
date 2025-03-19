@@ -18,16 +18,15 @@ interface IConfigManager is ICommon {
 
   function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted);
 
-  function setStableTokens(address[] memory _stableTokens) external;
+  function getTypedTokens() external view returns (address[] memory _typedTokens, uint256[] memory _typedTokenTypes);
 
-  function isStableToken(address _token) external view returns (bool _isStableToken);
+  function setTypedTokens(address[] memory _typedTokens, uint256[] memory _typedTokenTypes) external;
 
-  function getStrategyConfig(address _strategy, address _principalToken, uint8 _type)
-    external
-    view
-    returns (bytes memory);
+  function isMatchedWithType(address _token, uint256 _type) external view returns (bool);
 
-  function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes memory _config) external;
+  function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes memory);
+
+  function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external;
 
   function setMaxPositions(uint8 _maxPositions) external;
 }

@@ -2,22 +2,72 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 import "../interfaces/core/IConfigManager.sol";
 
 /// @title ConfigManager
 contract ConfigManager is Ownable, IConfigManager {
+  using EnumerableMap for EnumerableMap.AddressToUintMap;
+
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
   mapping(address => bool) public whitelistAutomators;
-  // strategy address -> principal token address -> type -> config
-  mapping(address => mapping(address => mapping(uint8 => bytes))) public strategyConfigs;
 
-  address[] public stableTokens;
+  // strategy address -> principal token address -> encoded config
+  /* 
+    E.g.: LpStrategy -> WETH -> encoded config
+    address(LpStrategy): {
+      address(WETH): abi.encode({
+        // Multiple by tick spacing
+        rangeConfigs: [
+          // Narrow
+          {
+            tickWidthMultiplierMin: 20,
+            tickWidthStableMultiplierMin: 10
+          },
+          // Wide
+          {
+            tickWidthMultiplierMin: 10,
+            tickWidthStableMultiplierMin: 5
+          }
+        ],
+        // Min by token amount
+        tvlConfigs: [
+          // Low
+          {
+            principalTokenAmountMin: 100,
+          },
+          // High
+          {
+            principalTokenAmountMin: 1000000,
+          }
+        ],
+      });
+    }
+  */
+  mapping(address => mapping(address => bytes)) public strategyConfigs;
+
+  // 0 = stable token
+  // 1 = pegged token
+  // ...
+  EnumerableMap.AddressToUintMap private typedTokens;
+
   uint8 public override maxPositions = 10;
 
-  constructor(address[] memory _stableTokens, address[] memory _whitelistAutomator) Ownable(_msgSender()) {
-    stableTokens = _stableTokens;
+  constructor(
+    address _owner,
+    address[] memory _whitelistAutomator,
+    address[] memory _typedTokens,
+    uint256[] memory _typedTokenTypes
+  ) Ownable(_owner) {
+    for (uint256 i = 0; i < _typedTokens.length;) {
+      typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
+
+      unchecked {
+        i++;
+      }
+    }
 
     for (uint256 i = 0; i < _whitelistAutomator.length;) {
       whitelistAutomators[_whitelistAutomator[i]] = true;
@@ -88,48 +138,63 @@ contract ConfigManager is Ownable, IConfigManager {
     return whitelistAutomators[_automator];
   }
 
-  /// @notice Set stable tokens
-  /// @param _stableTokens Array of stable token addresses
-  function setStableTokens(address[] memory _stableTokens) external onlyOwner {
-    stableTokens = _stableTokens;
-  }
+  /// @notice Get typed tokens
+  /// @return _typedTokens Typed tokens
+  /// @return _typedTokenTypes Typed token types
+  function getTypedTokens()
+    external
+    view
+    override
+    returns (address[] memory _typedTokens, uint256[] memory _typedTokenTypes)
+  {
+    uint256 length = typedTokens.length();
+    _typedTokens = new address[](length);
+    _typedTokenTypes = new uint256[](length);
 
-  /// @notice Check if token is stable
-  /// @param _token Token address
-  /// @return _isStable Boolean value if token is stable
-  function isStableToken(address _token) external view returns (bool _isStable) {
-    for (uint256 i = 0; i < stableTokens.length;) {
-      if (stableTokens[i] == _token) return true;
+    for (uint256 i = 0; i < length;) {
+      (address key, uint256 value) = typedTokens.at(i);
+      _typedTokens[i] = key;
+      _typedTokenTypes[i] = value;
 
       unchecked {
         i++;
       }
     }
+  }
 
-    return false;
+  /// @notice Set typed tokens
+  /// @param _typedTokens Array of typed token addresses
+  /// @param _typedTokenTypes Array of typed token types
+  function setTypedTokens(address[] memory _typedTokens, uint256[] memory _typedTokenTypes) external onlyOwner {
+    for (uint256 i = 0; i < _typedTokens.length;) {
+      typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Check if token is matched with type
+  /// @param _token Token address
+  /// @param _type Token type
+  /// @return _isMatched Boolean value if token is stable
+  function isMatchedWithType(address _token, uint256 _type) external view override returns (bool _isMatched) {
+    return typedTokens.contains(_token) && typedTokens.get(_token) == _type;
   }
 
   /// @notice Get strategy config
   /// @param _strategy Strategy address
-  /// @param _type Strategy type
   /// @return _config Strategy config
-  function getStrategyConfig(address _strategy, address _principalToken, uint8 _type)
-    external
-    view
-    returns (bytes memory)
-  {
-    return strategyConfigs[_strategy][_principalToken][_type];
+  function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes memory) {
+    return strategyConfigs[_strategy][_principalToken];
   }
 
   /// @notice Set strategy config
   /// @param _strategy Strategy address
-  /// @param _type Strategy type
   /// @param _config Strategy config
-  function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes memory _config)
-    external
-    onlyOwner
-  {
-    strategyConfigs[_strategy][_principalToken][_type] = _config;
+  function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external onlyOwner {
+    strategyConfigs[_strategy][_principalToken] = _config;
   }
 
   /// @notice Set max positions

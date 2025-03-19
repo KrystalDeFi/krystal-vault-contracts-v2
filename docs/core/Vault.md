@@ -26,12 +26,6 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
-### vaultConfig
-
-```solidity
-struct ICommon.VaultConfig vaultConfig
-```
-
 ### onlyAdminOrAutomator
 
 ```solidity
@@ -81,7 +75,7 @@ Deposits the asset to the vault
 function withdraw(uint256 shares) external
 ```
 
-Withdraws the asset from the vault
+Withdraws the asset as principal token from the vault
 
 #### Parameters
 
@@ -137,7 +131,7 @@ function _harvest(struct AssetLib.Asset asset) internal
 ### getTotalValue
 
 ```solidity
-function getTotalValue() public returns (uint256 totalValue)
+function getTotalValue() public view returns (uint256 totalValue)
 ```
 
 Returns the total value of the vault
@@ -151,7 +145,7 @@ Returns the total value of the vault
 ### getAssetAllocations
 
 ```solidity
-function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
+function getAssetAllocations() external view returns (struct AssetLib.Asset[] assets)
 ```
 
 Returns the asset allocations of the vault
@@ -219,13 +213,13 @@ revoke admin role from the address
 | ---- | ---- | ----------- |
 | _address | address | The address from which the admin role is revoked |
 
-### setVaultConfig
+### allowDeposit
 
 ```solidity
-function setVaultConfig(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config) external
 ```
 
-Sets the vault config
+Turn on allow deposit
 
 #### Parameters
 
@@ -272,5 +266,11 @@ _Transfers the asset to the recipient_
 
 ```solidity
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
+
+### getVaultConfig
+
+```solidity
+function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
 ```
 

@@ -2,18 +2,39 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_stableTokens",
-        "type": "address[]"
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
       },
       {
         "internalType": "address[]",
         "name": "_whitelistAutomator",
         "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "key",
+        "type": "bytes32"
+      }
+    ],
+    "name": "EnumerableMapNonexistentKey",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -97,11 +118,6 @@
         "internalType": "address",
         "name": "_principalToken",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
       }
     ],
     "name": "getStrategyConfig",
@@ -116,18 +132,41 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getTypedTokens",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
         "name": "_token",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_type",
+        "type": "uint256"
       }
     ],
-    "name": "isStableToken",
+    "name": "isMatchedWithType",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isStable",
+        "name": "_isMatched",
         "type": "bool"
       }
     ],
@@ -240,19 +279,6 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_stableTokens",
-        "type": "address[]"
-      }
-    ],
-    "name": "setStableTokens",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "_strategy",
         "type": "address"
@@ -261,11 +287,6 @@
         "internalType": "address",
         "name": "_principalToken",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
       },
       {
         "internalType": "bytes",
@@ -281,20 +302,19 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "stableTokens",
-    "outputs": [
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
       }
     ],
-    "stateMutability": "view",
+    "name": "setTypedTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -308,11 +328,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
       }
     ],
     "name": "strategyConfigs",

@@ -8,6 +8,12 @@
 event Deposit(address account, uint256 shares)
 ```
 
+### Withdraw
+
+```solidity
+event Withdraw(address account, uint256 shares)
+```
+
 ### Allocate
 
 ```solidity
@@ -176,15 +182,21 @@ function sweepToken(address[] tokens) external
 function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
 ```
 
-### setVaultConfig
+### allowDeposit
 
 ```solidity
-function setVaultConfig(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config) external
 ```
 
 ### getInventory
 
 ```solidity
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
+```
+
+### getVaultConfig
+
+```solidity
+function getVaultConfig() external view returns (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
 ```
 

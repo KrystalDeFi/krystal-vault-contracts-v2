@@ -23,13 +23,7 @@ mapping(address => bool) whitelistAutomators
 ### strategyConfigs
 
 ```solidity
-mapping(address => mapping(address => mapping(uint8 => bytes))) strategyConfigs
-```
-
-### stableTokens
-
-```solidity
-address[] stableTokens
+mapping(address => mapping(address => bytes)) strategyConfigs
 ```
 
 ### maxPositions
@@ -41,7 +35,7 @@ uint8 maxPositions
 ### constructor
 
 ```solidity
-constructor(address[] _stableTokens, address[] _whitelistAutomator) public
+constructor(address _owner, address[] _whitelistAutomator, address[] _typedTokens, uint256[] _typedTokenTypes) public
 ```
 
 ### whitelistStrategy
@@ -149,44 +143,61 @@ Check if automator is whitelisted
 | ---- | ---- | ----------- |
 | _isWhitelisted | bool | Boolean value if automator is whitelisted |
 
-### setStableTokens
+### getTypedTokens
 
 ```solidity
-function setStableTokens(address[] _stableTokens) external
+function getTypedTokens() external view returns (address[] _typedTokens, uint256[] _typedTokenTypes)
 ```
 
-Set stable tokens
+Get typed tokens
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _typedTokens | address[] | Typed tokens |
+| _typedTokenTypes | uint256[] | Typed token types |
+
+### setTypedTokens
+
+```solidity
+function setTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes) external
+```
+
+Set typed tokens
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _stableTokens | address[] | Array of stable token addresses |
+| _typedTokens | address[] | Array of typed token addresses |
+| _typedTokenTypes | uint256[] | Array of typed token types |
 
-### isStableToken
+### isMatchedWithType
 
 ```solidity
-function isStableToken(address _token) external view returns (bool _isStable)
+function isMatchedWithType(address _token, uint256 _type) external view returns (bool _isMatched)
 ```
 
-Check if token is stable
+Check if token is matched with type
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _token | address | Token address |
+| _type | uint256 | Token type |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isStable | bool | Boolean value if token is stable |
+| _isMatched | bool | Boolean value if token is stable |
 
 ### getStrategyConfig
 
 ```solidity
-function getStrategyConfig(address _strategy, address _principalToken, uint8 _type) external view returns (bytes)
+function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes)
 ```
 
 Get strategy config
@@ -197,7 +208,6 @@ Get strategy config
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
 | _principalToken | address |  |
-| _type | uint8 | Strategy type |
 
 #### Return Values
 
@@ -208,7 +218,7 @@ Get strategy config
 ### setStrategyConfig
 
 ```solidity
-function setStrategyConfig(address _strategy, address _principalToken, uint8 _type, bytes _config) external
+function setStrategyConfig(address _strategy, address _principalToken, bytes _config) external
 ```
 
 Set strategy config
@@ -219,7 +229,6 @@ Set strategy config
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
 | _principalToken | address |  |
-| _type | uint8 | Strategy type |
 | _config | bytes | Strategy config |
 
 ### setMaxPositions

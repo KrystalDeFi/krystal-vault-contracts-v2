@@ -384,6 +384,12 @@ Gets the underlying assets of the position
 | ---- | ---- | ----------- |
 | underlyingAssets | struct AssetLib.Asset[] | The underlying assets of the position |
 
+### revalidate
+
+```solidity
+function revalidate(struct AssetLib.Asset asset, struct ICommon.VaultConfig config) external view
+```
+
 ### _getPoolForPosition
 
 ```solidity

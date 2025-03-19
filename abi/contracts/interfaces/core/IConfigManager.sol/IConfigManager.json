@@ -40,11 +40,6 @@
         "internalType": "address",
         "name": "_principalToken",
         "type": "address"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
       }
     ],
     "name": "getStrategyConfig",
@@ -59,18 +54,41 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getTypedTokens",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
         "name": "_token",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_type",
+        "type": "uint256"
       }
     ],
-    "name": "isStableToken",
+    "name": "isMatchedWithType",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isStableToken",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -163,19 +181,6 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_stableTokens",
-        "type": "address[]"
-      }
-    ],
-    "name": "setStableTokens",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "_strategy",
         "type": "address"
@@ -186,17 +191,30 @@
         "type": "address"
       },
       {
-        "internalType": "uint8",
-        "name": "_type",
-        "type": "uint8"
-      },
-      {
         "internalType": "bytes",
         "name": "_config",
         "type": "bytes"
       }
     ],
     "name": "setStrategyConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setTypedTokens",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

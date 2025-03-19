@@ -116,6 +116,8 @@ dist
 # DynamoDB Local files
 .dynamodb/
 
+cache_forge/
+
 # TernJS port file
 .tern-port
 
@@ -145,5 +147,3 @@ gasReporterOutput.json
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
-
-cache_forge/*
