@@ -112,7 +112,6 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
   }
 
-
   function test_allow_deposit() public {
     console.log("==== User can turn ON allow_deposit for his private vault ====");
     vaultConfig.allowDeposit = true;
@@ -121,7 +120,8 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
     vault.allowDeposit(vaultConfig);
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vault.vaultConfig();
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,) =
+      vault.getVaultConfig();
     assertEq(allowDeposit, true);
     console.log("The vault is public now");
 
@@ -129,7 +129,7 @@ contract VaultTest is TestCommon {
     vaultConfig.allowDeposit = false;
     vaultConfig.supportedAddresses = new address[](0);
     console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
-    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);    
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vault.allowDeposit(vaultConfig);
   }

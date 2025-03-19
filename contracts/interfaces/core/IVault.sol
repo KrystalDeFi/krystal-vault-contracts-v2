@@ -58,4 +58,12 @@ interface IVault is ICommon {
   function allowDeposit(VaultConfig memory _config) external;
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets);
+
+  function getVaultConfig() external view returns (
+    bool allowDeposit,
+    uint8 rangeStrategyType,
+    uint8 tvlStrategyType,
+    address principalToken,
+    address[] memory supportedAddresses
+  );
 }

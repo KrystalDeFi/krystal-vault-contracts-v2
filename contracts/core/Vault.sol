@@ -31,7 +31,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   IConfigManager public configManager;
 
   address public override vaultOwner;
-  VaultConfig public vaultConfig;
+  VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
 
@@ -393,5 +393,24 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets) {
     return inventory.assets;
+  }
+
+  function getVaultConfig()
+    external
+    view
+    override
+    returns (
+      bool isAllowDeposit,
+      uint8 rangeStrategyType,
+      uint8 tvlStrategyType,
+      address principalToken,
+      address[] memory supportedAddresses
+    )
+  {
+    isAllowDeposit = vaultConfig.allowDeposit;
+    rangeStrategyType = vaultConfig.rangeStrategyType;
+    tvlStrategyType = vaultConfig.tvlStrategyType;
+    principalToken = vaultConfig.principalToken;
+    supportedAddresses = vaultConfig.supportedAddresses;
   }
 }
