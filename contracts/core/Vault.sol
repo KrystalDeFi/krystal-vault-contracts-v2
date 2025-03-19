@@ -4,21 +4,24 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+
+import { AssetLib } from "../libraries/AssetLib.sol";
+import { InventoryLib } from "../libraries/InventoryLib.sol";
+
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
-import { AssetLib } from "../libraries/AssetLib.sol";
-import { InventoryLib } from "../libraries/InventoryLib.sol";
-import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
-import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import { ERC1155Holder } from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 contract Vault is
   AccessControlUpgradeable,
