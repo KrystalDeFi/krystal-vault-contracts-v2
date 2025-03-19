@@ -26,8 +26,9 @@ export interface IConfig {
     autoVerifyContract?: boolean;
   };
   wrapToken?: string;
-  stableTokens?: string[];
-  peggedTokens?: string[];
+  typedTokens?: string[];
+  // 0 for stable, 1 for pegged,...
+  typedTokensTypes?: number[];
   automatorAddress?: string;
   // For platform fee recipient
   platformFeeRecipient?: string;

@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import "../../contracts/strategies/lpUniV3/VaultAutomator.sol";
 
 contract VaultAutomatorLpStrategy is VaultAutomator {
+  constructor(address _owner) VaultAutomator(_owner) { }
+
   function hashTypedDataV4(bytes32 structHash) external view virtual returns (bytes32) {
     return super._hashTypedDataV4(structHash);
   }

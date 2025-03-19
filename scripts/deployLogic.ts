@@ -120,6 +120,9 @@ export const deployVaultAutomatorContract = async (
         "VaultAutomator",
         existingContract?.["vaultAutomator"]?.[0],
         "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
+        undefined,
+        ["address"],
+        [deployer],
       )) as LpUniV3VaultAutomator,
     );
   }
@@ -147,12 +150,12 @@ export const deployConfigManagerContract = async (
       existingContract?.["configManager"],
       "contracts/core/ConfigManager.sol:ConfigManager",
       undefined,
-      ["address", "address[]", "address[]", "address[]"],
+      ["address", "address[]", "address[]", "uint256[]"],
       [
         deployer,
-        config.stableTokens,
-        config.peggedTokens,
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.map((c) => c?.target),
+        config.typedTokens,
+        config.typedTokensTypes,
       ],
     )) as ConfigManager;
   }

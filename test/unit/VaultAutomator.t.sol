@@ -42,7 +42,7 @@ contract VaultAutomatorTest is TestCommon {
     vm.deal(USER, 100 ether);
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy();
+    vaultAutomatorLpStrategy = new VaultAutomatorLpStrategy(USER);
 
     address[] memory typedTokens = new address[](2);
     typedTokens[0] = DAI;
