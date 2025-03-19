@@ -343,6 +343,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   /// @param _config New vault config
   function setVaultConfig(VaultConfig memory _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
     require((vaultConfig.allowDeposit == _config.allowDeposit) || (vaultConfig.allowDeposit == false && _config.allowDeposit == true), InvalidVaultConfig());
+    require(_config.supportedAddresses.length > 0, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
     vaultConfig = _config;
