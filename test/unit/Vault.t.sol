@@ -120,6 +120,14 @@ contract VaultTest is TestCommon {
     vault.setVaultConfig(vaultConfig);
     (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken) = vault.vaultConfig();
     assertEq(allowDeposit, true);
+
+    console.log("==== User can't turn OFF allow_deposit for his public vault ====");
+    vaultConfig.allowDeposit = false;
+    vaultConfig.supportedAddresses = new address[](0);
+    console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
+    console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);    
+    vm.expectRevert(ICommon.InvalidVaultConfig.selector);
+    vault.setVaultConfig(vaultConfig);
   }
   
 }

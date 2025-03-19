@@ -26,7 +26,7 @@
 [] User can turn ON allow_deposit ONLY ONCE
     [] Call the the 2nd time with different config returns error
 
-[] User cannot Turn off allow_deposit once it's on
+[x] User cannot Turn off allow_deposit once it's on
 
 [] User can Allow Deposit with proper Vault Config
     [] RANGE_Config, TVL_Config can't be UNSET
