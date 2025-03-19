@@ -108,21 +108,20 @@ contract VaultTest is TestCommon {
     uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
     vault.withdraw(10_000 ether);
-    console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));    
+    console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     console.log("withdrawing 5000 ether more");
     vault.withdraw(5000 ether);
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
-    console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));    
+    console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
 
-    
     console.log("withdrawing everything left");
     vault.withdraw(IERC20(vault).balanceOf(USER));
     console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
-    console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));    
+    console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     assertEq(IERC20(vault).balanceOf(USER), 0);
