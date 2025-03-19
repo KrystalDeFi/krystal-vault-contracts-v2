@@ -7,6 +7,8 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event Deposit(address indexed account, uint256 shares);
 
+  event Withdraw(address indexed account, uint256 shares);
+
   event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
 
   event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);

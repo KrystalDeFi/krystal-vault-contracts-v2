@@ -8,6 +8,12 @@
 event Deposit(address account, uint256 shares)
 ```
 
+### Withdraw
+
+```solidity
+event Withdraw(address account, uint256 shares)
+```
+
 ### Allocate
 
 ```solidity

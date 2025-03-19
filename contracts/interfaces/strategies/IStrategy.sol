@@ -30,4 +30,6 @@ interface IStrategy is ICommon {
     uint256 totalSupply,
     VaultConfig memory config
   ) external returns (AssetLib.Asset[] memory);
+
+  function revalidate(AssetLib.Asset memory asset, VaultConfig memory config) external;
 }

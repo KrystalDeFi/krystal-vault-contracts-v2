@@ -664,6 +664,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     underlyingAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
   }
 
+  function revalidate(AssetLib.Asset memory asset, VaultConfig memory config) external view {
+    require(asset.strategy == address(this), InvalidAsset());
+
+    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
+      INFPM(asset.token).positions(asset.tokenId);
+
+    _validateConfig(INFPM(asset.token), fee, token0, token1, tickLower, tickUpper, config);
+  }
+
   /// @dev Gets the pool for the position
   /// @param nfpm The non-fungible position manager
   /// @param tokenId The token id of the position

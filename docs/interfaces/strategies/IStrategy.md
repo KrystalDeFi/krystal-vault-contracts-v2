@@ -50,3 +50,9 @@ function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 princ
 function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[])
 ```
 
+### revalidate
+
+```solidity
+function revalidate(struct AssetLib.Asset asset, struct ICommon.VaultConfig config) external
+```
+

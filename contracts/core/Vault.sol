@@ -141,6 +141,8 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
         i++;
       }
     }
+
+    emit Withdraw(_msgSender(), shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -343,6 +345,12 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
   function allowDeposit(VaultConfig memory _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
     require(!vaultConfig.allowDeposit && _config.allowDeposit, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
+
+    for (uint256 i = 0; i < inventory.assets.length; i++) {
+      if (inventory.assets[i].strategy != address(0)) {
+        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], vaultConfig);
+      }
+    }
 
     vaultConfig = _config;
 
