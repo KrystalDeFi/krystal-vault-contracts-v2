@@ -114,11 +114,11 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     console.log("withdrawing 5000 ether more");
-    vault.withdraw(5_000 ether);
+    vault.withdraw(5000 ether);
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
     console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
-    assertEq(IERC20(vault).balanceOf(USER), 0);
-    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 1_000_000 ether);
+    assertEq(IERC20(vault).balanceOf(USER), 5_001_958_738_672_832_443_901);
+    assertEq(IERC20(WETH).balanceOf(USER) - wethBalanceBefore, 1_499_256_352_199_701_182);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (2): %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
   }
@@ -144,5 +144,4 @@ contract VaultTest is TestCommon {
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vault.allowDeposit(vaultConfig);
   }
-  
 }

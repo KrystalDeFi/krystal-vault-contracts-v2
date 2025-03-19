@@ -117,7 +117,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
     return shares;
   }
 
-  /// @notice Withdraws the asset from the vault
+  /// @notice Withdraws the asset as principal token from the vault
   /// @param shares Amount of shares to be burned
   function withdraw(uint256 shares) external nonReentrant {
     require(shares != 0, InvalidShares());
@@ -125,22 +125,34 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
     _burn(_msgSender(), shares);
 
-    for (uint256 i = 0; i < inventory.assets.length;) {
+    uint256 returnAmount;
+    for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0)) {
         _transferAsset(currentAsset, currentAsset.strategy);
         AssetLib.Asset[] memory assets =
           IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, totalSupply, vaultConfig);
         _addAssets(assets);
-        _transferAssets(assets, _msgSender());
-      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20) {
-        currentAsset.amount = FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
-        _transferAsset(currentAsset, _msgSender());
+        for (uint256 k; k < assets.length;) {
+          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == vaultConfig.principalToken) {
+            returnAmount += assets[k].amount;
+          }
+          unchecked {
+            k++;
+          }
+        }
+      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token == vaultConfig.principalToken)
+      {
+        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
       }
       unchecked {
         i++;
       }
     }
+
+    _transferAsset(
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
+    );
 
     emit Withdraw(_msgSender(), shares);
   }
@@ -228,7 +240,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the total value of the vault
   /// @return totalValue Total value of the vault in principal token
-  function getTotalValue() public returns (uint256 totalValue) {
+  function getTotalValue() public view returns (uint256 totalValue) {
     totalValue = 0;
     AssetLib.Asset memory currentAsset;
     for (uint256 i = 0; i < inventory.assets.length;) {
@@ -248,7 +260,7 @@ contract Vault is AccessControlUpgradeable, ERC20PermitUpgradeable, ReentrancyGu
 
   /// @notice Returns the asset allocations of the vault
   /// @return assets Asset allocations of the vault
-  function getAssetAllocations() external override returns (AssetLib.Asset[] memory assets) {
+  function getAssetAllocations() external view override returns (AssetLib.Asset[] memory assets) {
     /*
     Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
     uint256 index = 0;
