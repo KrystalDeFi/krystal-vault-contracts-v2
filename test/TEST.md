@@ -22,7 +22,8 @@
 
 
 ### Allow Deposit
-[] User can turn ON allow_deposit only once
+[x] User can turn ON allow_deposit for his private vault
+[] User can turn ON allow_deposit ONLY ONCE
     [] Call the the 2nd time with different config returns error
 
 [] User cannot Turn off allow_deposit once it's on
