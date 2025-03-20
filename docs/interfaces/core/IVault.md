@@ -5,13 +5,13 @@
 ### Deposit
 
 ```solidity
-event Deposit(address account, uint256 shares)
+event Deposit(address account, uint256 principalAmount, uint256 shares)
 ```
 
 ### Withdraw
 
 ```solidity
-event Withdraw(address account, uint256 shares)
+event Withdraw(address account, uint256 principalAmount, uint256 shares)
 ```
 
 ### Allocate
@@ -26,16 +26,28 @@ event Allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy,
 event Deallocate(struct AssetLib.Asset[] inputAssets, struct AssetLib.Asset[] returnedAssets)
 ```
 
+### Harvest
+
+```solidity
+event Harvest(struct AssetLib.Asset[] harvestedAssets)
+```
+
 ### SweepToken
 
 ```solidity
 event SweepToken(address[] tokens)
 ```
 
-### SweepNFToken
+### SweepERC721
 
 ```solidity
-event SweepNFToken(address[] _tokens, uint256[] _tokenIds)
+event SweepERC721(address[] _tokens, uint256[] _tokenIds)
+```
+
+### SweepERC1155
+
+```solidity
+event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts)
 ```
 
 ### SetVaultConfig
@@ -152,12 +164,6 @@ function deallocate(address token, uint256 tokenId, uint256 amount, bytes data) 
 function getTotalValue() external returns (uint256)
 ```
 
-### getAssetAllocations
-
-```solidity
-function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
-```
-
 ### grantAdminRole
 
 ```solidity
@@ -176,10 +182,16 @@ function revokeAdminRole(address _address) external
 function sweepToken(address[] tokens) external
 ```
 
-### sweepNFTToken
+### sweepERC721
 
 ```solidity
-function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
+function sweepERC721(address[] _tokens, uint256[] _tokenIds) external
+```
+
+### sweepERC1155
+
+```solidity
+function sweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts) external
 ```
 
 ### allowDeposit

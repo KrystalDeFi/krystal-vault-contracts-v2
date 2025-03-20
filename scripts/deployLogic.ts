@@ -338,7 +338,7 @@ export function convertToAddressObject(obj: Record<string, any> | Array<any> | B
   if (obj instanceof BaseContract) {
     return obj.target;
   } else if (isArray(obj)) {
-    return obj.map((k) => convertToAddressObject(obj[k]));
+    return obj.map((k) => convertToAddressObject(k));
   } else if (typeof obj == "string") {
     return obj;
   } else {
