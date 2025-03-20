@@ -170,13 +170,13 @@ Sweeps the tokens to the caller
 | ---- | ---- | ----------- |
 | tokens | address[] | Tokens to sweep |
 
-### sweepNFTToken
+### sweepERC721
 
 ```solidity
-function sweepNFTToken(address[] _tokens, uint256[] _tokenIds) external
+function sweepERC721(address[] _tokens, uint256[] _tokenIds) external
 ```
 
-Sweeps the non-fungible tokens to the caller
+Sweeps the non-fungible tokens ERC721 to the caller
 
 #### Parameters
 
@@ -184,6 +184,22 @@ Sweeps the non-fungible tokens to the caller
 | ---- | ---- | ----------- |
 | _tokens | address[] | Tokens to sweep |
 | _tokenIds | uint256[] | Token IDs to sweep |
+
+### sweepERC1155
+
+```solidity
+function sweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts) external
+```
+
+Sweep ERC1155 tokens to the caller
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _tokens | address[] | Tokens to sweep |
+| _tokenIds | uint256[] | Token IDs to sweep |
+| _amounts | uint256[] | Amounts to sweep |
 
 ### grantAdminRole
 
@@ -272,5 +288,11 @@ function getInventory() external view returns (struct AssetLib.Asset[] assets)
 
 ```solidity
 function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
+```
+
+### supportsInterface
+
+```solidity
+function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
 ```
 

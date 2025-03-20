@@ -309,9 +309,34 @@
         "internalType": "uint256[]",
         "name": "_tokenIds",
         "type": "uint256[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "_amounts",
+        "type": "uint256[]"
       }
     ],
-    "name": "SweepNFToken",
+    "name": "SweepERC1155",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "_tokens",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "_tokenIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "SweepERC721",
     "type": "event"
   },
   {
@@ -728,9 +753,32 @@
         "internalType": "uint256[]",
         "name": "_tokenIds",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_amounts",
+        "type": "uint256[]"
       }
     ],
-    "name": "sweepNFTToken",
+    "name": "sweepERC1155",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_tokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_tokenIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "sweepERC721",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

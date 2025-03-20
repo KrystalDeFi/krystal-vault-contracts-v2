@@ -51,16 +51,30 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     vault.sweepToken(tokens);
   }
 
-  /// @notice Execute sweep NFT token
+  /// @notice Execute sweep NFT token ERC721
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepNFTToken(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
+  function executeSweepERC721(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
     external
     override
     onlyRole(OPERATOR_ROLE_HASH)
   {
-    vault.sweepNFTToken(tokens, tokenIds);
+    vault.sweepERC721(tokens, tokenIds);
+  }
+
+  /// @notice Execute sweep NFT token ERC1155
+  /// @param vault Vault address
+  /// @param tokens Tokens to sweep
+  /// @param tokenIds Token IDs to sweep
+  /// @param amounts Amounts to sweep
+  function executeSweepERC1155(
+    IVault vault,
+    address[] memory tokens,
+    uint256[] memory tokenIds,
+    uint256[] memory amounts
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
+    vault.sweepERC1155(tokens, tokenIds, amounts);
   }
 
   /// @dev Validate the order

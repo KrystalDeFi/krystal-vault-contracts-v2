@@ -48,13 +48,13 @@ Execute sweep token
 | vault | contract IVault | Vault address |
 | tokens | address[] | Tokens to sweep |
 
-### executeSweepNFTToken
+### executeSweepERC721
 
 ```solidity
-function executeSweepNFTToken(contract IVault vault, address[] tokens, uint256[] tokenIds) external
+function executeSweepERC721(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
-Execute sweep NFT token
+Execute sweep NFT token ERC721
 
 #### Parameters
 
@@ -63,6 +63,23 @@ Execute sweep NFT token
 | vault | contract IVault | Vault address |
 | tokens | address[] | Tokens to sweep |
 | tokenIds | uint256[] | Token IDs to sweep |
+
+### executeSweepERC1155
+
+```solidity
+function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds, uint256[] amounts) external
+```
+
+Execute sweep NFT token ERC1155
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | contract IVault | Vault address |
+| tokens | address[] | Tokens to sweep |
+| tokenIds | uint256[] | Token IDs to sweep |
+| amounts | uint256[] | Amounts to sweep |
 
 ### _validateOrder
 

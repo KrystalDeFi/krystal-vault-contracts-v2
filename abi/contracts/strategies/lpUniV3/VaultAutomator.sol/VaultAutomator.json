@@ -377,9 +377,37 @@
         "internalType": "uint256[]",
         "name": "tokenIds",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
       }
     ],
-    "name": "executeSweepNFTToken",
+    "name": "executeSweepERC1155",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IVault",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "tokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "tokenIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "executeSweepERC721",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
