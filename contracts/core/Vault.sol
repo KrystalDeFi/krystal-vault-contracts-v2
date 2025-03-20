@@ -343,7 +343,7 @@ contract Vault is
 
     for (uint256 i = 0; i < inventory.assets.length; i++) {
       if (inventory.assets[i].strategy != address(0)) {
-        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], vaultConfig);
+        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], _config);
       }
     }
 
