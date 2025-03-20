@@ -75,7 +75,7 @@ contract Vault is
     inventory.addAsset(firstAsset);
     _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
 
-    emit Deposit(_owner, params.principalTokenAmount * SHARES_PRECISION);
+    emit Deposit(_owner, params.principalTokenAmount, params.principalTokenAmount * SHARES_PRECISION);
   }
 
   /// @notice Deposits the asset to the vault
@@ -121,7 +121,7 @@ contract Vault is
     }
 
     _mint(_msgSender(), shares);
-    emit Deposit(_msgSender(), shares);
+    emit Deposit(_msgSender(), principalAmount, shares);
 
     return shares;
   }
@@ -163,7 +163,7 @@ contract Vault is
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
     );
 
-    emit Withdraw(_msgSender(), shares);
+    emit Withdraw(_msgSender(), returnAmount, shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -238,13 +238,14 @@ contract Vault is
   function harvest(AssetLib.Asset memory asset) external onlyAdminOrAutomator {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    _harvest(asset);
+    AssetLib.Asset[] memory harvestedAssets = _harvest(asset);
+    emit Harvest(harvestedAssets);
   }
 
-  function _harvest(AssetLib.Asset memory asset) internal {
+  function _harvest(AssetLib.Asset memory asset) internal returns (AssetLib.Asset[] memory harvestedAssets) {
     _transferAsset(asset, asset.strategy);
-    AssetLib.Asset[] memory newAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
-    _addAssets(newAssets);
+    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
+    _addAssets(harvestedAssets);
   }
 
   /// @notice Returns the total value of the vault
@@ -265,51 +266,6 @@ contract Vault is
     }
 
     return totalValue;
-  }
-
-  /// @notice Returns the asset allocations of the vault
-  /// @return assets Asset allocations of the vault
-  function getAssetAllocations() external view override returns (AssetLib.Asset[] memory assets) {
-    /*
-    Asset[] memory tempAssets = new Asset[](tokenAddresses.length() * 10); // Overestimate size
-    uint256 index = 0;
-
-    for (uint256 i = 0; i < inventory.assets.length; ) {
-      AssetLib.Asset memory currentAsset = inventory.assets[i];
-
-      if (currentAsset.strategy != address(0)) {
-    AssetLib.Asset[] memory strategyAssets = IStrategy(currentAsset.strategy).valueOf(currentAsset);
-        for (uint256 k = 0; k < strategyAssets.length; ) {
-          tempAssets[index] = strategyAssets[k];
-
-          unchecked {
-            index++;
-            k++;
-          }
-        }
-      } else {
-        tempAssets[index] = currentAsset;
-
-        unchecked {
-          index++;
-        }
-      }
-
-      unchecked {
-        i++;
-      }
-    }
-
-    // Create the exact-sized array and copy the results
-    assets = new AssetLib.Asset[](index);
-    for (uint256 i = 0; i < index; ) {
-      assets[i] = tempAssets[i];
-
-      unchecked {
-        i++;
-      }
-    }
-    */
   }
 
   /// @notice Sweeps the tokens to the caller

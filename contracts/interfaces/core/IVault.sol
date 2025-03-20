@@ -5,13 +5,15 @@ import "../ICommon.sol";
 import "../strategies/IStrategy.sol";
 
 interface IVault is ICommon {
-  event Deposit(address indexed account, uint256 shares);
+  event Deposit(address indexed account, uint256 principalAmount, uint256 shares);
 
-  event Withdraw(address indexed account, uint256 shares);
+  event Withdraw(address indexed account, uint256 principalAmount, uint256 shares);
 
   event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
 
   event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);
+
+  event Harvest(AssetLib.Asset[] harvestedAssets);
 
   event SweepToken(address[] tokens);
 
@@ -46,8 +48,6 @@ interface IVault is ICommon {
   function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data) external;
 
   function getTotalValue() external returns (uint256);
-
-  function getAssetAllocations() external returns (AssetLib.Asset[] memory assets);
 
   function grantAdminRole(address _address) external;
 
