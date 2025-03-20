@@ -77,6 +77,7 @@ contract VaultTest is TestCommon {
     assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    console.log(">>>>>>>>>>>>>>>>> the weth balance of the vault: %d", IERC20(WETH).balanceOf(address(vault)));
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
@@ -89,6 +90,7 @@ contract VaultTest is TestCommon {
       amount1Min: 0,
       swapData: ""
     });
+    console.log("++++++ total value of the vault: %d", vault.getTotalValue());
     ICommon.Instruction memory instruction = ICommon.Instruction({
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
@@ -106,8 +108,7 @@ contract VaultTest is TestCommon {
 
     vault.deposit(1 ether, 0);
     assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
-
-    uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
+    
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
     vault.withdraw(10_000 ether);
     console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
@@ -122,10 +123,9 @@ contract VaultTest is TestCommon {
 
     console.log("withdrawing everything left");
     vault.withdraw(IERC20(vault).balanceOf(USER));
-    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));
+    assertEq(IERC20(WETH).balanceOf(USER), 99.999200033475552353 ether);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     assertEq(IERC20(vault).balanceOf(USER), 0);
   }
 
@@ -149,5 +149,36 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vault.allowDeposit(vaultConfig);
+  }
+
+  function test_deposit_non_principal_token() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    console.log("the WETH balance of user: %d", IERC20(WETH).balanceOf(USER));
+    console.log("the USDC balance of user: %d", IERC20(USDC).balanceOf(USER));
+    console.log("the DAI balance of user: %d", IERC20(DAI).balanceOf(USER));
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: DAI,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+
+    // IERC20(WETH).approve(address(vault), 100 ether);
+    // vault.deposit(0.5 ether, 0);
+    // vault.allocate(assets, lpStrategy, abi.encode(instruction));
+    // console.log("vault.getTotalValue(): %d", vault.getTotalValue());
   }
 }

@@ -35,9 +35,9 @@
     
 
 ### Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
-[] User can add liquidity from principal to a new LP position
-[] User can add liquidity from principal to an existing LP position
-[] User can remove liquidity from LP position to principal
+[x] User can add liquidity from principal to a new LP position
+[x] User can add liquidity from principal to an existing LP position
+[x] User can remove liquidity from LP position to principal
     [] In all cases, total Vault value should remain the same (or changed insignificantly)
 [] User can't add liquidity to a LP position which doesn't have principal in the pair
 [] User can adjust 1 specific LP
