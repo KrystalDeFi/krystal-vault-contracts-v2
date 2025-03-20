@@ -5,13 +5,13 @@
 ### Deposit
 
 ```solidity
-event Deposit(address account, uint256 shares)
+event Deposit(address account, uint256 principalAmount, uint256 shares)
 ```
 
 ### Withdraw
 
 ```solidity
-event Withdraw(address account, uint256 shares)
+event Withdraw(address account, uint256 principalAmount, uint256 shares)
 ```
 
 ### Allocate
@@ -24,6 +24,12 @@ event Allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy,
 
 ```solidity
 event Deallocate(struct AssetLib.Asset[] inputAssets, struct AssetLib.Asset[] returnedAssets)
+```
+
+### Harvest
+
+```solidity
+event Harvest(struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### SweepToken
@@ -156,12 +162,6 @@ function deallocate(address token, uint256 tokenId, uint256 amount, bytes data) 
 
 ```solidity
 function getTotalValue() external returns (uint256)
-```
-
-### getAssetAllocations
-
-```solidity
-function getAssetAllocations() external returns (struct AssetLib.Asset[] assets)
 ```
 
 ### grantAdminRole

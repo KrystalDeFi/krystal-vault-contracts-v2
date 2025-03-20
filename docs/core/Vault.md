@@ -125,7 +125,7 @@ function harvest(struct AssetLib.Asset asset) external
 ### _harvest
 
 ```solidity
-function _harvest(struct AssetLib.Asset asset) internal
+function _harvest(struct AssetLib.Asset asset) internal returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### getTotalValue
@@ -141,20 +141,6 @@ Returns the total value of the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | totalValue | uint256 | Total value of the vault in principal token |
-
-### getAssetAllocations
-
-```solidity
-function getAssetAllocations() external view returns (struct AssetLib.Asset[] assets)
-```
-
-Returns the asset allocations of the vault
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | Asset allocations of the vault |
 
 ### sweepToken
 

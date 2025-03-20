@@ -248,11 +248,57 @@
       {
         "indexed": false,
         "internalType": "uint256",
+        "name": "principalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "shares",
         "type": "uint256"
       }
     ],
     "name": "Deposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum AssetLib.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct AssetLib.Asset[]",
+        "name": "harvestedAssets",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "Harvest",
     "type": "event"
   },
   {
@@ -360,6 +406,12 @@
         "internalType": "address",
         "name": "account",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "principalAmount",
+        "type": "uint256"
       },
       {
         "indexed": false,
@@ -508,46 +560,6 @@
         "internalType": "uint256",
         "name": "returnShares",
         "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getAssetAllocations",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "assets",
-        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",
