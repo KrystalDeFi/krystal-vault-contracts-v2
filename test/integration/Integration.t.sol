@@ -66,18 +66,12 @@ contract IntegrationTest is TestCommon {
       tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
     });
 
-    initialConfig.rangeConfigs[0] = ILpStrategy.LpStrategyRangeConfig({
-      tickWidthMultiplierMin: 3,
-      tickWidthStableMultiplierMin: 3
-    });
+    initialConfig.rangeConfigs[0] =
+      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
 
-    initialConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({
-      principalTokenAmountMin: 0.1 ether
-    });
+    initialConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
-    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(
-      initialConfig
-    ));
+    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(initialConfig));
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
@@ -247,58 +241,7 @@ contract IntegrationTest is TestCommon {
     uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
     assertEq(valueOfPositionInPrincipal, 1_399_611_278_869_742_595);
 
-    console.log("==== test_withdraw ====");
-    console.log("==== User can burn shares to withdraw principals ====");
-    console.log("==== Ratio between the assets should remain unchanged ====");
-    console.log("==== Received principal tokens should match the diff of the Vault Value ====");
-
-    vaultAssets = vaultInstance.getInventory();
-
-    // Burn 0 share
-    vm.expectRevert(IVault.InvalidShares.selector);
-    vaultInstance.withdraw(0);
-
-    // Burn partial shares
-    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION());
-    vaultAssets = vaultInstance.getInventory();
-    assertEq(IERC20(vaultInstance).balanceOf(USER), 20_001_718_470_368_223_202_841 - 0.5 ether * vaultInstance.SHARES_PRECISION());
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 450051554441936792);
-    assertEq(vaultAssets.length, 3);
-    assertEq(vaultAssets[0].amount, 450051554441936792);
-    assertEq(vaultAssets[0].token, WETH);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 0);
-    assertEq(vaultAssets[1].token, USDC);
-    assertEq(vaultAssets[1].tokenId, 0);
-    assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
-    assertEq(vaultAssets[2].token, NFPM);
-    assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
-    assertEq(valueOfPositionInPrincipal, 1049733684602155762);
-
-    // Burn all shares
-    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER));
-    vaultAssets = vaultInstance.getInventory();
-    assertEq(IERC20(vaultInstance).balanceOf(USER), 0);
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
-    assertEq(vaultAssets.length, 3);
-    assertEq(vaultAssets[0].amount, 0);
-    assertEq(vaultAssets[0].token, WETH);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 0);
-    assertEq(vaultAssets[1].token, USDC);
-    assertEq(vaultAssets[1].tokenId, 0);
-    assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
-    assertEq(vaultAssets[2].token, NFPM);
-    assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
-    assertEq(valueOfPositionInPrincipal, 0);
-
-    console.log("==== test_allowDepositVault ====");
+    console.log("==== test_allowDepositVaultRevert ====");
 
     // Existing assets should follow the vault config
     vm.expectRevert(ILpStrategy.InvalidPool.selector);
@@ -327,5 +270,80 @@ contract IntegrationTest is TestCommon {
         supportedAddresses: supportedAddresses
       })
     );
+
+    console.log("==== test_withdraw ====");
+    console.log("==== User can burn shares to withdraw principals ====");
+    console.log("==== Ratio between the assets should remain unchanged ====");
+    console.log("==== Received principal tokens should match the diff of the Vault Value ====");
+
+    vaultAssets = vaultInstance.getInventory();
+
+    // Burn 0 share
+    vm.expectRevert(IVault.InvalidShares.selector);
+    vaultInstance.withdraw(0);
+
+    // Burn partial shares
+    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION());
+    vaultAssets = vaultInstance.getInventory();
+    assertEq(
+      IERC20(vaultInstance).balanceOf(USER),
+      20_001_718_470_368_223_202_841 - 0.5 ether * vaultInstance.SHARES_PRECISION()
+    );
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 450_051_554_441_936_792);
+    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets[0].amount, 450_051_554_441_936_792);
+    assertEq(vaultAssets[0].token, WETH);
+    assertEq(vaultAssets[0].tokenId, 0);
+    assertEq(vaultAssets[0].strategy, address(0));
+    assertEq(vaultAssets[1].amount, 0);
+    assertEq(vaultAssets[1].token, USDC);
+    assertEq(vaultAssets[1].tokenId, 0);
+    assertEq(vaultAssets[1].strategy, address(0));
+    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    assertEq(valueOfPositionInPrincipal, 1_049_733_684_602_155_762);
+
+    // Burn all shares
+    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER));
+    vaultAssets = vaultInstance.getInventory();
+    assertEq(IERC20(vaultInstance).balanceOf(USER), 0);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
+    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets[0].amount, 0);
+    assertEq(vaultAssets[0].token, WETH);
+    assertEq(vaultAssets[0].tokenId, 0);
+    assertEq(vaultAssets[0].strategy, address(0));
+    assertEq(vaultAssets[1].amount, 0);
+    assertEq(vaultAssets[1].token, USDC);
+    assertEq(vaultAssets[1].tokenId, 0);
+    assertEq(vaultAssets[1].strategy, address(0));
+    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    assertEq(valueOfPositionInPrincipal, 0);
+
+    // Test re-deposit to zero vault
+    IERC20(WETH).approve(address(vaultInstance), 2 ether);
+    vaultInstance.deposit(2 ether, 0);
+    vaultAssets = vaultInstance.getInventory();
+    assertEq(IERC20(vaultInstance).balanceOf(USER), 2 ether * vaultInstance.SHARES_PRECISION());
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 2 ether);
+    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets[0].amount, 2 ether);
+    assertEq(vaultAssets[0].token, WETH);
+    assertEq(vaultAssets[0].tokenId, 0);
+    assertEq(vaultAssets[0].strategy, address(0));
+    assertEq(vaultAssets[1].amount, 0);
+    assertEq(vaultAssets[1].token, USDC);
+    assertEq(vaultAssets[1].tokenId, 0);
+    assertEq(vaultAssets[1].strategy, address(0));
+    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    assertEq(valueOfPositionInPrincipal, 0);
   }
 }
