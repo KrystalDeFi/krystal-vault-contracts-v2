@@ -205,9 +205,6 @@ contract Vault is
 
       currentAsset = inventory.getAsset(inputAssets[i].token, inputAssets[i].tokenId);
       require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
-      // Only allow allocation to a strategy if the asset is not already allocated and is ERC20
-      require(currentAsset.strategy == address(0), InvalidAssetStrategy());
-      require(currentAsset.assetType == AssetLib.AssetType.ERC20, InvalidAssetType());
 
       _transferAsset(inputAssets[i], address(strategy));
 
