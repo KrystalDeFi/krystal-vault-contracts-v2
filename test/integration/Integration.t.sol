@@ -486,5 +486,98 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
     assertEq(valueOfPositionInPrincipal, 0);
+
+    // Manage Public Vault (allowed deposit)
+    console.log("==== test_managePublicVault ====");
+
+    ILpStrategy.LpStrategyConfig memory newConfig1 = ILpStrategy.LpStrategyConfig({
+      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    });
+
+    newConfig1.rangeConfigs[0] =
+      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+
+    newConfig1.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 10_000_000_000 ether });
+
+    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(newConfig1));
+
+    //  User can't add to a LP which the pool is smaller the the allowed TVL, at the time of adding
+
+    AssetLib.Asset[] memory anotherAssets1 = new AssetLib.Asset[](1);
+    anotherAssets1[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
+    ILpStrategy.SwapAndMintPositionParams memory anotherParams1 = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_220,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory anotherInstruction1 = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(anotherParams1)
+    });
+    vm.expectRevert(ILpStrategy.InvalidPoolAmountAmountMin.selector);
+    vaultInstance.allocate(anotherAssets1, lpStrategy, abi.encode(anotherInstruction1));
+
+    //  User can't add/rebalance LP which is smaller than the allowed range
+    //    Case non-stable
+
+    ILpStrategy.LpStrategyConfig memory newConfig2 = ILpStrategy.LpStrategyConfig({
+      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    });
+
+    newConfig2.rangeConfigs[0] =
+      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 1000, tickWidthStableMultiplierMin: 1000 });
+
+    newConfig2.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
+
+    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(newConfig2));
+
+    AssetLib.Asset[] memory anotherAssets2 = new AssetLib.Asset[](1);
+    anotherAssets2[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
+    ILpStrategy.SwapAndMintPositionParams memory anotherParams2 = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: -884_220,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory anotherInstruction2 = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(anotherParams2)
+    });
+    vm.expectRevert(ILpStrategy.InvalidTickWidth.selector);
+    vaultInstance.allocate(anotherAssets2, lpStrategy, abi.encode(anotherInstruction2));
+
+    //  User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
+    AssetLib.Asset[] memory anotherAssets3 = new AssetLib.Asset[](1);
+    anotherAssets3[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
+    ILpStrategy.SwapAndMintPositionParams memory anotherParams3 = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 100,
+      tickLower: -887_220,
+      tickUpper: -884_220,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory anotherInstruction3 = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(anotherParams3)
+    });
+    vm.expectRevert(ILpStrategy.InvalidPool.selector);
+    vaultInstance.allocate(anotherAssets3, lpStrategy, abi.encode(anotherInstruction3));
   }
 }

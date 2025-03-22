@@ -46,9 +46,10 @@
 
 
 ### Manage Public Vault (allowed deposit)
-[] User can't add/rebalance LP which is smaller than the allowed range
-    [] Case stable pairs, Case non-stable
-[] User can't add to a LP which the pool is smaller the the allowed TVL, at the time of adding
+[x] User can't add/rebalance LP which is smaller than the allowed range
+    [x] Case stable pairs
+    [] Case non-stable
+[x] User can't add to a LP which the pool is smaller the the allowed TVL, at the time of adding
 [] User can't add to a LP which the pool is just created within the same block (to avoid flash-loan attack)
     [] Or if there is some way we could check the TVL in the previous block?
-[] User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
+[x] User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
