@@ -112,11 +112,14 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+    print_vault_inventory();
     
+    console.log("allocating assets");
     vault.allocate(assets, lpStrategy, abi.encode(instruction));
+    print_vault_inventory();
     console.log("want to see the rate -> balance of weth in the vault: %d x 1e16", IERC20(WETH).balanceOf(address(vault))/10 ** 16);
     
-    print_vault_inventory();
+    // print_vault_inventory();
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
@@ -126,10 +129,18 @@ contract VaultTest is TestCommon {
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
     vault.withdraw(10_000 ether);
     console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-
+    
+    uint256 vaultTotalValueBefireW5000 = vault.getTotalValue();
+    uint256 userWethBalanceBeforeW5000 = IERC20(WETH).balanceOf(USER);
+    print_vault_inventory();
     console.log("withdrawing 5000 ether more");
-    vault.withdraw(5000 ether);
+    vault.withdraw(5000 ether);  
+    print_vault_inventory();
+    uint256 vaultTotalValueAfterW5000 = vault.getTotalValue();
+    uint256 userWethBalanceAfterW5000 = IERC20(WETH).balanceOf(USER);
+    console.log("DIFF in weth balance of the user: %d", userWethBalanceAfterW5000 - userWethBalanceBeforeW5000);
+    console.log("DIFF in vault total value:       -%d", vaultTotalValueBefireW5000 - vaultTotalValueAfterW5000);
+
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
     console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());

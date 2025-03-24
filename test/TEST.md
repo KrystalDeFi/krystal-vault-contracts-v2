@@ -12,8 +12,8 @@
     [] Ratio between the assets remain unchanged
 
 [] User can burn shares to withdraw principals
-    [] Burn all shares
-    [] Burn partial shares
+    [x] Burn all shares
+    [x] Burn partial shares
     [] Burn 0 share
     [] Ratio between the assets should remain unchanged
     [] Received principal tokens should match the diff of the Vault Value
