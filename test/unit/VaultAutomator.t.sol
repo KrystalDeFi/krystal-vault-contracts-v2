@@ -125,7 +125,7 @@ contract VaultAutomatorTest is TestCommon {
 
     vm.expectRevert(ICommon.InvalidInstructionType.selector);
     vaultAutomatorLpStrategy.executeAllocate(
-      IVault(vaultAddress), assets, lpStrategy, abi.encode(instruction), abi.encode(emptyUserConfig), signature
+      IVault(vaultAddress), assets, lpStrategy, 0, abi.encode(instruction), abi.encode(emptyUserConfig), signature
     );
 
     // assertEq(IERC20(vaultAddress).balanceOf(vaultOwner), 1 ether * vault.SHARES_PRECISION());

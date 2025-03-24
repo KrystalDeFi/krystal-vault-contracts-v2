@@ -101,7 +101,7 @@ contract VaultTest is TestCommon {
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
-    vault.allocate(assets, lpStrategy, abi.encode(instruction));
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
     vault.deposit(1 ether, 0);

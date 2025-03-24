@@ -54,6 +54,7 @@ contract ConfigManager is Ownable, IConfigManager {
   EnumerableMap.AddressToUintMap private typedTokens;
 
   uint8 public override maxPositions = 10;
+  FeeConfig private feeConfig;
 
   constructor(
     address _owner,
@@ -201,5 +202,13 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _maxPositions Max positions
   function setMaxPositions(uint8 _maxPositions) external onlyOwner {
     maxPositions = _maxPositions;
+  }
+
+  function setFeeConfig(FeeConfig memory _feeConfig) external onlyOwner {
+    feeConfig = _feeConfig;
+  }
+
+  function getFeeConfig() external view returns (FeeConfig memory) {
+    return feeConfig;
   }
 }

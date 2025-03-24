@@ -22,6 +22,7 @@ contract LpStrategyTest is TestCommon {
   LpStrategy public lpStrategy;
   IV3SwapRouter public v3SwapRouter;
   ICommon.VaultConfig public vaultConfig;
+  ICommon.FeeConfig public feeConfig;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
@@ -91,7 +92,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 0 ether);
@@ -131,7 +132,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 0 ether);
@@ -198,7 +199,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1_634_761_692_781_853_501);
@@ -256,7 +257,7 @@ contract LpStrategyTest is TestCommon {
     transferAssets(assets, address(lpStrategy));
 
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
 
     assets = new AssetLib.Asset[](2);
     assets[0] = AssetLib.Asset({
@@ -290,7 +291,7 @@ contract LpStrategyTest is TestCommon {
     });
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 
   function test_lpStrategyIncreaseValidate() public {
@@ -327,7 +328,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     ILpStrategy.IncreaseLiquidityParams memory increaseParams =
       ILpStrategy.IncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0 });
     instruction = ICommon.Instruction({
@@ -336,7 +337,7 @@ contract LpStrategyTest is TestCommon {
     });
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 
   function test_LpStrategyDecreaseValidate() public {
@@ -372,7 +373,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
     ILpStrategy.DecreaseLiquidityParams memory decreaseParams =
       ILpStrategy.DecreaseLiquidityParams({ liquidity: liquidity + 1, amount0Min: 0, amount1Min: 0 });
@@ -381,7 +382,7 @@ contract LpStrategyTest is TestCommon {
     assets[0] = returnAssets[2];
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 
   function test_LpStrategyRebalanceValidate() public {
@@ -418,7 +419,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
 
     ILpStrategy.SwapAndRebalancePositionParams memory rebalanceParams = ILpStrategy.SwapAndRebalancePositionParams({
       tickLower: -887_220,
@@ -432,7 +433,7 @@ contract LpStrategyTest is TestCommon {
     instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(rebalanceParams) });
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 
   function test_LpStrategyCompoundValidate() public {
@@ -469,13 +470,13 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     ILpStrategy.SwapAndCompoundParams memory compoundParams =
       ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
     instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(compoundParams) });
     transferAssets(assets, address(lpStrategy));
     vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 
   function test_LpStrategyOptimalSwap() public {
@@ -507,7 +508,7 @@ contract LpStrategyTest is TestCommon {
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 9694);
@@ -540,7 +541,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 340_659_039);
@@ -573,7 +574,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1864);
@@ -599,7 +600,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 0);
@@ -631,7 +632,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1_499_264_827_661_936_896);

@@ -65,11 +65,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param assets The assets to convert
   /// @param data The data for the instruction
   /// @return returnAssets The assets that were returned to the msg.sender
-  function convert(AssetLib.Asset[] memory assets, VaultConfig memory vaultConfig, bytes calldata data)
-    external
-    nonReentrant
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function convert(
+    AssetLib.Asset[] memory assets,
+    VaultConfig memory vaultConfig,
+    FeeConfig memory feeConfig,
+    bytes calldata data
+  ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
     if (instruction.instructionType == uint8(InstructionType.MintPosition)) {
@@ -94,27 +95,27 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     if (instruction.instructionType == uint8(InstructionType.DecreaseLiquidityAndSwap)) {
       DecreaseLiquidityAndSwapParams memory params = abi.decode(instruction.params, (DecreaseLiquidityAndSwapParams));
-      return decreaseLiquidityAndSwap(assets, params, vaultConfig);
+      return decreaseLiquidityAndSwap(assets, params, vaultConfig, feeConfig);
     }
 
     if (instruction.instructionType == uint8(InstructionType.SwapAndRebalancePosition)) {
       SwapAndRebalancePositionParams memory params = abi.decode(instruction.params, (SwapAndRebalancePositionParams));
-      return swapAndRebalancePosition(assets, params, vaultConfig);
+      return swapAndRebalancePosition(assets, params, vaultConfig, feeConfig);
     }
 
     if (instruction.instructionType == uint8(InstructionType.SwapAndCompound)) {
       SwapAndCompoundParams memory params = abi.decode(instruction.params, (SwapAndCompoundParams));
-      return swapAndCompound(assets, params);
+      return swapAndCompound(assets, params, feeConfig);
     }
 
     revert InvalidInstructionType();
   }
 
-  /// @notice harvest the asset
+  /// @notice harvest the asset fee
   /// @param asset The asset to harvest
   /// @param tokenOut The token to swap to
   /// @return returnAssets The assets that were returned to the msg.sender
-  function harvest(AssetLib.Asset memory asset, address tokenOut)
+  function harvest(AssetLib.Asset memory asset, address tokenOut, FeeConfig memory feeConfig)
     external
     returns (AssetLib.Asset[] memory returnAssets)
   {
@@ -148,8 +149,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
-    if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    uint256 feeAmount;
+    if (returnAssets[0].amount > 0) {
+      feeAmount = _takeFee(returnAssets[0].token, returnAssets[0].amount, feeConfig);
+      returnAssets[0].amount -= feeAmount;
+
+      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    }
+    if (returnAssets[1].amount > 0) {
+      feeAmount = _takeFee(returnAssets[1].token, returnAssets[1].amount, feeConfig);
+      returnAssets[1].amount -= feeAmount;
+
+      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    }
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
   }
 
@@ -195,7 +207,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     AssetLib.Asset memory existingAsset,
     uint256 shares,
     uint256 totalSupply,
-    VaultConfig memory config
+    VaultConfig memory config,
+    FeeConfig memory feeConfig
   ) external returns (AssetLib.Asset[] memory returnAssets) {
     require(existingAsset.strategy == address(this), InvalidStrategy());
     if (shares > totalSupply) shares = totalSupply;
@@ -205,7 +218,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 
     liquidity = uint128(FullMath.mulDiv(shares, liquidity, totalSupply));
-    returnAssets = _decreaseLiquidity(existingAsset, DecreaseLiquidityParams(liquidity, 0, 0));
+    returnAssets = _decreaseLiquidity(existingAsset, DecreaseLiquidityParams(liquidity, 0, 0), feeConfig);
 
     (uint256 indexOfPrincipalAsset, uint256 indexOfOtherToken) =
       returnAssets[0].token == config.principalToken ? (0, 1) : (1, 0);
@@ -441,15 +454,17 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   function decreaseLiquidityAndSwap(
     AssetLib.Asset[] memory assets,
     DecreaseLiquidityAndSwapParams memory params,
-    VaultConfig memory vaultConfig
+    VaultConfig memory vaultConfig,
+    FeeConfig memory feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
 
-    returnAssets =
-      _decreaseLiquidity(lpAsset, DecreaseLiquidityParams(params.liquidity, params.amount0Min, params.amount1Min));
+    returnAssets = _decreaseLiquidity(
+      lpAsset, DecreaseLiquidityParams(params.liquidity, params.amount0Min, params.amount1Min), feeConfig
+    );
     (AssetLib.Asset memory principalAsset, AssetLib.Asset memory otherAsset) =
       returnAssets[0].token == principalToken ? (returnAssets[0], returnAssets[1]) : (returnAssets[1], returnAssets[0]);
     address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
@@ -474,12 +489,21 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param lpAsset The assets to decrease the liquidity assets[0] = lpAsset
   /// @param params The parameters for decreasing the liquidity
   /// @return returnAssets The assets that were returned to the msg.sender
-  function _decreaseLiquidity(AssetLib.Asset memory lpAsset, DecreaseLiquidityParams memory params)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function _decreaseLiquidity(
+    AssetLib.Asset memory lpAsset,
+    DecreaseLiquidityParams memory params,
+    FeeConfig memory feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     uint256 amount0Collected;
     uint256 amount1Collected;
+
+    (,, address token0, address token1,,,,,,,,) = INFPM(lpAsset.token).positions(lpAsset.tokenId);
+
+    (uint256 positionFee0, uint256 positionFee1) = INFPM(lpAsset.token).collect(
+      INFPM.CollectParams(lpAsset.tokenId, address(this), type(uint128).max, type(uint128).max)
+    );
+    positionFee0 -= _takeFee(token0, positionFee0, feeConfig);
+    positionFee1 -= _takeFee(token1, positionFee1, feeConfig);
 
     INFPM(lpAsset.token).decreaseLiquidity(
       INFPM.DecreaseLiquidityParams(
@@ -490,11 +514,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (amount0Collected, amount1Collected) = INFPM(lpAsset.token).collect(
       INFPM.CollectParams(lpAsset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
-
-    (,, address token0, address token1,,,,,,,,) = INFPM(lpAsset.token).positions(lpAsset.tokenId);
+    amount0Collected += positionFee0;
+    amount1Collected += positionFee1;
 
     returnAssets = new AssetLib.Asset[](3);
-    // Transfer assets to msg.sender
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1Collected);
     returnAssets[2] = lpAsset;
@@ -507,7 +530,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   function swapAndRebalancePosition(
     AssetLib.Asset[] memory assets,
     SwapAndRebalancePositionParams memory params,
-    VaultConfig memory vaultConfig
+    VaultConfig memory vaultConfig,
+    FeeConfig memory feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
@@ -525,7 +549,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         liquidity: liquidity,
         amount0Min: params.decreasedAmount0Min,
         amount1Min: params.decreasedAmount1Min
-      })
+      }),
+      feeConfig
     );
 
     address pool = IUniswapV3Factory(INFPM(returnAssets[2].token).factory()).getPool(token0, token1, fee);
@@ -569,10 +594,11 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param assets The assets to swap and compound, assets[0] = principalToken
   /// @param params The parameters for swapping and compounding the position
   /// @return returnAssets The assets that were returned to the msg.sender
-  function swapAndCompound(AssetLib.Asset[] memory assets, SwapAndCompoundParams memory params)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function swapAndCompound(
+    AssetLib.Asset[] memory assets,
+    SwapAndCompoundParams memory params,
+    FeeConfig memory feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
 
@@ -582,6 +608,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (uint256 amount0Collected, uint256 amount1Collected) = INFPM(assets[0].token).collect(
       INFPM.CollectParams(assets[0].tokenId, address(this), type(uint128).max, type(uint128).max)
     );
+    amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
+    amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
+
     IERC20(token0).approve(address(optimalSwapper), amount0Collected);
     IERC20(token1).approve(address(optimalSwapper), amount1Collected);
     (uint256 amount0, uint256 amount1) = optimalSwapper.optimalSwap(
@@ -880,6 +909,37 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     }
 
     return false;
+  }
+
+  function _takeFee(address token, uint256 amount, FeeConfig memory feeConfig)
+    internal
+    returns (uint256 totalFeeAmount)
+  {
+    uint256 feeAmount;
+    if (feeConfig.platformFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.platformFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.platformFeeRecipient, feeAmount);
+        emit FeeCollected(FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, feeAmount);
+      }
+    }
+    if (feeConfig.vaultOwnerFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.vaultOwnerFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.vaultOwner, feeAmount);
+        emit FeeCollected(FeeType.OWNER, feeConfig.vaultOwner, token, feeAmount);
+      }
+    }
+    if (feeConfig.gasFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.gasFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);
+        emit FeeCollected(FeeType.GAS, feeConfig.gasFeeRecipient, token, feeAmount);
+      }
+    }
   }
 
   receive() external payable { }

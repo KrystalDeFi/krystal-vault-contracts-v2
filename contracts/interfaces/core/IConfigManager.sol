@@ -29,4 +29,8 @@ interface IConfigManager is ICommon {
   function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external;
 
   function setMaxPositions(uint8 _maxPositions) external;
+
+  function setFeeConfig(FeeConfig memory _feeConfig) external;
+
+  function getFeeConfig() external view returns (FeeConfig memory);
 }
