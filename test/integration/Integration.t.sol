@@ -99,6 +99,22 @@ contract IntegrationTest is TestCommon {
     vaultInstance = Vault(payable(vaultAddress));
   }
 
+  function print_vault_inventory() public view {
+    AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
+    console.log("-----------------------------------------");
+    for (uint256 i = 0; i < vaultAssets.length; i++) {
+      console.log("asset %d token: %s", i, vaultAssets[i].token);
+      console.log("asset %d amount: %s", i, vaultAssets[i].amount);
+      console.log("asset %d tokenId: %s", i, vaultAssets[i].tokenId);
+      console.log("asset %d strategy: %s", i, vaultAssets[i].strategy);      
+      if (vaultAssets[i].strategy != address(0)) {
+        console.log("asset %d strategy value: %s", i, IStrategy(vaultAssets[i].strategy).valueOf(vaultAssets[i], WETH));
+      }
+    }
+    console.log("Vault total value: %s", vaultInstance.getTotalValue());
+    console.log("-----------------------------------------");
+  }
+
   function test_cannotChangePrincipalToken() public {
     console.log("==== test_cannotChangePrincipalToken ====");
 
@@ -244,6 +260,10 @@ contract IntegrationTest is TestCommon {
     uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
     assertEq(valueOfPositionInPrincipal, 1_399_611_277_255_876_301);
 
+
+    console.log("before allocating assets");
+    print_vault_inventory();
+
     // Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
     console.log("==== test_managePrivateVault ====");
 
@@ -257,7 +277,10 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(incParams)
     });
+    
     vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
+    console.log("after allocating assets");
+    print_vault_inventory();
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 3);
@@ -328,6 +351,8 @@ contract IntegrationTest is TestCommon {
     });
     vaultInstance.allocate(rebalanceAssets, lpStrategy, 0, abi.encode(rebalanceInstruction));
 
+    console.log("after rebalancing");
+    print_vault_inventory();
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 4);
     assertEq(vaultAssets[0].amount, 599_895_229_167_012_210);
@@ -357,6 +382,8 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(compoundParams)
     });
     vaultInstance.allocate(compoundAssets, lpStrategy, 0, abi.encode(compoundInstruction));
+    console.log("after compounding");
+    print_vault_inventory();
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 4);
@@ -469,6 +496,9 @@ contract IntegrationTest is TestCommon {
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
     assertEq(valueOfPositionInPrincipal, 0);
 
+    console.log("after withdrawing all shares");
+    print_vault_inventory();
+
     // Test re-deposit to zero vault
     IERC20(WETH).approve(address(vaultInstance), 2 ether);
     vaultInstance.deposit(2 ether, 0);
@@ -492,6 +522,9 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
     assertEq(valueOfPositionInPrincipal, 0);
+
+    console.log("after re-depositing to zero vault");
+    print_vault_inventory();
 
     // Manage Public Vault (allowed deposit)
     console.log("==== test_managePublicVault ====");
@@ -584,5 +617,63 @@ contract IntegrationTest is TestCommon {
     });
     vm.expectRevert(ILpValidator.InvalidPool.selector);
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
+
+    
+    console.log("==== test_swapWethToUsdc ====");
+    
+    // Get initial balances
+    uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
+    uint256 usdcBalanceBefore = IERC20(USDC).balanceOf(USER);
+    
+    // Create PoolOptimalSwapper instance
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    
+    // Approve WETH spending
+    IERC20(WETH).approve(address(swapper), 1 ether);
+    
+    print_vault_inventory();    
+    console.log("WETH balance before: %s", wethBalanceBefore);
+    console.log("USDC balance before: %s", usdcBalanceBefore);
+    // Execute swap
+    (,, address token0_2, address token1_2, uint24 fee_2,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+    address pool_2 = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0_2, token1_2, fee_2);
+    swapper.poolSwap(
+      pool_2,
+      1 ether,
+      WETH < USDC, // true if WETH is token0
+      0, // amountOutMin - 0 for testing
+      "" // empty data
+    );
+    console.log("doing swap 1 ether -> USDC");
+
+    // address pool_3 = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token1_2, token0_2, fee_2);
+    console.log("doing swap USDC -> ETH");
+    IERC20(USDC).approve(address(swapper), 1000000000);
+    swapper.poolSwap(
+      pool_2,
+      1000000000,
+      WETH > USDC, // true if WETH is token0
+      0, // amountOutMin - 0 for testing
+      "" // empty data
+    );
+    
+    
+    
+    // Get final balances
+    uint256 wethBalanceAfter = IERC20(WETH).balanceOf(USER);
+    uint256 usdcBalanceAfter = IERC20(USDC).balanceOf(USER);
+      
+
+    print_vault_inventory();
+    
+    // Log results
+    
+    console.log("WETH balance after: %s", wethBalanceAfter);
+    console.log("USDC balance after: %s", usdcBalanceAfter);
+    
+    // Verify swap occurred
+    assertTrue(wethBalanceAfter < wethBalanceBefore, "WETH balance should decrease");
+    assertTrue(usdcBalanceAfter > usdcBalanceBefore, "USDC balance should increase");
   }
+
 }
