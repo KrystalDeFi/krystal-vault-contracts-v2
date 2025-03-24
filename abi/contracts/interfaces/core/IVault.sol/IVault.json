@@ -463,6 +463,11 @@
         "type": "address"
       },
       {
+        "internalType": "uint16",
+        "name": "gasFeeBasisPoint",
+        "type": "uint16"
+      },
+      {
         "internalType": "bytes",
         "name": "data",
         "type": "bytes"
@@ -529,6 +534,11 @@
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint16",
+        "name": "gasFeeBasisPoint",
+        "type": "uint16"
       },
       {
         "internalType": "bytes",

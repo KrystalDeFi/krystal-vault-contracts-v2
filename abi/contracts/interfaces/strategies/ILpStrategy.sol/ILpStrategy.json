@@ -55,6 +55,37 @@
     "type": "error"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum IStrategy.FeeType",
+        "name": "feeType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeCollected",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -118,6 +149,43 @@
         ],
         "internalType": "struct ICommon.VaultConfig",
         "name": "config",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "feeConfig",
         "type": "tuple"
       },
       {
@@ -349,6 +417,43 @@
         "internalType": "struct ICommon.VaultConfig",
         "name": "config",
         "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "feeConfig",
+        "type": "tuple"
       }
     ],
     "name": "convertToPrincipal",
@@ -500,6 +605,43 @@
         "internalType": "address",
         "name": "tokenOut",
         "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "feeConfig",
+        "type": "tuple"
       }
     ],
     "name": "harvest",
