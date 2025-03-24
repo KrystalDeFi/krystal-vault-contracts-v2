@@ -73,6 +73,16 @@ contract VaultTest is TestCommon {
     vault.initialize(params, USER, address(configManager));
   }
 
+  function print_vault_inventory() public view {
+    console.log("### vault inventory: %d", vault.getInventory().length);
+    for (uint256 i = 0; i < vault.getInventory().length; i++) {
+      console.log("### asset %d amount: %d", i, vault.getInventory()[i].amount);
+      console.log("    asset %d strategy: %d", i, vault.getInventory()[i].strategy);
+      console.log("    asset %d token: %d", i, vault.getInventory()[i].token);
+      console.log("    asset %d tokenId: %d", i, vault.getInventory()[i].tokenId);
+    }
+  }
+
   function test_Vault() public {
     assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
 
@@ -102,8 +112,12 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
-
+    
     vault.allocate(assets, lpStrategy, abi.encode(instruction));
+    console.log("want to see the rate -> balance of weth in the vault: %d x 1e16", IERC20(WETH).balanceOf(address(vault))/10 ** 16);
+    
+    print_vault_inventory();
+
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
     vault.deposit(1 ether, 0);
