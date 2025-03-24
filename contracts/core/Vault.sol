@@ -85,7 +85,8 @@ contract Vault is
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0)) _harvest(currentAsset);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
+
       unchecked {
         i++;
       }
@@ -105,7 +106,7 @@ contract Vault is
 
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0)) {
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
         uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
         _transferAsset(currentAsset, currentAsset.strategy);
@@ -130,17 +131,17 @@ contract Vault is
   /// @param shares Amount of shares to be burned
   function withdraw(uint256 shares) external nonReentrant {
     require(shares != 0, InvalidShares());
-    uint256 totalSupply = totalSupply();
+    uint256 currentTotalSupply = totalSupply();
 
     _burn(_msgSender(), shares);
 
     uint256 returnAmount;
     for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0)) {
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         _transferAsset(currentAsset, currentAsset.strategy);
         AssetLib.Asset[] memory assets =
-          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, totalSupply, vaultConfig);
+          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, currentTotalSupply, vaultConfig);
         _addAssets(assets);
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == vaultConfig.principalToken) {
@@ -152,7 +153,7 @@ contract Vault is
         }
       } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token == vaultConfig.principalToken)
       {
-        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
+        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
       }
       unchecked {
         i++;
@@ -162,6 +163,16 @@ contract Vault is
     _transferAsset(
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
     );
+
+    if (totalSupply() == 0) {
+      for (uint256 i = 1; i < inventory.assets.length;) {
+        inventory.removeAsset(inventory.assets[i]);
+
+        unchecked {
+          i++;
+        }
+      }
+    }
 
     emit Withdraw(_msgSender(), returnAmount, shares);
   }
@@ -179,7 +190,8 @@ contract Vault is
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount = 0;
     for (uint256 i = 0; i < inventory.assets.length;) {
-      if (inventory.assets[i].strategy != address(0)) strategyCount++;
+      if (inventory.assets[i].strategy != address(0) && inventory.assets[i].amount != 0) strategyCount++;
+
       unchecked {
         i++;
       }
@@ -193,9 +205,6 @@ contract Vault is
 
       currentAsset = inventory.getAsset(inputAssets[i].token, inputAssets[i].tokenId);
       require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
-      // Only allow allocation to a strategy if the asset is not already allocated and is ERC20
-      require(currentAsset.strategy == address(0), InvalidAssetStrategy());
-      require(currentAsset.assetType == AssetLib.AssetType.ERC20, InvalidAssetType());
 
       _transferAsset(inputAssets[i], address(strategy));
 
@@ -232,6 +241,10 @@ contract Vault is
     AssetLib.Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, data);
     _addAssets(returnAssets);
 
+    if (IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) == 0) {
+      inventory.removeAsset(currentAsset);
+    }
+
     emit Deallocate(inputAssets, returnAssets);
   }
 
@@ -245,6 +258,7 @@ contract Vault is
   function _harvest(AssetLib.Asset memory asset) internal returns (AssetLib.Asset[] memory harvestedAssets) {
     _transferAsset(asset, asset.strategy);
     harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
+    if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);
   }
 
@@ -255,7 +269,7 @@ contract Vault is
     AssetLib.Asset memory currentAsset;
     for (uint256 i = 0; i < inventory.assets.length;) {
       currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0)) {
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         totalValue += IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken);
       } else if (currentAsset.token == vaultConfig.principalToken) {
         totalValue += currentAsset.amount;
@@ -342,8 +356,8 @@ contract Vault is
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
     for (uint256 i = 0; i < inventory.assets.length; i++) {
-      if (inventory.assets[i].strategy != address(0)) {
-        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], vaultConfig);
+      if (inventory.assets[i].strategy != address(0) && inventory.assets[i].amount != 0) {
+        IStrategy(inventory.assets[i].strategy).revalidate(inventory.assets[i], _config);
       }
     }
 
