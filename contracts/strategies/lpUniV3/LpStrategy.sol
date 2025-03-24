@@ -21,6 +21,7 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
+import "forge-std/console.sol";
 
 contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
@@ -44,6 +45,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
+    console.log("amount0: %d, amount1: %d", amount0, amount1);
+    console.log("fee0: %d, fee1: %d", fee0, fee1);
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
     amount0 += fee0;
     amount1 += fee1;
@@ -51,13 +54,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
     (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
     uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+    console.log("priceX96: %d", priceX96);
     if (token0 == principalToken) {
       priceX96 = FullMath.mulDiv(FixedPoint96.Q96, FixedPoint96.Q96, priceX96);
-      valueInPrincipal = amount0 + fee0;
-      valueInPrincipal += FullMath.mulDiv(amount1 + fee1, priceX96, FixedPoint96.Q96);
+      valueInPrincipal = amount0 + fee0 + FullMath.mulDiv(amount1 + fee1, priceX96, FixedPoint96.Q96);
     } else {
-      valueInPrincipal = amount1 + fee1;
-      valueInPrincipal += FullMath.mulDiv(amount0 + fee0, priceX96, FixedPoint96.Q96);
+      valueInPrincipal = amount1 + fee1 + FullMath.mulDiv(amount0 + fee0, priceX96, FixedPoint96.Q96);
     }
   }
 
@@ -149,16 +151,17 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
-    uint256 feeAmount;
     if (returnAssets[0].amount > 0) {
-      feeAmount = _takeFee(returnAssets[0].token, returnAssets[0].amount, feeConfig);
-      returnAssets[0].amount -= feeAmount;
+      console.log("amount 0 before: %d", returnAssets[0].amount);
+      returnAssets[0].amount -= _takeFee(returnAssets[0].token, returnAssets[0].amount, feeConfig);
+      console.log("amount 0 after: %d", returnAssets[0].amount);
 
       IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     }
     if (returnAssets[1].amount > 0) {
-      feeAmount = _takeFee(returnAssets[1].token, returnAssets[1].amount, feeConfig);
-      returnAssets[1].amount -= feeAmount;
+      console.log("amount 1 before: %d", returnAssets[1].amount);
+      returnAssets[1].amount -= _takeFee(returnAssets[1].token, returnAssets[1].amount, feeConfig);
+      console.log("amount 1 after: %d", returnAssets[1].amount);
 
       IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     }
@@ -608,8 +611,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (uint256 amount0Collected, uint256 amount1Collected) = INFPM(assets[0].token).collect(
       INFPM.CollectParams(assets[0].tokenId, address(this), type(uint128).max, type(uint128).max)
     );
+    console.log("amount0Collected: %d", amount0Collected);
+    console.log("amount1Collected: %d", amount1Collected);
     amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
     amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
+    console.log("amount0Collected after fee: %d", amount0Collected);
+    console.log("amount1Collected after fee: %d", amount1Collected);
 
     IERC20(token0).approve(address(optimalSwapper), amount0Collected);
     IERC20(token1).approve(address(optimalSwapper), amount1Collected);
