@@ -131,7 +131,7 @@ contract Vault is
   /// @param shares Amount of shares to be burned
   function withdraw(uint256 shares) external nonReentrant {
     require(shares != 0, InvalidShares());
-    uint256 totalSupply = totalSupply();
+    uint256 currentTotalSupply = totalSupply();
 
     _burn(_msgSender(), shares);
 
@@ -141,7 +141,7 @@ contract Vault is
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         _transferAsset(currentAsset, currentAsset.strategy);
         AssetLib.Asset[] memory assets =
-          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, totalSupply, vaultConfig);
+          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, currentTotalSupply, vaultConfig);
         _addAssets(assets);
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == vaultConfig.principalToken) {
@@ -153,7 +153,7 @@ contract Vault is
         }
       } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token == vaultConfig.principalToken)
       {
-        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, totalSupply);
+        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
       }
       unchecked {
         i++;
@@ -164,7 +164,7 @@ contract Vault is
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
     );
 
-    if (IERC20(address(this)).totalSupply() == 0) {
+    if (totalSupply() == 0) {
       for (uint256 i = 1; i < inventory.assets.length;) {
         inventory.removeAsset(inventory.assets[i]);
 
