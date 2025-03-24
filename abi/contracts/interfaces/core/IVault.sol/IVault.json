@@ -36,6 +36,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFeeConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
     "type": "error"
   },

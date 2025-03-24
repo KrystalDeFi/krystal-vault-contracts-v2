@@ -54,7 +54,8 @@ contract ConfigManager is Ownable, IConfigManager {
   EnumerableMap.AddressToUintMap private typedTokens;
 
   uint8 public override maxPositions = 10;
-  FeeConfig private openVaultFeeConfig;
+
+  FeeConfig private publicVaultFeeConfig;
   FeeConfig private privateVaultFeeConfig;
 
   constructor(
@@ -206,12 +207,16 @@ contract ConfigManager is Ownable, IConfigManager {
   }
 
   function setFeeConfig(bool allowDeposit, FeeConfig memory _feeConfig) external onlyOwner {
-    if (allowDeposit) openVaultFeeConfig = _feeConfig;
+    require(_feeConfig.vaultOwnerFeeBasisPoint < 2000, InvalidFeeConfig());
+    require(_feeConfig.platformFeeBasisPoint < 2000, InvalidFeeConfig());
+    require(_feeConfig.gasFeeBasisPoint < 2000, InvalidFeeConfig());
+
+    if (allowDeposit) publicVaultFeeConfig = _feeConfig;
     else privateVaultFeeConfig = _feeConfig;
   }
 
   function getFeeConfig(bool allowDeposit) external view returns (FeeConfig memory) {
-    if (allowDeposit) return openVaultFeeConfig;
+    if (allowDeposit) return publicVaultFeeConfig;
     else return privateVaultFeeConfig;
   }
 }

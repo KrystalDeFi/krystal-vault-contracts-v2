@@ -66,6 +66,12 @@ error TransferFailed()
 error InvalidVaultConfig()
 ```
 
+### InvalidFeeConfig
+
+```solidity
+error InvalidFeeConfig()
+```
+
 ### InvalidStrategy
 
 ```solidity

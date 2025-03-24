@@ -38,6 +38,8 @@ interface ICommon {
 
   error InvalidVaultConfig();
 
+  error InvalidFeeConfig();
+
   error InvalidStrategy();
 
   error InvalidSwapRouter();
