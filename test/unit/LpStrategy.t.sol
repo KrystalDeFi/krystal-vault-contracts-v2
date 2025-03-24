@@ -643,4 +643,6 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
   }
+
+  function test_LpStrategyFeeTaker() public { }
 }

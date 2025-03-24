@@ -134,7 +134,8 @@ contract Vault is
     uint256 currentTotalSupply = totalSupply();
 
     _burn(_msgSender(), shares);
-    FeeConfig memory feeConfig = configManager.getFeeConfig();
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.vaultOwner = vaultOwner;
 
     uint256 returnAmount;
     for (uint256 i; i < inventory.assets.length;) {
@@ -217,8 +218,9 @@ contract Vault is
       }
     }
 
-    FeeConfig memory feeConfig = configManager.getFeeConfig();
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
@@ -241,8 +243,9 @@ contract Vault is
     require(currentAsset.amount >= amount, InvalidAssetAmount());
     require(currentAsset.strategy != address(0), InvalidAssetStrategy());
 
-    FeeConfig memory feeConfig = configManager.getFeeConfig();
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](1);
     inputAssets[0] = AssetLib.Asset(currentAsset.assetType, currentAsset.strategy, token, tokenId, amount);
@@ -268,7 +271,8 @@ contract Vault is
 
   function _harvest(AssetLib.Asset memory asset) internal returns (AssetLib.Asset[] memory harvestedAssets) {
     _transferAsset(asset, asset.strategy);
-    FeeConfig memory feeConfig = configManager.getFeeConfig();
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.vaultOwner = vaultOwner;
     harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, feeConfig);
     if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);

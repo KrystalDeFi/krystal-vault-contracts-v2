@@ -30,7 +30,7 @@ interface IConfigManager is ICommon {
 
   function setMaxPositions(uint8 _maxPositions) external;
 
-  function setFeeConfig(FeeConfig memory _feeConfig) external;
+  function setFeeConfig(bool allowDeposit, FeeConfig memory _feeConfig) external;
 
-  function getFeeConfig() external view returns (FeeConfig memory);
+  function getFeeConfig(bool allowDeposit) external view returns (FeeConfig memory);
 }
