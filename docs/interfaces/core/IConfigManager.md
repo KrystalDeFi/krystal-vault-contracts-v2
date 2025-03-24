@@ -80,3 +80,15 @@ function setStrategyConfig(address _strategy, address _principalToken, bytes _co
 function setMaxPositions(uint8 _maxPositions) external
 ```
 
+### setFeeConfig
+
+```solidity
+function setFeeConfig(bool allowDeposit, struct ICommon.FeeConfig _feeConfig) external
+```
+
+### getFeeConfig
+
+```solidity
+function getFeeConfig(bool allowDeposit) external view returns (struct ICommon.FeeConfig)
+```
+

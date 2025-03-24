@@ -38,6 +38,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFeeConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
     "type": "error"
   },
@@ -106,6 +111,57 @@
     ],
     "name": "OwnershipTransferred",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "allowDeposit",
+        "type": "bool"
+      }
+    ],
+    "name": "getFeeConfig",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -259,6 +315,56 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "allowDeposit",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "_feeConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "setFeeConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

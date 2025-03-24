@@ -43,9 +43,15 @@ interface IVault is ICommon {
 
   function withdraw(uint256 shares) external;
 
-  function allocate(AssetLib.Asset[] memory inputAssets, IStrategy strategy, bytes calldata data) external;
+  function allocate(
+    AssetLib.Asset[] memory inputAssets,
+    IStrategy strategy,
+    uint16 gasFeeBasisPoint,
+    bytes calldata data
+  ) external;
 
-  function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data) external;
+  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
+    external;
 
   function getTotalValue() external returns (uint256);
 

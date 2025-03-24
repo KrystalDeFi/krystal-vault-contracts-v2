@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "InvalidFeeConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
     "type": "error"
   },
@@ -130,6 +135,11 @@
         "internalType": "contract IStrategy",
         "name": "strategy",
         "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "gasFeeBasisPoint",
+        "type": "uint16"
       },
       {
         "internalType": "bytes",

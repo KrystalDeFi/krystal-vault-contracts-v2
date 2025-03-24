@@ -203,7 +203,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    vaultInstance.allocate(assets, lpStrategy, abi.encode(instruction));
+    vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 3);
@@ -255,7 +255,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(incParams)
     });
-    vaultInstance.allocate(incAssets, lpStrategy, abi.encode(incInstruction));
+    vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 3);
@@ -288,7 +288,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       params: abi.encode(decParams)
     });
-    vaultInstance.allocate(decAssets, lpStrategy, abi.encode(decInstruction));
+    vaultInstance.allocate(decAssets, lpStrategy, 0, abi.encode(decInstruction));
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 3);
@@ -322,7 +322,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition),
       params: abi.encode(rebalanceParams)
     });
-    vaultInstance.allocate(rebalanceAssets, lpStrategy, abi.encode(rebalanceInstruction));
+    vaultInstance.allocate(rebalanceAssets, lpStrategy, 0, abi.encode(rebalanceInstruction));
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 4);
@@ -352,7 +352,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndCompound),
       params: abi.encode(compoundParams)
     });
-    vaultInstance.allocate(compoundAssets, lpStrategy, abi.encode(compoundInstruction));
+    vaultInstance.allocate(compoundAssets, lpStrategy, 0, abi.encode(compoundInstruction));
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 4);
@@ -522,7 +522,7 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(anotherParams1)
     });
     vm.expectRevert(ILpStrategy.InvalidPoolAmountAmountMin.selector);
-    vaultInstance.allocate(anotherAssets1, lpStrategy, abi.encode(anotherInstruction1));
+    vaultInstance.allocate(anotherAssets1, lpStrategy, 0, abi.encode(anotherInstruction1));
 
     //  User can't add/rebalance LP which is smaller than the allowed range
     //    Case non-stable
@@ -557,7 +557,7 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(anotherParams2)
     });
     vm.expectRevert(ILpStrategy.InvalidTickWidth.selector);
-    vaultInstance.allocate(anotherAssets2, lpStrategy, abi.encode(anotherInstruction2));
+    vaultInstance.allocate(anotherAssets2, lpStrategy, 0, abi.encode(anotherInstruction2));
 
     //  User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
     AssetLib.Asset[] memory anotherAssets3 = new AssetLib.Asset[](1);
@@ -578,6 +578,6 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(anotherParams3)
     });
     vm.expectRevert(ILpStrategy.InvalidPool.selector);
-    vaultInstance.allocate(anotherAssets3, lpStrategy, abi.encode(anotherInstruction3));
+    vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
   }
 }

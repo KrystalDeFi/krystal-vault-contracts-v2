@@ -14,6 +14,7 @@ address constant DAI = 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
 address constant USER = 0x1234567890123456789012345678901234567890;
 address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 address constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
+address constant PLATFORM_WALLET = 0x0000000000000000000000000000000000000010;
 
 address constant NULL_ADDRESS = 0x0000000000000000000000000000000000000000;
 
@@ -44,14 +45,18 @@ abstract contract TestCommon is Test {
     stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(account).checked_write(amount);
   }
 
+  function transferAsset(AssetLib.Asset memory asset, address to) internal {
+    if (asset.assetType == AssetLib.AssetType.ERC20) {
+      IERC20(asset.token).transfer(to, asset.amount);
+    } else if (asset.assetType == AssetLib.AssetType.ERC721) {
+      address owner = IERC721(asset.token).ownerOf(asset.tokenId);
+      IERC721(asset.token).transferFrom(owner, to, asset.tokenId);
+    }
+  }
+
   function transferAssets(AssetLib.Asset[] memory assets, address to) internal {
     for (uint256 i = 0; i < assets.length; i++) {
-      if (assets[i].assetType == AssetLib.AssetType.ERC20) {
-        IERC20(assets[i].token).transfer(to, assets[i].amount);
-      } else if (assets[i].assetType == AssetLib.AssetType.ERC721) {
-        address owner = IERC721(assets[i].token).ownerOf(assets[i].tokenId);
-        IERC721(assets[i].token).transferFrom(owner, to, assets[i].tokenId);
-      }
+      transferAsset(assets[i], to);
     }
   }
 }

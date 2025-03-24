@@ -101,13 +101,13 @@ contract VaultTest is TestCommon {
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
-    vault.allocate(assets, lpStrategy, abi.encode(instruction));
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
     vault.deposit(1 ether, 0);
     assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
 
-    uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
+    // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
     vault.withdraw(10_000 ether);
     console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
@@ -137,7 +137,7 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
     vault.allowDeposit(vaultConfig);
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,) =
+    (bool allowDeposit, , , ,) =
       vault.getVaultConfig();
     assertEq(allowDeposit, true);
     console.log("The vault is public now");

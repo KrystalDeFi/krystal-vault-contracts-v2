@@ -245,3 +245,15 @@ Set max positions
 | ---- | ---- | ----------- |
 | _maxPositions | uint8 | Max positions |
 
+### setFeeConfig
+
+```solidity
+function setFeeConfig(bool allowDeposit, struct ICommon.FeeConfig _feeConfig) external
+```
+
+### getFeeConfig
+
+```solidity
+function getFeeConfig(bool allowDeposit) external view returns (struct ICommon.FeeConfig)
+```
+

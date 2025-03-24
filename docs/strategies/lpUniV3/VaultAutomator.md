@@ -17,7 +17,7 @@ constructor(address _owner) public
 ### executeAllocate
 
 ```solidity
-function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, bytes allocateData, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint16 gasFeeBasisPoint, bytes allocateData, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 Execute an allocate on a Vault
@@ -29,6 +29,7 @@ Execute an allocate on a Vault
 | vault | contract IVault | Vault |
 | inputAssets | struct AssetLib.Asset[] | Input assets |
 | strategy | contract IStrategy | Strategy |
+| gasFeeBasisPoint | uint16 |  |
 | allocateData | bytes | allocateData data to be passed to vault's allocate function |
 | abiEncodedUserOrder | bytes | ABI encoded user order |
 | orderSignature | bytes | Signature of the order |

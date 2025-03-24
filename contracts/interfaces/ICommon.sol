@@ -18,6 +18,15 @@ interface ICommon {
     VaultConfig config;
   }
 
+  struct FeeConfig {
+    uint16 vaultOwnerFeeBasisPoint;
+    address vaultOwner;
+    uint16 platformFeeBasisPoint;
+    address platformFeeRecipient;
+    uint16 gasFeeBasisPoint;
+    address gasFeeRecipient;
+  }
+
   struct Instruction {
     uint8 instructionType;
     bytes params;
@@ -28,6 +37,8 @@ interface ICommon {
   error TransferFailed();
 
   error InvalidVaultConfig();
+
+  error InvalidFeeConfig();
 
   error InvalidStrategy();
 

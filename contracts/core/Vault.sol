@@ -134,14 +134,17 @@ contract Vault is
     uint256 currentTotalSupply = totalSupply();
 
     _burn(_msgSender(), shares);
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.vaultOwner = vaultOwner;
 
     uint256 returnAmount;
     for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         _transferAsset(currentAsset, currentAsset.strategy);
-        AssetLib.Asset[] memory assets =
-          IStrategy(currentAsset.strategy).convertToPrincipal(currentAsset, shares, currentTotalSupply, vaultConfig);
+        AssetLib.Asset[] memory assets = IStrategy(currentAsset.strategy).convertToPrincipal(
+          currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
+        );
         _addAssets(assets);
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == vaultConfig.principalToken) {
@@ -181,10 +184,12 @@ contract Vault is
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
   /// @param data Data for the strategy
-  function allocate(AssetLib.Asset[] memory inputAssets, IStrategy strategy, bytes calldata data)
-    external
-    onlyAdminOrAutomator
-  {
+  function allocate(
+    AssetLib.Asset[] memory inputAssets,
+    IStrategy strategy,
+    uint16 gasFeeBasisPoint,
+    bytes calldata data
+  ) external onlyAdminOrAutomator {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
@@ -213,7 +218,11 @@ contract Vault is
       }
     }
 
-    AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, data);
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.vaultOwner = vaultOwner;
+
+    AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
 
     emit Allocate(inputAssets, strategy, newAssets);
@@ -224,7 +233,7 @@ contract Vault is
   /// @param tokenId asset's token ID
   /// @param amount Amount to deallocate
   /// @param data Data for strategy execution
-  function deallocate(address token, uint256 tokenId, uint256 amount, bytes calldata data)
+  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
     external
     onlyAdminOrAutomator
   {
@@ -234,11 +243,16 @@ contract Vault is
     require(currentAsset.amount >= amount, InvalidAssetAmount());
     require(currentAsset.strategy != address(0), InvalidAssetStrategy());
 
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.vaultOwner = vaultOwner;
+
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](1);
     inputAssets[0] = AssetLib.Asset(currentAsset.assetType, currentAsset.strategy, token, tokenId, amount);
 
     _transferAsset(inputAssets[0], currentAsset.strategy);
-    AssetLib.Asset[] memory returnAssets = IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, data);
+    AssetLib.Asset[] memory returnAssets =
+      IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(returnAssets);
 
     if (IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) == 0) {
@@ -257,7 +271,9 @@ contract Vault is
 
   function _harvest(AssetLib.Asset memory asset) internal returns (AssetLib.Asset[] memory harvestedAssets) {
     _transferAsset(asset, asset.strategy);
-    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken);
+    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.vaultOwner = vaultOwner;
+    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, feeConfig);
     if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);
   }

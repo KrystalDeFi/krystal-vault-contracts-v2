@@ -55,6 +55,9 @@ contract ConfigManager is Ownable, IConfigManager {
 
   uint8 public override maxPositions = 10;
 
+  FeeConfig private publicVaultFeeConfig;
+  FeeConfig private privateVaultFeeConfig;
+
   constructor(
     address _owner,
     address[] memory _whitelistAutomator,
@@ -201,5 +204,19 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @param _maxPositions Max positions
   function setMaxPositions(uint8 _maxPositions) external onlyOwner {
     maxPositions = _maxPositions;
+  }
+
+  function setFeeConfig(bool allowDeposit, FeeConfig memory _feeConfig) external onlyOwner {
+    require(_feeConfig.vaultOwnerFeeBasisPoint < 2000, InvalidFeeConfig());
+    require(_feeConfig.platformFeeBasisPoint < 2000, InvalidFeeConfig());
+    require(_feeConfig.gasFeeBasisPoint < 2000, InvalidFeeConfig());
+
+    if (allowDeposit) publicVaultFeeConfig = _feeConfig;
+    else privateVaultFeeConfig = _feeConfig;
+  }
+
+  function getFeeConfig(bool allowDeposit) external view returns (FeeConfig memory) {
+    if (allowDeposit) return publicVaultFeeConfig;
+    else return privateVaultFeeConfig;
   }
 }

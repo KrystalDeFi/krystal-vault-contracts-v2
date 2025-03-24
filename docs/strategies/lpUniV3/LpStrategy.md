@@ -38,7 +38,7 @@ Get value of the asset in terms of principalToken
 ### convert
 
 ```solidity
-function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig vaultConfig, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
+function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -49,6 +49,7 @@ Converts the asset to another assets
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to convert |
 | vaultConfig | struct ICommon.VaultConfig |  |
+| feeConfig | struct ICommon.FeeConfig |  |
 | data | bytes | The data for the instruction |
 
 #### Return Values
@@ -60,10 +61,10 @@ Converts the asset to another assets
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, address tokenOut) external returns (struct AssetLib.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
-harvest the asset
+harvest the asset fee
 
 #### Parameters
 
@@ -71,6 +72,7 @@ harvest the asset
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
+| feeConfig | struct ICommon.FeeConfig |  |
 
 #### Return Values
 
@@ -103,7 +105,7 @@ convert the asset to the principal token
 ### convertToPrincipal
 
 ```solidity
-function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config) external returns (struct AssetLib.Asset[] returnAssets)
+function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### mintPosition
@@ -239,7 +241,7 @@ increases the liquidity of the position
 ### decreaseLiquidityAndSwap
 
 ```solidity
-function decreaseLiquidityAndSwap(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function decreaseLiquidityAndSwap(struct AssetLib.Asset[] assets, struct ILpStrategy.DecreaseLiquidityAndSwapParams params, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position and swaps the other token to the principal token
@@ -251,6 +253,7 @@ Decreases the liquidity of the position and swaps the other token to the princip
 | assets | struct AssetLib.Asset[] | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityAndSwapParams | The parameters for decreasing the liquidity and swapping |
 | vaultConfig | struct ICommon.VaultConfig |  |
+| feeConfig | struct ICommon.FeeConfig |  |
 
 #### Return Values
 
@@ -261,7 +264,7 @@ Decreases the liquidity of the position and swaps the other token to the princip
 ### _decreaseLiquidity
 
 ```solidity
-function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position
@@ -272,6 +275,7 @@ Decreases the liquidity of the position
 | ---- | ---- | ----------- |
 | lpAsset | struct AssetLib.Asset | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
+| feeConfig | struct ICommon.FeeConfig |  |
 
 #### Return Values
 
@@ -282,7 +286,7 @@ Decreases the liquidity of the position
 ### swapAndRebalancePosition
 
 ```solidity
-function swapAndRebalancePosition(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndRebalancePositionParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function swapAndRebalancePosition(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndRebalancePositionParams params, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Swaps the principal token to the other token and rebalances the position
@@ -294,6 +298,7 @@ Swaps the principal token to the other token and rebalances the position
 | assets | struct AssetLib.Asset[] | The assets to swap and rebalance, assets[0] = principalToken, assets[1] = lpAsset |
 | params | struct ILpStrategy.SwapAndRebalancePositionParams | The parameters for swapping and rebalancing the position |
 | vaultConfig | struct ICommon.VaultConfig |  |
+| feeConfig | struct ICommon.FeeConfig |  |
 
 #### Return Values
 
@@ -304,7 +309,7 @@ Swaps the principal token to the other token and rebalances the position
 ### swapAndCompound
 
 ```solidity
-function swapAndCompound(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndCompoundParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function swapAndCompound(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndCompoundParams params, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Swaps the principal token to the other token and compounds the position
@@ -315,6 +320,7 @@ Swaps the principal token to the other token and compounds the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and compound, assets[0] = principalToken |
 | params | struct ILpStrategy.SwapAndCompoundParams | The parameters for swapping and compounding the position |
+| feeConfig | struct ICommon.FeeConfig |  |
 
 #### Return Values
 
@@ -560,6 +566,12 @@ _Checks if the pool is allowed_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | bool | allowed If the pool is allowed |
+
+### _takeFee
+
+```solidity
+function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
+```
 
 ### receive
 

@@ -26,6 +26,19 @@ struct VaultCreateParams {
 }
 ```
 
+### FeeConfig
+
+```solidity
+struct FeeConfig {
+  uint16 vaultOwnerFeeBasisPoint;
+  address vaultOwner;
+  uint16 platformFeeBasisPoint;
+  address platformFeeRecipient;
+  uint16 gasFeeBasisPoint;
+  address gasFeeRecipient;
+}
+```
+
 ### Instruction
 
 ```solidity
@@ -51,6 +64,12 @@ error TransferFailed()
 
 ```solidity
 error InvalidVaultConfig()
+```
+
+### InvalidFeeConfig
+
+```solidity
+error InvalidFeeConfig()
 ```
 
 ### InvalidStrategy
