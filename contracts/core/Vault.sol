@@ -109,6 +109,7 @@ contract Vault is
     require(shares >= minShares, InsufficientShares());
 
     if (msg.value > 0) {
+      require(principalToken == WETH, InvalidAssetToken());
       require(principalAmount == msg.value, InvalidAssetAmount());
       IWETH9(principalToken).deposit{ value: msg.value }();
     } else {
