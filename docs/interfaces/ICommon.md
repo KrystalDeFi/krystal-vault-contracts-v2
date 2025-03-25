@@ -18,7 +18,6 @@ struct VaultConfig {
 
 ```solidity
 struct VaultCreateParams {
-  uint16 ownerFeeBasisPoint;
   string name;
   string symbol;
   uint256 principalTokenAmount;

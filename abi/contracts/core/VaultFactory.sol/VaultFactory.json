@@ -20,16 +20,6 @@
         "internalType": "address",
         "name": "_vaultImplementation",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_platformFeeRecipient",
-        "type": "address"
-      },
-      {
-        "internalType": "uint16",
-        "name": "_platformFeeBasisPoint",
-        "type": "uint16"
       }
     ],
     "stateMutability": "nonpayable",
@@ -74,11 +64,6 @@
   {
     "inputs": [],
     "name": "InvalidInstructionType",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidOwnerFee",
     "type": "error"
   },
   {
@@ -194,32 +179,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint16",
-        "name": "platformFeeBasisPoint",
-        "type": "uint16"
-      }
-    ],
-    "name": "PlatformFeeBasisPointSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "platformFeeRecipient",
-        "type": "address"
-      }
-    ],
-    "name": "PlatformFeeRecipientSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "address",
         "name": "account",
         "type": "address"
@@ -245,11 +204,6 @@
       },
       {
         "components": [
-          {
-            "internalType": "uint16",
-            "name": "ownerFeeBasisPoint",
-            "type": "uint16"
-          },
           {
             "internalType": "string",
             "name": "name",
@@ -370,11 +324,6 @@
       {
         "components": [
           {
-            "internalType": "uint16",
-            "name": "ownerFeeBasisPoint",
-            "type": "uint16"
-          },
-          {
             "internalType": "string",
             "name": "name",
             "type": "string"
@@ -473,32 +422,6 @@
   },
   {
     "inputs": [],
-    "name": "platformFeeBasisPoint",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "platformFeeRecipient",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -513,32 +436,6 @@
       }
     ],
     "name": "setConfigManager",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "_platformFeeBasisPoint",
-        "type": "uint16"
-      }
-    ],
-    "name": "setPlatformFeeBasisPoint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_platformFeeRecipient",
-        "type": "address"
-      }
-    ],
-    "name": "setPlatformFeeRecipient",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

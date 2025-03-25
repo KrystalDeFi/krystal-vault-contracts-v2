@@ -236,14 +236,12 @@ export const deployVaultFactoryContract = async (
       existingContract?.["vaultFactory"],
       "contracts/core/VaultFactory.sol:VaultFactory",
       undefined,
-      ["address", "address", "address", "address", "address", "uint16"],
+      ["address", "address", "address", "address"],
       [
         deployer,
         config.wrapToken,
         existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["vault"] || contracts?.vault?.target,
-        config.platformFeeRecipient,
-        config.platformFeeBasisPoint,
       ],
     )) as VaultFactory;
   }

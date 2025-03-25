@@ -670,24 +670,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     );
   }
 
-  /// @notice Gets the underlying assets of the position
-  /// @param asset The asset to get the underlying assets
-  /// @return underlyingAssets The underlying assets of the position
-  function getUnderlyingAssets(AssetLib.Asset memory asset)
-    external
-    view
-    returns (AssetLib.Asset[] memory underlyingAssets)
-  {
-    require(asset.strategy == address(this), InvalidAsset());
-
-    (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
-
-    (,, address token0, address token1,,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
-    underlyingAssets = new AssetLib.Asset[](2);
-    underlyingAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
-    underlyingAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
-  }
-
   function revalidate(AssetLib.Asset memory asset, VaultConfig memory config) external view {
     require(asset.strategy == address(this), InvalidAsset());
 

@@ -29,8 +29,6 @@ interface IStrategy is ICommon {
     external
     returns (AssetLib.Asset[] memory);
 
-  function getUnderlyingAssets(AssetLib.Asset memory asset) external returns (AssetLib.Asset[] memory);
-
   function convertFromPrincipal(
     AssetLib.Asset memory existingAsset,
     uint256 principalTokenAmount,

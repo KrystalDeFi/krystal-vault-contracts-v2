@@ -65,14 +65,13 @@ contract VaultAutomatorTest is TestCommon {
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault));
   }
 
   function test_executeAllocateLpStrategy() public {
     console.log("==== createVault ====");
 
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
-      ownerFeeBasisPoint: 1000,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 1 ether,

@@ -75,11 +75,10 @@ contract IntegrationTest is TestCommon {
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
 
     // User can create a Vault without any assets
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
-      ownerFeeBasisPoint: 1000,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 0,

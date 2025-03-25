@@ -47,7 +47,7 @@ contract VaultFactoryTest is TestCommon {
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault), USER, 1000);
+    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault));
   }
 
   function test_createVault() public {
@@ -59,7 +59,6 @@ contract VaultFactoryTest is TestCommon {
     vaultFactory.pause();
 
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
-      ownerFeeBasisPoint: 2000,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 1 ether,
@@ -77,11 +76,6 @@ contract VaultFactoryTest is TestCommon {
     vaultFactory.createVault(params);
 
     vaultFactory.unpause();
-
-    vm.expectRevert(IVaultFactory.InvalidOwnerFee.selector);
-    vaultFactory.createVault(params);
-
-    params.ownerFeeBasisPoint = 1000;
 
     vm.expectRevert(IVaultFactory.InvalidPrincipalToken.selector);
     vaultFactory.createVault{ value: 1 ether }(params);
@@ -139,37 +133,23 @@ contract VaultFactoryTest is TestCommon {
 
     address currentConfigManager = vaultFactory.configManager();
     address currentVaultImplementation = vaultFactory.vaultImplementation();
-    address currentPlatformFeeRecipient = vaultFactory.platformFeeRecipient();
-    uint16 currentPlatformFeeBasisPoint = vaultFactory.platformFeeBasisPoint();
 
     assertEq(currentConfigManager, address(configManager));
     assertEq(currentVaultImplementation, address(vault));
-    assertEq(currentPlatformFeeRecipient, USER);
-    assertEq(currentPlatformFeeBasisPoint, 1000);
 
     address newConfigManager = USER;
     address newVaultImplementation = USER;
-    address newPlatformFeeRecipient = DAI;
-    uint16 newPlatformFeeBasisPoint = 2000;
 
     vaultFactory.setConfigManager(newConfigManager);
     vaultFactory.setVaultImplementation(newVaultImplementation);
-    vaultFactory.setPlatformFeeRecipient(newPlatformFeeRecipient);
-    vaultFactory.setPlatformFeeBasisPoint(newPlatformFeeBasisPoint);
 
     address updatedConfigManager = vaultFactory.configManager();
     address updatedVaultImplementation = vaultFactory.vaultImplementation();
-    address updatedPlatformFeeRecipient = vaultFactory.platformFeeRecipient();
-    uint16 updatedPlatformFeeBasisPoint = vaultFactory.platformFeeBasisPoint();
 
     assertNotEq(updatedConfigManager, currentConfigManager);
     assertNotEq(updatedVaultImplementation, currentVaultImplementation);
-    assertNotEq(updatedPlatformFeeRecipient, currentPlatformFeeRecipient);
-    assertNotEq(updatedPlatformFeeBasisPoint, currentPlatformFeeBasisPoint);
 
     assertEq(updatedConfigManager, newConfigManager);
     assertEq(updatedVaultImplementation, newVaultImplementation);
-    assertEq(updatedPlatformFeeRecipient, newPlatformFeeRecipient);
-    assertEq(updatedPlatformFeeBasisPoint, newPlatformFeeBasisPoint);
   }
 }
