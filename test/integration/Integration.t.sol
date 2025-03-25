@@ -96,6 +96,23 @@ contract IntegrationTest is TestCommon {
     vaultInstance = Vault(payable(vaultAddress));
   }
 
+  function print_vault_inventory() public view {
+    AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
+    console.log("-----------------------------------------");
+    for (uint256 i = 0; i < vaultAssets.length; i++) {
+      console.log("asset %d token: %s", i, vaultAssets[i].token);
+      console.log("asset %d amount: %s", i, vaultAssets[i].amount);
+      console.log("asset %d tokenId: %s", i, vaultAssets[i].tokenId);
+      console.log("asset %d strategy: %s", i, vaultAssets[i].strategy);      
+      if (vaultAssets[i].strategy != address(0)) {
+        console.log("asset %d strategy value: %s", i, ILpStrategy(vaultAssets[i].strategy).valueOf(vaultAssets[i], WETH));
+      }
+    }
+    console.log("Vault total value: %s", vaultInstance.getTotalValue());
+    console.log("-----------------------------------------");
+  }
+
+
   function test_cannotChangePrincipalToken() public {
     console.log("==== test_cannotChangePrincipalToken ====");
 
@@ -580,5 +597,18 @@ contract IntegrationTest is TestCommon {
     });
     vm.expectRevert(ILpStrategy.InvalidPool.selector);
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
+
+    print_vault_inventory();
+    console.log("==== test_harvest ====");
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: true,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      principalToken: WETH,
+      supportedAddresses: new address[](0)
+    });
+    ICommon.FeeConfig memory feeConfig = configManager.getFeeConfig(true);
+    lpStrategy.harvest(vaultAssets[2], WETH, feeConfig);
+    print_vault_inventory();
   }
 }
