@@ -26,4 +26,6 @@ interface IVaultFactory is ICommon {
   function setPlatformFeeRecipient(address _platformFeeRecipient) external;
 
   function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) external;
+
+  function WETH() external view returns (address);
 }

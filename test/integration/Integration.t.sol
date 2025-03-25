@@ -94,7 +94,7 @@ contract IntegrationTest is TestCommon {
 
     address vaultAddress = vaultFactory.createVault(params);
 
-    vaultInstance = Vault(vaultAddress);
+    vaultInstance = Vault(payable(vaultAddress));
   }
 
   function test_cannotChangePrincipalToken() public {
@@ -412,10 +412,10 @@ contract IntegrationTest is TestCommon {
 
     // Burn 0 share
     vm.expectRevert(IVault.InvalidShares.selector);
-    vaultInstance.withdraw(0);
+    vaultInstance.withdraw(0, false);
 
     // Burn partial shares
-    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION());
+    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
     vaultAssets = vaultInstance.getInventory();
     assertEq(
       IERC20(vaultInstance).balanceOf(USER),
@@ -441,7 +441,7 @@ contract IntegrationTest is TestCommon {
     assertEq(valueOfPositionInPrincipal, 1_049_738_433_838_199_667);
 
     // Burn all shares
-    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER));
+    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false);
     vaultAssets = vaultInstance.getInventory();
     assertEq(IERC20(vaultInstance).balanceOf(USER), 0);
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);

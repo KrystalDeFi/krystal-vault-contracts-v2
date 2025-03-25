@@ -70,7 +70,7 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0.5 ether,
       config: vaultConfig
     });
-    vault.initialize(params, USER, address(configManager));
+    vault.initialize(params, USER, address(configManager), WETH);
   }
 
   function test_Vault() public {
@@ -95,8 +95,8 @@ contract VaultTest is TestCommon {
     });
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
-    IERC20(WETH).approve(address(vault), 100 ether);
-    vault.deposit(0.5 ether, 0);
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
@@ -104,26 +104,29 @@ contract VaultTest is TestCommon {
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
+    IERC20(WETH).approve(address(vault), 100 ether);
     vault.deposit(1 ether, 0);
     assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
 
     // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
-    vault.withdraw(10_000 ether);
+    vault.withdraw(10_000 ether, false);
     console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     console.log("withdrawing 5000 ether more");
-    vault.withdraw(5000 ether);
+    vault.withdraw(5000 ether, false);
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
     console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
+    console.log("the eth balance of user after withdraw (2): %d", address(USER).balance);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
 
     console.log("withdrawing everything left");
-    vault.withdraw(IERC20(vault).balanceOf(USER));
+    vault.withdraw(IERC20(vault).balanceOf(USER), true);
     console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));
+    console.log("the eth balance of user after withdraw (3): %d", address(USER).balance);
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     assertEq(IERC20(vault).balanceOf(USER), 0);
@@ -137,8 +140,7 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
     vault.allowDeposit(vaultConfig);
-    (bool allowDeposit, , , ,) =
-      vault.getVaultConfig();
+    (bool allowDeposit,,,,) = vault.getVaultConfig();
     assertEq(allowDeposit, true);
     console.log("The vault is public now");
 

@@ -16,7 +16,7 @@ import "../interfaces/IWETH9.sol";
 contract VaultFactory is Ownable, Pausable, IVaultFactory {
   using SafeERC20 for IERC20;
 
-  address public WETH;
+  address public override WETH;
   address public configManager;
   address public vaultImplementation;
   address public platformFeeRecipient;
@@ -64,7 +64,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
       IERC20(params.config.principalToken).safeTransferFrom(_msgSender(), vault, params.principalTokenAmount);
     }
 
-    IVault(vault).initialize(params, _msgSender(), configManager);
+    IVault(vault).initialize(params, _msgSender(), configManager, WETH);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);

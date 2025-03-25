@@ -22,6 +22,8 @@ import { InventoryLib } from "../libraries/InventoryLib.sol";
 import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
+import { IWETH9 } from "../interfaces/IWETH9.sol";
+import { IVaultFactory } from "../interfaces/core/IVaultFactory.sol";
 
 contract Vault is
   AccessControlUpgradeable,
@@ -40,6 +42,7 @@ contract Vault is
   IConfigManager public configManager;
 
   address public override vaultOwner;
+  address public override WETH;
   address public vaultFactory;
   VaultConfig private vaultConfig;
 
@@ -56,7 +59,10 @@ contract Vault is
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
   /// @param _configManager Address of the whitelist manager
-  function initialize(VaultCreateParams memory params, address _owner, address _configManager) public initializer {
+  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _weth)
+    public
+    initializer
+  {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
 
@@ -70,6 +76,7 @@ contract Vault is
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
     vaultFactory = _msgSender();
+    WETH = _weth;
     vaultConfig = params.config;
     AssetLib.Asset memory firstAsset =
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.config.principalToken, 0, params.principalTokenAmount);
@@ -83,7 +90,7 @@ contract Vault is
   /// @notice Deposits the asset to the vault
   /// @param principalAmount Amount of in principalToken
   /// @return shares Amount of shares minted
-  function deposit(uint256 principalAmount, uint256 minShares) external nonReentrant returns (uint256 shares) {
+  function deposit(uint256 principalAmount, uint256 minShares) external payable nonReentrant returns (uint256 shares) {
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     for (uint256 i = 0; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
@@ -101,7 +108,13 @@ contract Vault is
       totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
     require(shares >= minShares, InsufficientShares());
 
-    IERC20(vaultConfig.principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
+    if (msg.value > 0) {
+      require(principalToken == WETH, InvalidAssetToken());
+      require(principalAmount == msg.value, InvalidAssetAmount());
+      IWETH9(principalToken).deposit{ value: msg.value }();
+    } else {
+      IERC20(vaultConfig.principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
+    }
     inventory.addAsset(
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, principalAmount)
     );
@@ -131,7 +144,7 @@ contract Vault is
 
   /// @notice Withdraws the asset as principal token from the vault
   /// @param shares Amount of shares to be burned
-  function withdraw(uint256 shares) external nonReentrant {
+  function withdraw(uint256 shares, bool unwrap) external nonReentrant {
     require(shares != 0, InvalidShares());
     uint256 currentTotalSupply = totalSupply();
 
@@ -165,9 +178,18 @@ contract Vault is
       }
     }
 
-    _transferAsset(
-      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
-    );
+    if (unwrap && vaultConfig.principalToken == WETH) {
+      inventory.removeAsset(
+        AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount)
+      );
+      IWETH9(vaultConfig.principalToken).withdraw(returnAmount);
+      (bool sent,) = _msgSender().call{ value: returnAmount }("");
+      require(sent, FailedToSendEther());
+    } else {
+      _transferAsset(
+        AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, returnAmount), _msgSender()
+      );
+    }
 
     if (totalSupply() == 0) {
       for (uint256 i = 1; i < inventory.assets.length;) {
@@ -451,5 +473,9 @@ contract Vault is
     returns (bool)
   {
     return super.supportsInterface(interfaceId);
+  }
+
+  receive() external payable {
+    require(msg.sender == WETH, InvalidWETH());
   }
 }
