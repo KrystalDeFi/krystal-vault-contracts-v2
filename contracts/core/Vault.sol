@@ -40,6 +40,7 @@ contract Vault is
   IConfigManager public configManager;
 
   address public override vaultOwner;
+  address public vaultFactory;
   VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
@@ -68,12 +69,13 @@ contract Vault is
 
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
+    vaultFactory = _msgSender();
     vaultConfig = params.config;
     AssetLib.Asset memory firstAsset =
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.config.principalToken, 0, params.principalTokenAmount);
 
     inventory.addAsset(firstAsset);
-    _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
+    if (params.principalTokenAmount > 0) _mint(_owner, params.principalTokenAmount * SHARES_PRECISION);
 
     emit Deposit(_owner, params.principalTokenAmount, params.principalTokenAmount * SHARES_PRECISION);
   }

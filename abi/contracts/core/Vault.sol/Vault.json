@@ -1782,6 +1782,19 @@
   },
   {
     "inputs": [],
+    "name": "vaultFactory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "vaultOwner",
     "outputs": [
       {

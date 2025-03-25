@@ -26,6 +26,12 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
+### vaultFactory
+
+```solidity
+address vaultFactory
+```
+
 ### onlyAdminOrAutomator
 
 ```solidity
