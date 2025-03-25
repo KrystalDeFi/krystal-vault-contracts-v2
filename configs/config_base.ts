@@ -40,7 +40,5 @@ export const BaseConfig: Record<string, IConfig> = {
       0, // DAI
     ],
     automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
-    platformFeeRecipient: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
-    platformFeeBasisPoint: 50,
   },
 };

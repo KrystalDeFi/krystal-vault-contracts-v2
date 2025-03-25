@@ -19,40 +19,26 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
   address public override WETH;
   address public configManager;
   address public vaultImplementation;
-  address public platformFeeRecipient;
-  uint16 public platformFeeBasisPoint;
 
   mapping(address => address[]) public vaultsByAddress;
 
   address[] public allVaults;
 
-  constructor(
-    address _owner,
-    address _weth,
-    address _configManager,
-    address _vaultImplementation,
-    address _platformFeeRecipient,
-    uint16 _platformFeeBasisPoint
-  ) Ownable(_owner) {
+  constructor(address _owner, address _weth, address _configManager, address _vaultImplementation) Ownable(_owner) {
     require(_owner != address(0), ZeroAddress());
     require(_weth != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(_vaultImplementation != address(0), ZeroAddress());
-    require(_platformFeeRecipient != address(0), ZeroAddress());
 
     WETH = _weth;
     configManager = _configManager;
     vaultImplementation = _vaultImplementation;
-    platformFeeRecipient = _platformFeeRecipient;
-    platformFeeBasisPoint = _platformFeeBasisPoint;
   }
 
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
   function createVault(VaultCreateParams memory params) external payable override whenNotPaused returns (address vault) {
-    require(params.ownerFeeBasisPoint <= 1000, InvalidOwnerFee());
-
     vault = Clones.clone(vaultImplementation);
 
     if (msg.value > 0) {
@@ -96,20 +82,5 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     require(_vaultImplementation != address(0), ZeroAddress());
     vaultImplementation = _vaultImplementation;
     emit VaultImplementationSet(_vaultImplementation);
-  }
-
-  /// @notice Set the default platform fee recipient
-  /// @param _platformFeeRecipient Address of the new platform fee recipient
-  function setPlatformFeeRecipient(address _platformFeeRecipient) public onlyOwner {
-    require(_platformFeeRecipient != address(0), ZeroAddress());
-    platformFeeRecipient = _platformFeeRecipient;
-    emit PlatformFeeRecipientSet(_platformFeeRecipient);
-  }
-
-  /// @notice Set the default platform fee basis point
-  /// @param _platformFeeBasisPoint New platform fee basis point
-  function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public onlyOwner {
-    platformFeeBasisPoint = _platformFeeBasisPoint;
-    emit PlatformFeeBasisPointSet(_platformFeeBasisPoint);
   }
 }

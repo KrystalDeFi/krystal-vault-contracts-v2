@@ -692,7 +692,7 @@ contract LpStrategyTest is TestCommon {
     address mockVaultOwner = address(0x100);
     address mockPlatformWallet = address(0x200);
     address mockGasFeeRecipient = address(0x300);
-    ICommon.FeeConfig memory openFeeConfig = ICommon.FeeConfig({
+    ICommon.FeeConfig memory publicFeeConfig = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 500,
       vaultOwner: mockVaultOwner,
       platformFeeBasisPoint: 1000,
@@ -702,7 +702,7 @@ contract LpStrategyTest is TestCommon {
     });
     console.log("==== test take fee when harvest ====");
     transferAsset(returnAssets[2], address(lpStrategy));
-    returnAssets = lpStrategy.harvest(returnAssets[2], WETH, openFeeConfig);
+    returnAssets = lpStrategy.harvest(returnAssets[2], WETH, publicFeeConfig);
 
     assertEq(returnAssets.length, 3);
     assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 196_680_692_884_358);
@@ -748,7 +748,7 @@ contract LpStrategyTest is TestCommon {
     });
 
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, openFeeConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
     assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
     assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
@@ -796,7 +796,7 @@ contract LpStrategyTest is TestCommon {
       amount: 1
     });
     transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, openFeeConfig, abi.encode(instruction));
+    returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
     assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
     assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");

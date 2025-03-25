@@ -64,7 +64,6 @@ contract VaultTest is TestCommon {
     vault = new Vault();
     IERC20(WETH).transfer(address(vault), 0.5 ether);
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
-      ownerFeeBasisPoint: 100,
       name: "TestVault",
       symbol: "TV",
       principalTokenAmount: 0.5 ether,

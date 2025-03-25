@@ -20,18 +20,6 @@ address configManager
 address vaultImplementation
 ```
 
-### platformFeeRecipient
-
-```solidity
-address platformFeeRecipient
-```
-
-### platformFeeBasisPoint
-
-```solidity
-uint16 platformFeeBasisPoint
-```
-
 ### vaultsByAddress
 
 ```solidity
@@ -47,7 +35,7 @@ address[] allVaults
 ### constructor
 
 ```solidity
-constructor(address _owner, address _weth, address _configManager, address _vaultImplementation, address _platformFeeRecipient, uint16 _platformFeeBasisPoint) public
+constructor(address _owner, address _weth, address _configManager, address _vaultImplementation) public
 ```
 
 ### createVault
@@ -113,32 +101,4 @@ Set the Vault implementation
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _vaultImplementation | address | Address of the new vault implementation |
-
-### setPlatformFeeRecipient
-
-```solidity
-function setPlatformFeeRecipient(address _platformFeeRecipient) public
-```
-
-Set the default platform fee recipient
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _platformFeeRecipient | address | Address of the new platform fee recipient |
-
-### setPlatformFeeBasisPoint
-
-```solidity
-function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) public
-```
-
-Set the default platform fee basis point
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _platformFeeBasisPoint | uint16 | New platform fee basis point |
 

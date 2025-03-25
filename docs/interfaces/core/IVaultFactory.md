@@ -20,24 +20,6 @@ event ConfigManagerSet(address configManager)
 event VaultImplementationSet(address vaultImplementation)
 ```
 
-### PlatformFeeRecipientSet
-
-```solidity
-event PlatformFeeRecipientSet(address platformFeeRecipient)
-```
-
-### PlatformFeeBasisPointSet
-
-```solidity
-event PlatformFeeBasisPointSet(uint16 platformFeeBasisPoint)
-```
-
-### InvalidOwnerFee
-
-```solidity
-error InvalidOwnerFee()
-```
-
 ### InvalidPrincipalToken
 
 ```solidity
@@ -60,18 +42,6 @@ function setConfigManager(address _configManager) external
 
 ```solidity
 function setVaultImplementation(address _vaultImplementation) external
-```
-
-### setPlatformFeeRecipient
-
-```solidity
-function setPlatformFeeRecipient(address _platformFeeRecipient) external
-```
-
-### setPlatformFeeBasisPoint
-
-```solidity
-function setPlatformFeeBasisPoint(uint16 _platformFeeBasisPoint) external
 ```
 
 ### WETH

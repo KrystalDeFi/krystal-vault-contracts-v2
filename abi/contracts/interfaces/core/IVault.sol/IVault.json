@@ -707,11 +707,6 @@
       {
         "components": [
           {
-            "internalType": "uint16",
-            "name": "ownerFeeBasisPoint",
-            "type": "uint16"
-          },
-          {
             "internalType": "string",
             "name": "name",
             "type": "string"
