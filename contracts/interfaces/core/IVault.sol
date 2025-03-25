@@ -34,14 +34,18 @@ interface IVault is ICommon {
   error InvalidShares();
   error Unauthorized();
   error InsufficientShares();
+  error FailedToSendEther();
+  error InvalidWETH();
 
   function vaultOwner() external view returns (address);
 
-  function initialize(VaultCreateParams memory params, address _owner, address _configManager) external;
+  function WETH() external view returns (address);
 
-  function deposit(uint256 principalAmount, uint256 minShares) external returns (uint256 returnShares);
+  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _weth) external;
 
-  function withdraw(uint256 shares) external;
+  function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
+
+  function withdraw(uint256 shares, bool unwrap) external;
 
   function allocate(
     AssetLib.Asset[] memory inputAssets,

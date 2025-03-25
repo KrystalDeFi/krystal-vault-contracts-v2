@@ -100,7 +100,7 @@ contract VaultFactoryTest is TestCommon {
     assertEq(vaultByUser[0], vaultAddress);
     assertEq(allVaults[0], vaultAddress);
 
-    Vault vaultInstance = Vault(vaultAddress);
+    Vault vaultInstance = Vault(payable(vaultAddress));
 
     address vaultOwner = vaultInstance.vaultOwner();
     address vaultConfigManager = address(vaultInstance.configManager());
