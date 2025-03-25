@@ -376,13 +376,15 @@ contract IntegrationTest is TestCommon {
 
     // Existing assets should follow the vault config
     vm.expectRevert(ILpStrategy.InvalidPool.selector);
+    address[] memory newSupportedAddresses = new address[](1);
+    newSupportedAddresses[0] = address(0);
     vaultInstance.allowDeposit(
       ICommon.VaultConfig({
         allowDeposit: true,
         rangeStrategyType: 0,
         tvlStrategyType: 0,
         principalToken: WETH,
-        supportedAddresses: new address[](0)
+        supportedAddresses: newSupportedAddresses
       })
     );
 
