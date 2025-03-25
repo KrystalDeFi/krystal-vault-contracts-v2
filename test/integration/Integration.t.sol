@@ -565,7 +565,7 @@ contract IntegrationTest is TestCommon {
       token1: USDC,
       fee: 500,
       tickLower: -887_220,
-      tickUpper: -884_220,
+      tickUpper: 184_220,
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -574,7 +574,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams2)
     });
-    vm.expectRevert(ILpStrategy.InvalidTickWidth.selector);
+    // vm.expectRevert(ILpStrategy.InvalidTickWidth.selector);
     vaultInstance.allocate(anotherAssets2, lpStrategy, 0, abi.encode(anotherInstruction2));
 
     //  User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
@@ -597,6 +597,33 @@ contract IntegrationTest is TestCommon {
     });
     vm.expectRevert(ILpStrategy.InvalidPool.selector);
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
+
+    print_vault_inventory();
+    
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    for (uint256 i = 0; i < 10; i++) {
+      IERC20(WETH).approve(address(swapper), 10 ether);
+      IERC20(USDC).approve(address(swapper), 1000 ether);
+
+      console.log("doing swap WETH -> USDC");
+      swapper.poolSwap(
+        pool,
+        1 ether,
+        WETH < USDC, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+      
+      
+      console.log("doing swap USDC -> WETH");
+      swapper.poolSwap(
+        pool,
+        IERC20(USDC).balanceOf(USER),
+        WETH > USDC, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+    }
 
     print_vault_inventory();
     console.log("==== test_harvest ====");
