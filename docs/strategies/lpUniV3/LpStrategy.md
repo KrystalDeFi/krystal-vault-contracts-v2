@@ -370,26 +370,6 @@ Swaps the token to the principal token
 | amountOut | uint256 | The result amount of principal token |
 | amountInUsed | uint256 | The amount of token used |
 
-### getUnderlyingAssets
-
-```solidity
-function getUnderlyingAssets(struct AssetLib.Asset asset) external view returns (struct AssetLib.Asset[] underlyingAssets)
-```
-
-Gets the underlying assets of the position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| asset | struct AssetLib.Asset | The asset to get the underlying assets |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| underlyingAssets | struct AssetLib.Asset[] | The underlying assets of the position |
-
 ### revalidate
 
 ```solidity
