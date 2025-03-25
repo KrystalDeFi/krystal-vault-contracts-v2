@@ -10,6 +10,7 @@ import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
@@ -56,6 +57,9 @@ contract IntegrationTest is TestCommon {
     whitelistAutomator[0] = USER;
 
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager.setFeeConfig(true, FeeConfig({
+      vaultOwnerFeeBasisPoint: 1000
+    }));
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     validator = new LpValidator(address(configManager));
@@ -649,6 +653,8 @@ contract IntegrationTest is TestCommon {
     // address pool_3 = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token1_2, token0_2, fee_2);
     console.log("doing swap USDC -> ETH");
     IERC20(USDC).approve(address(swapper), 1000000000);
+    (,int24 currentTick,,,,,) = IUniswapV3Pool(pool_2).slot0();
+    console.log("Current pool tick: %s", currentTick);
     swapper.poolSwap(
       pool_2,
       1000000000,
@@ -674,6 +680,91 @@ contract IntegrationTest is TestCommon {
     // Verify swap occurred
     assertTrue(wethBalanceAfter < wethBalanceBefore, "WETH balance should decrease");
     assertTrue(usdcBalanceAfter > usdcBalanceBefore, "USDC balance should increase");
+  }
+  
+  function test_swapWethToUsdc() public {
+    console.log("==== test_swapWethToUsdc ====");
+    print_vault_inventory();
+    // Deposit to a empty vault
+    IERC20(WETH).approve(address(vaultInstance), 0.5 ether);
+    vaultInstance.deposit(0.5 ether, 0);
+    AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
+
+    // Deposit to a vault with only principal
+    IERC20(WETH).approve(address(vaultInstance), 0.5 ether);
+    vaultInstance.deposit(0.5 ether, 0);
+    vaultAssets = vaultInstance.getInventory();
+
+    assertEq(IERC20(vaultInstance).balanceOf(USER), 1 ether * vaultInstance.SHARES_PRECISION());
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 1 ether);
+
+    // Deposit to a vault with both principal and LPs
+    // User can add liquidity from principal to a new LP position
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.7 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+    vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    print_vault_inventory();
+    console.log("weth balance of user: %s", IERC20(WETH).balanceOf(USER));
+// Execute swap
+    (,, address token0_2, address token1_2, uint24 fee_2,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+    address pool_2 = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0_2, token1_2, fee_2);
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    
+    
+    uint256 oldTotalValue = vaultInstance.getTotalValue();
+    console.log("weth balance of user: %s", IERC20(WETH).balanceOf(USER));
+    console.log("usdc balance of user: %s", IERC20(USDC).balanceOf(USER));
+
+    for (uint256 i = 0; i < 100; i++) {
+      IERC20(WETH).approve(address(swapper), 10 ether);
+      IERC20(USDC).approve(address(swapper), 1000 ether);
+
+      console.log("doing swap 10 WETH -> USDC");
+      swapper.poolSwap(
+        pool_2,
+        10 ether,
+        WETH < USDC, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+      
+      
+      console.log("doing swap USDC -> WETH");
+      swapper.poolSwap(
+        pool_2,
+        IERC20(USDC).balanceOf(USER),
+        WETH > USDC, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+
+    }
+
+    console.log("weth balance of user: %s", IERC20(WETH).balanceOf(USER));
+    console.log("usdc balance of user: %s", IERC20(USDC).balanceOf(USER));
+
+
+    // print_vault_inventory();
+    uint256 newTotalValue = vaultInstance.getTotalValue();
+    console.log("total value of vault: %s", newTotalValue);
+    console.log("total value of vault: %s", oldTotalValue);
+    console.log("diff in total value of vault: %s", newTotalValue - oldTotalValue);
+    
   }
 
 }
