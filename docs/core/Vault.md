@@ -26,6 +26,12 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
+### WETH
+
+```solidity
+address WETH
+```
+
 ### vaultFactory
 
 ```solidity
@@ -41,7 +47,7 @@ modifier onlyAdminOrAutomator()
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _weth) public
 ```
 
 Initializes the vault
@@ -53,11 +59,12 @@ Initializes the vault
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
 | _configManager | address | Address of the whitelist manager |
+| _weth | address |  |
 
 ### deposit
 
 ```solidity
-function deposit(uint256 principalAmount, uint256 minShares) external returns (uint256 shares)
+function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposits the asset to the vault
@@ -78,7 +85,7 @@ Deposits the asset to the vault
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares) external
+function withdraw(uint256 shares, bool unwrap) external
 ```
 
 Withdraws the asset as principal token from the vault
@@ -88,6 +95,7 @@ Withdraws the asset as principal token from the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be burned |
+| unwrap | bool |  |
 
 ### allocate
 
@@ -288,5 +296,11 @@ function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rang
 
 ```solidity
 function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
+```
+
+### receive
+
+```solidity
+receive() external payable
 ```
 

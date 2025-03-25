@@ -122,28 +122,46 @@ error Unauthorized()
 error InsufficientShares()
 ```
 
+### FailedToSendEther
+
+```solidity
+error FailedToSendEther()
+```
+
+### InvalidWETH
+
+```solidity
+error InvalidWETH()
+```
+
 ### vaultOwner
 
 ```solidity
 function vaultOwner() external view returns (address)
 ```
 
+### WETH
+
+```solidity
+function WETH() external view returns (address)
+```
+
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _weth) external
 ```
 
 ### deposit
 
 ```solidity
-function deposit(uint256 principalAmount, uint256 minShares) external returns (uint256 returnShares)
+function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares)
 ```
 
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares) external
+function withdraw(uint256 shares, bool unwrap) external
 ```
 
 ### allocate
