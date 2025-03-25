@@ -877,6 +877,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param pool The pool to check
   /// @return allowed If the pool is allowed
   function _isPoolAllowed(VaultConfig memory config, address pool) internal pure returns (bool) {
+    if (config.supportedAddresses.length == 0) return true;
+
     for (uint256 i = 0; i < config.supportedAddresses.length;) {
       if (config.supportedAddresses[i] == pool) return true;
 
