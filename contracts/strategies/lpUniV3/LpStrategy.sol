@@ -45,8 +45,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
-    amount0 += fee0;
-    amount1 += fee1;
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
     (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();

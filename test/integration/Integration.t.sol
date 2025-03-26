@@ -239,7 +239,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_399_611_278_869_742_595);
+    assertEq(valueOfPositionInPrincipal, 1_399_611_277_255_876_301);
 
     // Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
     console.log("==== test_managePrivateVault ====");
@@ -270,7 +270,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_699_542_386_155_961_379);
+    assertEq(valueOfPositionInPrincipal, 1_699_542_383_158_745_664);
 
     // User can remove liquidity from LP position to principal
     (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(vaultAssets[2].tokenId);
@@ -303,7 +303,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_399_617_610_706_481_090);
+    assertEq(valueOfPositionInPrincipal, 1_399_617_609_667_000_197);
 
     // User can rebalance 1 specific LP
     AssetLib.Asset[] memory rebalanceAssets = new AssetLib.Asset[](1);
@@ -439,7 +439,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_049_738_433_838_199_667);
+    assertEq(valueOfPositionInPrincipal, 1_049_738_432_798_728_353);
 
     // Burn all shares
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false);
