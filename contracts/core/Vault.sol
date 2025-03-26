@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import { console } from "forge-std/console.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -147,6 +149,8 @@ contract Vault is
   function withdraw(uint256 shares, bool unwrap) external nonReentrant {
     require(shares != 0, InvalidShares());
     uint256 currentTotalSupply = totalSupply();
+
+    console.log("Hihihihihihih");
 
     _burn(_msgSender(), shares);
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);

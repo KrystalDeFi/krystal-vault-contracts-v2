@@ -32,6 +32,8 @@ contract IntegrationTest is TestCommon {
   Vault public vaultInstance;
 
   function setUp() public {
+    console.log("Setting up the vault...");
+    
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
     vm.selectFork(fork);
 
@@ -599,7 +601,7 @@ contract IntegrationTest is TestCommon {
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
 
     print_vault_inventory();
-    
+
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     for (uint256 i = 0; i < 10; i++) {
       IERC20(WETH).approve(address(swapper), 10 ether);
@@ -614,7 +616,7 @@ contract IntegrationTest is TestCommon {
         "" // empty data
       );
       
-      
+        
       console.log("doing swap USDC -> WETH");
       swapper.poolSwap(
         pool,
@@ -635,7 +637,9 @@ contract IntegrationTest is TestCommon {
       supportedAddresses: new address[](0)
     });
     ICommon.FeeConfig memory feeConfig = configManager.getFeeConfig(true);
-    lpStrategy.harvest(vaultAssets[2], WETH, feeConfig);
+    console.log("before harvest");
+    console.log("weth balance of user: ", IERC20(WETH).balanceOf(USER));
+    console.log("usdc balance of user: ", IERC20(USDC).balanceOf(USER));    
     print_vault_inventory();
   }
 }
