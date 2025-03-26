@@ -413,10 +413,10 @@ contract IntegrationTest is TestCommon {
 
     // Burn 0 share
     vm.expectRevert(IVault.InvalidShares.selector);
-    vaultInstance.withdraw(0, false);
+    vaultInstance.withdraw(0, false, 0);
 
     // Burn partial shares
-    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
+    vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false, 0);
     vaultAssets = vaultInstance.getInventory();
     assertEq(
       IERC20(vaultInstance).balanceOf(USER),
@@ -442,7 +442,7 @@ contract IntegrationTest is TestCommon {
     assertEq(valueOfPositionInPrincipal, 1_049_738_432_798_728_353);
 
     // Burn all shares
-    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false);
+    vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);
     vaultAssets = vaultInstance.getInventory();
     assertEq(IERC20(vaultInstance).balanceOf(USER), 0);
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);

@@ -510,6 +510,8 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(mintParams)
     });
+    console.log("swapAndMint instruction %s");
+    console.logBytes(abi.encode(instruction));
     transferAssets(assets, address(lpStrategy));
     AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
