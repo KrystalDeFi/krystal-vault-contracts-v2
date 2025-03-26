@@ -52,9 +52,7 @@ contract IntegrationTest is TestCommon {
     console.log("Setting up the vault...");
     
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
-    vm.selectFork(fork);
-
-    // vm.startBroadcast(USER);
+    vm.selectFork(fork);    
 
     setErc20Balance(WETH, USER, 100 ether);
     setErc20Balance(WETH, PLAYER_1, 100 ether);
@@ -84,7 +82,7 @@ contract IntegrationTest is TestCommon {
     strategies[0] = address(lpStrategy);
     console.log("strategies: ", address(strategies[0]));
     
-    vm.prank(USER);
+    vm.startPrank(USER);
     configManager.whitelistStrategy(strategies, true);
     console.log("configManager.whitelistStrategy(strategies, true)");
 
@@ -98,7 +96,7 @@ contract IntegrationTest is TestCommon {
 
     initialConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
-    vm.prank(USER);
+    vm.startPrank(USER);
     configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(initialConfig));
     console.log("configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(initialConfig))");
 
@@ -123,7 +121,7 @@ contract IntegrationTest is TestCommon {
 
     console.log("created params");
 
-    vm.prank(USER);
+    vm.startPrank(USER);
     address vaultAddress = vaultFactory.createVault(params);
     console.log("created vault: ", vaultAddress);
 
@@ -135,7 +133,7 @@ contract IntegrationTest is TestCommon {
     console.log("==== test_cannotChangePrincipalToken ====");
 
     // User cannot change the principal token of the Vault
-    vm.prank(USER);
+    vm.startPrank(USER);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);    
     vaultInstance.allowDeposit(
       ICommon.VaultConfig({
@@ -151,7 +149,7 @@ contract IntegrationTest is TestCommon {
   function test_allowDepositEmptyVault() public {
     console.log("==== test_allowDepositEmptyVault ====");
     console.log("Testing: User cannot Turn off allow_deposit once it's on");
-    vm.prank(USER);
+    vm.startPrank(USER);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vaultInstance.allowDeposit(
       ICommon.VaultConfig({
@@ -172,17 +170,17 @@ contract IntegrationTest is TestCommon {
 
     print_vault_inventory();
     console.log("User is depositing 1 ether to an empty vault");
-    vm.prank(USER);
+    vm.startPrank(USER);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.prank(USER);
+    vm.startPrank(USER);
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
     print_vault_inventory();
 
     console.log("Player 1 is depositing 1 ether to the vault");
-    vm.prank(PLAYER_1);
+    vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.prank(PLAYER_1);
+    vm.startPrank(PLAYER_1);
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
     print_vault_inventory();
@@ -205,7 +203,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    vm.prank(USER);
+    vm.startPrank(USER);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     print_vault_inventory();
@@ -213,8 +211,9 @@ contract IntegrationTest is TestCommon {
     console.log("Player 1 is withdrawing a half from the vault");
     console.log("balance of the shares of the user: ", vaultInstance.balanceOf(USER));
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    vm.prank(PLAYER_1);
-    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 10, false);
+    
+    vm.startPrank(PLAYER_1);
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 2, false);
     // vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
     print_vault_inventory();
     
