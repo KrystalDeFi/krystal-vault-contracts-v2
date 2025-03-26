@@ -431,6 +431,7 @@ contract LpStrategyTest is TestCommon {
       decreasedAmount1Min: 0,
       amount0Min: 0,
       amount1Min: 0,
+      compoundFee: false,
       swapData: ""
     });
     instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(rebalanceParams) });
@@ -564,6 +565,7 @@ contract LpStrategyTest is TestCommon {
       decreasedAmount1Min: 0,
       amount0Min: 0,
       amount1Min: 0,
+      compoundFee: true,
       swapData: ""
     });
     instruction = ICommon.Instruction({

@@ -315,6 +315,7 @@ contract IntegrationTest is TestCommon {
       decreasedAmount1Min: 0,
       amount0Min: 0,
       amount1Min: 0,
+      compoundFee: true,
       swapData: ""
     });
     ICommon.Instruction memory rebalanceInstruction = ICommon.Instruction({
