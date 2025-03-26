@@ -134,6 +134,12 @@ error FailedToSendEther()
 error InvalidWETH()
 ```
 
+### InsufficientReturnAmount
+
+```solidity
+error InsufficientReturnAmount()
+```
+
 ### vaultOwner
 
 ```solidity
@@ -161,7 +167,7 @@ function deposit(uint256 principalAmount, uint256 minShares) external payable re
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, bool unwrap) external
+function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 ```
 
 ### allocate
