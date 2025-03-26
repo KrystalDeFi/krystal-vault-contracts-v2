@@ -35,14 +35,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     configManager = IConfigManager(_configManager);
   }
 
-  /// @dev Struct to store variables used for asset valuation, including token amounts and fees.
-  struct ValuationVars {
-    uint256 amount0; // Amount of token0 in the position
-    uint256 amount1; // Amount of token1 in the position
-    uint256 fee0;    // Accumulated fee for token0
-    uint256 fee1;    // Accumulated fee for token1
-  }
-
   /// @notice Get value of the asset in terms of principalToken
   /// @param asset The asset to get the value
   function valueOf(AssetLib.Asset memory asset, address principalToken)
@@ -50,22 +42,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     view
     returns (uint256 valueInPrincipal)
   {
-    ValuationVars memory vars;
-
-    (vars.amount0, vars.amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
-    (vars.fee0, vars.fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
+    (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
+    (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
-    vars.amount0 += vars.fee0;
-    vars.amount1 += vars.fee1;
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
     (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
     uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
     if (token0 == principalToken) {
       priceX96 = FullMath.mulDiv(FixedPoint96.Q96, FixedPoint96.Q96, priceX96);
-      valueInPrincipal = vars.amount0 + FullMath.mulDiv(vars.amount1, priceX96, FixedPoint96.Q96);
+      valueInPrincipal = amount0 + fee0 + FullMath.mulDiv(amount1 + fee1, priceX96, FixedPoint96.Q96);
     } else {
-      valueInPrincipal = vars.amount1 + FullMath.mulDiv(vars.amount0, priceX96, FixedPoint96.Q96);
+      valueInPrincipal = amount1 + fee1 + FullMath.mulDiv(amount0 + fee0, priceX96, FixedPoint96.Q96);
     }
   }
 
