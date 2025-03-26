@@ -431,6 +431,7 @@ contract LpStrategyTest is TestCommon {
       decreasedAmount1Min: 0,
       amount0Min: 0,
       amount1Min: 0,
+      compoundFee: false,
       swapData: ""
     });
     instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(rebalanceParams) });
@@ -510,6 +511,8 @@ contract LpStrategyTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(mintParams)
     });
+    console.log("swapAndMint instruction %s");
+    console.logBytes(abi.encode(instruction));
     transferAssets(assets, address(lpStrategy));
     AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
@@ -562,6 +565,7 @@ contract LpStrategyTest is TestCommon {
       decreasedAmount1Min: 0,
       amount0Min: 0,
       amount1Min: 0,
+      compoundFee: true,
       swapData: ""
     });
     instruction = ICommon.Instruction({

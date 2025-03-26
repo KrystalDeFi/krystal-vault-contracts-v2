@@ -77,6 +77,7 @@ interface ILpStrategy is IStrategy {
     uint256 decreasedAmount1Min;
     uint256 amount0Min;
     uint256 amount1Min;
+    bool compoundFee;
     bytes swapData;
   }
 

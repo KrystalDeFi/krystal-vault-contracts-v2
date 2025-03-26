@@ -113,9 +113,20 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @return returnAssets The assets that were returned to the msg.sender
   function harvest(AssetLib.Asset memory asset, address tokenOut, FeeConfig memory feeConfig)
     external
+    nonReentrant
     returns (AssetLib.Asset[] memory returnAssets)
   {
     require(asset.strategy == address(this), InvalidAsset());
+    returnAssets = _harvest(asset, tokenOut, feeConfig);
+    if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+    if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+    IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
+  }
+
+  function _harvest(AssetLib.Asset memory asset, address tokenOut, FeeConfig memory feeConfig)
+    internal
+    returns (AssetLib.Asset[] memory returnAssets)
+  {
     (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).collect(
       INFPM.CollectParams(asset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
@@ -145,17 +156,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
+
     if (returnAssets[0].amount > 0) {
       returnAssets[0].amount -= _takeFee(returnAssets[0].token, returnAssets[0].amount, feeConfig);
-
-      IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     }
     if (returnAssets[1].amount > 0) {
       returnAssets[1].amount -= _takeFee(returnAssets[1].token, returnAssets[1].amount, feeConfig);
-
-      IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     }
-    IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
   }
 
   /// @notice convert the asset to the principal token
@@ -529,6 +536,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
 
+    AssetLib.Asset[] memory harvestedAssets;
+    if (!params.compoundFee) harvestedAssets = _harvest(assets[0], vaultConfig.principalToken, feeConfig);
+
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
       INFPM(assets[0].token).positions(assets[0].tokenId);
 
@@ -577,6 +587,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         amount1Min: params.amount1Min
       })
     );
+    if (!params.compoundFee) {
+      if (harvestedAssets[0].amount > 0) returnAssets[0].amount += harvestedAssets[0].amount;
+      if (harvestedAssets[1].amount > 0) returnAssets[1].amount += harvestedAssets[1].amount;
+    }
 
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);

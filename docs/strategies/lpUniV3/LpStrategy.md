@@ -80,6 +80,12 @@ harvest the asset fee
 | ---- | ---- | ----------- |
 | returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
+### _harvest
+
+```solidity
+function _harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+```
+
 ### convertFromPrincipal
 
 ```solidity
