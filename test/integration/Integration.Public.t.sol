@@ -208,15 +208,28 @@ contract IntegrationTest is TestCommon {
 
     print_vault_inventory();
 
-    console.log("Player 1 is withdrawing a half from the vault");
-    console.log("balance of the shares of the user: ", vaultInstance.balanceOf(USER));
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     
-    vm.startPrank(PLAYER_1);
+    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
+    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+
+
+    
+    vm.startPrank(PLAYER_1); 
+
+    // console.log("Player 1 is withdrawing more than the balance of the shares");    
+    // vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) + 1, false);
+    // vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, PLAYER_1, vaultInstance.balanceOf(PLAYER_1), vaultInstance.balanceOf(PLAYER_1) + 1));
+
+    console.log("Player 1 is withdrawing a half from the vault");    
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 2, false);
     // vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
     print_vault_inventory();
-    
+
+    console.log("Player 1 is withdrawing a half from the vault");    
+    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
+    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+
+
   }
 
 }
