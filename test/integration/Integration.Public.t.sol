@@ -57,6 +57,7 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 100 ether);
     setErc20Balance(WETH, PLAYER_1, 100 ether);
     setErc20Balance(WETH, PLAYER_2, 100 ether);
+    setErc20Balance(WETH, FLASHLOAN_PLAYER, 10_000 ether);
     console.log("setErc20Balance(WETH, USER, 100 ether)");
 
     vm.deal(USER, 1 ether);
@@ -205,13 +206,12 @@ contract IntegrationTest is TestCommon {
     });
     vm.startPrank(USER);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-
-    print_vault_inventory();
-
     
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+    print_vault_inventory();
 
+    vm.startPrank(FLASHLOAN_PLAYER);
 
     
     vm.startPrank(PLAYER_1); 
