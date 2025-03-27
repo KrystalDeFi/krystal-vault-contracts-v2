@@ -56,7 +56,7 @@ Whitelist strategy
 ### isWhitelistedStrategy
 
 ```solidity
-function isWhitelistedStrategy(address _strategy) external view returns (bool _isWhitelisted)
+function isWhitelistedStrategy(address _strategy) external view returns (bool)
 ```
 
 Check if strategy is whitelisted
@@ -71,7 +71,7 @@ Check if strategy is whitelisted
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if strategy is whitelisted |
+| [0] | bool | _isWhitelisted Boolean value if strategy is whitelisted |
 
 ### whitelistSwapRouter
 
@@ -91,7 +91,7 @@ Whitelist swap router
 ### isWhitelistedSwapRouter
 
 ```solidity
-function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool _isWhitelisted)
+function isWhitelistedSwapRouter(address _swapRouter) external view returns (bool)
 ```
 
 Check if swap router is whitelisted
@@ -106,7 +106,7 @@ Check if swap router is whitelisted
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if swap router is whitelisted |
+| [0] | bool | _isWhitelisted Boolean value if swap router is whitelisted |
 
 ### whitelistAutomator
 
@@ -126,7 +126,7 @@ Whitelist automator
 ### isWhitelistedAutomator
 
 ```solidity
-function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
+function isWhitelistedAutomator(address _automator) external view returns (bool)
 ```
 
 Check if automator is whitelisted
@@ -141,7 +141,7 @@ Check if automator is whitelisted
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isWhitelisted | bool | Boolean value if automator is whitelisted |
+| [0] | bool | _isWhitelisted Boolean value if automator is whitelisted |
 
 ### getTypedTokens
 
@@ -176,7 +176,7 @@ Set typed tokens
 ### isMatchedWithType
 
 ```solidity
-function isMatchedWithType(address _token, uint256 _type) external view returns (bool _isMatched)
+function isMatchedWithType(address _token, uint256 _type) external view returns (bool)
 ```
 
 Check if token is matched with type
@@ -192,7 +192,7 @@ Check if token is matched with type
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _isMatched | bool | Boolean value if token is stable |
+| [0] | bool | _isMatched Boolean value if token is stable |
 
 ### getStrategyConfig
 
@@ -207,7 +207,7 @@ Get strategy config
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
-| _principalToken | address |  |
+| _principalToken | address | Principal token address |
 
 #### Return Values
 
@@ -228,7 +228,7 @@ Set strategy config
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _strategy | address | Strategy address |
-| _principalToken | address |  |
+| _principalToken | address | Principal token address |
 | _config | bytes | Strategy config |
 
 ### setMaxPositions
@@ -251,9 +251,32 @@ Set max positions
 function setFeeConfig(bool allowDeposit, struct ICommon.FeeConfig _feeConfig) external
 ```
 
+Set fee config
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| allowDeposit | bool | Boolean value to set fee config for public or private vault |
+| _feeConfig | struct ICommon.FeeConfig | Fee config |
+
 ### getFeeConfig
 
 ```solidity
 function getFeeConfig(bool allowDeposit) external view returns (struct ICommon.FeeConfig)
 ```
+
+Get fee config
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| allowDeposit | bool | Boolean value to get fee config for public or private vault |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | struct ICommon.FeeConfig | _feeConfig Fee config |
 

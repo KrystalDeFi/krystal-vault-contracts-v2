@@ -33,7 +33,13 @@ Get value of the asset in terms of principalToken
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | The asset to get the value |
-| principalToken | address |  |
+| principalToken | address | The principal token |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| valueInPrincipal | uint256 | The value of the asset in terms of principalToken |
 
 ### convert
 
@@ -48,8 +54,8 @@ Converts the asset to another assets
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to convert |
-| vaultConfig | struct ICommon.VaultConfig |  |
-| feeConfig | struct ICommon.FeeConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 | data | bytes | The data for the instruction |
 
 #### Return Values
@@ -64,7 +70,7 @@ Converts the asset to another assets
 function harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
-harvest the asset fee
+Harvest the asset fee
 
 #### Parameters
 
@@ -72,7 +78,7 @@ harvest the asset fee
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
-| feeConfig | struct ICommon.FeeConfig |  |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
 
@@ -86,13 +92,29 @@ harvest the asset fee
 function _harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
+_Harvest the asset fee_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct AssetLib.Asset | The asset to harvest |
+| tokenOut | address | The token to swap to |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
+
 ### convertFromPrincipal
 
 ```solidity
 function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
-convert the asset to the principal token
+convert the asset from the principal token
 
 #### Parameters
 
@@ -100,7 +122,7 @@ convert the asset to the principal token
 | ---- | ---- | ----------- |
 | existingAsset | struct AssetLib.Asset | The existing asset to convert |
 | principalTokenAmount | uint256 | The amount of principal token |
-| vaultConfig | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 
@@ -113,6 +135,24 @@ convert the asset to the principal token
 ```solidity
 function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
+
+convert the asset to the principal token
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| existingAsset | struct AssetLib.Asset | The existing asset to convert |
+| shares | uint256 | The shares to convert |
+| totalSupply | uint256 | The total supply of the shares |
+| config | struct ICommon.VaultConfig | The vault configuration |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
 ### mintPosition
 
@@ -128,7 +168,7 @@ Mints a new position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
 | params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
-| vaultConfig | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 
@@ -150,7 +190,7 @@ Swaps the principal token to the other token and mints a new position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and mint, assets[0] = principalToken |
 | params | struct ILpStrategy.SwapAndMintPositionParams | The parameters for swapping and minting the position |
-| vaultConfig | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 
@@ -193,7 +233,7 @@ Increases the liquidity of the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to increase the liquidity assets[2] = lpAsset |
 | params | struct ILpStrategy.IncreaseLiquidityParams | The parameters for increasing the liquidity |
-| vaultConfig | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 
@@ -215,7 +255,7 @@ Swaps the principal token to the other token and increases the liquidity of the 
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and increase liquidity, assets[2] = lpAsset |
 | params | struct ILpStrategy.SwapAndIncreaseLiquidityParams | The parameters for swapping and increasing the liquidity |
-| vaultConfig | struct ICommon.VaultConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 
@@ -258,8 +298,8 @@ Decreases the liquidity of the position and swaps the other token to the princip
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityAndSwapParams | The parameters for decreasing the liquidity and swapping |
-| vaultConfig | struct ICommon.VaultConfig |  |
-| feeConfig | struct ICommon.FeeConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
 
@@ -281,7 +321,7 @@ Decreases the liquidity of the position
 | ---- | ---- | ----------- |
 | lpAsset | struct AssetLib.Asset | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
-| feeConfig | struct ICommon.FeeConfig |  |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
 
@@ -303,8 +343,8 @@ Swaps the principal token to the other token and rebalances the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and rebalance, assets[0] = principalToken, assets[1] = lpAsset |
 | params | struct ILpStrategy.SwapAndRebalancePositionParams | The parameters for swapping and rebalancing the position |
-| vaultConfig | struct ICommon.VaultConfig |  |
-| feeConfig | struct ICommon.FeeConfig |  |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
 
@@ -326,7 +366,7 @@ Swaps the principal token to the other token and compounds the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and compound, assets[0] = principalToken |
 | params | struct ILpStrategy.SwapAndCompoundParams | The parameters for swapping and compounding the position |
-| feeConfig | struct ICommon.FeeConfig |  |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
 
@@ -381,6 +421,15 @@ Swaps the token to the principal token
 ```solidity
 function revalidate(struct AssetLib.Asset asset, struct ICommon.VaultConfig config) external view
 ```
+
+Revalidate the position
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct AssetLib.Asset | The asset to revalidate |
+| config | struct ICommon.VaultConfig | The vault configuration |
 
 ### _getPoolForPosition
 
@@ -559,9 +608,27 @@ _Checks if the pool is allowed_
 function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
 ```
 
+_Takes the fee from the amount_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token | address | The token to take the fee |
+| amount | uint256 | The amount to take the fee |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| totalFeeAmount | uint256 | The total fee amount |
+
 ### receive
 
 ```solidity
 receive() external payable
 ```
+
+Fallback function to receive Ether. This is required for the contract to accept ETH transfers.
 

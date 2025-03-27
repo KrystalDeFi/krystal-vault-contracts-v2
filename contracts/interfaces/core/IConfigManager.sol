@@ -4,7 +4,21 @@ pragma solidity ^0.8.28;
 import "../ICommon.sol";
 
 interface IConfigManager is ICommon {
-  function maxPositions() external view returns (uint8);
+  event MaxPositionsSet(uint8 _maxPositions);
+
+  event WhitelistStrategy(address[] _strategies, bool _isWhitelisted);
+
+  event WhitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted);
+
+  event WhitelistAutomator(address[] _automators, bool _isWhitelisted);
+
+  event SetStrategyConfig(address indexed _strategy, address indexed _principalToken, bytes _config);
+
+  event SetTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes);
+
+  event SetFeeConfig(bool allowDeposit, FeeConfig _feeConfig);
+
+  function maxPositions() external view returns (uint8 _maxPositions);
 
   function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external;
 

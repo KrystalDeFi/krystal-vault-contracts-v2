@@ -59,7 +59,7 @@ Initializes the vault
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
 | _configManager | address | Address of the whitelist manager |
-| _weth | address |  |
+| _weth | address | Address of the WETH token |
 
 ### deposit
 
@@ -74,7 +74,7 @@ Deposits the asset to the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | principalAmount | uint256 | Amount of in principalToken |
-| minShares | uint256 |  |
+| minShares | uint256 | Minimum amount of shares to mint |
 
 #### Return Values
 
@@ -95,8 +95,8 @@ Withdraws the asset as principal token from the vault
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be burned |
-| unwrap | bool |  |
-| minReturnAmount | uint256 |  |
+| unwrap | bool | Unwrap WETH to ETH |
+| minReturnAmount | uint256 | Minimum amount of principal token to return |
 
 ### allocate
 
@@ -112,7 +112,7 @@ Allocates un-used assets to the strategy
 | ---- | ---- | ----------- |
 | inputAssets | struct AssetLib.Asset[] | Input assets to allocate |
 | strategy | contract IStrategy | Strategy to allocate to |
-| gasFeeBasisPoint | uint16 |  |
+| gasFeeBasisPoint | uint16 | Gas fee basis point |
 | data | bytes | Data for the strategy |
 
 ### deallocate
@@ -130,7 +130,7 @@ Deallocates the assets from the strategy
 | token | address | asset's token address |
 | tokenId | uint256 | asset's token ID |
 | amount | uint256 | Amount to deallocate |
-| gasFeeBasisPoint | uint16 |  |
+| gasFeeBasisPoint | uint16 | Gas fee basis point |
 | data | bytes | Data for strategy execution |
 
 ### harvest
@@ -139,11 +139,33 @@ Deallocates the assets from the strategy
 function harvest(struct AssetLib.Asset asset) external
 ```
 
+Harvests the assets from the strategy
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct AssetLib.Asset | Asset to harvest |
+
 ### _harvest
 
 ```solidity
 function _harvest(struct AssetLib.Asset asset) internal returns (struct AssetLib.Asset[] harvestedAssets)
 ```
+
+_Harvests the assets from the strategy_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| asset | struct AssetLib.Asset | Asset to harvest |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| harvestedAssets | struct AssetLib.Asset[] | Harvested assets |
 
 ### getTotalValue
 
@@ -266,6 +288,15 @@ _Adds multiple assets to the vault_
 function _transferAssets(struct AssetLib.Asset[] assets, address to) internal
 ```
 
+_Transfers multiple assets to the recipient_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | struct AssetLib.Asset[] | Assets to transfer |
+| to | address | Recipient of the assets |
+
 ### _transferAsset
 
 ```solidity
@@ -287,11 +318,31 @@ _Transfers the asset to the recipient_
 function getInventory() external view returns (struct AssetLib.Asset[] assets)
 ```
 
+Returns the vault's inventory
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | struct AssetLib.Asset[] | Array of assets in the vault |
+
 ### getVaultConfig
 
 ```solidity
 function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
 ```
+
+Returns the vault's config
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| isAllowDeposit | bool | Allow deposit |
+| rangeStrategyType | uint8 | Range strategy type |
+| tvlStrategyType | uint8 | TVL strategy type |
+| principalToken | address | Principal token address |
+| supportedAddresses | address[] | Supported addresses |
 
 ### supportsInterface
 

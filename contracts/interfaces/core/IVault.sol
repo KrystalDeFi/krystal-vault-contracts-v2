@@ -42,14 +42,15 @@ interface IVault is ICommon {
 
   function WETH() external view returns (address);
 
-  function initialize(VaultCreateParams memory params, address _owner, address _configManager, address _weth) external;
+  function initialize(VaultCreateParams calldata params, address _owner, address _configManager, address _weth)
+    external;
 
   function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
 
   function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external;
 
   function allocate(
-    AssetLib.Asset[] memory inputAssets,
+    AssetLib.Asset[] calldata inputAssets,
     IStrategy strategy,
     uint16 gasFeeBasisPoint,
     bytes calldata data
@@ -64,13 +65,13 @@ interface IVault is ICommon {
 
   function revokeAdminRole(address _address) external;
 
-  function sweepToken(address[] memory tokens) external;
+  function sweepToken(address[] calldata tokens) external;
 
-  function sweepERC721(address[] memory _tokens, uint256[] memory _tokenIds) external;
+  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
-  function sweepERC1155(address[] memory _tokens, uint256[] memory _tokenIds, uint256[] memory _amounts) external;
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts) external;
 
-  function allowDeposit(VaultConfig memory _config) external;
+  function allowDeposit(VaultConfig calldata _config) external;
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets);
 
