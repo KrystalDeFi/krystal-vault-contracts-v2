@@ -237,14 +237,14 @@ contract IntegrationTest is TestCommon {
 
     console.log("Player 1 is withdrawing a half from the vault");    
     vm.startPrank(PLAYER_1);
-    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 2, false);
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 2, false, 0);
     // vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
 
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
 
     console.log("Player 1 is withdrawing the remaining half from the vault");
-    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false);
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
@@ -254,7 +254,7 @@ contract IntegrationTest is TestCommon {
     console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
     console.log("User is withdrawing all the shares");
     vm.startPrank(USER);
-    vaultInstance.withdraw(vaultInstance.balanceOf(USER), false);
+    vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
     print_vault_inventory();
     console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
     console.log("usdc balance of the user: ", IERC20(USDC).balanceOf(USER));
