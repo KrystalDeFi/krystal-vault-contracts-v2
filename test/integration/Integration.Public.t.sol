@@ -185,7 +185,7 @@ contract IntegrationTest is TestCommon {
       nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 1000,
+      fee: 500,
       tickLower: -287_220,
       tickUpper: -107_220,
       amount0Min: 0,
@@ -226,6 +226,14 @@ contract IntegrationTest is TestCommon {
 
     uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
 
+    console.log("Player 1 is depositing 1 ether to the vault");
+    vm.startPrank(PLAYER_1);
+    IERC20(WETH).approve(address(vaultInstance), 1 ether);
+    vm.startPrank(PLAYER_1);
+    vaultInstance.deposit(1 ether, 0);
+    vaultAssets = vaultInstance.getInventory();
+    print_vault_inventory();
+
     console.log("bighand is swapping all wETH -> USDC");
     vm.startPrank(BIGHAND_PLAYER);    
     IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER)); console.log("bighand approved for wETH");
@@ -236,16 +244,7 @@ contract IntegrationTest is TestCommon {
       0, // amountOutMin - 0 for testing
       "" // empty data
     );
-
-    console.log("Player 1 is depositing 1 ether to the vault");
-    vm.startPrank(PLAYER_1);
-    IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.startPrank(PLAYER_1);
-    vaultInstance.deposit(1 ether, 0);
-    vaultAssets = vaultInstance.getInventory();
-    print_vault_inventory();
-
-
+    
     // console.log("bighand is swapping eth -> USDC done");
     console.log("WETH balance of bighand player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
     console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
@@ -261,7 +260,7 @@ contract IntegrationTest is TestCommon {
 
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-    // console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);
+    console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);
     
     print_vault_inventory();
 
