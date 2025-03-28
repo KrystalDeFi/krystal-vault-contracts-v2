@@ -54,9 +54,9 @@ contract IntegrationTest is TestCommon {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
     vm.selectFork(fork);    
 
-    setErc20Balance(WETH, USER, 100 ether);
-    setErc20Balance(WETH, PLAYER_1, 100 ether);
-    setErc20Balance(WETH, PLAYER_2, 100 ether);
+    setErc20Balance(WETH, USER, 1 ether);
+    setErc20Balance(WETH, PLAYER_1, 1 ether);
+    setErc20Balance(WETH, PLAYER_2, 1 ether);
     setErc20Balance(WETH, FLASHLOAN_PLAYER, 300 ether);
 
     vm.deal(USER, 1 ether);
@@ -251,6 +251,7 @@ contract IntegrationTest is TestCommon {
 
     print_vault_inventory();
 
+    console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
     console.log("User is withdrawing all the shares");
     vm.startPrank(USER);
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false);
