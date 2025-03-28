@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
-import { TestCommon, USER, PLAYER_1, PLAYER_2, FLASHLOAN_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
@@ -57,7 +57,7 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 1 ether);
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
-    setErc20Balance(WETH, FLASHLOAN_PLAYER, 300 ether);
+    setErc20Balance(WETH, BIGHAND_PLAYER, 300 ether);
 
     vm.deal(USER, 1 ether);
 
@@ -211,9 +211,9 @@ contract IntegrationTest is TestCommon {
     print_vault_inventory();
 
     console.log("FlashLoan is swapping 100 eth -> USDC");
-    vm.startPrank(FLASHLOAN_PLAYER);
+    vm.startPrank(BIGHAND_PLAYER);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(FLASHLOAN_PLAYER));
+    IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
     console.log("Flashloan approved for 100 ether");
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
@@ -227,8 +227,8 @@ contract IntegrationTest is TestCommon {
     );
 
     console.log("FlashLoan is swapping eth -> USDC done");
-    console.log("WETH balance of flashloan player: ", IERC20(WETH).balanceOf(FLASHLOAN_PLAYER));
-    console.log("USDC balance of flashloan player: ", IERC20(USDC).balanceOf(FLASHLOAN_PLAYER));
+    console.log("WETH balance of flashloan player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
+    console.log("USDC balance of flashloan player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
     print_vault_inventory();
 
     // console.log("Player 1 is withdrawing more than the balance of the shares");    
