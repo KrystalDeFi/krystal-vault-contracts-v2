@@ -144,7 +144,7 @@ contract Vault is
 
   /// @notice Withdraws the asset as principal token from the vault
   /// @param shares Amount of shares to be burned
-  function withdraw(uint256 shares, bool unwrap) external nonReentrant {
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external nonReentrant {
     require(shares != 0, InvalidShares());
     uint256 currentTotalSupply = totalSupply();
 
@@ -177,6 +177,8 @@ contract Vault is
         i++;
       }
     }
+
+    require(returnAmount >= minReturnAmount, InsufficientReturnAmount());
 
     if (unwrap && vaultConfig.principalToken == WETH) {
       inventory.removeAsset(

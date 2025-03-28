@@ -172,6 +172,11 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientReturnAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientShares",
     "type": "error"
   },
@@ -1840,6 +1845,11 @@
         "internalType": "bool",
         "name": "unwrap",
         "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minReturnAmount",
+        "type": "uint256"
       }
     ],
     "name": "withdraw",

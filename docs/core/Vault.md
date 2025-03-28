@@ -85,7 +85,7 @@ Deposits the asset to the vault
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, bool unwrap) external
+function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 ```
 
 Withdraws the asset as principal token from the vault
@@ -96,6 +96,7 @@ Withdraws the asset as principal token from the vault
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares to be burned |
 | unwrap | bool |  |
+| minReturnAmount | uint256 |  |
 
 ### allocate
 

@@ -36,6 +36,7 @@ interface IVault is ICommon {
   error InsufficientShares();
   error FailedToSendEther();
   error InvalidWETH();
+  error InsufficientReturnAmount();
 
   function vaultOwner() external view returns (address);
 
@@ -45,7 +46,7 @@ interface IVault is ICommon {
 
   function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
 
-  function withdraw(uint256 shares, bool unwrap) external;
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external;
 
   function allocate(
     AssetLib.Asset[] memory inputAssets,
