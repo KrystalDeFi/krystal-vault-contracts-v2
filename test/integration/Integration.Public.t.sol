@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
-import { TestCommon, USER, PLAYER_1, PLAYER_2, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+import { TestCommon, USER, PLAYER_1, PLAYER_2, FLASHLOAN_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
@@ -57,8 +57,7 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 100 ether);
     setErc20Balance(WETH, PLAYER_1, 100 ether);
     setErc20Balance(WETH, PLAYER_2, 100 ether);
-    setErc20Balance(WETH, FLASHLOAN_PLAYER, 10_000 ether);
-    console.log("setErc20Balance(WETH, USER, 100 ether)");
+    setErc20Balance(WETH, FLASHLOAN_PLAYER, 300 ether);
 
     vm.deal(USER, 1 ether);
 
@@ -188,14 +187,14 @@ contract IntegrationTest is TestCommon {
 
     console.log("User is allocating 1 ether to a new LP position");
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
       fee: 500,
-      tickLower: -887_220,
-      tickUpper: 887_200,
+      tickLower: -287_220,
+      tickUpper: -107_220,
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -211,25 +210,54 @@ contract IntegrationTest is TestCommon {
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
     print_vault_inventory();
 
+    console.log("FlashLoan is swapping 100 eth -> USDC");
     vm.startPrank(FLASHLOAN_PLAYER);
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(FLASHLOAN_PLAYER));
+    console.log("Flashloan approved for 100 ether");
+    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
+    console.log("pool: ", pool);    
+    swapper.poolSwap(
+      pool,
+      250 ether,      
+      WETH < USDC, // true if WETH is token0
+      0, // amountOutMin - 0 for testing
+      "" // empty data
+    );
 
-    
-    vm.startPrank(PLAYER_1); 
+    console.log("FlashLoan is swapping eth -> USDC done");
+    console.log("WETH balance of flashloan player: ", IERC20(WETH).balanceOf(FLASHLOAN_PLAYER));
+    console.log("USDC balance of flashloan player: ", IERC20(USDC).balanceOf(FLASHLOAN_PLAYER));
+    print_vault_inventory();
 
     // console.log("Player 1 is withdrawing more than the balance of the shares");    
     // vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) + 1, false);
     // vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, PLAYER_1, vaultInstance.balanceOf(PLAYER_1), vaultInstance.balanceOf(PLAYER_1) + 1));
 
     console.log("Player 1 is withdrawing a half from the vault");    
+    vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1) / 2, false);
     // vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false);
-    print_vault_inventory();
 
-    console.log("Player 1 is withdrawing a half from the vault");    
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
 
+    console.log("Player 1 is withdrawing the remaining half from the vault");
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false);
 
+    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
+    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+
+    print_vault_inventory();
+
+    console.log("User is withdrawing all the shares");
+    vm.startPrank(USER);
+    vaultInstance.withdraw(vaultInstance.balanceOf(USER), false);
+    print_vault_inventory();
+    console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
+    console.log("usdc balance of the user: ", IERC20(USDC).balanceOf(USER));
+    
   }
 
 }
