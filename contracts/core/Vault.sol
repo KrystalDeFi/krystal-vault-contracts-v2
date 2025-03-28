@@ -155,7 +155,7 @@ contract Vault is
 
     uint256 totalSupply = totalSupply();
     // update total value after distributing the principal amount to the strategies
-    totalValue = getTotalValue();
+    totalValue = getTotalValue() - principalAmount;
 
     shares =
       totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
