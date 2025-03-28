@@ -250,10 +250,11 @@ contract IntegrationTest is TestCommon {
     print_vault_inventory();
 
 
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
+    console.log(">> balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
 
     console.log("Player 1 is withdrawing all from the vault");
+    vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
