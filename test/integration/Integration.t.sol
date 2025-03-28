@@ -224,7 +224,7 @@ contract IntegrationTest is TestCommon {
 
     // Ratio between the assets remain unchanged
     vaultAssets = vaultInstance.getInventory();
-    assertEq(IERC20(vaultInstance).balanceOf(USER), 20_001_718_470_368_223_202_841);
+    assertEq(IERC20(vaultInstance).balanceOf(USER), 20_003_372_819_126_354_888_407);
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 600_051_554_552_220_855);
     assertEq(vaultAssets.length, 3);
     assertEq(vaultAssets[0].amount, 600_051_554_552_220_855);
@@ -421,11 +421,11 @@ contract IntegrationTest is TestCommon {
     vaultAssets = vaultInstance.getInventory();
     assertEq(
       IERC20(vaultInstance).balanceOf(USER),
-      20_001_718_470_368_223_202_841 - 0.5 ether * vaultInstance.SHARES_PRECISION()
+      20_003_372_819_126_354_888_407 - 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 449_934_307_045_312_036);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 449_946_709_337_041_714);
     assertEq(vaultAssets.length, 4);
-    assertEq(vaultAssets[0].amount, 449_934_307_045_312_036);
+    assertEq(vaultAssets[0].amount, 449_946_709_337_041_714);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -440,7 +440,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_049_738_432_798_728_353);
+    assertEq(valueOfPositionInPrincipal, 1_049_767_369_166_682_815);
 
     // Burn all shares
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);

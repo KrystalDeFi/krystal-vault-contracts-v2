@@ -110,6 +110,10 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
+      if (
+        currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
+          && currentAsset.amount != 0
+      ) revert DepositNotAllowed();
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
 
       unchecked {
@@ -117,12 +121,8 @@ contract Vault is
       }
     }
     address principalToken = vaultConfig.principalToken;
-    uint256 totalSupply = totalSupply();
-    uint256 totalValue = getTotalValue();
 
-    shares =
-      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
-    require(shares >= minShares, InsufficientShares());
+    uint256 totalValue = getTotalValue();
 
     if (msg.value > 0) {
       require(principalToken == WETH, InvalidAssetToken());
@@ -153,6 +153,14 @@ contract Vault is
       }
     }
 
+    uint256 totalSupply = totalSupply();
+    // update total value after distributing the principal amount to the strategies
+    totalValue = getTotalValue() - principalAmount;
+
+    shares =
+      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+
+    require(shares >= minShares, InsufficientShares());
     _mint(_msgSender(), shares);
 
     emit Deposit(_msgSender(), principalAmount, shares);
@@ -192,8 +200,16 @@ contract Vault is
             k++;
           }
         }
-      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token == principalToken) {
-        returnAmount += FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
+      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.amount != 0) {
+        uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
+        if (currentAsset.token == principalToken) {
+          returnAmount += proportionalAmount;
+        } else {
+          _transferAsset(
+            AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), currentAsset.token, 0, proportionalAmount),
+            _msgSender()
+          );
+        }
       }
       unchecked {
         i++;

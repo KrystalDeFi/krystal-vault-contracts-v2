@@ -105,7 +105,7 @@ contract VaultTest is TestCommon {
 
     IERC20(WETH).approve(address(vault), 100 ether);
     vault.deposit(1 ether, 0);
-    assertEq(IERC20(vault).balanceOf(USER), 20_001_958_738_672_832_443_901);
+    assertEq(IERC20(vault).balanceOf(USER), 20_003_833_790_858_835_842_737);
 
     // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
