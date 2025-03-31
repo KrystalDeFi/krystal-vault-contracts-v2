@@ -22,6 +22,8 @@ import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
 
 contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
+  uint256 constant Q64 = 0x10000000000000000;
+
   using SafeERC20 for IERC20;
 
   IOptimalSwapper public optimalSwapper;
@@ -947,8 +949,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         emit FeeCollected(FeeType.OWNER, feeConfig.vaultOwner, token, feeAmount);
       }
     }
-    if (feeConfig.gasFeeBasisPoint > 0) {
-      feeAmount = amount * feeConfig.gasFeeBasisPoint / 10_000;
+    if (feeConfig.gasFeeX64 > 0) {
+      feeAmount = FullMath.mulDiv(amount, feeConfig.gasFeeX64, Q64);
       if (feeAmount > 0) {
         totalFeeAmount += feeAmount;
         IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);

@@ -56,9 +56,6 @@ interface IVault is ICommon {
     bytes calldata data
   ) external;
 
-  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
-    external;
-
   function getTotalValue() external returns (uint256);
 
   function grantAdminRole(address _address) external;

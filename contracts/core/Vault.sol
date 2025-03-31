@@ -245,14 +245,12 @@ contract Vault is
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
-  /// @param gasFeeBasisPoint Gas fee basis point
+  /// @param gasFeeX64 Gas fee with X64 precision
   /// @param data Data for the strategy
-  function allocate(
-    AssetLib.Asset[] calldata inputAssets,
-    IStrategy strategy,
-    uint16 gasFeeBasisPoint,
-    bytes calldata data
-  ) external onlyAdminOrAutomator {
+  function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint16 gasFeeX64, bytes calldata data)
+    external
+    onlyAdminOrAutomator
+  {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
@@ -287,49 +285,13 @@ contract Vault is
     }
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
 
     emit Allocate(inputAssets, strategy, newAssets);
-  }
-
-  /// @notice Deallocates the assets from the strategy
-  /// @param token asset's token address
-  /// @param tokenId asset's token ID
-  /// @param amount Amount to deallocate
-  /// @param gasFeeBasisPoint Gas fee basis point
-  /// @param data Data for strategy execution
-  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
-    external
-    onlyAdminOrAutomator
-  {
-    require(amount != 0, InvalidAssetAmount());
-
-    AssetLib.Asset memory currentAsset = inventory.getAsset(token, tokenId);
-
-    require(currentAsset.amount >= amount, InvalidAssetAmount());
-    require(currentAsset.strategy != address(0), InvalidAssetStrategy());
-
-    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
-    feeConfig.vaultOwner = vaultOwner;
-
-    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](1);
-    inputAssets[0] = AssetLib.Asset(currentAsset.assetType, currentAsset.strategy, token, tokenId, amount);
-
-    _transferAsset(inputAssets[0], currentAsset.strategy);
-    AssetLib.Asset[] memory returnAssets =
-      IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, feeConfig, data);
-    _addAssets(returnAssets);
-
-    if (IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) == 0) {
-      inventory.removeAsset(currentAsset);
-    }
-
-    emit Deallocate(inputAssets, returnAssets);
   }
 
   /// @notice Harvests the assets from the strategy

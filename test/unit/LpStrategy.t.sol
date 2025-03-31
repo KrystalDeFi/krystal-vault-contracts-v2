@@ -701,7 +701,7 @@ contract LpStrategyTest is TestCommon {
       vaultOwner: mockVaultOwner,
       platformFeeBasisPoint: 1000,
       platformFeeRecipient: mockPlatformWallet,
-      gasFeeBasisPoint: 1500,
+      gasFeeX64: uint64(uint256((1500 * 2 ** 64)) / 10_000),
       gasFeeRecipient: mockGasFeeRecipient
     });
     console.log("==== test take fee when harvest ====");
