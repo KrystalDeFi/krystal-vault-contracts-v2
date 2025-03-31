@@ -160,28 +160,6 @@ convert the asset to the principal token
 | ---- | ---- | ----------- |
 | returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
 
-### mintPosition
-
-```solidity
-function mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
-```
-
-Mints a new position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
-| params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
-| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
-
 ### swapAndMintPosition
 
 ```solidity
@@ -218,28 +196,6 @@ mints a new position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
 | params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
-
-### increaseLiquidity
-
-```solidity
-function increaseLiquidity(struct AssetLib.Asset[] assets, struct ILpStrategy.IncreaseLiquidityParams params, struct ICommon.VaultConfig vaultConfig) internal returns (struct AssetLib.Asset[] returnAssets)
-```
-
-Increases the liquidity of the position
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | The assets to increase the liquidity assets[2] = lpAsset |
-| params | struct ILpStrategy.IncreaseLiquidityParams | The parameters for increasing the liquidity |
-| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 
 #### Return Values
 

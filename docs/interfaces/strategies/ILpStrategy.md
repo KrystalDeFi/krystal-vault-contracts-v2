@@ -6,9 +6,7 @@
 
 ```solidity
 enum InstructionType {
-  MintPosition,
   SwapAndMintPosition,
-  IncreaseLiquidity,
   SwapAndIncreaseLiquidity,
   DecreaseLiquidityAndSwap,
   SwapAndRebalancePosition,
