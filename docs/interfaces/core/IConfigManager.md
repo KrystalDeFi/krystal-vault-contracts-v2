@@ -2,10 +2,52 @@
 
 ## IConfigManager
 
+### MaxPositionsSet
+
+```solidity
+event MaxPositionsSet(uint8 _maxPositions)
+```
+
+### WhitelistStrategy
+
+```solidity
+event WhitelistStrategy(address[] _strategies, bool _isWhitelisted)
+```
+
+### WhitelistSwapRouter
+
+```solidity
+event WhitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted)
+```
+
+### WhitelistAutomator
+
+```solidity
+event WhitelistAutomator(address[] _automators, bool _isWhitelisted)
+```
+
+### SetStrategyConfig
+
+```solidity
+event SetStrategyConfig(address _strategy, address _principalToken, bytes _config)
+```
+
+### SetTypedTokens
+
+```solidity
+event SetTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes)
+```
+
+### SetFeeConfig
+
+```solidity
+event SetFeeConfig(bool allowDeposit, struct ICommon.FeeConfig _feeConfig)
+```
+
 ### maxPositions
 
 ```solidity
-function maxPositions() external view returns (uint8)
+function maxPositions() external view returns (uint8 _maxPositions)
 ```
 
 ### whitelistStrategy

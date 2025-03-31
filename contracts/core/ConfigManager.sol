@@ -64,7 +64,9 @@ contract ConfigManager is Ownable, IConfigManager {
     address[] memory _typedTokens,
     uint256[] memory _typedTokenTypes
   ) Ownable(_owner) {
-    for (uint256 i = 0; i < _typedTokens.length;) {
+    uint256 length = _typedTokens.length;
+
+    for (uint256 i; i < length;) {
       typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
 
       unchecked {
@@ -72,7 +74,9 @@ contract ConfigManager is Ownable, IConfigManager {
       }
     }
 
-    for (uint256 i = 0; i < _whitelistAutomator.length;) {
+    length = _whitelistAutomator.length;
+
+    for (uint256 i; i < length;) {
       whitelistAutomators[_whitelistAutomator[i]] = true;
 
       unchecked {
@@ -84,60 +88,72 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @notice Whitelist strategy
   /// @param _strategies Array of strategy addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
-  function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _strategies.length;) {
+  function whitelistStrategy(address[] calldata _strategies, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = _strategies.length;
+
+    for (uint256 i; i < length;) {
       whitelistStrategies[_strategies[i]] = _isWhitelisted;
 
       unchecked {
         i++;
       }
     }
+
+    emit WhitelistStrategy(_strategies, _isWhitelisted);
   }
 
   /// @notice Check if strategy is whitelisted
   /// @param _strategy Strategy address
   /// @return _isWhitelisted Boolean value if strategy is whitelisted
-  function isWhitelistedStrategy(address _strategy) external view override returns (bool _isWhitelisted) {
+  function isWhitelistedStrategy(address _strategy) external view override returns (bool) {
     return whitelistStrategies[_strategy];
   }
 
   /// @notice Whitelist swap router
   /// @param _swapRouters Array of swap router addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
-  function whitelistSwapRouter(address[] memory _swapRouters, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _swapRouters.length;) {
+  function whitelistSwapRouter(address[] calldata _swapRouters, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = _swapRouters.length;
+
+    for (uint256 i; i < length;) {
       whitelistSwapRouters[_swapRouters[i]] = _isWhitelisted;
 
       unchecked {
         i++;
       }
     }
+
+    emit WhitelistSwapRouter(_swapRouters, _isWhitelisted);
   }
 
   /// @notice Check if swap router is whitelisted
   /// @param _swapRouter Swap router address
   /// @return _isWhitelisted Boolean value if swap router is whitelisted
-  function isWhitelistedSwapRouter(address _swapRouter) external view override returns (bool _isWhitelisted) {
+  function isWhitelistedSwapRouter(address _swapRouter) external view override returns (bool) {
     return whitelistSwapRouters[_swapRouter];
   }
 
   /// @notice Whitelist automator
   /// @param _automators Array of automator addresses
   /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
-  function whitelistAutomator(address[] memory _automators, bool _isWhitelisted) external override onlyOwner {
-    for (uint256 i = 0; i < _automators.length;) {
+  function whitelistAutomator(address[] calldata _automators, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = _automators.length;
+
+    for (uint256 i; i < length;) {
       whitelistAutomators[_automators[i]] = _isWhitelisted;
 
       unchecked {
         i++;
       }
     }
+
+    emit WhitelistAutomator(_automators, _isWhitelisted);
   }
 
   /// @notice Check if automator is whitelisted
   /// @param _automator Automator address
   /// @return _isWhitelisted Boolean value if automator is whitelisted
-  function isWhitelistedAutomator(address _automator) external view override returns (bool _isWhitelisted) {
+  function isWhitelistedAutomator(address _automator) external view override returns (bool) {
     return whitelistAutomators[_automator];
   }
 
@@ -154,10 +170,8 @@ contract ConfigManager is Ownable, IConfigManager {
     _typedTokens = new address[](length);
     _typedTokenTypes = new uint256[](length);
 
-    for (uint256 i = 0; i < length;) {
-      (address key, uint256 value) = typedTokens.at(i);
-      _typedTokens[i] = key;
-      _typedTokenTypes[i] = value;
+    for (uint256 i; i < length;) {
+      (_typedTokens[i], _typedTokenTypes[i]) = typedTokens.at(i);
 
       unchecked {
         i++;
@@ -168,26 +182,31 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @notice Set typed tokens
   /// @param _typedTokens Array of typed token addresses
   /// @param _typedTokenTypes Array of typed token types
-  function setTypedTokens(address[] memory _typedTokens, uint256[] memory _typedTokenTypes) external onlyOwner {
-    for (uint256 i = 0; i < _typedTokens.length;) {
+  function setTypedTokens(address[] calldata _typedTokens, uint256[] calldata _typedTokenTypes) external onlyOwner {
+    uint256 length = _typedTokens.length;
+
+    for (uint256 i; i < length;) {
       typedTokens.set(_typedTokens[i], _typedTokenTypes[i]);
 
       unchecked {
         i++;
       }
     }
+
+    emit SetTypedTokens(_typedTokens, _typedTokenTypes);
   }
 
   /// @notice Check if token is matched with type
   /// @param _token Token address
   /// @param _type Token type
   /// @return _isMatched Boolean value if token is stable
-  function isMatchedWithType(address _token, uint256 _type) external view override returns (bool _isMatched) {
+  function isMatchedWithType(address _token, uint256 _type) external view override returns (bool) {
     return typedTokens.contains(_token) && typedTokens.get(_token) == _type;
   }
 
   /// @notice Get strategy config
   /// @param _strategy Strategy address
+  /// @param _principalToken Principal token address
   /// @return _config Strategy config
   function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes memory) {
     return strategyConfigs[_strategy][_principalToken];
@@ -195,28 +214,40 @@ contract ConfigManager is Ownable, IConfigManager {
 
   /// @notice Set strategy config
   /// @param _strategy Strategy address
+  /// @param _principalToken Principal token address
   /// @param _config Strategy config
-  function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external onlyOwner {
+  function setStrategyConfig(address _strategy, address _principalToken, bytes calldata _config) external onlyOwner {
     strategyConfigs[_strategy][_principalToken] = _config;
+
+    emit SetStrategyConfig(_strategy, _principalToken, _config);
   }
 
   /// @notice Set max positions
   /// @param _maxPositions Max positions
   function setMaxPositions(uint8 _maxPositions) external onlyOwner {
     maxPositions = _maxPositions;
+
+    emit MaxPositionsSet(_maxPositions);
   }
 
-  function setFeeConfig(bool allowDeposit, FeeConfig memory _feeConfig) external onlyOwner {
+  /// @notice Set fee config
+  /// @param allowDeposit Boolean value to set fee config for public or private vault
+  /// @param _feeConfig Fee config
+  function setFeeConfig(bool allowDeposit, FeeConfig calldata _feeConfig) external onlyOwner {
     require(_feeConfig.vaultOwnerFeeBasisPoint < 2000, InvalidFeeConfig());
     require(_feeConfig.platformFeeBasisPoint < 2000, InvalidFeeConfig());
     require(_feeConfig.gasFeeBasisPoint < 2000, InvalidFeeConfig());
 
     if (allowDeposit) publicVaultFeeConfig = _feeConfig;
     else privateVaultFeeConfig = _feeConfig;
+
+    emit SetFeeConfig(allowDeposit, _feeConfig);
   }
 
+  /// @notice Get fee config
+  /// @param allowDeposit Boolean value to get fee config for public or private vault
+  /// @return _feeConfig Fee config
   function getFeeConfig(bool allowDeposit) external view returns (FeeConfig memory) {
-    if (allowDeposit) return publicVaultFeeConfig;
-    else return privateVaultFeeConfig;
+    return allowDeposit ? publicVaultFeeConfig : privateVaultFeeConfig;
   }
 }

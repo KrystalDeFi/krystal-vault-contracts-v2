@@ -16,32 +16,32 @@ interface IStrategy is ICommon {
 
   event FeeCollected(FeeType indexed feeType, address indexed recipient, address indexed token, uint256 amount);
 
-  function valueOf(AssetLib.Asset memory asset, address principalToken) external view returns (uint256);
+  function valueOf(AssetLib.Asset calldata asset, address principalToken) external view returns (uint256);
 
   function convert(
-    AssetLib.Asset[] memory assets,
-    VaultConfig memory config,
-    FeeConfig memory feeConfig,
+    AssetLib.Asset[] calldata assets,
+    VaultConfig calldata config,
+    FeeConfig calldata feeConfig,
     bytes calldata data
   ) external returns (AssetLib.Asset[] memory);
 
-  function harvest(AssetLib.Asset memory asset, address tokenOut, FeeConfig memory feeConfig)
+  function harvest(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
     external
     returns (AssetLib.Asset[] memory);
 
   function convertFromPrincipal(
-    AssetLib.Asset memory existingAsset,
+    AssetLib.Asset calldata existingAsset,
     uint256 principalTokenAmount,
-    VaultConfig memory config
+    VaultConfig calldata config
   ) external returns (AssetLib.Asset[] memory);
 
   function convertToPrincipal(
     AssetLib.Asset memory existingAsset,
     uint256 shares,
     uint256 totalSupply,
-    VaultConfig memory config,
-    FeeConfig memory feeConfig
+    VaultConfig calldata config,
+    FeeConfig calldata feeConfig
   ) external returns (AssetLib.Asset[] memory);
 
-  function revalidate(AssetLib.Asset memory asset, VaultConfig memory config) external;
+  function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external;
 }
