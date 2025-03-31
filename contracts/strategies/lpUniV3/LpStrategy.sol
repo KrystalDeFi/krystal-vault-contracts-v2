@@ -20,6 +20,7 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
+import "forge-std/console.sol";
 
 contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   uint256 constant Q64 = 0x10000000000000000;
@@ -47,6 +48,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
+    console.log("fee0: %d, fee1: %d", fee0, fee1);
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);

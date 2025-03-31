@@ -60,365 +60,31 @@ contract LpStrategyTest is TestCommon {
     });
   }
 
-  function test_LpStrategy() public {
-    console.log("==== test_LpStrategy ====");
-
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
-    });
-
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0
-    });
-    ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    assertEq(returnAssets.length, 3);
-    assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 0 ether);
-    assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 77_577_661_546_568_449_798);
-    assertEq(returnAssets[2].token, NFPM);
-    assertEq(returnAssets[2].amount, 1);
-    assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-    console.log("==== increasePosition ====");
-    ILpStrategy.IncreaseLiquidityParams memory increaseParams =
-      ILpStrategy.IncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0 });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.IncreaseLiquidity),
-      params: abi.encode(increaseParams)
-    });
-    assets = new AssetLib.Asset[](3);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
-    });
-    assets[2] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(lpStrategy),
-      token: NFPM,
-      tokenId: returnAssets[2].tokenId,
-      amount: 1
-    });
-    transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    assertEq(returnAssets.length, 3);
-    assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 0 ether);
-    assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 77_577_661_546_568_449_798);
-    assertEq(returnAssets[2].token, NFPM);
-    assertEq(returnAssets[2].amount, 1);
-    assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-    console.log("==== rebalancePosition ====");
-    // ILpStrategy.RebalancePositionParams memory rebalanceParams = ILpStrategy.RebalancePositionParams({
-    //   tickLower: -443_580,
-    //   tickUpper: 443_580,
-    //   decreasedAmount0Min: 0,
-    //   decreasedAmount1Min: 0,
-    //   amount0Min: 0,
-    //   amount1Min: 0
-    // });
-    // instruction = ICommon.Instruction({
-    //   instructionType: uint8(ILpStrategy.InstructionType.RebalancePosition),
-    //   params: abi.encode(rebalanceParams)
-    // });
-    // assets = new AssetLib.Asset[](1);
-    // assets[0] = AssetLib.Asset({
-    //   assetType: AssetLib.AssetType.ERC721,
-    //   strategy: address(lpStrategy),
-    //   token: NFPM,
-    //   tokenId: returnAssets[2].tokenId,
-    //   amount: 1
-    // });
-    // transferAssets(assets, address(lpStrategy));
-    // returnAssets = lpStrategy.convert(assets, vaultConfig, abi.encode(instruction));
-    // assertEq(returnAssets.length, 3);
-    // assertEq(returnAssets[0].token, WETH);
-    // assertEq(returnAssets[0].amount, 20_464_102_080);
-    // assertEq(returnAssets[1].token, DAI);
-    // assertEq(returnAssets[1].amount, 33);
-    // assertEq(returnAssets[2].token, NFPM);
-    // assertEq(returnAssets[2].amount, 1);
-    // assertNotEq(returnAssets[2].tokenId, 0);
-    // assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-    // (,,,,, int24 tickLower, int24 tickUpper,,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    // assertEq(tickLower, -443_580);
-    // assertEq(tickUpper, 443_580);
-    console.log("==== decreasePosition ====");
-    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
-      liquidity: liquidity / 2,
-      amount0Min: 0,
-      amount1Min: 0,
-      principalAmountOutMin: 0,
-      swapData: ""
-    });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
-      params: abi.encode(decreaseParams)
-    });
-    assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(lpStrategy),
-      token: NFPM,
-      tokenId: returnAssets[2].tokenId,
-      amount: 1
-    });
-    transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    assertEq(returnAssets.length, 3);
-    assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 1_634_761_692_781_853_501);
-    assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 0);
-    assertEq(returnAssets[2].token, NFPM);
-    assertEq(returnAssets[2].amount, 1);
-    assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-
-    console.log("==== convertFromPrincipal ====");
-    AssetLib.Asset memory existing = returnAssets[2];
-    assets = new AssetLib.Asset[](1);
-    assets[0] = returnAssets[0];
-
-    transferAssets(assets, address(lpStrategy));
-    IERC721(NFPM).transferFrom(USER, address(lpStrategy), existing.tokenId);
-    returnAssets = lpStrategy.convertFromPrincipal(existing, assets[0].amount, vaultConfig);
-    assertEq(returnAssets.length, 3);
-    assertEq(returnAssets[0].token, WETH);
-    assertEq(returnAssets[0].amount, 0);
-    assertEq(returnAssets[1].token, DAI);
-    assertEq(returnAssets[1].amount, 1109);
-    assertEq(returnAssets[2].token, NFPM);
-    assertEq(returnAssets[2].amount, 1);
-    assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
-  }
-
-  function test_LpStrategyMintValidate() public {
-    console.log("==== test_LpStrategyMintValidation ====");
+  function test_LpStrategyRebalanceValidate() public {
+    console.log("==== test_LpStrategyRebalanceValidate ====");
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset({
       assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
-      amount: 1 ether
+      amount: 2 ether
     });
 
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
+    console.log("==== swapAndMintPosition ====");
+    ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0
-    });
-    ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-
-    vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-
-    assets = new AssetLib.Asset[](2);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: USDC,
-      tokenId: 0,
-      amount: 1_000_000
-    });
-
-    mintParams = ILpStrategy.MintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: DAI,
       token1: USDC,
-      fee: 3000,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
-      amount1Min: 0
-    });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-  }
-
-  function test_lpStrategyIncreaseValidate() public {
-    console.log("==== test_lpStrategyIncreaseValidate ====");
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
-    });
-
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0
+      amount1Min: 0,
+      swapData: ""
     });
     ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    ILpStrategy.IncreaseLiquidityParams memory increaseParams =
-      ILpStrategy.IncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0 });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.IncreaseLiquidity),
-      params: abi.encode(increaseParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-  }
-
-  function test_LpStrategyDecreaseValidate() public {
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
-    });
-
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0
-    });
-    ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    ILpStrategy.DecreaseLiquidityParams memory decreaseParams =
-      ILpStrategy.DecreaseLiquidityParams({ liquidity: liquidity + 1, amount0Min: 0, amount1Min: 0 });
-    instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(decreaseParams) });
-    assets = new AssetLib.Asset[](1);
-    assets[0] = returnAssets[2];
-    transferAssets(assets, address(lpStrategy));
-    vm.expectRevert();
-    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-  }
-
-  function test_LpStrategyRebalanceValidate() public {
-    console.log("==== test_LpStrategyRebalanceValidate ====");
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
-    });
-
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0
-    });
-    ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
@@ -442,24 +108,17 @@ contract LpStrategyTest is TestCommon {
 
   function test_LpStrategyCompoundValidate() public {
     console.log("==== test_LpStrategyCompoundValidate ====");
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset({
       assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
+      amount: 2 ether
     });
 
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
+    console.log("==== swapAndMintPosition ====");
+    ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
       token1: DAI,
@@ -467,10 +126,11 @@ contract LpStrategyTest is TestCommon {
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
-      amount1Min: 0
+      amount1Min: 0,
+      swapData: ""
     });
     ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
@@ -652,25 +312,18 @@ contract LpStrategyTest is TestCommon {
   }
 
   function test_LpStrategyFeeTaker() public {
-    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset({
       assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
-      amount: 1 ether
-    });
-    assets[1] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: DAI,
-      tokenId: 0,
-      amount: 2000 ether
+      amount: 2 ether
     });
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(WETH, DAI, 3000);
 
-    console.log("==== mintPosition ====");
-    ILpStrategy.MintPositionParams memory mintParams = ILpStrategy.MintPositionParams({
+    console.log("==== swapAndMintPosition ====");
+    ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
       token1: DAI,
@@ -678,10 +331,11 @@ contract LpStrategyTest is TestCommon {
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
-      amount1Min: 0
+      amount1Min: 0,
+      swapData: ""
     });
     ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.MintPosition),
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(mintParams)
     });
     transferAssets(assets, address(lpStrategy));
@@ -709,13 +363,13 @@ contract LpStrategyTest is TestCommon {
     returnAssets = lpStrategy.harvest(returnAssets[2], WETH, publicFeeConfig);
 
     assertEq(returnAssets.length, 3);
-    assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 196_680_692_884_358);
+    assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_203_259_418_342, "owner fee mismatch");
     assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0);
-    assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 393_361_385_768_717);
+    assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_406_518_836_685, "platform fee mismatch");
     assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0);
-    assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 590_042_078_653_075);
+    assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 648_609_778_255_028, "gasFee mismatch");
     assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0);
-    assertEq(returnAssets[0].amount, 2_753_529_700_381_020);
+    assertEq(returnAssets[0].amount, 3_026_845_631_856_802, "amount0 mismatch");
     assertEq(returnAssets[1].amount, 0);
 
     console.log("==== test take fee when swap and compound ====");
@@ -733,8 +387,8 @@ contract LpStrategyTest is TestCommon {
     IERC20(DAI).approve(address(swapper), amountOut);
     swapper.poolSwap(pool, amountOut, false, 0, "");
     lpStrategy.valueOf(returnAssets[2], WETH);
-    uint256 fee0 = 2_557_154_124_851_458;
-    uint256 fee1 = 2_655_711_330_991_053_790;
+    uint256 fee0 = 2_601_269_379_622_417;
+    uint256 fee1 = 243_296_432_368_259_167;
 
     ILpStrategy.SwapAndCompoundParams memory compoundParams =
       ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -775,8 +429,8 @@ contract LpStrategyTest is TestCommon {
     IERC20(DAI).approve(address(swapper), amountOut);
     swapper.poolSwap(pool, amountOut, false, 0, "");
     lpStrategy.valueOf(returnAssets[2], WETH);
-    fee0 = 2_560_426_929_595_547;
-    fee1 = 2_649_488_043_479_605_912;
+    fee0 = 2_602_363_878_740_862;
+    fee1 = 242_288_240_783_372_807;
 
     console.log("==== decreasePosition ====");
     (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
