@@ -33,19 +33,19 @@ contract IntegrationTest is TestCommon {
 
   function print_vault_inventory() public view {
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
-    console.log("-----------------------------------------");
-    for (uint256 i = 0; i < vaultAssets.length; i++) {
-      // console.log("asset %d token: %s", i, vaultAssets[i].token);
-      // console.log("asset %d amount: %s", i, vaultAssets[i].amount);
-      // console.log("asset %d tokenId: %s", i, vaultAssets[i].tokenId);
-      // console.log("asset %d strategy: %s", i, vaultAssets[i].strategy);      
-      if (vaultAssets[i].strategy != address(0)) {
-        console.log("asset %d strategy value: %s", i, ILpStrategy(vaultAssets[i].strategy).valueOf(vaultAssets[i], WETH));
-      }      
-    }
-    console.log("weth balance of the vault: %s", IERC20(WETH).balanceOf(address(vaultInstance)));
-    console.log("Vault total value: %s", vaultInstance.getTotalValue());
-    console.log("-----------------------------------------");
+    console.log("+----------------------------------------");
+    // for (uint256 i = 0; i < vaultAssets.length; i++) {
+    //   // console.log("asset %d token: %s", i, vaultAssets[i].token);
+    //   // console.log("asset %d amount: %s", i, vaultAssets[i].amount);
+    //   // console.log("asset %d tokenId: %s", i, vaultAssets[i].tokenId);
+    //   // console.log("asset %d strategy: %s", i, vaultAssets[i].strategy);      
+    //   if (vaultAssets[i].strategy != address(0)) {
+    //     console.log("asset %d strategy value: %s", i, ILpStrategy(vaultAssets[i].strategy).valueOf(vaultAssets[i], WETH));
+    //   }      
+    // }
+    console.log("+ weth balance of the vault: %s", IERC20(WETH).balanceOf(address(vaultInstance)));
+    console.log("+ Vault total value: %s", vaultInstance.getTotalValue());
+    console.log("+----------------------------------------");
   }
 
   function setUp() public {
@@ -106,7 +106,7 @@ contract IntegrationTest is TestCommon {
     vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
 
     console.log("vaultFactory: ", address(vaultFactory));
-    // User can create a Vault without any assets
+    // Owner can create a Vault without any assets
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
       name: "Test Public Vault",
       symbol: "TV",
@@ -133,7 +133,7 @@ contract IntegrationTest is TestCommon {
   function test_cannotChangePrincipalToken() public {
     console.log("==== test_cannotChangePrincipalToken ====");
 
-    // User cannot change the principal token of the Vault
+    // Owner cannot change the principal token of the Vault
     vm.startPrank(USER);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);    
     vaultInstance.allowDeposit(
@@ -149,7 +149,7 @@ contract IntegrationTest is TestCommon {
 
   function test_allowDepositEmptyVault() public {
     console.log("==== test_allowDepositEmptyVault ====");
-    console.log("Testing: User cannot Turn off allow_deposit once it's on");
+    console.log("Testing: Owner cannot Turn off allow_deposit once it's on");
     vm.startPrank(USER);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vaultInstance.allowDeposit(
@@ -165,12 +165,12 @@ contract IntegrationTest is TestCommon {
 
   function test_integration() public {
     console.log("==== test_deposit ====");
-    console.log("==== User can deposit principal to mint shares ====");
+    console.log("==== Owner can deposit principal to mint shares ====");
 
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
 
     print_vault_inventory();
-    console.log("User is depositing 1 ether to an empty vault");
+    console.log("Owner is depositing 1 ether to an empty vault");
     vm.startPrank(USER);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vm.startPrank(USER);
@@ -178,7 +178,7 @@ contract IntegrationTest is TestCommon {
     vaultAssets = vaultInstance.getInventory();
     print_vault_inventory();
 
-    console.log("User is allocating 1 ether to a new LP position");
+    console.log("Owner is allocating 1 ether to a new LP position");
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.95 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
@@ -203,7 +203,7 @@ contract IntegrationTest is TestCommon {
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
     print_vault_inventory();
 
-    console.log("bighand is swapping 100 eth -> USDC");
+    console.log("bighand is swapping 100 USDC -> wETH");
     vm.startPrank(BIGHAND_PLAYER);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     
@@ -261,16 +261,17 @@ contract IntegrationTest is TestCommon {
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
     console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);
+    console.log(">>> loss of the bighand player in USDC: ", 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER));
     
     print_vault_inventory();
 
-    console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
-    console.log("User is withdrawing all the shares");
+    console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
+    console.log("Owner is withdrawing all the shares");
     vm.startPrank(USER);
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
     print_vault_inventory();
-    console.log("weth balance of the user: ", IERC20(WETH).balanceOf(USER));
-    console.log("usdc balance of the user: ", IERC20(USDC).balanceOf(USER));
+    console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
+    console.log("usdc balance of the owner: ", IERC20(USDC).balanceOf(USER));
     
   }
 
