@@ -154,7 +154,7 @@ contract IntegrationTest is TestCommon {
     console.log("==== Owner is depositing 1 ether to an empty vault ====");
     vm.startPrank(USER);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.startPrank(USER);
+    console.log("usdc balance of the owner (before depositing): ", IERC20(USDC).balanceOf(USER));
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
     
@@ -176,13 +176,12 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    vm.startPrank(USER);
+    vm.startPrank(USER);    
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
-    console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));    
-    assertEq(vaultInstance.balanceOf(USER), 10000000000000000000000);
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-    
+ 
+    assertEq(vaultInstance.balanceOf(USER), 10000000000000000000000);    
+
     console.log("==== bighand is swapping 100_000 USDC -> wETH ====");
     vm.startPrank(BIGHAND_PLAYER);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
@@ -206,10 +205,8 @@ contract IntegrationTest is TestCommon {
     console.log("==== Player 1 is depositing 1 ether to the vault ====");
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.startPrank(PLAYER_1);
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
-    
 
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));
