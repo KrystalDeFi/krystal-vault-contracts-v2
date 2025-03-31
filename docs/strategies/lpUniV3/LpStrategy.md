@@ -14,16 +14,16 @@ uint256 Q64
 contract IOptimalSwapper optimalSwapper
 ```
 
-### configManager
+### validator
 
 ```solidity
-contract IConfigManager configManager
+contract ILpValidator validator
 ```
 
 ### constructor
 
 ```solidity
-constructor(address _optimalSwapper, address _configManager) public
+constructor(address _optimalSwapper, address _validator) public
 ```
 
 ### valueOf
@@ -436,27 +436,6 @@ _Gets the amounts for the position_
 | amount0 | uint256 | The amount of token0 |
 | amount1 | uint256 | The amount of token1 |
 
-### _getAmountsForPool
-
-```solidity
-function _getAmountsForPool(contract IUniswapV3Pool pool) internal view returns (uint256 amount0, uint256 amount1)
-```
-
-_Gets the amounts for the pool_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| pool | contract IUniswapV3Pool | IUniswapV3Pool |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amount0 | uint256 | The amount of token0 |
-| amount1 | uint256 | The amount of token1 |
-
 ### _getFeesForPosition
 
 ```solidity
@@ -502,67 +481,6 @@ _Gets the fee growth inside the position_
 | ---- | ---- | ----------- |
 | feeGrowthInside0X128 | uint256 | The fee growth of token0 |
 | feeGrowthInside1X128 | uint256 | The fee growth of token1 |
-
-### _validateConfig
-
-```solidity
-function _validateConfig(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) internal view
-```
-
-_Checks the principal amount in the pool_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
-| fee | uint24 | The fee of the pool |
-| token0 | address | The token0 of the pool |
-| token1 | address | The token1 of the pool |
-| tickLower | int24 | The lower tick of the position |
-| tickUpper | int24 | The upper tick of the position |
-| config | struct ICommon.VaultConfig | The configuration of the strategy |
-
-### _validateTickWidth
-
-```solidity
-function _validateTickWidth(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) internal view
-```
-
-_Checks the tick width of the position_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
-| fee | uint24 | The fee of the pool |
-| token0 | address | The token0 of the pool |
-| token1 | address | The token1 of the pool |
-| tickLower | int24 | The lower tick of the position |
-| tickUpper | int24 | The upper tick of the position |
-| config | struct ICommon.VaultConfig | The configuration of the strategy |
-
-### _isPoolAllowed
-
-```solidity
-function _isPoolAllowed(struct ICommon.VaultConfig config, address pool) internal pure returns (bool)
-```
-
-_Checks if the pool is allowed_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| config | struct ICommon.VaultConfig | The configuration of the strategy |
-| pool | address | The pool to check |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| [0] | bool | allowed If the pool is allowed |
 
 ### _takeFee
 

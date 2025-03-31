@@ -21,6 +21,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  lpValidator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   lpStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;

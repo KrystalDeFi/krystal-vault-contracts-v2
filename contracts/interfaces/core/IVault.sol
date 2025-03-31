@@ -5,15 +5,13 @@ import "../ICommon.sol";
 import "../strategies/IStrategy.sol";
 
 interface IVault is ICommon {
-  event Deposit(address indexed account, uint256 principalAmount, uint256 shares);
+  event VaultDeposit(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event Withdraw(address indexed account, uint256 principalAmount, uint256 shares);
+  event VaultWithdraw(address indexed account, uint256 principalAmount, uint256 shares);
 
-  event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
+  event VaultAllocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
 
-  event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);
-
-  event Harvest(AssetLib.Asset[] harvestedAssets);
+  event VaultHarvest(AssetLib.Asset[] harvestedAssets);
 
   event SweepToken(address[] tokens);
 

@@ -21,27 +21,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPool",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidPoolAmountAmountMin",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidSwapRouter",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidTickWidth",
     "type": "error"
   },
   {

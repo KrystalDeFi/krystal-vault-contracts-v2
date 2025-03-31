@@ -17,11 +17,6 @@ interface ILpStrategy is IStrategy {
     SwapAndCompound
   }
 
-  enum TokenType {
-    Stable,
-    Pegged
-  }
-
   struct MintPositionParams {
     INFPM nfpm;
     address token0;
@@ -105,24 +100,4 @@ interface ILpStrategy is IStrategy {
     uint256 amountOutMin;
     bytes swapData;
   }
-
-  struct LpStrategyConfig {
-    LpStrategyRangeConfig[] rangeConfigs;
-    LpStrategyTvlConfig[] tvlConfigs;
-  }
-
-  struct LpStrategyRangeConfig {
-    uint24 tickWidthMultiplierMin;
-    uint24 tickWidthStableMultiplierMin;
-  }
-
-  struct LpStrategyTvlConfig {
-    uint256 principalTokenAmountMin;
-  }
-
-  error InvalidPool();
-
-  error InvalidPoolAmountAmountMin();
-
-  error InvalidTickWidth();
 }

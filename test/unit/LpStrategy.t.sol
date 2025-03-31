@@ -16,7 +16,9 @@ import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -42,15 +44,15 @@ contract LpStrategyTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
     ConfigManager configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
-
-    lpStrategy = new LpStrategy(address(swapper), address(configManager));
+    LpValidator validator = new LpValidator(address(configManager));
+    lpStrategy = new LpStrategy(address(swapper), address(validator));
     vaultConfig = ICommon.VaultConfig({
       principalToken: WETH,
       allowDeposit: false,

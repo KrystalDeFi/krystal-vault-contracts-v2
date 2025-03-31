@@ -14,15 +14,6 @@ enum InstructionType {
 }
 ```
 
-### TokenType
-
-```solidity
-enum TokenType {
-  Stable,
-  Pegged
-}
-```
-
 ### MintPositionParams
 
 ```solidity
@@ -145,49 +136,5 @@ struct SwapToPrincipalParams {
   uint256 amountOutMin;
   bytes swapData;
 }
-```
-
-### LpStrategyConfig
-
-```solidity
-struct LpStrategyConfig {
-  struct ILpStrategy.LpStrategyRangeConfig[] rangeConfigs;
-  struct ILpStrategy.LpStrategyTvlConfig[] tvlConfigs;
-}
-```
-
-### LpStrategyRangeConfig
-
-```solidity
-struct LpStrategyRangeConfig {
-  uint24 tickWidthMultiplierMin;
-  uint24 tickWidthStableMultiplierMin;
-}
-```
-
-### LpStrategyTvlConfig
-
-```solidity
-struct LpStrategyTvlConfig {
-  uint256 principalTokenAmountMin;
-}
-```
-
-### InvalidPool
-
-```solidity
-error InvalidPool()
-```
-
-### InvalidPoolAmountAmountMin
-
-```solidity
-error InvalidPoolAmountAmountMin()
-```
-
-### InvalidTickWidth
-
-```solidity
-error InvalidTickWidth()
 ```
 

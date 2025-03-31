@@ -95,7 +95,7 @@ contract Vault is
       unchecked {
         uint256 mintAmount = principalAmount * SHARES_PRECISION;
         _mint(_owner, mintAmount);
-        emit Deposit(_owner, principalAmount, mintAmount);
+        emit VaultDeposit(_msgSender(), _owner, principalAmount, mintAmount);
       }
     }
   }
@@ -164,7 +164,7 @@ contract Vault is
     require(shares >= minShares, InsufficientShares());
     _mint(_msgSender(), shares);
 
-    emit Deposit(_msgSender(), principalAmount, shares);
+    emit VaultDeposit(vaultFactory, _msgSender(), principalAmount, shares);
 
     return shares;
   }
@@ -240,7 +240,7 @@ contract Vault is
       }
     }
 
-    emit Withdraw(_msgSender(), returnAmount, shares);
+    emit VaultWithdraw(_msgSender(), returnAmount, shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -292,7 +292,7 @@ contract Vault is
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
 
-    emit Allocate(inputAssets, strategy, newAssets);
+    emit VaultAllocate(inputAssets, strategy, newAssets);
   }
 
   /// @notice Harvests the assets from the strategy
@@ -301,7 +301,7 @@ contract Vault is
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset);
-    emit Harvest(harvestedAssets);
+    emit VaultHarvest(harvestedAssets);
   }
 
   /// @dev Harvests the assets from the strategy

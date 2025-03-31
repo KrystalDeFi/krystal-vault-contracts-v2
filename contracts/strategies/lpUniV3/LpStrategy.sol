@@ -19,8 +19,7 @@ import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721H
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import "../../interfaces/strategies/ILpStrategy.sol";
-import "../../interfaces/core/IConfigManager.sol";
-import "forge-std/console.sol";
+import "../../interfaces/strategies/ILpValidator.sol";
 
 contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   uint256 constant Q64 = 0x10000000000000000;
@@ -28,13 +27,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
   IOptimalSwapper public optimalSwapper;
-  IConfigManager public configManager;
+  ILpValidator public validator;
 
-  constructor(address _optimalSwapper, address _configManager) {
+  constructor(address _optimalSwapper, address _validator) {
     require(_optimalSwapper != address(0), ZeroAddress());
-    require(_configManager != address(0), ZeroAddress());
+    require(_validator != address(0), ZeroAddress());
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
-    configManager = IConfigManager(_configManager);
+    validator = ILpValidator(_validator);
   }
 
   /// @notice Get value of the asset in terms of principalToken
@@ -48,7 +47,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
-    console.log("fee0: %d, fee1: %d", fee0, fee1);
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
@@ -297,7 +295,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(principalAsset.token == vaultConfig.principalToken, InvalidAsset());
 
     if (vaultConfig.allowDeposit) {
-      _validateConfig(
+      validator.validateConfig(
         params.nfpm, params.fee, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
       );
     }
@@ -567,7 +565,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 
     if (vaultConfig.allowDeposit) {
-      _validateTickWidth(nfpm, fee, token0, token1, params.tickLower, params.tickUpper, vaultConfig);
+      validator.validateTickWidth(nfpm, fee, token0, token1, params.tickLower, params.tickUpper, vaultConfig);
     }
 
     returnAssets = _decreaseLiquidity(
@@ -715,7 +713,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
 
-    _validateConfig(INFPM(asset.token), fee, token0, token1, tickLower, tickUpper, config);
+    validator.validateConfig(INFPM(asset.token), fee, token0, token1, tickLower, tickUpper, config);
   }
 
   /// @dev Gets the pool for the position
@@ -741,17 +739,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint160 sqrtPriceX96Upper = TickMath.getSqrtRatioAtTick(tickUpper);
     (amount0, amount1) =
       LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtPriceX96Lower, sqrtPriceX96Upper, liquidity);
-  }
-
-  /// @dev Gets the amounts for the pool
-  /// @param pool IUniswapV3Pool
-  /// @return amount0 The amount of token0
-  /// @return amount1 The amount of token1
-  function _getAmountsForPool(IUniswapV3Pool pool) internal view returns (uint256 amount0, uint256 amount1) {
-    (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
-    uint128 liquidity = pool.liquidity();
-    (amount0, amount1) =
-      LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, TickMath.MIN_SQRT_RATIO, TickMath.MAX_SQRT_RATIO, liquidity);
   }
 
   /// @dev Gets the fees for the position
@@ -821,108 +808,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
       feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
     }
-  }
-
-  /// @dev Checks the principal amount in the pool
-  /// @param nfpm The non-fungible position manager
-  /// @param fee The fee of the pool
-  /// @param token0 The token0 of the pool
-  /// @param token1 The token1 of the pool
-  /// @param tickLower The lower tick of the position
-  /// @param tickUpper The upper tick of the position
-  /// @param config The configuration of the strategy
-  function _validateConfig(
-    INFPM nfpm,
-    uint24 fee,
-    address token0,
-    address token1,
-    int24 tickLower,
-    int24 tickUpper,
-    VaultConfig calldata config
-  ) internal view {
-    LpStrategyConfig memory lpConfig =
-      abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
-
-    LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
-    LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
-
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-
-    // Check if the pool is allowed
-    require(_isPoolAllowed(config, pool), InvalidPool());
-
-    (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
-    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
-
-    // Check if the pool amount is greater than the minimum amount principal token
-    require(
-      (config.principalToken == token0 ? poolAmount0 : poolAmount1) >= tvlConfig.principalTokenAmountMin,
-      InvalidPoolAmountAmountMin()
-    );
-
-    // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    bool isStablePair = configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
-      && configManager.isMatchedWithType(token1, uint256(TokenType.Stable));
-
-    int24 minTickWidth =
-      isStablePair ? int24(rangeConfig.tickWidthStableMultiplierMin) : int24(rangeConfig.tickWidthMultiplierMin);
-
-    require(tickUpper - tickLower >= minTickWidth * tickSpacing, InvalidTickWidth());
-  }
-
-  /// @dev Checks the tick width of the position
-  /// @param nfpm The non-fungible position manager
-  /// @param fee The fee of the pool
-  /// @param token0 The token0 of the pool
-  /// @param token1 The token1 of the pool
-  /// @param tickLower The lower tick of the position
-  /// @param tickUpper The upper tick of the position
-  /// @param config The configuration of the strategy
-  function _validateTickWidth(
-    INFPM nfpm,
-    uint24 fee,
-    address token0,
-    address token1,
-    int24 tickLower,
-    int24 tickUpper,
-    VaultConfig calldata config
-  ) internal view {
-    LpStrategyConfig memory lpConfig =
-      abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
-
-    LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
-
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
-
-    // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    bool isStablePair = configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
-      && configManager.isMatchedWithType(token1, uint256(TokenType.Stable));
-
-    int24 minTickWidth =
-      isStablePair ? int24(rangeConfig.tickWidthStableMultiplierMin) : int24(rangeConfig.tickWidthMultiplierMin);
-
-    require(tickUpper - tickLower >= minTickWidth * tickSpacing, InvalidTickWidth());
-  }
-
-  /// @dev Checks if the pool is allowed
-  /// @param config The configuration of the strategy
-  /// @param pool The pool to check
-  /// @return allowed If the pool is allowed
-  function _isPoolAllowed(VaultConfig memory config, address pool) internal pure returns (bool) {
-    if (config.supportedAddresses.length == 0) return true;
-
-    uint256 length = config.supportedAddresses.length;
-
-    for (uint256 i; i < length;) {
-      if (config.supportedAddresses[i] == pool) return true;
-
-      unchecked {
-        i++;
-      }
-    }
-
-    return false;
   }
 
   /// @dev Takes the fee from the amount

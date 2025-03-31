@@ -2,34 +2,28 @@
 
 ## IVault
 
-### Deposit
+### VaultDeposit
 
 ```solidity
-event Deposit(address account, uint256 principalAmount, uint256 shares)
+event VaultDeposit(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
 ```
 
-### Withdraw
+### VaultWithdraw
 
 ```solidity
-event Withdraw(address account, uint256 principalAmount, uint256 shares)
+event VaultWithdraw(address account, uint256 principalAmount, uint256 shares)
 ```
 
-### Allocate
+### VaultAllocate
 
 ```solidity
-event Allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
+event VaultAllocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
 ```
 
-### Deallocate
+### VaultHarvest
 
 ```solidity
-event Deallocate(struct AssetLib.Asset[] inputAssets, struct AssetLib.Asset[] returnedAssets)
-```
-
-### Harvest
-
-```solidity
-event Harvest(struct AssetLib.Asset[] harvestedAssets)
+event VaultHarvest(struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### SweepToken
