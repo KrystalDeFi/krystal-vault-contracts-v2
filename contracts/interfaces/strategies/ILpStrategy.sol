@@ -8,9 +8,9 @@ import { INonfungiblePositionManager as INFPM } from
 
 interface ILpStrategy is IStrategy {
   enum InstructionType {
-    MintPosition,
+    // MintPosition,
     SwapAndMintPosition,
-    IncreaseLiquidity,
+    // IncreaseLiquidity,
     SwapAndIncreaseLiquidity,
     DecreaseLiquidityAndSwap,
     SwapAndRebalancePosition,
