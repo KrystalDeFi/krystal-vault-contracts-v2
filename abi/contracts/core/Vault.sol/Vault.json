@@ -896,7 +896,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "gasFeeBasisPoint",
+        "name": "gasFeeX64",
         "type": "uint16"
       },
       {
@@ -1028,39 +1028,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint16",
-        "name": "gasFeeBasisPoint",
-        "type": "uint16"
-      },
-      {
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
-      }
-    ],
-    "name": "deallocate",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

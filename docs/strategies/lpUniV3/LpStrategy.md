@@ -2,6 +2,12 @@
 
 ## LpStrategy
 
+### Q64
+
+```solidity
+uint256 Q64
+```
+
 ### optimalSwapper
 
 ```solidity

@@ -176,12 +176,6 @@ function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint16 gasFeeBasisPoint, bytes data) external
 ```
 
-### deallocate
-
-```solidity
-function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes data) external
-```
-
 ### getTotalValue
 
 ```solidity

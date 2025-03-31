@@ -179,9 +179,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -446,9 +446,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -561,9 +561,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
