@@ -24,7 +24,7 @@ contract VaultTest is TestCommon {
   IV3SwapRouter public v3SwapRouter;
   ICommon.VaultConfig public vaultConfig;
   Vault public vault;
-  address public constant USER_2 = 0x0000000000000000000000000000000000000001;
+  ConfigManager public configManager;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
@@ -47,7 +47,7 @@ contract VaultTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    ConfigManager configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     lpStrategy = new LpStrategy(address(swapper), address(configManager));
     address[] memory strategies = new address[](1);
@@ -75,6 +75,11 @@ contract VaultTest is TestCommon {
   function test_Vault() public {
     assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
 
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
@@ -93,12 +98,6 @@ contract VaultTest is TestCommon {
       params: abi.encode(params)
     });
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-
-    vm.deal(USER, 100 ether);
-    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-
-    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
@@ -150,5 +149,97 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
     vault.allowDeposit(vaultConfig);
+  }
+
+  function test_manipulateVaultPosition() public {
+    vm.deal(USER, 100 ether);
+
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    vault.withdraw(0.4 ether * vault.SHARES_PRECISION(), false, 0);
+    assertEq(IERC20(vault).balanceOf(USER), 0.1 ether * vault.SHARES_PRECISION());
+    console.log("vault.getTotalValue() before: %d", vault.getTotalValue());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
+    // allocate to a low liquidity pool
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_000,
+      tickUpper: 887_000,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
+    setErc20Balance(WETH, USER, 0);
+
+    for (uint256 i = 0; i < 1; i++) {
+      console.log("vault.getTotalValue() before: %d", vault.getTotalValue());
+      uint256 newShares = vault.deposit{ value: 1 ether }(1 ether, 0);
+      console.log("vault.getTotalValue() middle: %d", vault.getTotalValue());
+      console.log("newUser shares: %d", newShares);
+      vault.withdraw(newShares, false, 0);
+      console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
+      console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
+    }
+    console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
+    console.log("=== withdraw the rest");
+    setErc20Balance(WETH, USER, 0);
+    vault.withdraw(IERC20(vault).balanceOf(USER), false, 0);
+    console.log("newUser WETH withdrawn rest: %d", IERC20(WETH).balanceOf(USER));
+  }
+
+  function test_vaultUsdc() public {
+    setErc20Balance(USDC, USER, 10000 * 1e6);
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(lpStrategy);
+    configManager.whitelistStrategy(strategies, true);
+    vaultConfig = ICommon.VaultConfig({
+      principalToken: USDC,
+      allowDeposit: false,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      supportedAddresses: new address[](0)
+    });
+
+    vault = new Vault();
+    IERC20(USDC).transfer(address(vault), 1000 * 1e6);
+    ICommon.VaultCreateParams memory createVaultParams = ICommon.VaultCreateParams({
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1000 * 1e6,
+      config: vaultConfig
+    });
+    vault.initialize(createVaultParams, USER, address(configManager), WETH);
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), USDC, 0, 500 * 1e6);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
   }
 }
