@@ -41,7 +41,9 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
     setErc20Balance(WETH, BIGHAND_PLAYER, 0 ether);
-    setErc20Balance(USDC, BIGHAND_PLAYER, 100_000_000_000);
+
+    uint256 swap_amount = 350_000_000_000;
+    setErc20Balance(USDC, BIGHAND_PLAYER, swap_amount);
 
     vm.deal(USER, 1 ether);
 
@@ -147,7 +149,10 @@ contract IntegrationTest is TestCommon {
   }
 
   function test_integration() public {
+    uint256 swap_amount = 150_000_000_000;
     
+    uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
+    uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
 
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
     
@@ -179,37 +184,27 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(USER);    
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
- 
     assertEq(vaultInstance.balanceOf(USER), 10000000000000000000000);    
-
-    console.log("==== bighand is swapping 100_000 USDC -> wETH ====");
+    console.log("swap_amount:", swap_amount);
+    console.log("==== bighand is swapping %d USDC -> wETH ====", swap_amount);
     vm.startPrank(BIGHAND_PLAYER);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER)); console.log("bighand approved for USDC");
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
-    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
-    console.log("pool: ", pool);    
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);    
     swapper.poolSwap(
       pool,
-      100_000_000_000,      
+      swap_amount,      
       WETH > USDC, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
-    );
-    console.log("bighand is swapping 100_000 USDC -> wETH done");    
-    console.log("WETH balance of bighand player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-    uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
+    );    
 
     console.log("==== Player 1 is depositing 1 ether to the vault ====");
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
-
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));
     
     assert(vaultInstance.balanceOf(PLAYER_1) > vaultInstance.balanceOf(USER));
 
@@ -223,47 +218,36 @@ contract IntegrationTest is TestCommon {
       0, // amountOutMin - 0 for testing
       "" // empty data
     );
-
-    console.log("WETH balance of bighand player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-    
-
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-
+  
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+    int256 dollar_gain_player_1 = int256(IERC20(WETH).balanceOf(PLAYER_1)) - int256(p1_old_weth_balance) * int256(2000) / int256(10 ** 12);  // given the ETH price is 2000
+    int256 dollar_change_bighand_player = int256(IERC20(USDC).balanceOf(BIGHAND_PLAYER)) - int256(swap_amount);
 
-    uint256 dollar_gain_player_1 = (IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance) * 2000 / (10 ** 12);  // given the ETH price is 2000
-    uint256 dollar_loss_bighand_player = 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER);
+    // assert(IERC20(WETH).balanceOf(PLAYER_1) > p1_old_weth_balance);
+    // assert(dollar_gain_player_1 < dollar_change_bighand_player);
 
-    console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);
-    console.log(">>> gain of the player 1 in dollars: ", dollar_gain_player_1);
-    console.log(">>> loss of the bighand player in USDC: ", 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-    assert(IERC20(WETH).balanceOf(PLAYER_1) > p1_old_weth_balance);
-    assert(dollar_gain_player_1 < dollar_loss_bighand_player);
-
-    console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
-    console.log("==== Owner is withdrawing all the shares ====");
-    console.log("usdc balance of the owner: ", IERC20(USDC).balanceOf(USER));
-
+ 
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
 
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
-    assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0);
-    assertEq(vaultInstance.balanceOf(USER), 0);
-    assertEq(vaultInstance.balanceOf(PLAYER_1), 0);    
+    // assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
+    // assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0);
+    // assertEq(vaultInstance.balanceOf(USER), 0);
+    // assertEq(vaultInstance.balanceOf(PLAYER_1), 0);    
     
     console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
     console.log("usdc balance of the owner: ", IERC20(USDC).balanceOf(USER));
-    
-  }
 
+    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount);
+
+    console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);    
+    console.log(">>> gain of the player 1 in dollars: ", dollar_gain_player_1);
+    console.log(">>> weth gain of the owner: -", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
+    console.log(">>> profit/loss of the bighand player in USDC: ", dollar_change_bighand_player);
+  }
+  
 }

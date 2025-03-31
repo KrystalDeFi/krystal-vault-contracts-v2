@@ -1,0 +1,5 @@
+  >>> Summary of case: swapping 150000000000 USDC -> wETH <<<
+  >>> weth gain of the player 1:  2766456748090750
+  >>> gain of the player 1 in dollars:  5532913
+  >>> weth gain of the owner: - 700151896638153
+  >>> loss of the bighand player in USDC:  155561106
