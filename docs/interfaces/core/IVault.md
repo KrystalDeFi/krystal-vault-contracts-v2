@@ -11,19 +11,19 @@ event VaultDeposit(address vaultFactory, address account, uint256 principalAmoun
 ### VaultWithdraw
 
 ```solidity
-event VaultWithdraw(address account, uint256 principalAmount, uint256 shares)
+event VaultWithdraw(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
 ```
 
 ### VaultAllocate
 
 ```solidity
-event VaultAllocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
+event VaultAllocate(address vaultFactory, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
 ```
 
 ### VaultHarvest
 
 ```solidity
-event VaultHarvest(struct AssetLib.Asset[] harvestedAssets)
+event VaultHarvest(address vaultFactory, struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### SweepToken
@@ -47,7 +47,7 @@ event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts)
 ### SetVaultConfig
 
 ```solidity
-event SetVaultConfig(struct ICommon.VaultConfig config)
+event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config)
 ```
 
 ### InvalidAssetToken

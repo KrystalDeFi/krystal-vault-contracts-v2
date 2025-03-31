@@ -7,11 +7,13 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event VaultDeposit(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event VaultWithdraw(address indexed account, uint256 principalAmount, uint256 shares);
+  event VaultWithdraw(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event VaultAllocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
+  event VaultAllocate(
+    address indexed vaultFactory, AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets
+  );
 
-  event VaultHarvest(AssetLib.Asset[] harvestedAssets);
+  event VaultHarvest(address indexed vaultFactory, AssetLib.Asset[] harvestedAssets);
 
   event SweepToken(address[] tokens);
 
@@ -19,7 +21,7 @@ interface IVault is ICommon {
 
   event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts);
 
-  event SetVaultConfig(VaultConfig config);
+  event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
 
   error InvalidAssetToken();
   error InvalidAssetAmount();

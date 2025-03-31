@@ -111,10 +111,10 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (
-        currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
-          && currentAsset.amount != 0
-      ) revert DepositNotAllowed();
+      // if (
+      //   currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
+      //     && currentAsset.amount != 0
+      // ) revert DepositNotAllowed();
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
 
       unchecked {
@@ -240,7 +240,7 @@ contract Vault is
       }
     }
 
-    emit VaultWithdraw(_msgSender(), returnAmount, shares);
+    emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -292,7 +292,7 @@ contract Vault is
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
 
-    emit VaultAllocate(inputAssets, strategy, newAssets);
+    emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);
   }
 
   /// @notice Harvests the assets from the strategy
@@ -301,7 +301,7 @@ contract Vault is
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset);
-    emit VaultHarvest(harvestedAssets);
+    emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
   /// @dev Harvests the assets from the strategy
@@ -433,7 +433,7 @@ contract Vault is
 
     vaultConfig = _config;
 
-    emit SetVaultConfig(_config);
+    emit SetVaultConfig(vaultFactory, _config);
   }
 
   /// @dev Adds multiple assets to the vault
