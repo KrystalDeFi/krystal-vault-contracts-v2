@@ -251,13 +251,13 @@ contract IntegrationTest is TestCommon {
     assert(IERC20(WETH).balanceOf(PLAYER_1) > p1_old_weth_balance);
     assert(dollar_gain_player_1 < dollar_loss_bighand_player);
 
-    
-
     console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
-    console.log("Owner is withdrawing all the shares");
+    console.log("==== Owner is withdrawing all the shares ====");
+    console.log("usdc balance of the owner: ", IERC20(USDC).balanceOf(USER));
+
     vm.startPrank(USER);
+    console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
-    
 
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0);
