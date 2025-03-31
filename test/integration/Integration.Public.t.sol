@@ -203,7 +203,7 @@ contract IntegrationTest is TestCommon {
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
     print_vault_inventory();
 
-    console.log("bighand is swapping 100 USDC -> wETH");
+    console.log("bighand is swapping 100_000 USDC -> wETH");
     vm.startPrank(BIGHAND_PLAYER);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     
