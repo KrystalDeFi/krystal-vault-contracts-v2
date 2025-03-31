@@ -299,12 +299,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     }
 
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
+    address principalToken = vaultConfig.principalToken;
+    address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       SwapFromPrincipalParams({
         principalTokenAmount: principalAsset.amount,
         pool: pool,
-        principalToken: params.token0,
-        otherToken: params.token1,
+        principalToken: principalToken,
+        otherToken: otherToken,
         tickLower: params.tickLower,
         tickUpper: params.tickUpper,
         swapData: params.swapData
@@ -409,12 +411,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       nfpm.positions(lpAsset.tokenId);
+    address principalToken = vaultConfig.principalToken;
+    address otherToken = token0 == principalToken ? token1 : token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       SwapFromPrincipalParams({
         principalTokenAmount: assets[0].amount,
         pool: IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee),
-        principalToken: token0,
-        otherToken: token1,
+        principalToken: principalToken,
+        otherToken: otherToken,
         tickLower: tickLower,
         tickUpper: tickUpper,
         swapData: params.swapData
