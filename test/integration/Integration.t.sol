@@ -21,11 +21,14 @@ import { Vault } from "../../contracts/core/Vault.sol";
 import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 
 contract IntegrationTest is TestCommon {
   ConfigManager public configManager;
   Vault public vaultImplementation;
+  LpValidator public validator;
   LpStrategy public lpStrategy;
 
   VaultFactory public vaultFactory;
@@ -46,8 +49,8 @@ contract IntegrationTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
@@ -55,23 +58,24 @@ contract IntegrationTest is TestCommon {
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    lpStrategy = new LpStrategy(address(swapper), address(configManager));
+    validator = new LpValidator(address(configManager));
+    lpStrategy = new LpStrategy(address(swapper), address(validator));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
 
-    ILpStrategy.LpStrategyConfig memory initialConfig = ILpStrategy.LpStrategyConfig({
-      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
-      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    ILpValidator.LpStrategyConfig memory initialConfig = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
     initialConfig.rangeConfigs[0] =
-      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
 
-    initialConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
+    initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
-    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(initialConfig));
+    configManager.setStrategyConfig(address(validator), WETH, abi.encode(initialConfig));
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
@@ -376,7 +380,7 @@ contract IntegrationTest is TestCommon {
     console.log("==== test_allowDepositVaultRevert ====");
 
     // Existing assets should follow the vault config
-    vm.expectRevert(ILpStrategy.InvalidPool.selector);
+    vm.expectRevert(ILpValidator.InvalidPool.selector);
     address[] memory newSupportedAddresses = new address[](1);
     newSupportedAddresses[0] = address(0);
     vaultInstance.allowDeposit(
@@ -492,17 +496,17 @@ contract IntegrationTest is TestCommon {
     // Manage Public Vault (allowed deposit)
     console.log("==== test_managePublicVault ====");
 
-    ILpStrategy.LpStrategyConfig memory newConfig1 = ILpStrategy.LpStrategyConfig({
-      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
-      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    ILpValidator.LpStrategyConfig memory newConfig1 = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
     newConfig1.rangeConfigs[0] =
-      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
 
-    newConfig1.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 10_000_000_000 ether });
+    newConfig1.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 10_000_000_000 ether });
 
-    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(newConfig1));
+    configManager.setStrategyConfig(address(validator), WETH, abi.encode(newConfig1));
 
     //  User can't add to a LP which the pool is smaller the the allowed TVL, at the time of adding
 
@@ -523,23 +527,23 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams1)
     });
-    vm.expectRevert(ILpStrategy.InvalidPoolAmountAmountMin.selector);
+    vm.expectRevert(ILpValidator.InvalidPoolAmountAmountMin.selector);
     vaultInstance.allocate(anotherAssets1, lpStrategy, 0, abi.encode(anotherInstruction1));
 
     //  User can't add/rebalance LP which is smaller than the allowed range
     //    Case non-stable
 
-    ILpStrategy.LpStrategyConfig memory newConfig2 = ILpStrategy.LpStrategyConfig({
-      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
-      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    ILpValidator.LpStrategyConfig memory newConfig2 = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
     newConfig2.rangeConfigs[0] =
-      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 1000, tickWidthStableMultiplierMin: 1000 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 1000, tickWidthStableMultiplierMin: 1000 });
 
-    newConfig2.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
+    newConfig2.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
-    configManager.setStrategyConfig(address(lpStrategy), WETH, abi.encode(newConfig2));
+    configManager.setStrategyConfig(address(validator), WETH, abi.encode(newConfig2));
 
     AssetLib.Asset[] memory anotherAssets2 = new AssetLib.Asset[](1);
     anotherAssets2[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
@@ -558,7 +562,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams2)
     });
-    vm.expectRevert(ILpStrategy.InvalidTickWidth.selector);
+    vm.expectRevert(ILpValidator.InvalidTickWidth.selector);
     vaultInstance.allocate(anotherAssets2, lpStrategy, 0, abi.encode(anotherInstruction2));
 
     //  User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
@@ -579,7 +583,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams3)
     });
-    vm.expectRevert(ILpStrategy.InvalidPool.selector);
+    vm.expectRevert(ILpValidator.InvalidPool.selector);
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
   }
 }

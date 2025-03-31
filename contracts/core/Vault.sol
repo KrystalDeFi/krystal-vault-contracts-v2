@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
@@ -94,7 +95,7 @@ contract Vault is
       unchecked {
         uint256 mintAmount = principalAmount * SHARES_PRECISION;
         _mint(_owner, mintAmount);
-        emit Deposit(_owner, principalAmount, mintAmount);
+        emit VaultDeposit(_msgSender(), _owner, principalAmount, mintAmount);
       }
     }
   }
@@ -110,10 +111,10 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (
-        currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
-          && currentAsset.amount != 0
-      ) revert DepositNotAllowed();
+      // if (
+      //   currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
+      //     && currentAsset.amount != 0
+      // ) revert DepositNotAllowed();
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
 
       unchecked {
@@ -163,7 +164,7 @@ contract Vault is
     require(shares >= minShares, InsufficientShares());
     _mint(_msgSender(), shares);
 
-    emit Deposit(_msgSender(), principalAmount, shares);
+    emit VaultDeposit(vaultFactory, _msgSender(), principalAmount, shares);
 
     return shares;
   }
@@ -239,20 +240,18 @@ contract Vault is
       }
     }
 
-    emit Withdraw(_msgSender(), returnAmount, shares);
+    emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
-  /// @param gasFeeBasisPoint Gas fee basis point
+  /// @param gasFeeX64 Gas fee with X64 precision
   /// @param data Data for the strategy
-  function allocate(
-    AssetLib.Asset[] calldata inputAssets,
-    IStrategy strategy,
-    uint16 gasFeeBasisPoint,
-    bytes calldata data
-  ) external onlyAdminOrAutomator {
+  function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint16 gasFeeX64, bytes calldata data)
+    external
+    onlyAdminOrAutomator
+  {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
@@ -287,49 +286,13 @@ contract Vault is
     }
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
+    feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
     _addAssets(newAssets);
 
-    emit Allocate(inputAssets, strategy, newAssets);
-  }
-
-  /// @notice Deallocates the assets from the strategy
-  /// @param token asset's token address
-  /// @param tokenId asset's token ID
-  /// @param amount Amount to deallocate
-  /// @param gasFeeBasisPoint Gas fee basis point
-  /// @param data Data for strategy execution
-  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
-    external
-    onlyAdminOrAutomator
-  {
-    require(amount != 0, InvalidAssetAmount());
-
-    AssetLib.Asset memory currentAsset = inventory.getAsset(token, tokenId);
-
-    require(currentAsset.amount >= amount, InvalidAssetAmount());
-    require(currentAsset.strategy != address(0), InvalidAssetStrategy());
-
-    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.gasFeeBasisPoint = gasFeeBasisPoint;
-    feeConfig.vaultOwner = vaultOwner;
-
-    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](1);
-    inputAssets[0] = AssetLib.Asset(currentAsset.assetType, currentAsset.strategy, token, tokenId, amount);
-
-    _transferAsset(inputAssets[0], currentAsset.strategy);
-    AssetLib.Asset[] memory returnAssets =
-      IStrategy(currentAsset.strategy).convert(inputAssets, vaultConfig, feeConfig, data);
-    _addAssets(returnAssets);
-
-    if (IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) == 0) {
-      inventory.removeAsset(currentAsset);
-    }
-
-    emit Deallocate(inputAssets, returnAssets);
+    emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);
   }
 
   /// @notice Harvests the assets from the strategy
@@ -338,7 +301,7 @@ contract Vault is
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset);
-    emit Harvest(harvestedAssets);
+    emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
   /// @dev Harvests the assets from the strategy
@@ -470,7 +433,7 @@ contract Vault is
 
     vaultConfig = _config;
 
-    emit SetVaultConfig(_config);
+    emit SetVaultConfig(vaultFactory, _config);
   }
 
   /// @dev Adds multiple assets to the vault
@@ -559,5 +522,9 @@ contract Vault is
 
   receive() external payable {
     require(msg.sender == WETH, InvalidWETH());
+  }
+
+  function decimals() public view override returns (uint8) {
+    return IERC20Metadata(vaultConfig.principalToken).decimals() + 4;
   }
 }

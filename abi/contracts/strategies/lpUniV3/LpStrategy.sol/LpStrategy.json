@@ -8,7 +8,7 @@
       },
       {
         "internalType": "address",
-        "name": "_configManager",
+        "name": "_validator",
         "type": "address"
       }
     ],
@@ -37,27 +37,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPool",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidPoolAmountAmountMin",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidSwapRouter",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidTickWidth",
     "type": "error"
   },
   {
@@ -126,19 +111,6 @@
     ],
     "name": "FeeCollected",
     "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "configManager",
-    "outputs": [
-      {
-        "internalType": "contract IConfigManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [
@@ -229,9 +201,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -496,9 +468,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -611,9 +583,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -780,6 +752,19 @@
     ],
     "name": "revalidate",
     "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "validator",
+    "outputs": [
+      {
+        "internalType": "contract ILpValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
     "stateMutability": "view",
     "type": "function"
   },

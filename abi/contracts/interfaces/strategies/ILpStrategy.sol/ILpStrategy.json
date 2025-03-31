@@ -21,27 +21,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPool",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidPoolAmountAmountMin",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidSwapRouter",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidTickWidth",
     "type": "error"
   },
   {
@@ -179,9 +164,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -446,9 +431,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",
@@ -561,9 +546,9 @@
             "type": "address"
           },
           {
-            "internalType": "uint16",
-            "name": "gasFeeBasisPoint",
-            "type": "uint16"
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "address",

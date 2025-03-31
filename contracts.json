@@ -1,10 +1,13 @@
 {
   "base_mainnet": {
-    "vault": "0xf0c7055623949b963d4a2cad30a872bfb05e5281",
-    "vaultAutomator": ["0x36330a24ed9cca06373296eb576898fa188eac15"],
-    "poolOptimalSwapper": "0xd96267bf1afbf065a742ba62baa96935b0162c9e",
-    "configManager": "0xa4e7252f30ed9ca9ddd69958068fab3bf9be69bc",
-    "lpStrategy": "0xb315fb00de89553ddd4d019ef7cff75dde570dc3",
-    "vaultFactory": "0xe51515ccbd92314773fb50282edf20a0ffabd626"
+    "vault": "0x8e3b495ba2eb103adaaff04a5cc5ec457c36a3cb",
+    "vaultAutomator": [
+      "0x1784b6c15a9f6ef5c85000bce1cf150d324be9ac"
+    ],
+    "poolOptimalSwapper": "0xaa62dee246da6fe979a9e0cef662fe312602454f",
+    "configManager": "0x61419173ac6ef54cc5c5365cdfd748090b10ed29",
+    "lpValidator": "0x7cf1f0ee1f83af155ca0ca4b4ec740b941dcf4f0",
+    "lpStrategy": "0x0a101b7fa1e677ff91e77157023aab43d6b6ac83",
+    "vaultFactory": "0x132e3338fe3bc404d38360e422b7339ad5ffbfa6"
   }
 }

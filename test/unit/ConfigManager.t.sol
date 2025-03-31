@@ -7,6 +7,7 @@ import { TestCommon, USER, DAI, USDC, NULL_ADDRESS } from "../TestCommon.t.sol";
 
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 
 contract ConfigManagerTest is TestCommon {
   ConfigManager public configManager;
@@ -22,8 +23,8 @@ contract ConfigManagerTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
@@ -73,20 +74,20 @@ contract ConfigManagerTest is TestCommon {
   function test_StableTokens() public {
     console.log("==== test_StableTokens ====");
 
-    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
-    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpValidator.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpValidator.TokenType.Stable)));
 
-    assertFalse(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
+    assertFalse(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpValidator.TokenType.Stable)));
 
     address[] memory newStableTokens = new address[](1);
     newStableTokens[0] = DAI;
 
     uint256[] memory newStableTokenTypes = new uint256[](1);
-    newStableTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
 
     configManager.setTypedTokens(newStableTokens, newStableTokenTypes);
 
-    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpValidator.TokenType.Stable)));
 
     address[] memory newStableTokens2 = new address[](3);
     newStableTokens2[0] = DAI;
@@ -94,29 +95,29 @@ contract ConfigManagerTest is TestCommon {
     newStableTokens2[2] = NULL_ADDRESS;
 
     uint256[] memory newStableTokenTypes2 = new uint256[](3);
-    newStableTokenTypes2[0] = uint256(ILpStrategy.TokenType.Stable);
-    newStableTokenTypes2[1] = uint256(ILpStrategy.TokenType.Stable);
-    newStableTokenTypes2[2] = uint256(ILpStrategy.TokenType.Stable);
+    newStableTokenTypes2[0] = uint256(ILpValidator.TokenType.Stable);
+    newStableTokenTypes2[1] = uint256(ILpValidator.TokenType.Stable);
+    newStableTokenTypes2[2] = uint256(ILpValidator.TokenType.Stable);
 
     configManager.setTypedTokens(newStableTokens2, newStableTokenTypes2);
 
-    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpStrategy.TokenType.Stable)));
-    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpStrategy.TokenType.Stable)));
-    assertTrue(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpStrategy.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(DAI, uint256(ILpValidator.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(USDC, uint256(ILpValidator.TokenType.Stable)));
+    assertTrue(configManager.isMatchedWithType(NULL_ADDRESS, uint256(ILpValidator.TokenType.Stable)));
   }
 
   function test_StrategyConfigs() public {
     console.log("==== test_StrategyConfigs ====");
 
-    ILpStrategy.LpStrategyConfig memory lpStrategyConfig = ILpStrategy.LpStrategyConfig({
-      rangeConfigs: new ILpStrategy.LpStrategyRangeConfig[](1),
-      tvlConfigs: new ILpStrategy.LpStrategyTvlConfig[](1)
+    ILpValidator.LpStrategyConfig memory lpStrategyConfig = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
     lpStrategyConfig.rangeConfigs[0] =
-      ILpStrategy.LpStrategyRangeConfig({ tickWidthMultiplierMin: 200, tickWidthStableMultiplierMin: 300 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 200, tickWidthStableMultiplierMin: 300 });
 
-    lpStrategyConfig.tvlConfigs[0] = ILpStrategy.LpStrategyTvlConfig({ principalTokenAmountMin: 100 });
+    lpStrategyConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 100 });
 
     bytes memory config = abi.encode(lpStrategyConfig);
 
@@ -124,9 +125,9 @@ contract ConfigManagerTest is TestCommon {
 
     bytes memory strategyConfig = configManager.getStrategyConfig(NULL_ADDRESS, DAI);
 
-    ILpStrategy.LpStrategyConfig memory lpStrategyConfig2 = abi.decode(strategyConfig, (ILpStrategy.LpStrategyConfig));
-    ILpStrategy.LpStrategyRangeConfig memory rangeConfig = lpStrategyConfig2.rangeConfigs[0];
-    ILpStrategy.LpStrategyTvlConfig memory tvlConfig = lpStrategyConfig2.tvlConfigs[0];
+    ILpValidator.LpStrategyConfig memory lpStrategyConfig2 = abi.decode(strategyConfig, (ILpValidator.LpStrategyConfig));
+    ILpValidator.LpStrategyRangeConfig memory rangeConfig = lpStrategyConfig2.rangeConfigs[0];
+    ILpValidator.LpStrategyTvlConfig memory tvlConfig = lpStrategyConfig2.tvlConfigs[0];
 
     assertEq(tvlConfig.principalTokenAmountMin, 100);
     assertEq(rangeConfig.tickWidthMultiplierMin, 200);
