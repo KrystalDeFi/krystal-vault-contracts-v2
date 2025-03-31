@@ -1,5 +1,42 @@
+  >>> Summary of case: swapping 550000000000 USDC -> wETH <<<
+  >>> weth gain of the player 1:  10316275983132199
+  >>> gain of the player 1 in dollars:  20632551
+  >>> weth gain of the owner: - 708697864567663
+  >>> loss of the bighand player in USDC:  565687217
+
+>>> Summary of case: swapping 350000000000 USDC -> wETH <<<
+  >>> weth gain of the player 1:  6661923453170695
+  >>> gain of the player 1 in dollars:  13323846
+  >>> weth gain of the owner: - 706487393738795
+  >>> loss of the bighand player in USDC:  360999634
+
+
   >>> Summary of case: swapping 150000000000 USDC -> wETH <<<
-  >>> weth gain of the player 1:  2766456748090750
-  >>> gain of the player 1 in dollars:  5532913
-  >>> weth gain of the owner: - 700151896638153
-  >>> loss of the bighand player in USDC:  155561106
+  >>> weth gain of the player 1:  2723703097836487
+  >>> gain of the player 1 in dollars:  5447406
+  >>> weth gain of the owner: - 703927786486441
+  >>> loss of the bighand player in USDC:  155035618
+
+
+
+  
+  >>> Summary of case: swapping 550000000000 USDC -> wETH <<<
+  >>> weth gain of the player 1:  241462082697277
+  >>> gain of the player 1 in dollars:  482924
+  >>> weth loss of the owner: - 707447514629062
+  >>> loss of the bighand player in USDC:  546774435
+
+
+  ++ total value of the vault:  1999533262764760669
+  >>> Summary of case: swapping 50000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  238651066229509
+  >>> loss of the player 1 in dollars:  477302
+  >>> weth loss of the owner:  709124751502549
+  >>> loss of the bighand player in USDC:  49981906
+
+  ++ total value of the vault:  1999543368245025908
+  >>> Summary of case: swapping 850000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  226874526164083
+  >>> loss of the player 1 in dollars:  453749
+  >>> weth loss of the owner:  710801713583809
+  >>> loss of the bighand player in USDC:  844653705
