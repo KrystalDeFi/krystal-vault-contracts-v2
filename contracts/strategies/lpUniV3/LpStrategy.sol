@@ -75,15 +75,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
 
-    if (instructionType == uint8(InstructionType.MintPosition)) {
-      return mintPosition(assets, abi.decode(instruction.params, (MintPositionParams)), vaultConfig);
-    }
+    // if (instructionType == uint8(InstructionType.MintPosition)) {
+    //   return mintPosition(assets, abi.decode(instruction.params, (MintPositionParams)), vaultConfig);
+    // }
     if (instructionType == uint8(InstructionType.SwapAndMintPosition)) {
       return swapAndMintPosition(assets, abi.decode(instruction.params, (SwapAndMintPositionParams)), vaultConfig);
     }
-    if (instructionType == uint8(InstructionType.IncreaseLiquidity)) {
-      return increaseLiquidity(assets, abi.decode(instruction.params, (IncreaseLiquidityParams)), vaultConfig);
-    }
+    // if (instructionType == uint8(InstructionType.IncreaseLiquidity)) {
+    //   return increaseLiquidity(assets, abi.decode(instruction.params, (IncreaseLiquidityParams)), vaultConfig);
+    // }
     if (instructionType == uint8(InstructionType.SwapAndIncreaseLiquidity)) {
       return
         swapAndIncreaseLiquidity(assets, abi.decode(instruction.params, (SwapAndIncreaseLiquidityParams)), vaultConfig);
@@ -256,28 +256,28 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param params The parameters for minting the position
   /// @param vaultConfig The vault configuration
   /// @return returnAssets The assets that were returned to the msg.sender
-  function mintPosition(
-    AssetLib.Asset[] calldata assets,
-    MintPositionParams memory params,
-    VaultConfig calldata vaultConfig
-  ) internal returns (AssetLib.Asset[] memory returnAssets) {
-    require(assets.length == 2, InvalidNumberOfAssets());
-    require(
-      assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken, InvalidAsset()
-    );
+  // function mintPosition(
+  //   AssetLib.Asset[] calldata assets,
+  //   MintPositionParams memory params,
+  //   VaultConfig calldata vaultConfig
+  // ) internal returns (AssetLib.Asset[] memory returnAssets) {
+  //   require(assets.length == 2, InvalidNumberOfAssets());
+  //   require(
+  //     assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken, InvalidAsset()
+  //   );
 
-    if (vaultConfig.allowDeposit) {
-      _validateConfig(
-        params.nfpm, params.fee, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
-      );
-    }
+  //   if (vaultConfig.allowDeposit) {
+  //     _validateConfig(
+  //       params.nfpm, params.fee, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
+  //     );
+  //   }
 
-    returnAssets = _mintPosition(assets, params);
-    // Transfer assets to msg.sender
-    if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
-  }
+  //   returnAssets = _mintPosition(assets, params);
+  //   // Transfer assets to msg.sender
+  //   if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+  //   if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+  //   IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  // }
 
   /// @notice Swaps the principal token to the other token and mints a new position
   /// @param assets The assets to swap and mint, assets[0] = principalToken
@@ -377,23 +377,23 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param params The parameters for increasing the liquidity
   /// @param vaultConfig The vault configuration
   /// @return returnAssets The assets that were returned to the msg.sender
-  function increaseLiquidity(
-    AssetLib.Asset[] calldata assets,
-    IncreaseLiquidityParams memory params,
-    VaultConfig calldata vaultConfig
-  ) internal returns (AssetLib.Asset[] memory returnAssets) {
-    require(assets.length == 3, InvalidNumberOfAssets());
-    require(assets[2].strategy == address(this), InvalidAsset());
-    require(
-      assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken, InvalidAsset()
-    );
+  // function increaseLiquidity(
+  //   AssetLib.Asset[] calldata assets,
+  //   IncreaseLiquidityParams memory params,
+  //   VaultConfig calldata vaultConfig
+  // ) internal returns (AssetLib.Asset[] memory returnAssets) {
+  //   require(assets.length == 3, InvalidNumberOfAssets());
+  //   require(assets[2].strategy == address(this), InvalidAsset());
+  //   require(
+  //     assets[0].token == vaultConfig.principalToken || assets[1].token == vaultConfig.principalToken, InvalidAsset()
+  //   );
 
-    returnAssets = _increaseLiquidity(assets, params);
-    // Transfer assets to msg.sender
-    if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
-  }
+  //   returnAssets = _increaseLiquidity(assets, params);
+  //   // Transfer assets to msg.sender
+  //   if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
+  //   if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
+  //   IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+  // }
 
   /// @notice Swaps the principal token to the other token and increases the liquidity of the position
   /// @param assets The assets to swap and increase liquidity, assets[2] = lpAsset
