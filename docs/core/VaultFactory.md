@@ -61,7 +61,7 @@ Create a new vault
 ### pause
 
 ```solidity
-function pause() public
+function pause() external
 ```
 
 Pause the contract
@@ -69,7 +69,7 @@ Pause the contract
 ### unpause
 
 ```solidity
-function unpause() public
+function unpause() external
 ```
 
 Unpause the contract
@@ -77,7 +77,7 @@ Unpause the contract
 ### setConfigManager
 
 ```solidity
-function setConfigManager(address _configManager) public
+function setConfigManager(address _configManager) external
 ```
 
 Set the ConfigManager address
@@ -91,7 +91,7 @@ Set the ConfigManager address
 ### setVaultImplementation
 
 ```solidity
-function setVaultImplementation(address _vaultImplementation) public
+function setVaultImplementation(address _vaultImplementation) external
 ```
 
 Set the Vault implementation

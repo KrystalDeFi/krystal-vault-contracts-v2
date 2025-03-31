@@ -97,6 +97,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "_maxPositions",
+        "type": "uint8"
+      }
+    ],
+    "name": "MaxPositionsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
@@ -110,6 +123,158 @@
       }
     ],
     "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "allowDeposit",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "vaultOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "platformFeeRecipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "gasFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gasFeeRecipient",
+            "type": "address"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICommon.FeeConfig",
+        "name": "_feeConfig",
+        "type": "tuple"
+      }
+    ],
+    "name": "SetFeeConfig",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_strategy",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_principalToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "_config",
+        "type": "bytes"
+      }
+    ],
+    "name": "SetStrategyConfig",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "SetTypedTokens",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "_automators",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "WhitelistAutomator",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "_strategies",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "WhitelistStrategy",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "_swapRouters",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "WhitelistSwapRouter",
     "type": "event"
   },
   {
@@ -222,7 +387,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isMatched",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -241,7 +406,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isWhitelisted",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -260,7 +425,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isWhitelisted",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -279,7 +444,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "_isWhitelisted",
+        "name": "",
         "type": "bool"
       }
     ],
