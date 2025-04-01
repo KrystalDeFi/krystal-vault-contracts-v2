@@ -244,4 +244,69 @@ contract VaultTest is TestCommon {
 
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
   }
+
+  function test_vaultWithEmptyPosition() public {
+    vm.deal(USER, 100 ether);
+
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    AssetLib.Asset[] memory inventoryAssets = vault.getInventory();
+    AssetLib.Asset memory position;
+
+    for (uint256 i = 0; i < inventoryAssets.length; i++) {
+      if (inventoryAssets[i].token == NFPM) {
+        position = inventoryAssets[i];
+        break;
+      }
+    }
+    uint128 liquidity;
+    (,,,,,,, liquidity,,,,) = INFPM(position.token).positions(position.tokenId);
+    ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
+      liquidity: liquidity,
+      amount0Min: 0,
+      amount1Min: 0,
+      principalAmountOutMin: 0,
+      swapData: ""
+    });
+    instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+      params: abi.encode(decreaseParams)
+    });
+
+    assets[0] = position;
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+
+    inventoryAssets = vault.getInventory();
+    for (uint256 i = 0; i < inventoryAssets.length; i++) {
+      if (inventoryAssets[i].token == NFPM) {
+        position = inventoryAssets[i];
+        break;
+      }
+    }
+
+    (,,,,,,, liquidity,,,,) = INFPM(position.token).positions(position.tokenId);
+    assertEq(liquidity, 0);
+
+    vault.withdraw(IERC20(vault).balanceOf(USER) / 2, false, 0);
+  }
 }
