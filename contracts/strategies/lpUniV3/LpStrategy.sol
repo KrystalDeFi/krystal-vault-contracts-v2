@@ -490,12 +490,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
     IERC20(otherAsset.token).approve(address(optimalSwapper), otherAsset.amount);
 
-    (uint256 amountOut, uint256 amountInUsed) = optimalSwapper.poolSwap(
-      pool, otherAsset.amount, otherAsset.token < principalToken, params.principalAmountOutMin, params.swapData
-    );
+    (uint256 amountOut, uint256 amountInUsed) =
+      optimalSwapper.poolSwap(pool, otherAsset.amount, otherAsset.token < principalToken, 0, params.swapData);
 
     otherAsset.amount -= amountInUsed;
     principalAsset.amount += amountOut;
+
+    require(principalAsset.amount >= params.principalAmountOutMin, InsufficientAmountOut());
+
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
@@ -520,21 +522,22 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (,, address token0, address token1,,,,,,,,) = nfpm.positions(tokenId);
 
-    (uint256 fee0, uint256 fee1) =
-      nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
-
-    fee0 -= _takeFee(token0, fee0, feeConfig);
-    fee1 -= _takeFee(token1, fee1, feeConfig);
-
-    nfpm.decreaseLiquidity(
-      INFPM.DecreaseLiquidityParams(tokenId, params.liquidity, params.amount0Min, params.amount1Min, block.timestamp)
-    );
-
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
 
-    amount0Collected += fee0;
-    amount1Collected += fee1;
+    amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
+    amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
+
+    if (params.liquidity > 0) {
+      nfpm.decreaseLiquidity(
+        INFPM.DecreaseLiquidityParams(tokenId, params.liquidity, params.amount0Min, params.amount1Min, block.timestamp)
+      );
+
+      (uint256 posAmount0, uint256 posAmount1) =
+        nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
+      amount0Collected += posAmount0;
+      amount1Collected += posAmount1;
+    }
 
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
