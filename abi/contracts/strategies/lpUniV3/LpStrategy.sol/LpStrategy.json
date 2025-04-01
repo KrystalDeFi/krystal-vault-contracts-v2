@@ -17,6 +17,11 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidAsset",
     "type": "error"
   },

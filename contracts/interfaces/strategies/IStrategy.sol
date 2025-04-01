@@ -7,6 +7,7 @@ import { AssetLib } from "../../libraries/AssetLib.sol";
 interface IStrategy is ICommon {
   error InvalidAsset();
   error InvalidNumberOfAssets();
+  error InsufficientAmountOut();
 
   enum FeeType {
     PLATFORM,
