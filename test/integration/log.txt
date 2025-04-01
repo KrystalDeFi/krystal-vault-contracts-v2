@@ -79,8 +79,10 @@
 350_000
   ++ total value of the vault (after the swap):  1999553289294967245
   ==== Player 1 is withdrawing all from the vault ====
+  ____ liq to be withdrawed 21072515786876
   ++ total value of the vault (after player 1 withdrawing):  999535415028816492
   ==== user is withdrawing all the shares ====
+  ____ liq to be withdrawed 21063022587835
   >>> Summary of case: swapping 350000000000 USDC -> wETH <<<
   >>> weth loss of the player 1:  236902427028372
   >>> loss of the player 1 in dollars:  473804
@@ -88,12 +90,52 @@
   >>> loss of the bighand player in USDC:  348539088
 
 4_350_000
-++ total value of the vault (after the swap):  1999596178021553061
+  ++ total value of the vault (after the swap):  1999596178021553061
   ==== Player 1 is withdrawing all from the vault ====
+  ____ liq to be withdrawed 21072515786876
   ++ total value of the vault (after player 1 withdrawing):  999512288877165168
   ==== user is withdrawing all the shares ====
+  ____ liq to be withdrawed 21063022587835
   >>> Summary of case: swapping 4350000000000 USDC -> wETH <<<
   >>> weth loss of the player 1:  170906714901852
   >>> loss of the player 1 in dollars:  341813
   >>> weth loss of the owner:  730534752529937
   >>> loss of the bighand player in USDC:  4130353572
+
+
+---
+
+update
+
+USDC balance of bighand player:  349995686901
+  ++ total value of the vault (after the swap):  1999562228966334294
+  ==== Player 1 is withdrawing all from the vault ====
+  total of liquidity:  42135538374711
+  ____ liq to be withdrawn 21072515786876
+  ret assets: 475929 91209
+  ++ total value of the vault (after player 1 withdrawing):  999539882429437922
+  ==== user is withdrawing all the shares ====
+  total of liquidity:  21063022587835
+  ____ liq to be withdrawn 21063022587835
+  ret assets: 475705 91169
+  >>> Summary of case: swapping 350000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  232430884706445
+  >>> loss of the player 1 in dollars:  464861
+  >>> weth loss of the owner:  702948408280681
+
+
+USDC balance of bighand player:  3500089902897
+  ++ total value of the vault (after the swap):  1999678013603116892
+  ==== Player 1 is withdrawing all from the vault ====
+  total of liquidity:  42135538374711
+  ____ liq to be withdrawn 21072515786876
+  ret assets: 475975 91215
+  ++ total value of the vault (after player 1 withdrawing):  999561546449518474
+  ==== user is withdrawing all the shares ====
+  total of liquidity:  21063022587835
+  ____ liq to be withdrawn 21063022587835
+  ret assets: 475716 91167
+  >>> Summary of case: swapping 3500000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  138337246338007
+  >>> loss of the player 1 in dollars:  276674
+  >>> weth loss of the owner:  681289634464952

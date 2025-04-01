@@ -44,8 +44,8 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 1 ether);
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
-    setErc20Balance(WETH, BIGHAND_PLAYER, 0 ether);
-    swap_amount = 4_350_000_000_000;
+    setErc20Balance(WETH, BIGHAND_PLAYER, 0.179 ether);
+    swap_amount = 350_000_000_000;
     setErc20Balance(USDC, BIGHAND_PLAYER, swap_amount);
 
     vm.deal(USER, 1 ether);
@@ -196,6 +196,10 @@ contract IntegrationTest is TestCommon {
     );
 
     console.log("----------------------------- Ended a round of swap");
+
+    console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
+    
+
     
     console.log("++ total value of the vault (after the swap): ", vaultInstance.getTotalValue());
   
@@ -204,7 +208,6 @@ contract IntegrationTest is TestCommon {
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
     uint256 dollar_lost_player_1 = (p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1)) * 2000 / 10 ** 12;  // given the ETH price is 2000    
-    uint256 dollar_lost_bighand_player = swap_amount - IERC20(USDC).balanceOf(BIGHAND_PLAYER);
     
     console.log("++ total value of the vault (after player 1 withdrawing): ", vaultInstance.getTotalValue());
 
@@ -225,7 +228,7 @@ contract IntegrationTest is TestCommon {
     console.log(">>> weth loss of the player 1: ", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));    
     console.log(">>> loss of the player 1 in dollars: ", dollar_lost_player_1);
     console.log(">>> weth loss of the owner: ", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
-    console.log(">>> loss of the bighand player in USDC: ", dollar_lost_bighand_player);
+
   }
   
 }
