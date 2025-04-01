@@ -185,6 +185,8 @@ contract Vault is
     address principalToken = vaultConfig.principalToken;
 
     uint256 length = inventory.assets.length;
+    AssetLib.Asset[] memory assets;
+
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.amount != 0) {
@@ -207,8 +209,17 @@ contract Vault is
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
-        _transferAsset(currentAsset, currentAsset.strategy);
-        AssetLib.Asset[] memory assets = IStrategy(currentAsset.strategy).convertToPrincipal(
+        assets = _harvest(currentAsset);
+        for (uint256 k; k < assets.length;) {
+          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
+            returnAmount += FullMath.mulDiv(assets[k].amount, shares, currentTotalSupply);
+          }
+          unchecked {
+            k++;
+          }
+        }
+
+        assets = IStrategy(currentAsset.strategy).convertToPrincipal(
           currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
         );
         _addAssets(assets);
@@ -216,8 +227,6 @@ contract Vault is
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
             returnAmount += assets[k].amount;
-          } else {
-            _transferAsset(assets[k], _msgSender());
           }
           unchecked {
             k++;
