@@ -14,6 +14,12 @@ error InvalidAsset()
 error InvalidNumberOfAssets()
 ```
 
+### InsufficientAmountOut
+
+```solidity
+error InsufficientAmountOut()
+```
+
 ### FeeType
 
 ```solidity

@@ -490,12 +490,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
     IERC20(otherAsset.token).approve(address(optimalSwapper), otherAsset.amount);
 
-    (uint256 amountOut, uint256 amountInUsed) = optimalSwapper.poolSwap(
-      pool, otherAsset.amount, otherAsset.token < principalToken, params.principalAmountOutMin, params.swapData
-    );
+    (uint256 amountOut, uint256 amountInUsed) =
+      optimalSwapper.poolSwap(pool, otherAsset.amount, otherAsset.token < principalToken, 0, params.swapData);
 
     otherAsset.amount -= amountInUsed;
     principalAsset.amount += amountOut;
+
+    require(principalAsset.amount >= params.principalAmountOutMin, InsufficientAmountOut());
+
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
