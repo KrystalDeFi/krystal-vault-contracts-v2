@@ -184,24 +184,10 @@ contract Vault is
     uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
 
-    for (uint256 i; i < inventory.assets.length;) {
+    uint256 length = inventory.assets.length;
+    for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
-        _transferAsset(currentAsset, currentAsset.strategy);
-        AssetLib.Asset[] memory assets = IStrategy(currentAsset.strategy).convertToPrincipal(
-          currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
-        );
-        _addAssets(assets);
-
-        for (uint256 k; k < assets.length;) {
-          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
-            returnAmount += assets[k].amount;
-          }
-          unchecked {
-            k++;
-          }
-        }
-      } else if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.amount != 0) {
+      if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.amount != 0) {
         uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
         if (currentAsset.token == principalToken) {
           returnAmount += proportionalAmount;
@@ -214,6 +200,29 @@ contract Vault is
       }
       unchecked {
         i++;
+      }
+    }
+
+    length = inventory.assets.length;
+    for (uint256 i; i < length;) {
+      AssetLib.Asset memory currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
+        _transferAsset(currentAsset, currentAsset.strategy);
+        AssetLib.Asset[] memory assets = IStrategy(currentAsset.strategy).convertToPrincipal(
+          currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
+        );
+        _addAssets(assets);
+
+        for (uint256 k; k < assets.length;) {
+          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
+            returnAmount += assets[k].amount;
+          } else {
+            _transferAsset(assets[k], _msgSender());
+          }
+          unchecked {
+            k++;
+          }
+        }
       }
     }
 
