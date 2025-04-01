@@ -184,12 +184,15 @@ contract Vault is
     uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
 
-    uint256 length = inventory.assets.length;
     AssetLib.Asset[] memory assets;
 
+    uint256 length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.amount != 0) {
+      if (
+        currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20
+          && currentAsset.amount != 0
+      ) {
         uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
         if (currentAsset.token == principalToken) {
           returnAmount += proportionalAmount;
@@ -219,6 +222,7 @@ contract Vault is
           }
         }
 
+        _transferAsset(currentAsset, currentAsset.strategy);
         assets = IStrategy(currentAsset.strategy).convertToPrincipal(
           currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
         );
@@ -232,6 +236,9 @@ contract Vault is
             k++;
           }
         }
+      }
+      unchecked {
+        i++;
       }
     }
 
