@@ -214,8 +214,14 @@ contract Vault is
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         assets = _harvest(currentAsset);
         for (uint256 k; k < assets.length;) {
+          uint256 proportionalAmount = FullMath.mulDiv(assets[k].amount, shares, currentTotalSupply);
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
-            returnAmount += FullMath.mulDiv(assets[k].amount, shares, currentTotalSupply);
+            returnAmount += proportionalAmount;
+          } else {
+            _transferAsset(
+              AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), currentAsset.token, 0, proportionalAmount),
+              _msgSender()
+            );
           }
           unchecked {
             k++;
@@ -231,6 +237,8 @@ contract Vault is
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
             returnAmount += assets[k].amount;
+          } else {
+            _transferAsset(assets[k], _msgSender());
           }
           unchecked {
             k++;
