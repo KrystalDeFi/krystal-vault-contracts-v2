@@ -177,7 +177,6 @@ contract IntegrationTest is TestCommon {
       0, // amountOutMin - 0 for testing
       "" // empty data
     );        
-    // assert(vaultInstance.balanceOf(PLAYER_1) > vaultInstance.balanceOf(USER));
 
     console.log("==== bighand is swapping all wETH -> USDC ====");
     vm.startPrank(BIGHAND_PLAYER);    
@@ -197,19 +196,20 @@ contract IntegrationTest is TestCommon {
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
+    assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
 
     uint256 dollar_lost_player_1 = (p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1)) * 2000 / 10 ** 12;  // given the ETH price is 2000        
 
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
+    assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
 
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
-    assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
-    assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
 
-
+    assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
+    
     assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
 
     // the WETH balance of players shouldn't be too much different with the initial balance
