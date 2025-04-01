@@ -108,15 +108,17 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @notice Harvest the asset fee
   /// @param asset The asset to harvest
   /// @param tokenOut The token to swap to
+  /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @param feeConfig The fee configuration
   /// @return returnAssets The assets that were returned to the msg.sender
-  function harvest(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
-    external
-    nonReentrant
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function harvest(
+    AssetLib.Asset calldata asset,
+    address tokenOut,
+    uint256 amountTokenOutMin,
+    FeeConfig calldata feeConfig
+  ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     require(asset.strategy == address(this), InvalidAsset());
-    returnAssets = _harvest(asset, tokenOut, feeConfig);
+    returnAssets = _harvest(asset, tokenOut, amountTokenOutMin, feeConfig);
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
@@ -125,12 +127,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @dev Harvest the asset fee
   /// @param asset The asset to harvest
   /// @param tokenOut The token to swap to
+  /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @param feeConfig The fee configuration
   /// @return returnAssets The assets that were returned to the msg.sender
-  function _harvest(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function _harvest(
+    AssetLib.Asset calldata asset,
+    address tokenOut,
+    uint256 amountTokenOutMin,
+    FeeConfig calldata feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).collect(
       INFPM.CollectParams(asset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
@@ -142,8 +147,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     }
     uint256 amountOut;
     uint256 amountInUsed;
+    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
     if (swapAmount > 0) {
-      address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
       (amountOut, amountInUsed) = _swapToPrinciple(
         SwapToPrincipalParams({
           pool: pool,
@@ -155,6 +160,15 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         })
       );
     }
+
+    // validate principalAmount + amountOut and swapAmount - amountInUsed must be greater than amountTokenOutMin
+    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
+    uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
+    require(
+      principalAmount + amountOut + FullMath.mulDiv(swapAmount - amountInUsed, priceX96, FixedPoint96.Q96)
+        >= amountTokenOutMin,
+      InsufficientAmountOut()
+    );
 
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
@@ -563,7 +577,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     INFPM nfpm = INFPM(assets[0].token);
     uint256 tokenId = assets[0].tokenId;
     AssetLib.Asset[] memory harvestedAssets;
-    if (!params.compoundFee) harvestedAssets = _harvest(assets[0], vaultConfig.principalToken, feeConfig);
+    if (!params.compoundFee) {
+      harvestedAssets = _harvest(assets[0], vaultConfig.principalToken, params.compoundFeeAmountOutMin, feeConfig);
+    }
 
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 

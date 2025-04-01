@@ -100,6 +100,7 @@ contract LpStrategyTest is TestCommon {
       amount0Min: 0,
       amount1Min: 0,
       compoundFee: false,
+      compoundFeeAmountOutMin: 0,
       swapData: ""
     });
     instruction = ICommon.Instruction({ instructionType: type(uint8).max, params: abi.encode(rebalanceParams) });
@@ -228,6 +229,7 @@ contract LpStrategyTest is TestCommon {
       amount0Min: 0,
       amount1Min: 0,
       compoundFee: true,
+      compoundFeeAmountOutMin: 0,
       swapData: ""
     });
     instruction = ICommon.Instruction({
@@ -362,7 +364,7 @@ contract LpStrategyTest is TestCommon {
     });
     console.log("==== test take fee when harvest ====");
     transferAsset(returnAssets[2], address(lpStrategy));
-    returnAssets = lpStrategy.harvest(returnAssets[2], WETH, publicFeeConfig);
+    returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
 
     assertEq(returnAssets.length, 3);
     assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_203_259_418_342, "owner fee mismatch");

@@ -118,7 +118,7 @@ Allocates un-used assets to the strategy
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset) external
+function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external
 ```
 
 Harvests the assets from the strategy
@@ -128,11 +128,12 @@ Harvests the assets from the strategy
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
+| amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 
 ### _harvest
 
 ```solidity
-function _harvest(struct AssetLib.Asset asset) internal returns (struct AssetLib.Asset[] harvestedAssets)
+function _harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) internal returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 _Harvests the assets from the strategy_
@@ -142,6 +143,7 @@ _Harvests the assets from the strategy_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
+| amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 
 #### Return Values
 
