@@ -160,7 +160,7 @@ contract IntegrationTest is TestCommon {
 
     console.log(vaultInstance.totalSupply());
 
-    console.log("++ share balance of the player: %s %s", vaultInstance.balanceOf(PLAYER_1));
+    console.log("++ share balance of the player: %s", vaultInstance.balanceOf(PLAYER_1));
 
     uint256 totalSupply = vaultInstance.totalSupply();
     uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
