@@ -1,3 +1,5 @@
+++ share balance of the player: 10004507044989378934270
+++ share balance of the owner:  10000000000000000000000
 
 --- Player 1 withdraws first, then owner withdraws
 
@@ -68,3 +70,30 @@
   >>> loss of the player 1 in dollars:  588011
   >>> weth loss of the owner:  657979227592752
   >>> loss of the bighand player in USDC:  4195774613
+
+
+--- Players > Owner
+
+  
+
+350_000
+  ++ total value of the vault (after the swap):  1999553289294967245
+  ==== Player 1 is withdrawing all from the vault ====
+  ++ total value of the vault (after player 1 withdrawing):  999535415028816492
+  ==== user is withdrawing all the shares ====
+  >>> Summary of case: swapping 350000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  236902427028372
+  >>> loss of the player 1 in dollars:  473804
+  >>> weth loss of the owner:  707414587448158
+  >>> loss of the bighand player in USDC:  348539088
+
+4_350_000
+++ total value of the vault (after the swap):  1999596178021553061
+  ==== Player 1 is withdrawing all from the vault ====
+  ++ total value of the vault (after player 1 withdrawing):  999512288877165168
+  ==== user is withdrawing all the shares ====
+  >>> Summary of case: swapping 4350000000000 USDC -> wETH <<<
+  >>> weth loss of the player 1:  170906714901852
+  >>> loss of the player 1 in dollars:  341813
+  >>> weth loss of the owner:  730534752529937
+  >>> loss of the bighand player in USDC:  4130353572
