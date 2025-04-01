@@ -208,8 +208,6 @@ contract IntegrationTest is TestCommon {
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
     assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
 
-    uint256 dollar_lost_player_1 = (p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1)) * 2000 / 10 ** 12;  // given the ETH price is 2000        
-
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
@@ -229,8 +227,7 @@ contract IntegrationTest is TestCommon {
     assert(IERC20(WETH).balanceOf(PLAYER_1) < 1.01 ether);
     
     console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
-    console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));    
-    console.log(">>> loss of the player 1 in dollars:", dollar_lost_player_1);
+    console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));        
     console.log(">>> weth loss of the owner:", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
 
   }
