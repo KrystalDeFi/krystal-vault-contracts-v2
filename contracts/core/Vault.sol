@@ -185,8 +185,16 @@ contract Vault is
     address principalToken = vaultConfig.principalToken;
 
     AssetLib.Asset[] memory assets;
-
     uint256 length = inventory.assets.length;
+    for (uint256 i; i < length;) {
+      AssetLib.Asset memory currentAsset = inventory.assets[i];
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
+      unchecked {
+        i++;
+      }
+    }
+
+    length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (
@@ -203,40 +211,17 @@ contract Vault is
           );
         }
       }
-      unchecked {
-        i++;
-      }
-    }
-
-    length = inventory.assets.length;
-    for (uint256 i; i < length;) {
-      AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
-        assets = _harvest(currentAsset);
-        for (uint256 k; k < assets.length;) {
-          uint256 proportionalAmount = FullMath.mulDiv(assets[k].amount, shares, currentTotalSupply);
-          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
-            returnAmount += proportionalAmount;
-          } else {
-            _transferAsset(
-              AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), currentAsset.token, 0, proportionalAmount),
-              _msgSender()
-            );
-          }
-          unchecked {
-            k++;
-          }
-        }
-
         _transferAsset(currentAsset, currentAsset.strategy);
         assets = IStrategy(currentAsset.strategy).convertToPrincipal(
           currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
         );
-        _addAssets(assets);
-
         for (uint256 k; k < assets.length;) {
-          if (assets[k].assetType == AssetLib.AssetType.ERC20 && assets[k].token == principalToken) {
+          if (assets[k].assetType != AssetLib.AssetType.ERC20) {
+            inventory.addAsset(assets[k]);
+          } else if (assets[k].token == principalToken) {
             returnAmount += assets[k].amount;
+            inventory.addAsset(assets[k]);
           } else {
             _transferAsset(assets[k], _msgSender());
           }
