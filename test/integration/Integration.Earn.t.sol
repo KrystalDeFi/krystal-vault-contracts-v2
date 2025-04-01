@@ -44,8 +44,8 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 1 ether);
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
-    setErc20Balance(WETH, BIGHAND_PLAYER, 0.179 ether);
-    swap_amount = 350_000_000_000;
+    setErc20Balance(WETH, BIGHAND_PLAYER, 3.58 ether);
+    swap_amount = 7_000_000_000_000;
     setErc20Balance(USDC, BIGHAND_PLAYER, swap_amount);
 
     vm.deal(USER, 1 ether);
@@ -107,9 +107,7 @@ contract IntegrationTest is TestCommon {
         principalToken: WETH,
         supportedAddresses: new address[](0)
       })
-    });
-
-    console.log("created params");
+    });    
 
     vm.startPrank(USER);
     address vaultAddress = vaultFactory.createVault(params);
@@ -128,8 +126,7 @@ contract IntegrationTest is TestCommon {
     
     console.log("==== Owner is depositing 1 ether to an empty vault ====");
     vm.startPrank(USER);
-    IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    console.log("usdc balance of the owner (before depositing): ", IERC20(USDC).balanceOf(USER));
+    IERC20(WETH).approve(address(vaultInstance), 1 ether);    
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
 
@@ -154,8 +151,6 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(USER);    
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(vaultInstance.balanceOf(USER), 10000000000000000000000);
-
-    console.log("total value of the vault (after allocation): ", vaultInstance.getTotalValue());
 
     console.log("==== Player 1 is depositing 1 ether to the vault ====");
     vm.startPrank(PLAYER_1);
@@ -196,38 +191,37 @@ contract IntegrationTest is TestCommon {
     );
 
     console.log("----------------------------- Ended a round of swap");
-
     console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
     
-
-    
-    console.log("++ total value of the vault (after the swap): ", vaultInstance.getTotalValue());
   
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
-    uint256 dollar_lost_player_1 = (p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1)) * 2000 / 10 ** 12;  // given the ETH price is 2000    
-    
-    console.log("++ total value of the vault (after player 1 withdrawing): ", vaultInstance.getTotalValue());
-
-    // assert(IERC20(WETH).balanceOf(PLAYER_1) > p1_old_weth_balance);
-    // assert(dollar_lost_player_1 < dollar_lost_bighand_player);
+    uint256 dollar_lost_player_1 = (p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1)) * 2000 / 10 ** 12;  // given the ETH price is 2000        
 
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
 
-    // assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
-    // assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0);
-    // assertEq(vaultInstance.balanceOf(USER), 0);
-    // assertEq(vaultInstance.balanceOf(PLAYER_1), 0);    
-    
-    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
+    assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
+    assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
+    assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
 
-    console.log(">>> weth loss of the player 1: ", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));    
-    console.log(">>> loss of the player 1 in dollars: ", dollar_lost_player_1);
-    console.log(">>> weth loss of the owner: ", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
+
+    assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
+
+    // the WETH balance of players shouldn't be too much different with the initial balance
+    assert(0.99 ether < IERC20(WETH).balanceOf(USER));
+    assert(IERC20(WETH).balanceOf(USER) < 1.01 ether);
+    assert(0.99 ether < IERC20(WETH).balanceOf(PLAYER_1));
+    assert(IERC20(WETH).balanceOf(PLAYER_1) < 1.01 ether);
+    
+    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
+    console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));    
+    console.log(">>> loss of the player 1 in dollars:", dollar_lost_player_1);
+    console.log(">>> weth loss of the owner:", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
 
   }
   
