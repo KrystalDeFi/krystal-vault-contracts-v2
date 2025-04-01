@@ -2,34 +2,28 @@
 
 ## IVault
 
-### Deposit
+### VaultDeposit
 
 ```solidity
-event Deposit(address account, uint256 principalAmount, uint256 shares)
+event VaultDeposit(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
 ```
 
-### Withdraw
+### VaultWithdraw
 
 ```solidity
-event Withdraw(address account, uint256 principalAmount, uint256 shares)
+event VaultWithdraw(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
 ```
 
-### Allocate
+### VaultAllocate
 
 ```solidity
-event Allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
+event VaultAllocate(address vaultFactory, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, struct AssetLib.Asset[] newAssets)
 ```
 
-### Deallocate
+### VaultHarvest
 
 ```solidity
-event Deallocate(struct AssetLib.Asset[] inputAssets, struct AssetLib.Asset[] returnedAssets)
-```
-
-### Harvest
-
-```solidity
-event Harvest(struct AssetLib.Asset[] harvestedAssets)
+event VaultHarvest(address vaultFactory, struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### SweepToken
@@ -53,7 +47,7 @@ event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts)
 ### SetVaultConfig
 
 ```solidity
-event SetVaultConfig(struct ICommon.VaultConfig config)
+event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config)
 ```
 
 ### InvalidAssetToken
@@ -174,12 +168,6 @@ function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 
 ```solidity
 function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint16 gasFeeBasisPoint, bytes data) external
-```
-
-### deallocate
-
-```solidity
-function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes data) external
 ```
 
 ### getTotalValue

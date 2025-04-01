@@ -5,7 +5,11 @@ import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
 import { isArray, last } from "lodash";
 import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typechain-types/contracts/core";
-import { LpStrategy, VaultAutomator as LpUniV3VaultAutomator } from "../typechain-types/contracts/strategies/lpUniV3";
+import {
+  LpStrategy,
+  VaultAutomator as LpUniV3VaultAutomator,
+  LpValidator,
+} from "../typechain-types/contracts/strategies/lpUniV3";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -20,6 +24,7 @@ export interface Contracts {
   vaultAutomator?: any[];
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
+  lpValidator?: LpValidator;
   lpStrategy?: LpStrategy;
   vaultFactory?: VaultFactory;
 }
@@ -64,6 +69,12 @@ async function deployContracts(
 
   Object.assign(contracts, {
     configManager: configManager.configManager,
+  });
+
+  const lpValidator = await deployLpValidatorContract(++step, existingContract, deployer, undefined, contracts);
+
+  Object.assign(contracts, {
+    lpValidator: lpValidator.lpValidator,
   });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
@@ -188,6 +199,32 @@ export const deployPoolOptimalSwapperContract = async (
   };
 };
 
+export const deployLpValidatorContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+  let lpValidator;
+  if (config.lpValidator?.enabled) {
+    lpValidator = (await deployContract(
+      `${step} >>`,
+      config.lpValidator?.autoVerifyContract,
+      "LpValidator",
+      existingContract?.["lpValidator"],
+      "contracts/strategies/lpUniV3/LpValidator.sol:LpValidator",
+      undefined,
+      ["address"],
+      [existingContract?.["configManager"] || contracts?.configManager?.target],
+    )) as LpValidator;
+  }
+  return {
+    lpValidator,
+  };
+};
+
 export const deployLpStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
@@ -209,7 +246,7 @@ export const deployLpStrategyContract = async (
       ["address", "address"],
       [
         existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
-        existingContract?.["configManager"] || contracts?.configManager?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
       ],
     )) as LpStrategy;
   }

@@ -8,18 +8,13 @@ import { INonfungiblePositionManager as INFPM } from
 
 interface ILpStrategy is IStrategy {
   enum InstructionType {
-    MintPosition,
+    // MintPosition,
     SwapAndMintPosition,
-    IncreaseLiquidity,
+    // IncreaseLiquidity,
     SwapAndIncreaseLiquidity,
     DecreaseLiquidityAndSwap,
     SwapAndRebalancePosition,
     SwapAndCompound
-  }
-
-  enum TokenType {
-    Stable,
-    Pegged
   }
 
   struct MintPositionParams {
@@ -105,24 +100,4 @@ interface ILpStrategy is IStrategy {
     uint256 amountOutMin;
     bytes swapData;
   }
-
-  struct LpStrategyConfig {
-    LpStrategyRangeConfig[] rangeConfigs;
-    LpStrategyTvlConfig[] tvlConfigs;
-  }
-
-  struct LpStrategyRangeConfig {
-    uint24 tickWidthMultiplierMin;
-    uint24 tickWidthStableMultiplierMin;
-  }
-
-  struct LpStrategyTvlConfig {
-    uint256 principalTokenAmountMin;
-  }
-
-  error InvalidPool();
-
-  error InvalidPoolAmountAmountMin();
-
-  error InvalidTickWidth();
 }

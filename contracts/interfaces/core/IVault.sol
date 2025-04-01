@@ -5,15 +5,15 @@ import "../ICommon.sol";
 import "../strategies/IStrategy.sol";
 
 interface IVault is ICommon {
-  event Deposit(address indexed account, uint256 principalAmount, uint256 shares);
+  event VaultDeposit(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event Withdraw(address indexed account, uint256 principalAmount, uint256 shares);
+  event VaultWithdraw(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event Allocate(AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets);
+  event VaultAllocate(
+    address indexed vaultFactory, AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets
+  );
 
-  event Deallocate(AssetLib.Asset[] inputAssets, AssetLib.Asset[] returnedAssets);
-
-  event Harvest(AssetLib.Asset[] harvestedAssets);
+  event VaultHarvest(address indexed vaultFactory, AssetLib.Asset[] harvestedAssets);
 
   event SweepToken(address[] tokens);
 
@@ -21,7 +21,7 @@ interface IVault is ICommon {
 
   event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts);
 
-  event SetVaultConfig(VaultConfig config);
+  event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
 
   error InvalidAssetToken();
   error InvalidAssetAmount();
@@ -55,9 +55,6 @@ interface IVault is ICommon {
     uint16 gasFeeBasisPoint,
     bytes calldata data
   ) external;
-
-  function deallocate(address token, uint256 tokenId, uint256 amount, uint16 gasFeeBasisPoint, bytes calldata data)
-    external;
 
   function getTotalValue() external returns (uint256);
 

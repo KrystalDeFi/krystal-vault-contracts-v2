@@ -22,7 +22,7 @@ interface ICommon {
     address vaultOwner;
     uint16 platformFeeBasisPoint;
     address platformFeeRecipient;
-    uint16 gasFeeBasisPoint;
+    uint64 gasFeeX64;
     address gasFeeRecipient;
   }
 

@@ -9,7 +9,9 @@ import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { console } from "forge-std/console.sol";
@@ -41,15 +43,15 @@ contract VaultTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpStrategy.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpStrategy.TokenType.Stable);
+    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
-
-    lpStrategy = new LpStrategy(address(swapper), address(configManager));
+    LpValidator validator = new LpValidator(address(configManager));
+    lpStrategy = new LpStrategy(address(swapper), address(validator));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
@@ -198,7 +200,7 @@ contract VaultTest is TestCommon {
   }
 
   function test_vaultUsdc() public {
-    setErc20Balance(USDC, USER, 10000 * 1e6);
+    setErc20Balance(USDC, USER, 10_000 * 1e6);
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);

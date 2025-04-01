@@ -23,6 +23,10 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    lpValidator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     lpStrategy: {
       enabled: true,
       autoVerifyContract: true,

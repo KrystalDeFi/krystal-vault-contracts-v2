@@ -236,7 +236,7 @@ contract ConfigManager is Ownable, IConfigManager {
   function setFeeConfig(bool allowDeposit, FeeConfig calldata _feeConfig) external onlyOwner {
     require(_feeConfig.vaultOwnerFeeBasisPoint < 2000, InvalidFeeConfig());
     require(_feeConfig.platformFeeBasisPoint < 2000, InvalidFeeConfig());
-    require(_feeConfig.gasFeeBasisPoint < 2000, InvalidFeeConfig());
+    require(_feeConfig.gasFeeX64 < 3_689_348_814_741_910_528, InvalidFeeConfig()); // 20%
 
     if (allowDeposit) publicVaultFeeConfig = _feeConfig;
     else privateVaultFeeConfig = _feeConfig;
