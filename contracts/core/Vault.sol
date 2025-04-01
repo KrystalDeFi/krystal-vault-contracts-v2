@@ -441,8 +441,12 @@ contract Vault is
   function _addAssets(AssetLib.Asset[] memory newAssets) internal {
     uint256 length = newAssets.length;
 
+    AssetLib.Asset memory asset;
     for (uint256 i; i < length;) {
-      inventory.addAsset(newAssets[i]);
+      asset = newAssets[i];
+      if (asset.strategy == address(0) || IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) != 0) {
+        inventory.addAsset(newAssets[i]);
+      }
 
       unchecked {
         i++;
