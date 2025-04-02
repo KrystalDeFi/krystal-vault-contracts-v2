@@ -26,9 +26,12 @@ interface IStrategy is ICommon {
     bytes calldata data
   ) external returns (AssetLib.Asset[] memory);
 
-  function harvest(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
-    external
-    returns (AssetLib.Asset[] memory);
+  function harvest(
+    AssetLib.Asset calldata asset,
+    address tokenOut,
+    uint256 amountTokenOutMin,
+    FeeConfig calldata feeConfig
+  ) external returns (AssetLib.Asset[] memory);
 
   function convertFromPrincipal(
     AssetLib.Asset calldata existingAsset,

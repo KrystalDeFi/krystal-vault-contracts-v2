@@ -97,6 +97,7 @@ struct SwapAndRebalancePositionParams {
   uint256 amount0Min;
   uint256 amount1Min;
   bool compoundFee;
+  uint256 compoundFeeAmountOutMin;
   bytes swapData;
 }
 ```
