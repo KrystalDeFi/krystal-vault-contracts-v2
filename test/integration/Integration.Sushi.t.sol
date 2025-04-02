@@ -45,7 +45,7 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
     setErc20Balance(WETH, BIGHAND_PLAYER, 3.58 ether);
-    swap_amount = 7_000_000_000_000;
+    swap_amount = 70_000_000_000;
     setErc20Balance(USDC, BIGHAND_PLAYER, swap_amount);
 
     vm.deal(USER, 1 ether);
