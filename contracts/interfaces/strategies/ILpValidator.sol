@@ -48,7 +48,7 @@ interface ILpValidator is ICommon {
 
   error InvalidPool();
 
-  error InvalidPoolAmountAmountMin();
+  error InvalidPoolAmountMin();
 
   error InvalidTickWidth();
 }

@@ -55,10 +55,10 @@ function validateTickWidth(contract INonfungiblePositionManager nfpm, uint24 fee
 error InvalidPool()
 ```
 
-### InvalidPoolAmountAmountMin
+### InvalidPoolAmountMin
 
 ```solidity
-error InvalidPoolAmountAmountMin()
+error InvalidPoolAmountMin()
 ```
 
 ### InvalidTickWidth

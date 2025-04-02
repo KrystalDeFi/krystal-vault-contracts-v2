@@ -528,7 +528,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams1)
     });
-    vm.expectRevert(ILpValidator.InvalidPoolAmountAmountMin.selector);
+    vm.expectRevert(ILpValidator.InvalidPoolAmountMin.selector);
     vaultInstance.allocate(anotherAssets1, lpStrategy, 0, abi.encode(anotherInstruction1));
 
     //  User can't add/rebalance LP which is smaller than the allowed range
