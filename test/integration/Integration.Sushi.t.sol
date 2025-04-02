@@ -224,7 +224,6 @@ contract IntegrationTest is TestCommon {
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
 
     assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
-    
     assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
 
     // the WETH balance of players shouldn't be too much different with the initial balance
@@ -233,9 +232,9 @@ contract IntegrationTest is TestCommon {
     assert(0.99 ether < IERC20(WETH).balanceOf(PLAYER_1));
     assert(IERC20(WETH).balanceOf(PLAYER_1) < 1.01 ether);
     
-    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
-    console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));        
-    console.log(">>> weth loss of the owner:", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
+    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));    
+    console.log(">>> WETH balance of user: ", IERC20(WETH).balanceOf(USER));
+    console.log(">>> WETH balance of player 1: ", IERC20(WETH).balanceOf(PLAYER_1));    
 
   }
   
