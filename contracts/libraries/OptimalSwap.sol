@@ -481,17 +481,17 @@ library OptimalSwap {
     uint256 sqrtRatioLowerX96,
     uint256 sqrtRatioUpperX96
   ) private pure returns (bool) {
-    // amount0 = liquidity * (sqrt(upper) - sqrt(current)) / (sqrt(upper) * sqrt(current))
-    // amount1 = liquidity * (sqrt(current) - sqrt(lower))
-    // amount0 * amount1 = liquidity * (sqrt(upper) - sqrt(current)) / (sqrt(upper) * sqrt(current))
-    // * amount1
-    //     = liquidity * (sqrt(current) - sqrt(lower)) * amount0
-    unchecked {
-      return amount0Desired.mulDivQ96(sqrtRatioUpperX96.mulDiv(sqrtPriceX96, sqrtRatioUpperX96 - sqrtRatioLowerX96))
-        > amount1Desired.mulDiv(FixedPoint96.Q96, sqrtPriceX96 - sqrtRatioLowerX96);
+    // amount0 = liquidity0 * (sqrt(upper) - sqrt(current)) / (sqrt(upper) * sqrt(current))
+    // amount1 = liquidity1 * (sqrt(current) - sqrt(lower))
+    // We want to compare liquidity of amount0 with liquidity of amount1
+    // ==> compare amount0 * (sqrt(current) - sqrt(lower))
+    //    with amount1 * (sqrt(upper) - sqrt(current)) / sqrt(upper) * sqrt(current)
 
-      // amount0Desired.mulDivQ96(sqrtPriceX96).mulDivQ96(sqrtPriceX96 - sqrtRatioLowerX96) >
-      // amount1Desired.mulDiv(sqrtRatioUpperX96 - sqrtPriceX96, sqrtRatioUpperX96);
+    unchecked {
+      return amount0Desired.mulDivQ96(sqrtRatioUpperX96.mulDiv(sqrtPriceX96, sqrtRatioUpperX96 - sqrtPriceX96))
+        > amount1Desired.mulDiv(FixedPoint96.Q96, sqrtPriceX96 - sqrtRatioLowerX96);
+      // return amount0Desired.mulDivQ96(sqrtPriceX96).mulDivQ96(sqrtPriceX96 - sqrtRatioLowerX96)
+      //> amount1Desired.mulDiv(sqrtRatioUpperX96 - sqrtPriceX96, sqrtRatioUpperX96);
     }
   }
 
