@@ -566,6 +566,11 @@
         "type": "address"
       },
       {
+        "internalType": "uint256",
+        "name": "amountTokenOutMin",
+        "type": "uint256"
+      },
+      {
         "components": [
           {
             "internalType": "uint16",

@@ -115,7 +115,7 @@ contract Vault is
       //   currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
       //     && currentAsset.amount != 0
       // ) revert DepositNotAllowed();
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
 
       unchecked {
         i++;
@@ -188,7 +188,7 @@ contract Vault is
     uint256 length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
       unchecked {
         i++;
       }
@@ -315,21 +315,26 @@ contract Vault is
 
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
-  function harvest(AssetLib.Asset memory asset) external onlyAdminOrAutomator {
+  /// @param amountTokenOutMin The minimum amount out by tokenOut
+  function harvest(AssetLib.Asset memory asset, uint256 amountTokenOutMin) external onlyAdminOrAutomator {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    AssetLib.Asset[] memory harvestedAssets = _harvest(asset);
+    AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
   /// @dev Harvests the assets from the strategy
   /// @param asset Asset to harvest
+  /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @return harvestedAssets Harvested assets
-  function _harvest(AssetLib.Asset memory asset) internal returns (AssetLib.Asset[] memory harvestedAssets) {
+  function _harvest(AssetLib.Asset memory asset, uint256 amountTokenOutMin)
+    internal
+    returns (AssetLib.Asset[] memory harvestedAssets)
+  {
     _transferAsset(asset, asset.strategy);
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
-    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, feeConfig);
+    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, amountTokenOutMin, feeConfig);
     if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);
   }

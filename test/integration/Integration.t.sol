@@ -320,6 +320,7 @@ contract IntegrationTest is TestCommon {
       amount0Min: 0,
       amount1Min: 0,
       compoundFee: true,
+      compoundFeeAmountOutMin: 0,
       swapData: ""
     });
     ICommon.Instruction memory rebalanceInstruction = ICommon.Instruction({

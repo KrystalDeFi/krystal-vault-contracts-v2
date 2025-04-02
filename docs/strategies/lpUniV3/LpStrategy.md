@@ -73,7 +73,7 @@ Converts the asset to another assets
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Harvest the asset fee
@@ -84,6 +84,7 @@ Harvest the asset fee
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
+| amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
@@ -95,7 +96,7 @@ Harvest the asset fee
 ### _harvest
 
 ```solidity
-function _harvest(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 _Harvest the asset fee_
@@ -106,6 +107,7 @@ _Harvest the asset fee_
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
+| amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
