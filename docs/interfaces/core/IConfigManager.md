@@ -92,6 +92,12 @@ function isWhitelistedAutomator(address _automator) external view returns (bool 
 function getTypedTokens() external view returns (address[] _typedTokens, uint256[] _typedTokenTypes)
 ```
 
+### getTypedToken
+
+```solidity
+function getTypedToken(address _token) external view returns (uint256 _type)
+```
+
 ### setTypedTokens
 
 ```solidity

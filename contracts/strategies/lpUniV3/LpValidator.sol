@@ -48,7 +48,6 @@ contract LpValidator is ILpValidator {
     require(_isPoolAllowed(config, pool), InvalidPool());
 
     (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
-    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
 
     // Check if the pool amount is greater than the minimum amount principal token
     require(
@@ -57,26 +56,23 @@ contract LpValidator is ILpValidator {
     );
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    bool isStablePair = configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
-      && configManager.isMatchedWithType(token1, uint256(TokenType.Stable));
+    uint256 token0Type = configManager.getTypedToken(token0);
+    uint256 token1Type = configManager.getTypedToken(token1);
 
-    int24 minTickWidth =
-      isStablePair ? int24(rangeConfig.tickWidthStableMultiplierMin) : int24(rangeConfig.tickWidthMultiplierMin);
+    int24 minTickWidth = token0Type == token1Type && token0Type > 0 && token1Type > 0
+      ? rangeConfig.tickWidthTypedMin
+      : rangeConfig.tickWidthMin;
 
-    require(tickUpper - tickLower >= minTickWidth * tickSpacing, InvalidTickWidth());
+    require(tickUpper - tickLower >= minTickWidth, InvalidTickWidth());
   }
 
   /// @dev Checks the tick width of the position
-  /// @param nfpm The non-fungible position manager
-  /// @param fee The fee of the pool
   /// @param token0 The token0 of the pool
   /// @param token1 The token1 of the pool
   /// @param tickLower The lower tick of the position
   /// @param tickUpper The upper tick of the position
   /// @param config The configuration of the strategy
   function validateTickWidth(
-    INFPM nfpm,
-    uint24 fee,
     address token0,
     address token1,
     int24 tickLower,
@@ -88,17 +84,15 @@ contract LpValidator is ILpValidator {
 
     LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
 
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-    int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
-
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
-    bool isStablePair = configManager.isMatchedWithType(token0, uint256(TokenType.Stable))
-      && configManager.isMatchedWithType(token1, uint256(TokenType.Stable));
+    uint256 token0Type = configManager.getTypedToken(token0);
+    uint256 token1Type = configManager.getTypedToken(token1);
 
-    int24 minTickWidth =
-      isStablePair ? int24(rangeConfig.tickWidthStableMultiplierMin) : int24(rangeConfig.tickWidthMultiplierMin);
+    int24 minTickWidth = token0Type == token1Type && token0Type > 0 && token1Type > 0
+      ? rangeConfig.tickWidthTypedMin
+      : rangeConfig.tickWidthMin;
 
-    require(tickUpper - tickLower >= minTickWidth * tickSpacing, InvalidTickWidth());
+    require(tickUpper - tickLower >= minTickWidth, InvalidTickWidth());
   }
 
   /// @dev Checks if the pool is allowed

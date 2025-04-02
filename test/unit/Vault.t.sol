@@ -43,8 +43,8 @@ contract VaultTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[0] = uint256(1);
+    typedTokenTypes[1] = uint256(1);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
