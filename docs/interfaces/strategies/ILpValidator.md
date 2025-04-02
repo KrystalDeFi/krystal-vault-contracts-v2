@@ -2,15 +2,6 @@
 
 ## ILpValidator
 
-### TokenType
-
-```solidity
-enum TokenType {
-  Stable,
-  Pegged
-}
-```
-
 ### LpStrategyConfig
 
 ```solidity
@@ -24,8 +15,8 @@ struct LpStrategyConfig {
 
 ```solidity
 struct LpStrategyRangeConfig {
-  uint24 tickWidthMultiplierMin;
-  uint24 tickWidthStableMultiplierMin;
+  int24 tickWidthMin;
+  int24 tickWidthTypedMin;
 }
 ```
 
@@ -46,7 +37,7 @@ function validateConfig(contract INonfungiblePositionManager nfpm, uint24 fee, a
 ### validateTickWidth
 
 ```solidity
-function validateTickWidth(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) external view
+function validateTickWidth(address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) external view
 ```
 
 ### InvalidPool

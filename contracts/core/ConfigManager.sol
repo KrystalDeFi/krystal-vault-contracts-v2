@@ -23,13 +23,13 @@ contract ConfigManager is Ownable, IConfigManager {
         rangeConfigs: [
           // Narrow
           {
-            tickWidthMultiplierMin: 20,
-            tickWidthStableMultiplierMin: 10
+            tickWidthMin: 20,
+            tickWidthTypedMin: 10
           },
           // Wide
           {
-            tickWidthMultiplierMin: 10,
-            tickWidthStableMultiplierMin: 5
+            tickWidthMin: 10,
+            tickWidthTypedMin: 5
           }
         ],
         // Min by token amount
@@ -177,6 +177,14 @@ contract ConfigManager is Ownable, IConfigManager {
         i++;
       }
     }
+  }
+
+  /// @notice Get typed token type
+  /// @param _token Token address
+  /// @return _type Token type
+  function getTypedToken(address _token) external view override returns (uint256 _type) {
+    if (!typedTokens.contains(_token)) _type = 0;
+    else _type = typedTokens.get(_token);
   }
 
   /// @notice Set typed tokens

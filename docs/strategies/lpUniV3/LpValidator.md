@@ -37,7 +37,7 @@ _Checks the principal amount in the pool_
 ### validateTickWidth
 
 ```solidity
-function validateTickWidth(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) external view
+function validateTickWidth(address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) external view
 ```
 
 _Checks the tick width of the position_
@@ -46,8 +46,6 @@ _Checks the tick width of the position_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| nfpm | contract INonfungiblePositionManager | The non-fungible position manager |
-| fee | uint24 | The fee of the pool |
 | token0 | address | The token0 of the pool |
 | token1 | address | The token1 of the pool |
 | tickLower | int24 | The lower tick of the position |

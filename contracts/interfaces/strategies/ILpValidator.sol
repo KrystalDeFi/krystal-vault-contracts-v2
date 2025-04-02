@@ -7,19 +7,14 @@ import { INonfungiblePositionManager as INFPM } from
 import "../ICommon.sol";
 
 interface ILpValidator is ICommon {
-  enum TokenType {
-    Stable,
-    Pegged
-  }
-
   struct LpStrategyConfig {
     LpStrategyRangeConfig[] rangeConfigs;
     LpStrategyTvlConfig[] tvlConfigs;
   }
 
   struct LpStrategyRangeConfig {
-    uint24 tickWidthMultiplierMin;
-    uint24 tickWidthStableMultiplierMin;
+    int24 tickWidthMin;
+    int24 tickWidthTypedMin;
   }
 
   struct LpStrategyTvlConfig {
@@ -37,8 +32,6 @@ interface ILpValidator is ICommon {
   ) external view;
 
   function validateTickWidth(
-    INFPM nfpm,
-    uint24 fee,
     address token0,
     address token1,
     int24 tickLower,
