@@ -27,7 +27,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPoolAmountAmountMin",
+    "name": "InvalidPoolAmountMin",
     "type": "error"
   },
   {

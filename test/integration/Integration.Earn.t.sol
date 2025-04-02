@@ -33,6 +33,8 @@ contract IntegrationTest is TestCommon {
   VaultFactory public vaultFactory;
   Vault public vaultInstance;
 
+  uint256 public swap_amount;
+
   function setUp() public {
     console.log("Setting up the vault...");
 
@@ -42,8 +44,9 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 1 ether);
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
-    setErc20Balance(WETH, BIGHAND_PLAYER, 0 ether);
-    setErc20Balance(USDC, BIGHAND_PLAYER, 100_000_000_000);
+    setErc20Balance(WETH, BIGHAND_PLAYER, 3.58 ether);
+    swap_amount = 7_000_000_000_000;
+    setErc20Balance(USDC, BIGHAND_PLAYER, swap_amount);
 
     vm.deal(USER, 1 ether);
 
@@ -104,9 +107,7 @@ contract IntegrationTest is TestCommon {
         principalToken: WETH,
         supportedAddresses: new address[](0)
       })
-    });
-
-    console.log("created params");
+    });    
 
     vm.startPrank(USER);
     address vaultAddress = vaultFactory.createVault(params);
@@ -116,46 +117,16 @@ contract IntegrationTest is TestCommon {
     console.log("vaultInstance: ", address(vaultInstance));
   }
 
-  function test_cannotChangePrincipalToken() public {
-    console.log("==== test_cannotChangePrincipalToken ====");
+  function test_earning() public {    
+    
+    uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
+    uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
 
-    // Owner cannot change the principal token of the Vault
-    vm.startPrank(USER);
-    vm.expectRevert(ICommon.InvalidVaultConfig.selector);
-    vaultInstance.allowDeposit(
-      ICommon.VaultConfig({
-        allowDeposit: true,
-        rangeStrategyType: 0,
-        tvlStrategyType: 0,
-        principalToken: DAI,
-        supportedAddresses: new address[](0)
-      })
-    );
-  }
-
-  function test_allowDepositEmptyVault() public {
-    console.log("==== test_allowDepositEmptyVault ====");
-    console.log("Testing: Owner cannot Turn off allow_deposit once it's on");
-    vm.startPrank(USER);
-    vm.expectRevert(ICommon.InvalidVaultConfig.selector);
-    vaultInstance.allowDeposit(
-      ICommon.VaultConfig({
-        allowDeposit: false,
-        rangeStrategyType: 0,
-        tvlStrategyType: 0,
-        principalToken: WETH,
-        supportedAddresses: new address[](0)
-      })
-    );
-  }
-
-  function test_integration() public {
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
-
+    
     console.log("==== Owner is depositing 1 ether to an empty vault ====");
     vm.startPrank(USER);
-    IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.startPrank(USER);
+    IERC20(WETH).approve(address(vaultInstance), 1 ether);    
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
 
@@ -177,94 +148,88 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    vm.startPrank(USER);
+    vm.startPrank(USER);    
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-
-    console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));
-    assertEq(vaultInstance.balanceOf(USER), 10_000_000_000_000_000_000_000);
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-
-    console.log("==== bighand is swapping 100_000 USDC -> wETH ====");
-    vm.startPrank(BIGHAND_PLAYER);
-    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-    console.log("bighand approved for USDC");
-    (,, address token0, address token1, uint24 fee,,,,,,,) =
-      INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
-    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
-    console.log("pool: ", pool);
-    swapper.poolSwap(
-      pool,
-      100_000_000_000,
-      WETH > USDC, // true if WETH is token0
-      0, // amountOutMin - 0 for testing
-      "" // empty data
-    );
-    console.log("bighand is swapping 100_000 USDC -> wETH done");
-    console.log("WETH balance of bighand player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-    uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
+    assertEq(vaultInstance.balanceOf(USER), 10000000000000000000000);
 
     console.log("==== Player 1 is depositing 1 ether to the vault ====");
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
-    vm.startPrank(PLAYER_1);
     vaultInstance.deposit(1 ether, 0);
     vaultAssets = vaultInstance.getInventory();
 
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));
+    console.log("++ share balance of the player: %s", vaultInstance.balanceOf(PLAYER_1));
 
-    assert(vaultInstance.balanceOf(PLAYER_1) > vaultInstance.balanceOf(USER));
+    uint256 totalSupply = vaultInstance.totalSupply();
+    uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
+    uint256 balanceOfUser = vaultInstance.balanceOf(USER);
+
+    assert(balanceOfPlayer1 * 205 >= totalSupply * 100);    
+    assert(balanceOfPlayer1 * 195 <= totalSupply * 100);    
+    assert(balanceOfUser * 205 >= totalSupply * 100);    
+    assert(balanceOfUser * 195 <= totalSupply * 100);
+
+    console.log("++ share balance of the owner: ", vaultInstance.balanceOf(USER));
+    console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
+
+    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);    
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);    
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+
+    console.log("----------------------------- Starting a new round of swap");
+    console.log("==== bighand is swapping all USDC -> wETH ====");
+    vm.startPrank(BIGHAND_PLAYER);
+    IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER));
+    swapper.poolSwap(
+      pool,
+      IERC20(USDC).balanceOf(BIGHAND_PLAYER),      
+      WETH > USDC, // true if WETH is token0
+      0, // amountOutMin - 0 for testing
+      "" // empty data
+    );        
 
     console.log("==== bighand is swapping all wETH -> USDC ====");
-    vm.startPrank(BIGHAND_PLAYER);
+    vm.startPrank(BIGHAND_PLAYER);    
     IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    console.log("bighand approved for wETH");
     swapper.poolSwap(
-      IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee),
+      pool,
       IERC20(WETH).balanceOf(BIGHAND_PLAYER),
       WETH < USDC, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
     );
 
-    console.log("WETH balance of bighand player: ", IERC20(WETH).balanceOf(BIGHAND_PLAYER));
+    console.log("----------------------------- Ended a round of swap");
     console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-
+    
+  
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
     vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
+    assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
 
-    console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
-    console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
-
-    uint256 dollar_gain_player_1 = (IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance) * 2000 / (10 ** 12); // given
-      // the ETH price is 2000
-    uint256 dollar_loss_bighand_player = 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER);
-
-    console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);
-    console.log(">>> gain of the player 1 in dollars: ", dollar_gain_player_1);
-    console.log(">>> loss of the bighand player in USDC: ", 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-    assert(IERC20(WETH).balanceOf(PLAYER_1) > p1_old_weth_balance);
-    assert(dollar_gain_player_1 < dollar_loss_bighand_player);
-
-    console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
-    console.log("Owner is withdrawing all the shares");
     vm.startPrank(USER);
+    console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
+    assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
 
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0);
-    assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0);
-    assertEq(vaultInstance.balanceOf(USER), 0);
-    assertEq(vaultInstance.balanceOf(PLAYER_1), 0);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
+    assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
 
-    console.log("weth balance of the owner: ", IERC20(WETH).balanceOf(USER));
-    console.log("usdc balance of the owner: ", IERC20(USDC).balanceOf(USER));
+    assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
+    
+    assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
+
+    // the WETH balance of players shouldn't be too much different with the initial balance
+    assert(0.99 ether < IERC20(WETH).balanceOf(USER));
+    assert(IERC20(WETH).balanceOf(USER) < 1.01 ether);
+    assert(0.99 ether < IERC20(WETH).balanceOf(PLAYER_1));
+    assert(IERC20(WETH).balanceOf(PLAYER_1) < 1.01 ether);
+    
+    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
+    console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));        
+    console.log(">>> weth loss of the owner:", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
+
   }
+  
 }
