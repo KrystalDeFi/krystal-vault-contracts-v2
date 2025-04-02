@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
-import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, SUSHI_NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
@@ -38,7 +38,7 @@ contract IntegrationTest is TestCommon {
   function setUp() public {
     console.log("Setting up the vault...");
 
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 28_395_221);
     vm.selectFork(fork);
 
     setErc20Balance(WETH, USER, 1 ether);
@@ -134,7 +134,7 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.95 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: INFPM(SUSHI_NFPM),
       token0: WETH,
       token1: USDC,
       fee: 500,
@@ -172,8 +172,8 @@ contract IntegrationTest is TestCommon {
     console.log("++ share balance of the owner: ", vaultInstance.balanceOf(USER));
     console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
 
-    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);    
-    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);    
+    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(SUSHI_NFPM).positions(vaultInstance.getInventory()[2].tokenId);    
+    address pool = IUniswapV3Factory(INFPM(SUSHI_NFPM).factory()).getPool(token0, token1, fee);    
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
     console.log("----------------------------- Starting a new round of swap");
