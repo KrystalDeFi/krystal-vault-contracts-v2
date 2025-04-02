@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
-import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, SUSHI_NFPM } from "../TestCommon.t.sol";
+import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
@@ -117,7 +117,7 @@ contract IntegrationTest is TestCommon {
     console.log("vaultInstance: ", address(vaultInstance));
   }
 
-  function test_sushi() public {    
+  function test_earning() public {    
     
     uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
     uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
@@ -134,7 +134,7 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.95 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(SUSHI_NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
       fee: 500,
@@ -172,12 +172,8 @@ contract IntegrationTest is TestCommon {
     console.log("++ share balance of the owner: ", vaultInstance.balanceOf(USER));
     console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
 
-  
-
-    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(SUSHI_NFPM).positions(vaultInstance.getInventory()[2].tokenId);    
-    address pool = IUniswapV3Factory(INFPM(SUSHI_NFPM).factory()).getPool(token0, token1, fee);    
-    console.log("++ pool address: ", pool);
-
+    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);    
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);    
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
     console.log("----------------------------- Starting a new round of swap");
@@ -203,8 +199,6 @@ contract IntegrationTest is TestCommon {
       "" // empty data
     );
 
-  
-  
     console.log("----------------------------- Ended a round of swap");
     console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
     
@@ -218,7 +212,6 @@ contract IntegrationTest is TestCommon {
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
     assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
-
 
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
