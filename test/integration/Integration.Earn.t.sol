@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
+
 import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, SUSHI_NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
@@ -38,7 +39,7 @@ contract IntegrationTest is TestCommon {
   function setUp() public {
     console.log("Setting up the vault...");
 
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 28_395_221);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
     vm.selectFork(fork);
 
     setErc20Balance(WETH, USER, 1 ether);

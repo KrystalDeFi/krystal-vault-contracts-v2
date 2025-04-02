@@ -53,7 +53,7 @@ contract LpValidator is ILpValidator {
     // Check if the pool amount is greater than the minimum amount principal token
     require(
       (config.principalToken == token0 ? poolAmount0 : poolAmount1) >= tvlConfig.principalTokenAmountMin,
-      InvalidPoolAmountAmountMin()
+      InvalidPoolAmountMin()
     );
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
