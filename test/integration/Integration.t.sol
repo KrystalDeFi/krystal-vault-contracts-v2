@@ -49,8 +49,8 @@ contract IntegrationTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[0] = uint256(1);
+    typedTokenTypes[1] = uint256(1);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
@@ -70,8 +70,7 @@ contract IntegrationTest is TestCommon {
       tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
-    initialConfig.rangeConfigs[0] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+    initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
 
     initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
@@ -502,8 +501,7 @@ contract IntegrationTest is TestCommon {
       tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
     });
 
-    newConfig1.rangeConfigs[0] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+    newConfig1.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
 
     newConfig1.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 10_000_000_000 ether });
 
@@ -540,7 +538,7 @@ contract IntegrationTest is TestCommon {
     });
 
     newConfig2.rangeConfigs[0] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 1000, tickWidthStableMultiplierMin: 1000 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 1_000_000, tickWidthTypedMin: 1_000_000 });
 
     newConfig2.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 

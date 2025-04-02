@@ -584,7 +584,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 
     if (vaultConfig.allowDeposit) {
-      validator.validateTickWidth(nfpm, fee, token0, token1, params.tickLower, params.tickUpper, vaultConfig);
+      validator.validateTickWidth(token0, token1, params.tickLower, params.tickUpper, vaultConfig);
     }
 
     returnAssets = _decreaseLiquidity(

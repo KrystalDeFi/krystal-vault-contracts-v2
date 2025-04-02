@@ -34,6 +34,8 @@ interface IConfigManager is ICommon {
 
   function getTypedTokens() external view returns (address[] memory _typedTokens, uint256[] memory _typedTokenTypes);
 
+  function getTypedToken(address _token) external view returns (uint256 _type);
+
   function setTypedTokens(address[] memory _typedTokens, uint256[] memory _typedTokenTypes) external;
 
   function isMatchedWithType(address _token, uint256 _type) external view returns (bool);

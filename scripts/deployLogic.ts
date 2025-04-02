@@ -85,6 +85,8 @@ async function deployContracts(
     vaultFactory: vaultFactory.vaultFactory,
   });
 
+  configManager.configManager?.whitelistStrategy([lpStrategy.lpStrategy?.target as any], true);
+
   return contracts;
 }
 

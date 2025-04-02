@@ -158,6 +158,26 @@ Get typed tokens
 | _typedTokens | address[] | Typed tokens |
 | _typedTokenTypes | uint256[] | Typed token types |
 
+### getTypedToken
+
+```solidity
+function getTypedToken(address _token) external view returns (uint256 _type)
+```
+
+Get typed token type
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _token | address | Token address |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _type | uint256 | Token type |
+
 ### setTypedTokens
 
 ```solidity

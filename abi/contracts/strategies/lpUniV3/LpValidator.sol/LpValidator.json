@@ -146,16 +146,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract INonfungiblePositionManager",
-        "name": "nfpm",
-        "type": "address"
-      },
-      {
-        "internalType": "uint24",
-        "name": "fee",
-        "type": "uint24"
-      },
-      {
         "internalType": "address",
         "name": "token0",
         "type": "address"
