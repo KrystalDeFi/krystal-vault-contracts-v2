@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
+pragma abicoder v2;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -183,9 +184,9 @@ contract Vault is
 
     uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
+    uint256 length = inventory.assets.length;
 
     AssetLib.Asset[] memory assets;
-    uint256 length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
@@ -266,7 +267,7 @@ contract Vault is
   /// @param strategy Strategy to allocate to
   /// @param gasFeeX64 Gas fee with X64 precision
   /// @param data Data for the strategy
-  function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint16 gasFeeX64, bytes calldata data)
+  function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint64 gasFeeX64, bytes calldata data)
     external
     onlyAdminOrAutomator
   {
@@ -316,7 +317,7 @@ contract Vault is
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
-  function harvest(AssetLib.Asset memory asset, uint256 amountTokenOutMin) external onlyAdminOrAutomator {
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external onlyAdminOrAutomator {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);

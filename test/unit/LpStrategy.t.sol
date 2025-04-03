@@ -246,7 +246,7 @@ contract LpStrategyTest is TestCommon {
     });
     transferAssets(assets, address(lpStrategy));
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    assertEq(returnAssets.length, 3);
+    assertEq(returnAssets.length, 4);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1864);
     assertEq(returnAssets[1].token, USDC);
@@ -255,6 +255,10 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
+    assertEq(returnAssets[3].token, NFPM);
+    assertEq(returnAssets[3].amount, 0);
+    assertEq(returnAssets[3].tokenId, assets[0].tokenId);
+    assertEq(IERC721(NFPM).ownerOf(returnAssets[3].tokenId), USER);
     console.log("==== swapAndCompound ====");
     ILpStrategy.SwapAndCompoundParams memory compoundParams =
       ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -317,43 +321,13 @@ contract LpStrategyTest is TestCommon {
 
   function test_LpStrategyFeeTaker() public {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      strategy: address(0),
-      token: WETH,
-      tokenId: 0,
-      amount: 2 ether
-    });
+    AssetLib.Asset[] memory returnAssets;
+
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(WETH, DAI, 3000);
-
-    console.log("==== swapAndMintPosition ====");
-    ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
-      token0: WETH,
-      token1: DAI,
-      fee: 3000,
-      tickLower: -887_220,
-      tickUpper: 887_220,
-      amount0Min: 0,
-      amount1Min: 0,
-      swapData: ""
-    });
-    ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
-      params: abi.encode(mintParams)
-    });
-    transferAssets(assets, address(lpStrategy));
-    AssetLib.Asset[] memory returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    IERC20(WETH).approve(address(swapper), 1 ether);
-    (uint256 amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
-    IERC20(DAI).approve(address(swapper), amountOut);
-    swapper.poolSwap(pool, amountOut, false, 0, "");
-    // uint256 fee0 = 2_556_795_487_525_688;
-    // uint256 fee1 = 2_651_766_154_928_366_678;
-
     address mockVaultOwner = address(0x100);
     address mockPlatformWallet = address(0x200);
     address mockGasFeeRecipient = address(0x300);
+
     ICommon.FeeConfig memory publicFeeConfig = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 500,
       vaultOwner: mockVaultOwner,
@@ -362,109 +336,152 @@ contract LpStrategyTest is TestCommon {
       gasFeeX64: uint64(uint256((1500 * 2 ** 64)) / 10_000),
       gasFeeRecipient: mockGasFeeRecipient
     });
-    console.log("==== test take fee when harvest ====");
-    transferAsset(returnAssets[2], address(lpStrategy));
-    returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
 
-    assertEq(returnAssets.length, 3);
-    assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_203_259_418_342, "owner fee mismatch");
-    assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0);
-    assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_406_518_836_685, "platform fee mismatch");
-    assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0);
-    assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 648_609_778_255_028, "gasFee mismatch");
-    assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0);
-    assertEq(returnAssets[0].amount, 3_026_845_631_856_802, "amount0 mismatch");
-    assertEq(returnAssets[1].amount, 0);
+    {
+      console.log("==== swapAndMintPosition ====");
+      assets[0] = AssetLib.Asset({
+        assetType: AssetLib.AssetType.ERC20,
+        strategy: address(0),
+        token: WETH,
+        tokenId: 0,
+        amount: 2 ether
+      });
 
-    console.log("==== test take fee when swap and compound ====");
-    console.log("==== swapAndCompound ====");
-    // do another swap to generate fee
-    setErc20Balance(WETH, mockVaultOwner, 0);
-    setErc20Balance(DAI, mockVaultOwner, 0);
-    setErc20Balance(WETH, mockPlatformWallet, 0);
-    setErc20Balance(DAI, mockPlatformWallet, 0);
-    setErc20Balance(WETH, mockGasFeeRecipient, 0);
-    setErc20Balance(DAI, mockGasFeeRecipient, 0);
+      ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
+        nfpm: INFPM(NFPM),
+        token0: WETH,
+        token1: DAI,
+        fee: 3000,
+        tickLower: -887_220,
+        tickUpper: 887_220,
+        amount0Min: 0,
+        amount1Min: 0,
+        swapData: ""
+      });
+      ICommon.Instruction memory instruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+        params: abi.encode(mintParams)
+      });
+      transferAssets(assets, address(lpStrategy));
+      returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
+      IERC20(WETH).approve(address(swapper), 1 ether);
+      (uint256 amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
+      IERC20(DAI).approve(address(swapper), amountOut);
+      swapper.poolSwap(pool, amountOut, false, 0, "");
+      // uint256 fee0 = 2_556_795_487_525_688;
+      // uint256 fee1 = 2_651_766_154_928_366_678;
 
-    IERC20(WETH).approve(address(swapper), 1 ether);
-    (amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
-    IERC20(DAI).approve(address(swapper), amountOut);
-    swapper.poolSwap(pool, amountOut, false, 0, "");
-    lpStrategy.valueOf(returnAssets[2], WETH);
-    uint256 fee0 = 2_601_269_379_622_417;
-    uint256 fee1 = 243_296_432_368_259_167;
+      console.log("==== test take fee when harvest ====");
+      transferAsset(returnAssets[2], address(lpStrategy));
+      returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
 
-    ILpStrategy.SwapAndCompoundParams memory compoundParams =
-      ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.SwapAndCompound),
-      params: abi.encode(compoundParams)
-    });
-    assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(lpStrategy),
-      token: NFPM,
-      tokenId: returnAssets[2].tokenId,
-      amount: 1
-    });
+      assertEq(returnAssets.length, 3);
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_203_259_418_342, "owner fee mismatch");
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0);
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_406_518_836_685, "platform fee mismatch");
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0);
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 648_609_778_255_028, "gasFee mismatch");
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0);
+      assertEq(returnAssets[0].amount, 3_026_845_631_856_802, "amount0 mismatch");
+      assertEq(returnAssets[1].amount, 0);
+    }
 
-    transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
+    {
+      console.log("==== test take fee when swap and compound ====");
+      console.log("==== swapAndCompound ====");
+      // do another swap to generate fee
+      setErc20Balance(WETH, mockVaultOwner, 0);
+      setErc20Balance(DAI, mockVaultOwner, 0);
+      setErc20Balance(WETH, mockPlatformWallet, 0);
+      setErc20Balance(DAI, mockPlatformWallet, 0);
+      setErc20Balance(WETH, mockGasFeeRecipient, 0);
+      setErc20Balance(DAI, mockGasFeeRecipient, 0);
 
-    assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
-    assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), fee0 * 1000 / 10_000, "platform fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
-    assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+      IERC20(WETH).approve(address(swapper), 1 ether);
+      (uint256 amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
+      IERC20(DAI).approve(address(swapper), amountOut);
+      swapper.poolSwap(pool, amountOut, false, 0, "");
+      lpStrategy.valueOf(returnAssets[2], WETH);
 
-    console.log("==== test take fee when decrease liquidity ====");
-    setErc20Balance(WETH, mockVaultOwner, 0);
-    setErc20Balance(DAI, mockVaultOwner, 0);
-    setErc20Balance(WETH, mockPlatformWallet, 0);
-    setErc20Balance(DAI, mockPlatformWallet, 0);
-    setErc20Balance(WETH, mockGasFeeRecipient, 0);
-    setErc20Balance(DAI, mockGasFeeRecipient, 0);
+      ILpStrategy.SwapAndCompoundParams memory compoundParams =
+        ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
+      ICommon.Instruction memory instruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndCompound),
+        params: abi.encode(compoundParams)
+      });
+      assets = new AssetLib.Asset[](1);
+      assets[0] = AssetLib.Asset({
+        assetType: AssetLib.AssetType.ERC721,
+        strategy: address(lpStrategy),
+        token: NFPM,
+        tokenId: returnAssets[2].tokenId,
+        amount: 1
+      });
 
-    // do another swap to generate fee
-    IERC20(WETH).approve(address(swapper), 1 ether);
-    (amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
-    IERC20(DAI).approve(address(swapper), amountOut);
-    swapper.poolSwap(pool, amountOut, false, 0, "");
-    lpStrategy.valueOf(returnAssets[2], WETH);
-    fee0 = 2_602_363_878_740_862;
-    fee1 = 242_288_240_783_372_807;
+      transferAssets(assets, address(lpStrategy));
+      returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
-    console.log("==== decreasePosition ====");
-    (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
-    ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
-      liquidity: liquidity / 2,
-      amount0Min: 0,
-      amount1Min: 0,
-      principalAmountOutMin: 0,
-      swapData: ""
-    });
-    instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
-      params: abi.encode(decreaseParams)
-    });
-    assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(lpStrategy),
-      token: NFPM,
-      tokenId: returnAssets[2].tokenId,
-      amount: 1
-    });
-    transferAssets(assets, address(lpStrategy));
-    returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
+      // uint256 fee0 = 2_601_269_379_622_417;
+      // uint256 fee1 = 243_296_432_368_259_167;
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 130_063_468_981_120, "vault owner fee 0"); // fee0 * 500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 12_164_821_618_412_958, "vault owner fee 1"); // fee1 * 500 /
+        // 10_000
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 260_126_937_962_241, "platform fee 0"); // fee0 * 1000 /
+        // 10_000
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 24_329_643_236_825_916, "platform fee 1"); // fee1 * 1000 /
+        // 10_000
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 390_190_406_943_362, "gas fee 0"); // fee0 * 1500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 36_494_464_855_238_875, "gas fee 1"); // fee1 * 1500 / 10_000
+    }
 
-    assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
-    assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), fee0 * 1000 / 10_000, "platform fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
-    assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
-    assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+    {
+      console.log("==== test take fee when decrease liquidity ====");
+      setErc20Balance(WETH, mockVaultOwner, 0);
+      setErc20Balance(DAI, mockVaultOwner, 0);
+      setErc20Balance(WETH, mockPlatformWallet, 0);
+      setErc20Balance(DAI, mockPlatformWallet, 0);
+      setErc20Balance(WETH, mockGasFeeRecipient, 0);
+      setErc20Balance(DAI, mockGasFeeRecipient, 0);
+
+      // do another swap to generate fee
+      IERC20(WETH).approve(address(swapper), 1 ether);
+      (uint256 amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
+      IERC20(DAI).approve(address(swapper), amountOut);
+      swapper.poolSwap(pool, amountOut, false, 0, "");
+      lpStrategy.valueOf(returnAssets[2], WETH);
+      uint256 fee0 = 2_602_363_878_740_862;
+      uint256 fee1 = 242_288_240_783_372_807;
+
+      console.log("==== decreasePosition ====");
+      (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
+      ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
+        liquidity: liquidity / 2,
+        amount0Min: 0,
+        amount1Min: 0,
+        principalAmountOutMin: 0,
+        swapData: ""
+      });
+      ICommon.Instruction memory instruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+        params: abi.encode(decreaseParams)
+      });
+      assets = new AssetLib.Asset[](1);
+      assets[0] = AssetLib.Asset({
+        assetType: AssetLib.AssetType.ERC721,
+        strategy: address(lpStrategy),
+        token: NFPM,
+        tokenId: returnAssets[2].tokenId,
+        amount: 1
+      });
+      transferAssets(assets, address(lpStrategy));
+      returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
+
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), fee0 * 1000 / 10_000, "platform fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+    }
   }
 }
