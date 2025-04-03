@@ -852,9 +852,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint16",
+        "internalType": "uint64",
         "name": "gasFeeX64",
-        "type": "uint16"
+        "type": "uint64"
       },
       {
         "internalType": "bytes",
