@@ -402,8 +402,6 @@ contract LpStrategyTest is TestCommon {
       IERC20(DAI).approve(address(swapper), amountOut);
       swapper.poolSwap(pool, amountOut, false, 0, "");
       lpStrategy.valueOf(returnAssets[2], WETH);
-      uint256 fee0 = 2_601_269_379_622_417;
-      uint256 fee1 = 243_296_432_368_259_167;
 
       ILpStrategy.SwapAndCompoundParams memory compoundParams =
         ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -423,12 +421,14 @@ contract LpStrategyTest is TestCommon {
       transferAssets(assets, address(lpStrategy));
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
-      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), fee0 * 1000 / 10_000, "platform fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+      // uint256 fee0 = 2_601_269_379_622_417;
+      // uint256 fee1 = 243_296_432_368_259_167;
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 130063468981120, "vault owner fee 0"); // fee0 * 500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 12164821618412958, "vault owner fee 1"); // fee1 * 500 / 10_000
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 260126937962241, "platform fee 0"); // fee0 * 1000 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 24329643236825916, "platform fee 1"); // fee1 * 1000 / 10_000
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 390190406943362, "gas fee 0"); // fee0 * 1500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 36494464855238875, "gas fee 1"); // fee1 * 1500 / 10_000
     }
 
     {

@@ -607,14 +607,17 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       validator.validateTickWidth(pool.token0(), pool.token1(), tickLower, tickUpper, vaultConfig);
     }
 
-    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
-      INFPM(asset0.token).positions(asset0.tokenId);
-    AssetLib.Asset[] memory harvestedAssets;
+    uint256 collected0;
+    uint256 collected1;
     if (!params.compoundFee) {
       address principalToken = vaultConfig.principalToken;
       uint256 compoundFeeAmountOutMin = params.compoundFeeAmountOutMin;
-      harvestedAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, feeConfig);
+      returnAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, feeConfig);
+      collected0 = returnAssets[0].amount;
+      collected1 = returnAssets[1].amount;
     }
+    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
+      INFPM(asset0.token).positions(asset0.tokenId);
     {
       uint256 decreasedAmount0Min = params.decreasedAmount0Min;
       uint256 decreasedAmount1Min = params.decreasedAmount1Min;
@@ -679,8 +682,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       returnAssets[3].amount = 0;
     }
     if (!params.compoundFee) {
-      returnAssets[0].amount += harvestedAssets[0].amount;
-      returnAssets[1].amount += harvestedAssets[1].amount;
+      returnAssets[0].amount += collected0;
+      returnAssets[1].amount += collected1;
     }
 
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
