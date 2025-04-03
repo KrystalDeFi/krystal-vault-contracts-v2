@@ -655,3 +655,4 @@ contract IntegrationTest is TestCommon {
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
   }
 }
+
