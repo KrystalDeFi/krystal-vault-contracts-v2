@@ -101,7 +101,7 @@ Withdraws the asset as principal token from the vault
 ### allocate
 
 ```solidity
-function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint16 gasFeeX64, bytes data) external
+function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeX64, bytes data) external
 ```
 
 Allocates un-used assets to the strategy
@@ -112,7 +112,7 @@ Allocates un-used assets to the strategy
 | ---- | ---- | ----------- |
 | inputAssets | struct AssetLib.Asset[] | Input assets to allocate |
 | strategy | contract IStrategy | Strategy to allocate to |
-| gasFeeX64 | uint16 | Gas fee with X64 precision |
+| gasFeeX64 | uint64 | Gas fee with X64 precision |
 | data | bytes | Data for the strategy |
 
 ### harvest

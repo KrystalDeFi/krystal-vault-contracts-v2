@@ -10,7 +10,7 @@ import { OptimalSwap } from "../../contracts/libraries/OptimalSwap.sol";
 
 contract PoolOptimalSwapperTest is TestCommon {
   function testOptimalSwap() public {
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 28_399_917);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
     vm.selectFork(fork);
 
     vm.startBroadcast(USER);
@@ -22,16 +22,13 @@ contract PoolOptimalSwapperTest is TestCommon {
 
     IERC20(WETH).approve(address(swapper), 1000 ether);
     IERC20(USDC).approve(address(swapper), 1000 ether);
-    (uint256 amount0, uint256 amount1) = swapper.getOptimalSwapAmounts(
-      0xd0b53D9277642d899DF5C87A3966A349A798F224, 498_947_572_268, 961, -201_500, -200_500, ""
-    );
-    console.log("amount0 :%d, amount1 :%d", amount0, amount1);
-    (amount0, amount1) = swapper.optimalSwap(
+    (uint256 amount0After, uint256 amount1After) = swapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams(
         0xd0b53D9277642d899DF5C87A3966A349A798F224, 498_947_572_268, 961, -201_500, -200_500, ""
       )
     );
-    console.log("amount0 :%d, amount1 :%d", amount0, amount1);
+    assertLt(amount0After, 498_947_572_268);
+    assertGt(amount1After, 961);
 
     console.log("==========");
     assertEq(

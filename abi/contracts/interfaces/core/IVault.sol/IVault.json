@@ -453,9 +453,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint16",
+        "internalType": "uint64",
         "name": "gasFeeBasisPoint",
-        "type": "uint16"
+        "type": "uint64"
       },
       {
         "internalType": "bytes",

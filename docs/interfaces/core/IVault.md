@@ -167,7 +167,7 @@ function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 ### allocate
 
 ```solidity
-function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint16 gasFeeBasisPoint, bytes data) external
+function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeBasisPoint, bytes data) external
 ```
 
 ### getTotalValue

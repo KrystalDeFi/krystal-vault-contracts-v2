@@ -17,7 +17,7 @@ interface IVaultAutomator is ICommon {
     IVault vault,
     AssetLib.Asset[] memory inputAssets,
     IStrategy strategy,
-    uint16 gasFeeBasisPoint,
+    uint64 gasFeeX64,
     bytes calldata allocateCalldata,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature

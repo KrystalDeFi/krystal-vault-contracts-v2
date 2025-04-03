@@ -29,7 +29,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     IVault vault,
     AssetLib.Asset[] memory inputAssets,
     IStrategy strategy,
-    uint16 gasFeeBasisPoint,
+    uint64 gasFeeX64,
     bytes calldata allocateData,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
@@ -42,7 +42,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
         || instruction.instructionType == uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       InvalidInstructionType()
     );
-    vault.allocate(inputAssets, strategy, gasFeeBasisPoint, allocateData);
+    vault.allocate(inputAssets, strategy, gasFeeX64, allocateData);
   }
 
   /// @notice Execute sweep token
