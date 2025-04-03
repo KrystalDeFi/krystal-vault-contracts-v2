@@ -76,7 +76,7 @@ _Checks if the pool is allowed_
 ### _getAmountsForPool
 
 ```solidity
-function _getAmountsForPool(contract IUniswapV3Pool pool) internal view returns (uint256 amount0, uint256 amount1)
+function _getAmountsForPool(contract IPancakeV3Pool pool) internal view returns (uint256 amount0, uint256 amount1)
 ```
 
 _Gets the amounts for the pool_
@@ -85,7 +85,7 @@ _Gets the amounts for the pool_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| pool | contract IUniswapV3Pool | IUniswapV3Pool |
+| pool | contract IPancakeV3Pool | IUniswapV3Pool |
 
 #### Return Values
 

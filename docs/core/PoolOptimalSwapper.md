@@ -30,6 +30,22 @@ Callback function required by Uniswap V3 to finalize swaps
 | amount1Delta | int256 | The change in token1 balance |
 |  | bytes |  |
 
+### pancakeV3SwapCallback
+
+```solidity
+function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes) external
+```
+
+Callback function required by Pancake V3 to finalize swaps
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0Delta | int256 | The change in token0 balance |
+| amount1Delta | int256 | The change in token1 balance |
+|  | bytes |  |
+
 ### _poolSwap
 
 ```solidity

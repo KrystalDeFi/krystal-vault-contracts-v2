@@ -398,7 +398,7 @@ Revalidate the position
 ### _getPoolForPosition
 
 ```solidity
-function _getPoolForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (contract IUniswapV3Pool pool)
+function _getPoolForPosition(contract INonfungiblePositionManager nfpm, uint256 tokenId) internal view returns (contract IPancakeV3Pool pool)
 ```
 
 _Gets the pool for the position_
@@ -414,7 +414,7 @@ _Gets the pool for the position_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| pool | contract IUniswapV3Pool | The pool for the position |
+| pool | contract IPancakeV3Pool | The pool for the position |
 
 ### _getAmountsForPosition
 
@@ -463,7 +463,7 @@ _Gets the fees for the position_
 ### _getFeeGrowthInside
 
 ```solidity
-function _getFeeGrowthInside(contract IUniswapV3Pool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
+function _getFeeGrowthInside(contract IPancakeV3Pool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
 ```
 
 _Gets the fee growth inside the position_
@@ -472,7 +472,7 @@ _Gets the fee growth inside the position_
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| pool | contract IUniswapV3Pool | The pool for the position |
+| pool | contract IPancakeV3Pool | The pool for the position |
 | tickLower | int24 | The lower tick of the position |
 | tickUpper | int24 | The upper tick of the position |
 | tickCurrent | int24 | The current tick of the pool |
