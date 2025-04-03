@@ -681,6 +681,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+    // return the original position assets for tracking purpose
+    IERC721(assets[0].token).safeTransferFrom(address(this), msg.sender, assets[0].tokenId);
   }
 
   /// @notice Swaps the principal token to the other token and compounds the position
