@@ -659,7 +659,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       uint256 amount1Min = params.amount1Min;
       int24 tickLower = params.tickLower;
       int24 tickUpper = params.tickUpper;
-      returnAssets = _mintPosition(
+      AssetLib.Asset[] memory tmp = _mintPosition(
         returnAssets,
         MintPositionParams({
           nfpm: INFPM(asset0.token),
@@ -672,6 +672,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount1Min: amount1Min
         })
       );
+      returnAssets = new AssetLib.Asset[](4);
+      returnAssets[0] = tmp[0];
+      returnAssets[1] = tmp[1];
+      returnAssets[2] = tmp[2];
+      returnAssets[3] = asset0;
+      // Prevent it from being added into vault's inventory
+      returnAssets[3].amount = 0;
     }
     if (!params.compoundFee) {
       returnAssets[0].amount += harvestedAssets[0].amount;
@@ -681,8 +688,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
-    // return the original position assets for tracking purpose
-    IERC721(asset0.token).safeTransferFrom(address(this), msg.sender, asset0.tokenId);
+    IERC721(returnAssets[3].token).safeTransferFrom(address(this), msg.sender, returnAssets[3].tokenId);
   }
 
   /// @notice Swaps the principal token to the other token and compounds the position

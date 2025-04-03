@@ -308,18 +308,6 @@ contract Vault is
     feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
-    length = newAssets.length;
-    for (uint256 i; i < length;) {
-      currentAsset = newAssets[i];
-      if (
-        currentAsset.strategy == address(0)
-          || IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) != 0
-      ) inventory.addAsset(newAssets[i]);
-
-      unchecked {
-        i++;
-      }
-    }
     _addAssets(newAssets);
 
     emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);
