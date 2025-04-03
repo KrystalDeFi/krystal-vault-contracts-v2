@@ -56,8 +56,8 @@ contract IntegrationTest is TestCommon {
     typedTokens[1] = USDC;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
-    typedTokenTypes[0] = uint256(ILpValidator.TokenType.Stable);
-    typedTokenTypes[1] = uint256(ILpValidator.TokenType.Stable);
+    typedTokenTypes[0] = uint256(1);
+    typedTokenTypes[1] = uint256(1);
 
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
@@ -82,7 +82,7 @@ contract IntegrationTest is TestCommon {
     });
 
     initialConfig.rangeConfigs[0] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMultiplierMin: 3, tickWidthStableMultiplierMin: 3 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
 
     initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
 
