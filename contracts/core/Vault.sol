@@ -183,9 +183,9 @@ contract Vault is
 
     uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
+    uint256 length = inventory.assets.length;
 
     AssetLib.Asset[] memory assets;
-    uint256 length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
@@ -308,6 +308,18 @@ contract Vault is
     feeConfig.vaultOwner = vaultOwner;
 
     AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+    length = newAssets.length;
+    for (uint256 i; i < length;) {
+      currentAsset = newAssets[i];
+      if (
+        currentAsset.strategy == address(0)
+          || IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) != 0
+      ) inventory.addAsset(newAssets[i]);
+
+      unchecked {
+        i++;
+      }
+    }
     _addAssets(newAssets);
 
     emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);

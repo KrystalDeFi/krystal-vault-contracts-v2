@@ -422,29 +422,44 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(assets.length == 2, InvalidNumberOfAssets());
     require(assets[0].token == vaultConfig.principalToken, InvalidAsset());
 
+    AssetLib.Asset memory asset0 = assets[0];
     AssetLib.Asset memory lpAsset = assets[1];
     INFPM nfpm = INFPM(lpAsset.token);
 
-    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
-      nfpm.positions(lpAsset.tokenId);
-    address principalToken = vaultConfig.principalToken;
-    address otherToken = token0 == principalToken ? token1 : token0;
-    (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
-      SwapFromPrincipalParams({
-        principalTokenAmount: assets[0].amount,
-        pool: IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee),
-        principalToken: principalToken,
-        otherToken: otherToken,
-        tickLower: tickLower,
-        tickUpper: tickUpper,
-        swapData: params.swapData
-      })
-    );
+    address token0;
+    address token1;
+    uint256 amount0;
+    uint256 amount1;
+    {
+      // avoid stack too deep
+      uint24 fee;
+      int24 tickLower;
+      int24 tickUpper;
+      (,, token0, token1, fee, tickLower, tickUpper,,,,,) = nfpm.positions(lpAsset.tokenId);
+      address principalToken = vaultConfig.principalToken;
+      address otherToken = token0 == principalToken ? token1 : token0;
+      bytes memory swapData = params.swapData;
+      (amount0, amount1) = _optimalSwapFromPrincipal(
+        SwapFromPrincipalParams({
+          principalTokenAmount: asset0.amount,
+          pool: IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee),
+          principalToken: principalToken,
+          otherToken: otherToken,
+          tickLower: tickLower,
+          tickUpper: tickUpper,
+          swapData: swapData
+        })
+      );
+    }
+
     AssetLib.Asset[] memory incAssets = new AssetLib.Asset[](3);
     incAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
     incAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
     incAssets[2] = lpAsset;
-    returnAssets = _increaseLiquidity(incAssets, IncreaseLiquidityParams(params.amount0Min, params.amount1Min));
+
+    IncreaseLiquidityParams memory incParams = IncreaseLiquidityParams(params.amount0Min, params.amount1Min);
+
+    returnAssets = _increaseLiquidity(incAssets, incParams);
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
@@ -499,13 +514,22 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets = _decreaseLiquidity(
       lpAsset, DecreaseLiquidityParams(params.liquidity, params.amount0Min, params.amount1Min), feeConfig
     );
+
     (AssetLib.Asset memory principalAsset, AssetLib.Asset memory otherAsset) =
       returnAssets[0].token == principalToken ? (returnAssets[0], returnAssets[1]) : (returnAssets[1], returnAssets[0]);
-    address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
-    IERC20(otherAsset.token).approve(address(optimalSwapper), otherAsset.amount);
 
-    (uint256 amountOut, uint256 amountInUsed) =
-      optimalSwapper.poolSwap(pool, otherAsset.amount, otherAsset.token < principalToken, 0, params.swapData);
+    uint256 amountOut;
+    uint256 amountInUsed;
+    {
+      address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
+      IERC20(otherAsset.token).approve(address(optimalSwapper), otherAsset.amount);
+
+      uint256 principalAmountOutMin = params.principalAmountOutMin;
+      bytes memory swapData = params.swapData;
+      (amountOut, amountInUsed) = optimalSwapper.poolSwap(
+        pool, otherAsset.amount, otherAsset.token < principalToken, principalAmountOutMin, swapData
+      );
+    }
 
     otherAsset.amount -= amountInUsed;
     principalAsset.amount += amountOut;
@@ -574,59 +598,81 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
 
-    INFPM nfpm = INFPM(assets[0].token);
-    uint256 tokenId = assets[0].tokenId;
-    AssetLib.Asset[] memory harvestedAssets;
-    if (!params.compoundFee) {
-      harvestedAssets = _harvest(assets[0], vaultConfig.principalToken, params.compoundFeeAmountOutMin, feeConfig);
-    }
-
-    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
+    AssetLib.Asset calldata asset0 = assets[0];
+    IUniswapV3Pool pool = _getPoolForPosition(INFPM(asset0.token), asset0.tokenId);
 
     if (vaultConfig.allowDeposit) {
-      validator.validateTickWidth(token0, token1, params.tickLower, params.tickUpper, vaultConfig);
+      int24 tickLower = params.tickLower;
+      int24 tickUpper = params.tickUpper;
+      validator.validateTickWidth(pool.token0(), pool.token1(), tickLower, tickUpper, vaultConfig);
     }
 
-    returnAssets = _decreaseLiquidity(
-      assets[0],
-      DecreaseLiquidityParams({
-        liquidity: liquidity,
-        amount0Min: params.decreasedAmount0Min,
-        amount1Min: params.decreasedAmount1Min
-      }),
-      feeConfig
-    );
+    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
+      INFPM(asset0.token).positions(asset0.tokenId);
+    AssetLib.Asset[] memory harvestedAssets;
+    {
+      address principalToken = vaultConfig.principalToken;
+      if (!params.compoundFee) {
+        harvestedAssets = _harvest(asset0, principalToken, params.compoundFeeAmountOutMin, feeConfig);
+      }
+    }
 
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-    IERC20(token0).approve(address(optimalSwapper), returnAssets[0].amount);
-    IERC20(token1).approve(address(optimalSwapper), returnAssets[1].amount);
-    (uint256 amount0, uint256 amount1) = optimalSwapper.optimalSwap(
-      IOptimalSwapper.OptimalSwapParams({
-        pool: pool,
-        amount0Desired: returnAssets[0].amount,
-        amount1Desired: returnAssets[1].amount,
-        tickLower: params.tickLower,
-        tickUpper: params.tickUpper,
-        data: params.swapData
-      })
-    );
+    {
+      uint256 decreasedAmount0Min = params.decreasedAmount0Min;
+      uint256 decreasedAmount1Min = params.decreasedAmount1Min;
+      returnAssets = _decreaseLiquidity(
+        asset0,
+        DecreaseLiquidityParams({
+          liquidity: liquidity,
+          amount0Min: decreasedAmount0Min,
+          amount1Min: decreasedAmount1Min
+        }),
+        feeConfig
+      );
+    }
 
-    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
-    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
+    {
+      int24 tickLower = params.tickLower;
+      int24 tickUpper = params.tickUpper;
+      bytes memory data = params.swapData;
+      uint256 amount0 = returnAssets[0].amount;
+      uint256 amount1 = returnAssets[1].amount;
+      IERC20(token0).approve(address(optimalSwapper), amount0);
+      IERC20(token1).approve(address(optimalSwapper), amount1);
+      (amount0, amount1) = optimalSwapper.optimalSwap(
+        IOptimalSwapper.OptimalSwapParams({
+          pool: address(pool),
+          amount0Desired: amount0,
+          amount1Desired: amount1,
+          tickLower: tickLower,
+          tickUpper: tickUpper,
+          data: data
+        })
+      );
 
-    returnAssets = _mintPosition(
-      returnAssets,
-      MintPositionParams({
-        nfpm: nfpm,
-        token0: token0,
-        token1: token1,
-        fee: fee,
-        tickLower: params.tickLower,
-        tickUpper: params.tickUpper,
-        amount0Min: params.amount0Min,
-        amount1Min: params.amount1Min
-      })
-    );
+      returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
+      returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
+    }
+
+    {
+      uint256 amount0Min = params.amount0Min;
+      uint256 amount1Min = params.amount1Min;
+      int24 tickLower = params.tickLower;
+      int24 tickUpper = params.tickUpper;
+      returnAssets = _mintPosition(
+        returnAssets,
+        MintPositionParams({
+          nfpm: INFPM(asset0.token),
+          token0: token0,
+          token1: token1,
+          fee: fee,
+          tickLower: tickLower,
+          tickUpper: tickUpper,
+          amount0Min: amount0Min,
+          amount1Min: amount1Min
+        })
+      );
+    }
     if (!params.compoundFee) {
       returnAssets[0].amount += harvestedAssets[0].amount;
       returnAssets[1].amount += harvestedAssets[1].amount;
@@ -650,37 +696,41 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].strategy == address(this), InvalidAsset());
 
-    INFPM nfpm = INFPM(assets[0].token);
-    uint256 tokenId = assets[0].tokenId;
+    AssetLib.Asset calldata asset0 = assets[0];
 
-    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) = nfpm.positions(tokenId);
+    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
+      INFPM(asset0.token).positions(asset0.tokenId);
 
-    (uint256 amount0Collected, uint256 amount1Collected) =
-      nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
+    (uint256 amount0Collected, uint256 amount1Collected) = INFPM(asset0.token).collect(
+      INFPM.CollectParams(asset0.tokenId, address(this), type(uint128).max, type(uint128).max)
+    );
 
     amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
     amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
 
     IERC20(token0).approve(address(optimalSwapper), amount0Collected);
     IERC20(token1).approve(address(optimalSwapper), amount1Collected);
+    bytes memory swapData = params.swapData;
     (uint256 amount0, uint256 amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams({
-        pool: IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee),
+        pool: IUniswapV3Factory(INFPM(asset0.token).factory()).getPool(token0, token1, fee),
         amount0Desired: amount0Collected,
         amount1Desired: amount1Collected,
         tickLower: tickLower,
         tickUpper: tickUpper,
-        data: params.swapData
+        data: swapData
       })
     );
 
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
-    returnAssets[2] = assets[0];
+    returnAssets[2] = asset0;
 
     if (amount0 > 0 || amount1 > 0) {
-      returnAssets = _increaseLiquidity(returnAssets, IncreaseLiquidityParams(params.amount0Min, params.amount1Min));
+      uint256 amount0Min = params.amount0Min;
+      uint256 amount1Min = params.amount1Min;
+      returnAssets = _increaseLiquidity(returnAssets, IncreaseLiquidityParams(amount0Min, amount1Min));
     }
 
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);

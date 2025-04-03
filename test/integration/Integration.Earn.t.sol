@@ -158,14 +158,16 @@ contract IntegrationTest is TestCommon {
 
     console.log("++ share balance of the player: %s", vaultInstance.balanceOf(PLAYER_1));
 
-    uint256 totalSupply = vaultInstance.totalSupply();
-    uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
-    uint256 balanceOfUser = vaultInstance.balanceOf(USER);
+    {
+      uint256 totalSupply = vaultInstance.totalSupply();
+      uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
+      uint256 balanceOfUser = vaultInstance.balanceOf(USER);
 
-    assert(balanceOfPlayer1 * 205 >= totalSupply * 100);
-    assert(balanceOfPlayer1 * 195 <= totalSupply * 100);
-    assert(balanceOfUser * 205 >= totalSupply * 100);
-    assert(balanceOfUser * 195 <= totalSupply * 100);
+      assert(balanceOfPlayer1 * 205 >= totalSupply * 100);
+      assert(balanceOfPlayer1 * 195 <= totalSupply * 100);
+      assert(balanceOfUser * 205 >= totalSupply * 100);
+      assert(balanceOfUser * 195 <= totalSupply * 100);
+    }
 
     console.log("++ share balance of the owner: ", vaultInstance.balanceOf(USER));
     console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
