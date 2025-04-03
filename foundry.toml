@@ -14,6 +14,14 @@ auto_detect_solc = true
 offline = false
 ignored_error_codes = ["license", "code-size"]
 
+# [profile.default.optimizer_details]
+# constantOptimizer = true
+# yul = true
+# 
+# [profile.default.optimizer_details.yulDetails]
+# optimizerSteps = 'u'
+# stackAllocation = true
+
 [fuzz]
 runs = 256
 max_test_rejects = 65536

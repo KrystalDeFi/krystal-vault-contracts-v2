@@ -52,7 +52,7 @@ interface IVault is ICommon {
   function allocate(
     AssetLib.Asset[] calldata inputAssets,
     IStrategy strategy,
-    uint16 gasFeeBasisPoint,
+    uint64 gasFeeBasisPoint,
     bytes calldata data
   ) external;
 

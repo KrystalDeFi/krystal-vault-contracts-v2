@@ -610,13 +610,11 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
       INFPM(asset0.token).positions(asset0.tokenId);
     AssetLib.Asset[] memory harvestedAssets;
-    {
+    if (!params.compoundFee) {
       address principalToken = vaultConfig.principalToken;
-      if (!params.compoundFee) {
-        harvestedAssets = _harvest(asset0, principalToken, params.compoundFeeAmountOutMin, feeConfig);
-      }
+      uint256 compoundFeeAmountOutMin = params.compoundFeeAmountOutMin;
+      harvestedAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, feeConfig);
     }
-
     {
       uint256 decreasedAmount0Min = params.decreasedAmount0Min;
       uint256 decreasedAmount1Min = params.decreasedAmount1Min;
