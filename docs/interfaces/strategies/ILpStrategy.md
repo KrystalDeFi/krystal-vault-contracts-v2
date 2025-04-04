@@ -2,6 +2,24 @@
 
 ## ILpStrategy
 
+### InvalidObservationCardinality
+
+```solidity
+error InvalidObservationCardinality()
+```
+
+### InvalidObservation
+
+```solidity
+error InvalidObservation()
+```
+
+### PriceSanityCheckFailed
+
+```solidity
+error PriceSanityCheckFailed()
+```
+
 ### InstructionType
 
 ```solidity

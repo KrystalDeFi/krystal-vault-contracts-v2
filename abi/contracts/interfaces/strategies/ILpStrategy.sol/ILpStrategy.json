@@ -26,6 +26,16 @@
   },
   {
     "inputs": [],
+    "name": "InvalidObservation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidObservationCardinality",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -37,6 +47,11 @@
   {
     "inputs": [],
     "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PriceSanityCheckFailed",
     "type": "error"
   },
   {

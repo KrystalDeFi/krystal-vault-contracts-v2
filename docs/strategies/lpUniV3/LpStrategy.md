@@ -506,6 +506,20 @@ _Takes the fee from the amount_
 | ---- | ---- | ----------- |
 | totalFeeAmount | uint256 | The total fee amount |
 
+### _checkPriceSanity
+
+```solidity
+function _checkPriceSanity(address pool) internal view
+```
+
+_Check average price of the last 2 observed ticks compares to current tick_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| pool | address | The pool to check the price |
+
 ### receive
 
 ```solidity
