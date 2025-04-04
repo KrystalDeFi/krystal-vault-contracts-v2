@@ -8,6 +8,12 @@
 event MaxPositionsSet(uint8 _maxPositions)
 ```
 
+### MaxHarvestSlippageSet
+
+```solidity
+event MaxHarvestSlippageSet(int24 _maxHarvestSlippage)
+```
+
 ### WhitelistStrategy
 
 ```solidity
@@ -48,6 +54,12 @@ event SetFeeConfig(bool allowDeposit, struct ICommon.FeeConfig _feeConfig)
 
 ```solidity
 function maxPositions() external view returns (uint8 _maxPositions)
+```
+
+### maxHarvestSlippage
+
+```solidity
+function maxHarvestSlippage() external view returns (int24 _maxHarvestSlippage)
 ```
 
 ### whitelistStrategy

@@ -22,6 +22,16 @@
   },
   {
     "inputs": [],
+    "name": "InvalidObservation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidObservationCardinality",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidPool",
     "type": "error"
   },
@@ -48,6 +58,11 @@
   {
     "inputs": [],
     "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PriceSanityCheckFailed",
     "type": "error"
   },
   {
@@ -139,6 +154,47 @@
       }
     ],
     "name": "validateConfig",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract INonfungiblePositionManager",
+        "name": "nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint24",
+        "name": "fee",
+        "type": "uint24"
+      },
+      {
+        "internalType": "address",
+        "name": "token0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token1",
+        "type": "address"
+      }
+    ],
+    "name": "validateObservationCardinality",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      }
+    ],
+    "name": "validatePriceSanity",
     "outputs": [],
     "stateMutability": "view",
     "type": "function"
