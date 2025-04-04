@@ -145,9 +145,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       (principalAmount, swapAmount) = (swapAmount, principalAmount);
       swapToken = pToken;
     }
+
     uint256 amountOut;
     uint256 amountInUsed;
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
+    _checkPriceSanity(pool);
+
     if (swapAmount > 0) {
       (amountOut, amountInUsed) = _swapToPrinciple(
         SwapToPrincipalParams({
@@ -363,6 +366,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     IERC20(token0.token).approve(address(params.nfpm), token0.amount);
     IERC20(token1.token).approve(address(params.nfpm), token1.amount);
+
+    address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(token0.token, token1.token, params.fee);
+    (,,, uint16 observationCardinality,,,) = IUniswapV3Pool(pool).slot0();
+    require(observationCardinality >= 2, InvalidObservationCardinality());
 
     (uint256 tokenId,, uint256 amount0, uint256 amount1) = params.nfpm.mint(
       INFPM.MintParams(
@@ -921,6 +928,35 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);
         emit FeeCollected(FeeType.GAS, feeConfig.gasFeeRecipient, token, feeAmount);
       }
+    }
+  }
+
+  /// @dev Check average price of the last 2 observed ticks compares to current tick
+  /// @param pool The pool to check the price
+  function _checkPriceSanity(address pool) internal view {
+    // get the observed price before this block
+    unchecked {
+      (, int24 tick, uint16 observationIndex, uint16 cardinality,,,) = IUniswapV3Pool(pool).slot0();
+      require(cardinality > 0, InvalidObservationCardinality());
+      uint32 lastTimestamp;
+      int56 lastTickCummulative;
+      uint32 secondLastTimestamp;
+      int56 secondLastTickCummulative;
+      bool initialized;
+      (lastTimestamp, lastTickCummulative,, initialized) = IUniswapV3Pool(pool).observations(observationIndex);
+      require(initialized, InvalidObservation());
+
+      if (observationIndex == 0) observationIndex = cardinality - 1;
+      else observationIndex--;
+      (secondLastTimestamp, secondLastTickCummulative,, initialized) =
+        IUniswapV3Pool(pool).observations(observationIndex);
+
+      require(initialized, InvalidObservation());
+      require(lastTimestamp > secondLastTimestamp, InvalidObservation());
+
+      int24 lastTick =
+        int24((lastTickCummulative - secondLastTickCummulative) / int32(lastTimestamp - secondLastTimestamp));
+      require(-500 < tick - lastTick && tick - lastTick < 500, PriceSanityCheckFailed()); // ~5%
     }
   }
 
