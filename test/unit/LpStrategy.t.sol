@@ -561,7 +561,7 @@ contract LpStrategyTest is TestCommon {
 
       console.log("==== cannot harvest because price surge pass 5% ====");
       transferAsset(returnAssets[2], address(lpStrategy));
-      vm.expectRevert(ILpStrategy.PriceSanityCheckFailed.selector);
+      vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
       returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
     }
   }

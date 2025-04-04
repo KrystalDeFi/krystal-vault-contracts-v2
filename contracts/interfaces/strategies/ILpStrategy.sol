@@ -7,10 +7,6 @@ import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 interface ILpStrategy is IStrategy {
-  error InvalidObservationCardinality();
-  error InvalidObservation();
-  error PriceSanityCheckFailed();
-
   enum InstructionType {
     // MintPosition,
     SwapAndMintPosition,
