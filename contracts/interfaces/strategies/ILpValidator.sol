@@ -39,9 +39,19 @@ interface ILpValidator is ICommon {
     VaultConfig calldata config
   ) external view;
 
+  function validateObservationCardinality(INFPM nfpm, uint24 fee, address token0, address token1) external view;
+
+  function validatePriceSanity(address pool) external view;
+
   error InvalidPool();
 
   error InvalidPoolAmountMin();
 
   error InvalidTickWidth();
+
+  error InvalidObservationCardinality();
+
+  error InvalidObservation();
+
+  error PriceSanityCheckFailed();
 }

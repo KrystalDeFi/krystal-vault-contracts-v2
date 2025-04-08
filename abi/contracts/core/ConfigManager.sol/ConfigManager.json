@@ -98,6 +98,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "int24",
+        "name": "_maxHarvestSlippage",
+        "type": "int24"
+      }
+    ],
+    "name": "MaxHarvestSlippageSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint8",
         "name": "_maxPositions",
         "type": "uint8"
@@ -472,6 +485,19 @@
   },
   {
     "inputs": [],
+    "name": "maxHarvestSlippage",
+    "outputs": [
+      {
+        "internalType": "int24",
+        "name": "",
+        "type": "int24"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maxPositions",
     "outputs": [
       {
@@ -549,6 +575,19 @@
       }
     ],
     "name": "setFeeConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "int24",
+        "name": "_maxHarvestSlippage",
+        "type": "int24"
+      }
+    ],
+    "name": "setMaxHarvestSlippage",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
