@@ -193,9 +193,10 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(PLAYER_1);
     uint256 vaultInstanceBalanceP1 = vaultInstance.balanceOf(PLAYER_1);
     vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
+
     vaultInstance.withdraw(vaultInstanceBalanceP1, false, 0);
 
-    console.log("==== User is setting maxHarvestSlippage to 80% ====");
+    console.log("==== User is setting maxHarvestSlippage to 1000% ====");
     vm.startPrank(USER);
     configManager.setMaxHarvestSlippage(100000);
     console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
