@@ -159,9 +159,7 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
-    vaultAssets = vaultInstance.getInventory();
-
-    console.log("++ share balance of the player: %s", vaultInstance.balanceOf(PLAYER_1));
+    vaultAssets = vaultInstance.getInventory();    
 
     uint256 totalSupply = vaultInstance.totalSupply();
     uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
@@ -172,17 +170,13 @@ contract IntegrationTest is TestCommon {
     assert(balanceOfUser * 205 >= totalSupply * 100);
     assert(balanceOfUser * 195 <= totalSupply * 100);
 
-    console.log("++ share balance of the owner: ", vaultInstance.balanceOf(USER));
-    console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
-
     (,, address token0, address token1, uint24 fee,,,,,,,) =
       INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
-    console.log("++ pool address: ", pool);
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
-    console.log("==== (1) bighand is swapping all MORPHO -> wETH ====");
+    console.log("==== (1) bighand is swapping %d MORPHO -> wETH ====", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
     vm.startPrank(BIGHAND_PLAYER);
     IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
     swapper.poolSwap(
@@ -191,9 +185,7 @@ contract IntegrationTest is TestCommon {
       WETH > MORPHO, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
-    );
-
-    console.log("MORPHO balance of bighand player: ", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
+    );    
 
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
