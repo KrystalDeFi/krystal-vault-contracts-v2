@@ -204,8 +204,7 @@ contract IntegrationTest is TestCommon {
       "" // empty data
     );    
 
-    if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {
-      console.log("lost of the bighand player (in MORPHO): ", init_2nd_token_balance_for_bighand_player - IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
+    if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {      
       console.log("==== (3) bighand converts the lost to wETH to compare ====");
       uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
       vm.startPrank(BIGHAND_PLAYER);
