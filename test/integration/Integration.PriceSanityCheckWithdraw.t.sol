@@ -120,7 +120,7 @@ contract IntegrationTest is TestCommon {
     console.log("vaultInstance: ", address(vaultInstance));
   }
 
-  function test_uniswap() public {
+  function test_uniswap_price_sanity_check_withdraw() public {
     // uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
     uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
 
@@ -187,14 +187,13 @@ contract IntegrationTest is TestCommon {
       "" // empty data
     );    
 
-    console.log("==== Player 1 is withdrawing all from the vault ====");
+    console.log("==== Player 1 is withdrawing all from the vault (expect to be reverted) ====");
     vm.startPrank(PLAYER_1);
-    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
-    assertEq(vaultInstance.balanceOf(PLAYER_1), 0, "PLAYER_1 balance of vault should be 0");
+    uint256 vaultInstanceBalanceP1 = vaultInstance.balanceOf(PLAYER_1);
+    vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
+    vaultInstance.withdraw(vaultInstanceBalanceP1, false, 0);    
 
-    console.log("weth balance of player 1 after withdrawing: ", IERC20(WETH).balanceOf(PLAYER_1));
-
-    console.log("==== bighand is paying back the loan by swapping all wETH -> MORPHO ====");
+    console.log("==== (2) bighand is paying back the loan by swapping all wETH -> MORPHO ====");
     vm.startPrank(BIGHAND_PLAYER);
     IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
     swapper.poolSwap(
@@ -207,7 +206,7 @@ contract IntegrationTest is TestCommon {
 
     if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {
       console.log("lost of the bighand player (in MORPHO): ", init_2nd_token_balance_for_bighand_player - IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
-      console.log("==== (2) bighand converts the lost to wETH to compare ====");
+      console.log("==== (3) bighand converts the lost to wETH to compare ====");
       uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
       vm.startPrank(BIGHAND_PLAYER);
       IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
@@ -221,7 +220,7 @@ contract IntegrationTest is TestCommon {
       console.log(">>> lost of bighand player (in wETH):                ", IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before);
     } else {
       console.log("gain of the bighand player (in MORPHO)", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER) - init_2nd_token_balance_for_bighand_player);
-      console.log("==== (2) bighand converts the gain to wETH to compare ====");
+      console.log("==== (3) bighand converts the gain to wETH to compare ====");
       uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
       vm.startPrank(BIGHAND_PLAYER);
       IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
@@ -240,14 +239,13 @@ contract IntegrationTest is TestCommon {
 
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
-    vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
-    assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
-    assertEq(IERC20(MORPHO).balanceOf(address(vaultInstance)), 0, "MORPHO balance of vault should be 0");
-    assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");    
+    uint256 vaultInstanceBalanceUser = vaultInstance.balanceOf(USER);
+    vaultInstance.withdraw(vaultInstanceBalanceUser, false, 0);
 
     console.log(">>> Summary of case: swapping %d e3 MORPHO -> wETH <<<", init_2nd_token_balance_for_bighand_player / (10 ** 15));
     console.log(">>> WETH balance of user:      ", IERC20(WETH).balanceOf(USER));
     console.log(">>> WETH balance of player 1:  ", IERC20(WETH).balanceOf(PLAYER_1));
+    console.log(">>> the share of owner in the vault: ", IERC20(address(vaultInstance)).balanceOf(USER));
+    console.log(">>> the share of player 1 in the vault: ", IERC20(address(vaultInstance)).balanceOf(PLAYER_1));
   }
 }
