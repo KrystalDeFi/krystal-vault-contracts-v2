@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 
-import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, USDC, MORPHO, NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
@@ -33,8 +33,9 @@ contract IntegrationTest is TestCommon {
   VaultFactory public vaultFactory;
   Vault public vaultInstance;
 
-  uint256 public swap_amount;
+  
   uint256 public init_weth_balance_for_bighand_player;
+  uint256 public init_2nd_token_balance_for_bighand_player;
 
   function setUp() public {
     console.log("Setting up the vault...");
@@ -45,16 +46,18 @@ contract IntegrationTest is TestCommon {
     setErc20Balance(WETH, USER, 1 ether);
     setErc20Balance(WETH, PLAYER_1, 1 ether);
     setErc20Balance(WETH, PLAYER_2, 1 ether);
-    init_weth_balance_for_bighand_player = 0.5 ether;
+    init_weth_balance_for_bighand_player = 0 ether;
     setErc20Balance(WETH, BIGHAND_PLAYER, init_weth_balance_for_bighand_player);
-    setErc20Balance(USDC, BIGHAND_PLAYER, 0);
+
+    init_2nd_token_balance_for_bighand_player = 200_000 ether;
+    setErc20Balance(MORPHO, BIGHAND_PLAYER, init_2nd_token_balance_for_bighand_player);
 
     vm.deal(USER, 1 ether);
 
     // Set up ConfigManager
     address[] memory typedTokens = new address[](2);
-    typedTokens[0] = DAI;
-    typedTokens[1] = USDC;
+    typedTokens[0] = USDC;
+    typedTokens[1] = MORPHO;
 
     uint256[] memory typedTokenTypes = new uint256[](2);
     typedTokenTypes[0] = uint256(1);
@@ -135,10 +138,11 @@ contract IntegrationTest is TestCommon {
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
-      token1: USDC,
-      fee: 500,
-      tickLower: -287_220,
-      tickUpper: -107_220,
+      token1: MORPHO,
+      fee: 3000,
+      tickLower: 72_540,
+      tickUpper: 75_120,
+      // tick spacing: 60
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -178,46 +182,18 @@ contract IntegrationTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
-    // console.log("----------------------------- Starting a new round of swap");
-    // console.log("==== bighand is swapping all USDC -> wETH ====");
-    // vm.startPrank(BIGHAND_PLAYER);
-    // IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-    // swapper.poolSwap(
-    //   pool,
-    //   IERC20(USDC).balanceOf(BIGHAND_PLAYER),
-    //   WETH > USDC, // true if WETH is token0
-    //   0, // amountOutMin - 0 for testing
-    //   "" // empty data
-    // );
-
-    // console.log("==== bighand is swapping all wETH -> USDC ====");
-    // vm.startPrank(BIGHAND_PLAYER);
-    // IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    // swapper.poolSwap(
-    //   pool,
-    //   IERC20(WETH).balanceOf(BIGHAND_PLAYER),
-    //   WETH < USDC, // true if WETH is token0
-    //   0, // amountOutMin - 0 for testing
-    //   "" // empty data
-    // );
-
-    // console.log("----------------------------- Ended a round of swap");
-    // console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
-
-
-    console.log("==== bighand is swapping all wETH -> USDC ====");
+    console.log("==== (1) bighand is swapping all MORPHO -> wETH ====");
     vm.startPrank(BIGHAND_PLAYER);
-    IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
+    IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
     swapper.poolSwap(
       pool,
-      IERC20(WETH).balanceOf(BIGHAND_PLAYER),
-      WETH < USDC, // true if WETH is token0
+      IERC20(MORPHO).balanceOf(BIGHAND_PLAYER),
+      WETH > MORPHO, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
     );
 
-
-    console.log("USDC balance of bighand player: ", IERC20(USDC).balanceOf(BIGHAND_PLAYER));
+    console.log("MORPHO balance of bighand player: ", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
 
     console.log("==== Player 1 is withdrawing all from the vault ====");
     vm.startPrank(PLAYER_1);
@@ -226,39 +202,60 @@ contract IntegrationTest is TestCommon {
 
     console.log("weth balance of player 1 after withdrawing: ", IERC20(WETH).balanceOf(PLAYER_1));
 
-    console.log("==== bighand is paying back the loan by swapping all USDC -> wETH ====");
+    console.log("==== bighand is paying back the loan by swapping all wETH -> MORPHO ====");
     vm.startPrank(BIGHAND_PLAYER);
-    IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER));
+    IERC20(WETH).approve(address(swapper), IERC20(WETH).balanceOf(BIGHAND_PLAYER));
     swapper.poolSwap(
       pool,
-      IERC20(USDC).balanceOf(BIGHAND_PLAYER),
-      WETH > USDC, // true if WETH is token0
+      IERC20(WETH).balanceOf(BIGHAND_PLAYER),
+      WETH < MORPHO, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
     );    
-    console.log("weth lost of the bighand player:                   ", init_weth_balance_for_bighand_player - IERC20(WETH).balanceOf(BIGHAND_PLAYER));
-    uint256 gained_weth_balance = IERC20(WETH).balanceOf(PLAYER_1) - 999721230339553039;
-    console.log("gained weth balance of player 1 after withdrawing: ", gained_weth_balance);
+
+    if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {
+      console.log("lost of the bighand player (in MORPHO): ", init_2nd_token_balance_for_bighand_player - IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
+      console.log("==== (2) bighand converts the lost to wETH to compare ====");
+      uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
+      vm.startPrank(BIGHAND_PLAYER);
+      IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
+      swapper.poolSwap(
+        pool,
+        init_2nd_token_balance_for_bighand_player - IERC20(MORPHO).balanceOf(BIGHAND_PLAYER),
+        WETH > MORPHO, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+      console.log(">>> lost of bighand player (in wETH):                ", IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before);
+    } else {
+      console.log("gain of the bighand player (in MORPHO)", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER) - init_2nd_token_balance_for_bighand_player);
+      console.log("==== (2) bighand converts the gain to wETH to compare ====");
+      uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
+      vm.startPrank(BIGHAND_PLAYER);
+      IERC20(MORPHO).approve(address(swapper), IERC20(MORPHO).balanceOf(BIGHAND_PLAYER));
+      swapper.poolSwap(
+        pool,
+        IERC20(MORPHO).balanceOf(BIGHAND_PLAYER) - init_2nd_token_balance_for_bighand_player,
+        WETH > MORPHO, // true if WETH is token0
+        0, // amountOutMin - 0 for testing
+        "" // empty data
+      );
+      console.log(">>> gain of bighand player (in wETH):                ", IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before);
+    }
+
+    uint256 lost_weth_balance = 998252990397992028 - IERC20(WETH).balanceOf(PLAYER_1);    // 998252990397992028 is the WETH balance of player 1 if no bighand's swap happens
+    console.log(">>> lost weth balance of player 1 after withdrawing: ", lost_weth_balance);
 
     vm.startPrank(USER);
     console.log("==== user is withdrawing all the shares ====");
     vaultInstance.withdraw(vaultInstance.balanceOf(USER), false, 0);
     assertEq(vaultInstance.balanceOf(USER), 0, "USER balance of vault should be 0");
-
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 0, "WETH balance of vault should be 0");
-    assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
+    assertEq(IERC20(MORPHO).balanceOf(address(vaultInstance)), 0, "MORPHO balance of vault should be 0");
+    assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");    
 
-    assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
-    assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
-
-    // the WETH balance of players shouldn't be too much different with the initial balance
-    assert(0.99 ether < IERC20(WETH).balanceOf(USER));
-    assert(IERC20(WETH).balanceOf(USER) < 1.01 ether);
-    assert(0.99 ether < IERC20(WETH).balanceOf(PLAYER_1));
-    assert(IERC20(WETH).balanceOf(PLAYER_1) < 1.01 ether);
-
-    console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
-    console.log(">>> WETH balance of user: ", IERC20(WETH).balanceOf(USER));
-    console.log(">>> WETH balance of player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
+    console.log(">>> Summary of case: swapping %d e3 MORPHO -> wETH <<<", init_2nd_token_balance_for_bighand_player / (10 ** 15));
+    console.log(">>> WETH balance of user:      ", IERC20(WETH).balanceOf(USER));
+    console.log(">>> WETH balance of player 1:  ", IERC20(WETH).balanceOf(PLAYER_1));
   }
 }
