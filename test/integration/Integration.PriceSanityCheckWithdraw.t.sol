@@ -68,6 +68,8 @@ contract IntegrationTest is TestCommon {
 
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
 
+    console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
+
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
     lpStrategy = new LpStrategy(address(swapper), address(validator));
@@ -191,7 +193,16 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(PLAYER_1);
     uint256 vaultInstanceBalanceP1 = vaultInstance.balanceOf(PLAYER_1);
     vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
-    vaultInstance.withdraw(vaultInstanceBalanceP1, false, 0);    
+    vaultInstance.withdraw(vaultInstanceBalanceP1, false, 0);
+
+    console.log("==== User is setting maxHarvestSlippage to 80% ====");
+    vm.startPrank(USER);
+    configManager.setMaxHarvestSlippage(100000);
+    console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
+
+    console.log("==== Player 1 is withdrawing all from the vault (again) ====");
+    vm.startPrank(PLAYER_1);        
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);    
 
     console.log("==== (2) bighand is paying back the loan by swapping all wETH -> MORPHO ====");
     vm.startPrank(BIGHAND_PLAYER);
