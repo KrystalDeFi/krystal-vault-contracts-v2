@@ -95,6 +95,44 @@ contract LpValidator is ILpValidator {
     require(tickUpper - tickLower >= minTickWidth, InvalidTickWidth());
   }
 
+  function validateObservationCardinality(INFPM nfpm, uint24 fee, address token0, address token1) external view {
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+    (,,, uint16 observationCardinality,,,) = IUniswapV3Pool(pool).slot0();
+    require(observationCardinality >= 2, InvalidObservationCardinality());
+  }
+
+  /// @dev Check average price of the last 2 observed ticks compares to current tick
+  /// @param pool The pool to check the price
+  function validatePriceSanity(address pool) external view override {
+    // get the observed price before this block
+    unchecked {
+      (, int24 tick, uint16 observationIndex, uint16 cardinality,,,) = IUniswapV3Pool(pool).slot0();
+      require(cardinality > 0, InvalidObservationCardinality());
+      uint32 lastTimestamp;
+      int56 lastTickCummulative;
+      uint32 secondLastTimestamp;
+      int56 secondLastTickCummulative;
+      bool initialized;
+      (lastTimestamp, lastTickCummulative,, initialized) = IUniswapV3Pool(pool).observations(observationIndex);
+      require(initialized, InvalidObservation());
+
+      if (observationIndex == 0) observationIndex = cardinality - 1;
+      else observationIndex--;
+      (secondLastTimestamp, secondLastTickCummulative,, initialized) =
+        IUniswapV3Pool(pool).observations(observationIndex);
+
+      require(initialized, InvalidObservation());
+      require(lastTimestamp > secondLastTimestamp, InvalidObservation());
+
+      int24 lastTick =
+        int24((lastTickCummulative - secondLastTickCummulative) / int32(lastTimestamp - secondLastTimestamp));
+      require(
+        -configManager.maxHarvestSlippage() < tick - lastTick && tick - lastTick < configManager.maxHarvestSlippage(),
+        PriceSanityCheckFailed()
+      ); // ~5%
+    }
+  }
+
   /// @dev Checks if the pool is allowed
   /// @param config The configuration of the strategy
   /// @param pool The pool to check

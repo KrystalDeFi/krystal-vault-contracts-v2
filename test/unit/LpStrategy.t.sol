@@ -21,6 +21,7 @@ import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.s
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 contract LpStrategyTest is TestCommon {
   LpStrategy public lpStrategy;
@@ -124,8 +125,8 @@ contract LpStrategyTest is TestCommon {
     ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
-      token1: DAI,
-      fee: 3000,
+      token1: USDC,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -327,6 +328,10 @@ contract LpStrategyTest is TestCommon {
     address mockVaultOwner = address(0x100);
     address mockPlatformWallet = address(0x200);
     address mockGasFeeRecipient = address(0x300);
+    {
+      IUniswapV3Pool(pool).increaseObservationCardinalityNext(3);
+      skip(100);
+    }
 
     ICommon.FeeConfig memory publicFeeConfig = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 500,
@@ -364,10 +369,18 @@ contract LpStrategyTest is TestCommon {
       });
       transferAssets(assets, address(lpStrategy));
       returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
+      skip(100);
+
       IERC20(WETH).approve(address(swapper), 1 ether);
       (uint256 amountOut,) = swapper.poolSwap(pool, 1 ether, true, 0, "");
+      skip(100);
+
       IERC20(DAI).approve(address(swapper), amountOut);
-      swapper.poolSwap(pool, amountOut, false, 0, "");
+      swapper.poolSwap(pool, amountOut - 1 ether, false, 0, "");
+      skip(100);
+      swapper.poolSwap(pool, 1 ether, false, 0, "");
+      skip(100);
+
       // uint256 fee0 = 2_556_795_487_525_688;
       // uint256 fee1 = 2_651_766_154_928_366_678;
 
@@ -482,6 +495,74 @@ contract LpStrategyTest is TestCommon {
       assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
       assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
       assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+    }
+  }
+
+  function test_LpStrategyPriceSanityCheck() public {
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    AssetLib.Asset[] memory returnAssets;
+
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(WETH, DAI, 3000);
+    address mockVaultOwner = address(0x100);
+    address mockPlatformWallet = address(0x200);
+    address mockGasFeeRecipient = address(0x300);
+    {
+      IUniswapV3Pool(pool).increaseObservationCardinalityNext(3);
+      skip(100);
+    }
+
+    ICommon.FeeConfig memory publicFeeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 500,
+      vaultOwner: mockVaultOwner,
+      platformFeeBasisPoint: 1000,
+      platformFeeRecipient: mockPlatformWallet,
+      gasFeeX64: uint64(uint256((1500 * 2 ** 64)) / 10_000),
+      gasFeeRecipient: mockGasFeeRecipient
+    });
+
+    {
+      console.log("==== swapAndMintPosition ====");
+      assets[0] = AssetLib.Asset({
+        assetType: AssetLib.AssetType.ERC20,
+        strategy: address(0),
+        token: WETH,
+        tokenId: 0,
+        amount: 2 ether
+      });
+
+      ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
+        nfpm: INFPM(NFPM),
+        token0: WETH,
+        token1: DAI,
+        fee: 3000,
+        tickLower: -887_220,
+        tickUpper: 887_220,
+        amount0Min: 0,
+        amount1Min: 0,
+        swapData: ""
+      });
+      ICommon.Instruction memory instruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+        params: abi.encode(mintParams)
+      });
+      console.log("==== allocate normally ====");
+      transferAssets(assets, address(lpStrategy));
+      returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
+      skip(100);
+      int24 tick;
+      (, tick,,,,,) = IUniswapV3Pool(pool).slot0();
+      console.log("==== tick before price surge %s ====", tick);
+      console.log("==== swap 20_000 DAI to WETH to surge the price ====");
+
+      // swap a very large amount to drive the price up
+      IERC20(DAI).approve(address(swapper), 20_000 ether);
+      swapper.poolSwap(pool, 20_000 ether, false, 0, "");
+      console.log("==== tick after price surge %s ====", tick);
+
+      console.log("==== cannot harvest because price surge pass 5% ====");
+      transferAsset(returnAssets[2], address(lpStrategy));
+      vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
+      returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
     }
   }
 }

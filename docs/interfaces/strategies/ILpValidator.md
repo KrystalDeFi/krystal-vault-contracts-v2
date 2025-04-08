@@ -40,6 +40,18 @@ function validateConfig(contract INonfungiblePositionManager nfpm, uint24 fee, a
 function validateTickWidth(address token0, address token1, int24 tickLower, int24 tickUpper, struct ICommon.VaultConfig config) external view
 ```
 
+### validateObservationCardinality
+
+```solidity
+function validateObservationCardinality(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1) external view
+```
+
+### validatePriceSanity
+
+```solidity
+function validatePriceSanity(address pool) external view
+```
+
 ### InvalidPool
 
 ```solidity
@@ -56,5 +68,23 @@ error InvalidPoolAmountMin()
 
 ```solidity
 error InvalidTickWidth()
+```
+
+### InvalidObservationCardinality
+
+```solidity
+error InvalidObservationCardinality()
+```
+
+### InvalidObservation
+
+```solidity
+error InvalidObservation()
+```
+
+### PriceSanityCheckFailed
+
+```solidity
+error PriceSanityCheckFailed()
 ```
 

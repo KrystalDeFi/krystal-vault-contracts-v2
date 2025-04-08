@@ -32,6 +32,12 @@ mapping(address => mapping(address => bytes)) strategyConfigs
 uint8 maxPositions
 ```
 
+### maxHarvestSlippage
+
+```solidity
+int24 maxHarvestSlippage
+```
+
 ### constructor
 
 ```solidity
@@ -264,6 +270,20 @@ Set max positions
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _maxPositions | uint8 | Max positions |
+
+### setMaxHarvestSlippage
+
+```solidity
+function setMaxHarvestSlippage(int24 _maxHarvestSlippage) external
+```
+
+Set max harvest slippage
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _maxHarvestSlippage | int24 | Max harvest slippage |
 
 ### setFeeConfig
 

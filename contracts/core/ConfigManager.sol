@@ -54,6 +54,7 @@ contract ConfigManager is Ownable, IConfigManager {
   EnumerableMap.AddressToUintMap private typedTokens;
 
   uint8 public override maxPositions = 10;
+  int24 public override maxHarvestSlippage = 500; // ~5%
 
   FeeConfig private publicVaultFeeConfig;
   FeeConfig private privateVaultFeeConfig;
@@ -236,6 +237,14 @@ contract ConfigManager is Ownable, IConfigManager {
     maxPositions = _maxPositions;
 
     emit MaxPositionsSet(_maxPositions);
+  }
+
+  /// @notice Set max harvest slippage
+  /// @param _maxHarvestSlippage Max harvest slippage
+  function setMaxHarvestSlippage(int24 _maxHarvestSlippage) external onlyOwner {
+    maxHarvestSlippage = _maxHarvestSlippage;
+
+    emit MaxHarvestSlippageSet(_maxHarvestSlippage);
   }
 
   /// @notice Set fee config

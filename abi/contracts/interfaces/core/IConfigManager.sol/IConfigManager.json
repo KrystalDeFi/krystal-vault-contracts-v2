@@ -39,6 +39,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "int24",
+        "name": "_maxHarvestSlippage",
+        "type": "int24"
+      }
+    ],
+    "name": "MaxHarvestSlippageSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint8",
         "name": "_maxPositions",
         "type": "uint8"
@@ -387,6 +400,19 @@
         "internalType": "bool",
         "name": "_isWhitelisted",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxHarvestSlippage",
+    "outputs": [
+      {
+        "internalType": "int24",
+        "name": "_maxHarvestSlippage",
+        "type": "int24"
       }
     ],
     "stateMutability": "view",

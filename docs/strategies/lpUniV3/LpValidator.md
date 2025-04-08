@@ -52,6 +52,26 @@ _Checks the tick width of the position_
 | tickUpper | int24 | The upper tick of the position |
 | config | struct ICommon.VaultConfig | The configuration of the strategy |
 
+### validateObservationCardinality
+
+```solidity
+function validateObservationCardinality(contract INonfungiblePositionManager nfpm, uint24 fee, address token0, address token1) external view
+```
+
+### validatePriceSanity
+
+```solidity
+function validatePriceSanity(address pool) external view
+```
+
+_Check average price of the last 2 observed ticks compares to current tick_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| pool | address | The pool to check the price |
+
 ### _isPoolAllowed
 
 ```solidity

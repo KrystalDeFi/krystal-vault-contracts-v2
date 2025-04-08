@@ -6,6 +6,8 @@ import "../ICommon.sol";
 interface IConfigManager is ICommon {
   event MaxPositionsSet(uint8 _maxPositions);
 
+  event MaxHarvestSlippageSet(int24 _maxHarvestSlippage);
+
   event WhitelistStrategy(address[] _strategies, bool _isWhitelisted);
 
   event WhitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted);
@@ -19,6 +21,8 @@ interface IConfigManager is ICommon {
   event SetFeeConfig(bool allowDeposit, FeeConfig _feeConfig);
 
   function maxPositions() external view returns (uint8 _maxPositions);
+
+  function maxHarvestSlippage() external view returns (int24 _maxHarvestSlippage);
 
   function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external;
 
