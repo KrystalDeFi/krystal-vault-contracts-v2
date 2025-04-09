@@ -73,7 +73,7 @@ Converts the asset to another assets
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Harvest the asset fee
@@ -85,6 +85,7 @@ Harvest the asset fee
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
@@ -96,7 +97,7 @@ Harvest the asset fee
 ### _harvest
 
 ```solidity
-function _harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 _Harvest the asset fee_
@@ -108,6 +109,7 @@ _Harvest the asset fee_
 | asset | struct AssetLib.Asset | The asset to harvest |
 | tokenOut | address | The token to swap to |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
@@ -187,7 +189,7 @@ Swaps the principal token to the other token and mints a new position
 ### _mintPosition
 
 ```solidity
-function _mintPosition(struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function _mintPosition(struct ICommon.VaultConfig vaultConfig, struct AssetLib.Asset[] assets, struct ILpStrategy.MintPositionParams params) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 mints a new position
@@ -196,6 +198,7 @@ mints a new position
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
+| vaultConfig | struct ICommon.VaultConfig | The vault configuration |
 | assets | struct AssetLib.Asset[] | The assets to mint the position, assets[0] = token0, assets[1] = token1 |
 | params | struct ILpStrategy.MintPositionParams | The parameters for minting the position |
 

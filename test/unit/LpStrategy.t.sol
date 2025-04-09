@@ -386,7 +386,7 @@ contract LpStrategyTest is TestCommon {
 
       console.log("==== test take fee when harvest ====");
       transferAsset(returnAssets[2], address(lpStrategy));
-      returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
+      returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, vaultConfig, publicFeeConfig);
 
       assertEq(returnAssets.length, 3);
       assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_203_259_418_342, "owner fee mismatch");
@@ -562,7 +562,19 @@ contract LpStrategyTest is TestCommon {
       console.log("==== cannot harvest because price surge pass 5% ====");
       transferAsset(returnAssets[2], address(lpStrategy));
       vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
-      returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, publicFeeConfig);
+      returnAssets = lpStrategy.harvest(
+        returnAssets[2],
+        WETH,
+        0,
+        ICommon.VaultConfig({
+          principalToken: WETH,
+          allowDeposit: true,
+          rangeStrategyType: 0,
+          tvlStrategyType: 0,
+          supportedAddresses: new address[](0)
+        }),
+        publicFeeConfig
+      );
     }
   }
 }

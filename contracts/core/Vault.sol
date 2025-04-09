@@ -50,6 +50,11 @@ contract Vault is
 
   InventoryLib.Inventory private inventory;
 
+  modifier onlyAutomator() {
+    require(configManager.isWhitelistedAutomator(_msgSender()), Unauthorized());
+    _;
+  }
+
   modifier onlyAdminOrAutomator() {
     require(
       hasRole(ADMIN_ROLE_HASH, _msgSender()) || configManager.isWhitelistedAutomator(_msgSender()), Unauthorized()
@@ -335,7 +340,8 @@ contract Vault is
     _transferAsset(asset, asset.strategy);
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
-    harvestedAssets = IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, amountTokenOutMin, feeConfig);
+    harvestedAssets =
+      IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, amountTokenOutMin, vaultConfig, feeConfig);
     if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);
   }
@@ -363,7 +369,7 @@ contract Vault is
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
-  function sweepToken(address[] calldata tokens) external nonReentrant onlyAdminOrAutomator {
+  function sweepToken(address[] calldata tokens) external nonReentrant onlyAutomator {
     uint256 length = tokens.length;
 
     for (uint256 i; i < length;) {
@@ -382,11 +388,7 @@ contract Vault is
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds)
-    external
-    nonReentrant
-    onlyAdminOrAutomator
-  {
+  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyAutomator {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
@@ -409,7 +411,7 @@ contract Vault is
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
     external
     nonReentrant
-    onlyAdminOrAutomator
+    onlyAutomator
   {
     uint256 length = _tokens.length;
 

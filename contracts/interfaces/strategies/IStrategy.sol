@@ -30,6 +30,7 @@ interface IStrategy is ICommon {
     AssetLib.Asset calldata asset,
     address tokenOut,
     uint256 amountTokenOutMin,
+    VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
   ) external returns (AssetLib.Asset[] memory);
 
