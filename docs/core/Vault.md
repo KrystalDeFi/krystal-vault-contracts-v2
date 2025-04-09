@@ -38,6 +38,12 @@ address WETH
 address vaultFactory
 ```
 
+### onlyAutomator
+
+```solidity
+modifier onlyAutomator()
+```
+
 ### onlyAdminOrAutomator
 
 ```solidity

@@ -51,7 +51,7 @@ function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig conf
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[])
+function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[])
 ```
 
 ### convertFromPrincipal

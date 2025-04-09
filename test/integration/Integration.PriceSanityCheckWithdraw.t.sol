@@ -33,7 +33,6 @@ contract IntegrationTest is TestCommon {
   VaultFactory public vaultFactory;
   Vault public vaultInstance;
 
-  
   uint256 public init_weth_balance_for_bighand_player;
   uint256 public init_2nd_token_balance_for_bighand_player;
 
@@ -161,7 +160,7 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
-    vaultAssets = vaultInstance.getInventory();    
+    vaultAssets = vaultInstance.getInventory();
 
     uint256 totalSupply = vaultInstance.totalSupply();
     uint256 balanceOfPlayer1 = vaultInstance.balanceOf(PLAYER_1);
@@ -187,7 +186,7 @@ contract IntegrationTest is TestCommon {
       WETH > MORPHO, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
-    );    
+    );
 
     console.log("==== Player 1 is withdrawing all from the vault (expect to be reverted) ====");
     vm.startPrank(PLAYER_1);
@@ -198,12 +197,12 @@ contract IntegrationTest is TestCommon {
 
     console.log("==== User is setting maxHarvestSlippage to 1000% ====");
     vm.startPrank(USER);
-    configManager.setMaxHarvestSlippage(100000);
+    configManager.setMaxHarvestSlippage(100_000);
     console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
 
     console.log("==== Player 1 is withdrawing all from the vault (again) ====");
-    vm.startPrank(PLAYER_1);        
-    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);    
+    vm.startPrank(PLAYER_1);
+    vaultInstance.withdraw(vaultInstance.balanceOf(PLAYER_1), false, 0);
 
     console.log("==== (2) bighand is paying back the loan by swapping all wETH -> MORPHO ====");
     vm.startPrank(BIGHAND_PLAYER);
@@ -214,9 +213,9 @@ contract IntegrationTest is TestCommon {
       WETH < MORPHO, // true if WETH is token0
       0, // amountOutMin - 0 for testing
       "" // empty data
-    );    
+    );
 
-    if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {      
+    if (init_2nd_token_balance_for_bighand_player > IERC20(MORPHO).balanceOf(BIGHAND_PLAYER)) {
       console.log("==== (3) bighand converts the lost to wETH to compare ====");
       uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
       vm.startPrank(BIGHAND_PLAYER);
@@ -228,9 +227,15 @@ contract IntegrationTest is TestCommon {
         0, // amountOutMin - 0 for testing
         "" // empty data
       );
-      console.log(">>> lost of bighand player (in wETH):                ", IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before);
+      console.log(
+        ">>> lost of bighand player (in wETH):                ",
+        IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before
+      );
     } else {
-      console.log("gain of the bighand player (in MORPHO)", IERC20(MORPHO).balanceOf(BIGHAND_PLAYER) - init_2nd_token_balance_for_bighand_player);
+      console.log(
+        "gain of the bighand player (in MORPHO)",
+        IERC20(MORPHO).balanceOf(BIGHAND_PLAYER) - init_2nd_token_balance_for_bighand_player
+      );
       console.log("==== (3) bighand converts the gain to wETH to compare ====");
       uint256 weth_balance_before = IERC20(WETH).balanceOf(BIGHAND_PLAYER);
       vm.startPrank(BIGHAND_PLAYER);
@@ -242,10 +247,14 @@ contract IntegrationTest is TestCommon {
         0, // amountOutMin - 0 for testing
         "" // empty data
       );
-      console.log(">>> gain of bighand player (in wETH):                ", IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before);
+      console.log(
+        ">>> gain of bighand player (in wETH):                ",
+        IERC20(WETH).balanceOf(BIGHAND_PLAYER) - weth_balance_before
+      );
     }
 
-    uint256 lost_weth_balance = 998252990397992028 - IERC20(WETH).balanceOf(PLAYER_1);    // 998252990397992028 is the WETH balance of player 1 if no bighand's swap happens
+    uint256 lost_weth_balance = 998_252_990_397_992_028 - IERC20(WETH).balanceOf(PLAYER_1); // 998252990397992028 is the
+      // WETH balance of player 1 if no bighand's swap happens
     console.log(">>> lost weth balance of player 1 after withdrawing: ", lost_weth_balance);
 
     vm.startPrank(USER);
@@ -253,7 +262,9 @@ contract IntegrationTest is TestCommon {
     uint256 vaultInstanceBalanceUser = vaultInstance.balanceOf(USER);
     vaultInstance.withdraw(vaultInstanceBalanceUser, false, 0);
 
-    console.log(">>> Summary of case: swapping %d e3 MORPHO -> wETH <<<", init_2nd_token_balance_for_bighand_player / (10 ** 15));
+    console.log(
+      ">>> Summary of case: swapping %d e3 MORPHO -> wETH <<<", init_2nd_token_balance_for_bighand_player / (10 ** 15)
+    );
     console.log(">>> WETH balance of user:      ", IERC20(WETH).balanceOf(USER));
     console.log(">>> WETH balance of player 1:  ", IERC20(WETH).balanceOf(PLAYER_1));
     console.log(">>> the share of owner in the vault: ", IERC20(address(vaultInstance)).balanceOf(USER));

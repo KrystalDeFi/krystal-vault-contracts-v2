@@ -109,16 +109,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param asset The asset to harvest
   /// @param tokenOut The token to swap to
   /// @param amountTokenOutMin The minimum amount out by tokenOut
+  /// @param vaultConfig The vault configuration
   /// @param feeConfig The fee configuration
   /// @return returnAssets The assets that were returned to the msg.sender
   function harvest(
     AssetLib.Asset calldata asset,
     address tokenOut,
     uint256 amountTokenOutMin,
+    VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
   ) external nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     require(asset.strategy == address(this), InvalidAsset());
-    returnAssets = _harvest(asset, tokenOut, amountTokenOutMin, feeConfig);
+    returnAssets = _harvest(asset, tokenOut, amountTokenOutMin, vaultConfig, feeConfig);
     if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
     if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
     IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
@@ -128,12 +130,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param asset The asset to harvest
   /// @param tokenOut The token to swap to
   /// @param amountTokenOutMin The minimum amount out by tokenOut
+  /// @param vaultConfig The vault configuration
   /// @param feeConfig The fee configuration
   /// @return returnAssets The assets that were returned to the msg.sender
   function _harvest(
     AssetLib.Asset calldata asset,
     address tokenOut,
     uint256 amountTokenOutMin,
+    VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).collect(
@@ -149,7 +153,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amountOut;
     uint256 amountInUsed;
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
-    validator.validatePriceSanity(pool);
+
+    if (vaultConfig.allowDeposit) validator.validatePriceSanity(pool);
 
     if (swapAmount > 0) {
       (amountOut, amountInUsed) = _swapToPrinciple(
@@ -336,6 +341,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     mintAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token0, 0, amount0);
     mintAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token1, 0, amount1);
     returnAssets = _mintPosition(
+      vaultConfig,
       mintAssets,
       MintPositionParams({
         nfpm: params.nfpm,
@@ -354,20 +360,24 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   }
 
   /// @notice mints a new position
+  /// @param vaultConfig The vault configuration
   /// @param assets The assets to mint the position, assets[0] = token0, assets[1] = token1
   /// @param params The parameters for minting the position
   /// @return returnAssets The assets that were returned to the msg.sender
-  function _mintPosition(AssetLib.Asset[] memory assets, MintPositionParams memory params)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function _mintPosition(
+    VaultConfig calldata vaultConfig,
+    AssetLib.Asset[] memory assets,
+    MintPositionParams memory params
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
 
     IERC20(token0.token).approve(address(params.nfpm), token0.amount);
     IERC20(token1.token).approve(address(params.nfpm), token1.amount);
 
-    validator.validateObservationCardinality(params.nfpm, params.fee, token0.token, token1.token);
+    if (vaultConfig.allowDeposit) {
+      validator.validateObservationCardinality(params.nfpm, params.fee, token0.token, token1.token);
+    }
 
     (uint256 tokenId,, uint256 amount0, uint256 amount1) = params.nfpm.mint(
       INFPM.MintParams(
@@ -530,9 +540,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       IERC20(otherAsset.token).approve(address(optimalSwapper), otherAsset.amount);
 
       bytes memory swapData = params.swapData;
-      (amountOut, amountInUsed) = optimalSwapper.poolSwap(
-        pool, otherAsset.amount, otherAsset.token < principalToken, 0, swapData
-      );
+      (amountOut, amountInUsed) =
+        optimalSwapper.poolSwap(pool, otherAsset.amount, otherAsset.token < principalToken, 0, swapData);
     }
 
     otherAsset.amount -= amountInUsed;
@@ -616,7 +625,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     if (!params.compoundFee) {
       address principalToken = vaultConfig.principalToken;
       uint256 compoundFeeAmountOutMin = params.compoundFeeAmountOutMin;
-      returnAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, feeConfig);
+      returnAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, vaultConfig, feeConfig);
       collected0 = returnAssets[0].amount;
       collected1 = returnAssets[1].amount;
     }
@@ -665,6 +674,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       int24 tickLower = params.tickLower;
       int24 tickUpper = params.tickUpper;
       AssetLib.Asset[] memory tmp = _mintPosition(
+        vaultConfig,
         returnAssets,
         MintPositionParams({
           nfpm: INFPM(asset0.token),
