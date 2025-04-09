@@ -49,6 +49,5 @@ export const BaseConfig: Record<string, IConfig> = {
       2, // WETH
       2, // wstETH
     ],
-    automatorAddress: "0xC1149cDA92B99CD17Ce66D82E599707f91D24BcA",
   },
 };
