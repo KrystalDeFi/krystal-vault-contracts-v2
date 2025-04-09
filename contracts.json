@@ -5,7 +5,7 @@
     "poolOptimalSwapper": "0x617ac8d19f312a573f3c3425573fa6b22ff43b3d",
     "configManager": "0xb039b5347981312b490f18382ad67858b4eaac18",
     "lpValidator": "0x27a9dd9f12a0ec7f5501a30ecbe5886c1239de05",
-    "lpStrategy": "0x2ad2b6faed8020354608381e29cf301921cf8028",
+    "lpStrategy": "0x6abe19d89396893fe8d051d982a75971ff1272fe",
     "vaultFactory": "0x2381af0ffc4f72440f1351cf091a1b772f2e8c9d"
   }
 }
