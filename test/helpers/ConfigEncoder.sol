@@ -20,7 +20,7 @@ contract IntegrationTest is TestCommon {
     // ~10% and 0.02% wide
     nativeConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 2 });
     // ~50% and 1% wide
-    nativeConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4054, tickWidthTypedMin: 99 });
+    nativeConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 100 });
 
     nativeConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
     nativeConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 5 });
@@ -39,7 +39,7 @@ contract IntegrationTest is TestCommon {
     // ~10% and 0.02% wide
     stableConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 2 });
     // ~50% and 1% wide
-    stableConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4054, tickWidthTypedMin: 99 });
+    stableConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 100 });
 
     stableConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
     stableConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 10_000 });
