@@ -93,24 +93,3 @@ _Checks if the pool is allowed_
 | ---- | ---- | ----------- |
 | [0] | bool | allowed If the pool is allowed |
 
-### _getAmountsForPool
-
-```solidity
-function _getAmountsForPool(contract IPancakeV3Pool pool) internal view returns (uint256 amount0, uint256 amount1)
-```
-
-_Gets the amounts for the pool_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| pool | contract IPancakeV3Pool | IUniswapV3Pool |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amount0 | uint256 | The amount of token0 |
-| amount1 | uint256 | The amount of token1 |
-
