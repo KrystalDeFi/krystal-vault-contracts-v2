@@ -308,5 +308,20 @@ contract VaultTest is TestCommon {
     assertEq(liquidity, 0);
 
     vault.withdraw(IERC20(vault).balanceOf(USER) / 2, false, 0);
+    // allocate into the closed position
+    {
+      assets = new AssetLib.Asset[](2);
+      assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.3 ether);
+      assets[1] = position;
+
+      ILpStrategy.SwapAndIncreaseLiquidityParams memory increaseParams =
+        ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
+      instruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
+        params: abi.encode(increaseParams)
+      });
+
+      vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    }
   }
 }

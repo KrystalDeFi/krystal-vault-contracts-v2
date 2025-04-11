@@ -342,7 +342,6 @@ contract Vault is
     feeConfig.vaultOwner = vaultOwner;
     harvestedAssets =
       IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, amountTokenOutMin, vaultConfig, feeConfig);
-    if (IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) == 0) inventory.removeAsset(asset);
     _addAssets(harvestedAssets);
   }
 
@@ -467,12 +466,8 @@ contract Vault is
   function _addAssets(AssetLib.Asset[] memory newAssets) internal {
     uint256 length = newAssets.length;
 
-    AssetLib.Asset memory asset;
     for (uint256 i; i < length;) {
-      asset = newAssets[i];
-      if (asset.strategy == address(0) || IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) != 0) {
-        inventory.addAsset(newAssets[i]);
-      }
+      inventory.addAsset(newAssets[i]);
 
       unchecked {
         i++;

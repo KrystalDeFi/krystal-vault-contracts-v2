@@ -344,7 +344,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -376,7 +376,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -449,7 +449,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);

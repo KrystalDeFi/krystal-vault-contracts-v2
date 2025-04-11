@@ -373,7 +373,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "Asset 1 token should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "Asset 1 tokenId should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "Asset 1 strategy should be zero address");
-    assertEq(vaultAssets[2].amount, 0, "Asset 2 amount should be 0");
+    assertEq(vaultAssets[2].amount, 1, "Asset 2 amount should be 1");
     assertEq(vaultAssets[2].token, SUSHI_NFPM, "Asset 2 token should be SUSHI_NFPM");
     assertEq(vaultAssets[2].strategy, address(lpStrategy), "Asset 2 strategy should be lpStrategy");
     assertEq(vaultAssets[3].amount, 1, "Asset 3 amount should be 1");
@@ -415,7 +415,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "the token 1 should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
+    assertEq(vaultAssets[2].amount, 1, "the amount of vaultAssets[2] should be 1");
     assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
     assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
     assertEq(vaultAssets[3].amount, 1, "the amount of vaultAssets[3] should be 1");
@@ -512,7 +512,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "the token of vaultAssets[1] should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
+    assertEq(vaultAssets[2].amount, 1, "the amount of vaultAssets[2] should be 1");
     assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
     assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
     assertEq(vaultAssets[3].amount, 1, "the amount of vaultAssets[3] should be 1");
