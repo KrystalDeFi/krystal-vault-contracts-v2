@@ -146,13 +146,17 @@ contract Vault is
 
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
-        uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
-        _transferAsset(currentAsset, currentAsset.strategy);
-        _transferAsset(
-          AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
-          currentAsset.strategy
-        );
-        _addAssets(IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig));
+        if (strategyPosValue != 0) {
+          uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
+          _transferAsset(currentAsset, currentAsset.strategy);
+          _transferAsset(
+            AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
+            currentAsset.strategy
+          );
+          _addAssets(
+            IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig)
+          );
+        }
       }
 
       unchecked {
@@ -252,16 +256,6 @@ contract Vault is
       _transferAsset(
         AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, returnAmount), _msgSender()
       );
-    }
-
-    if (totalSupply() == 0) {
-      for (uint256 i = 1; i < inventory.assets.length;) {
-        inventory.removeAsset(inventory.assets[i]);
-
-        unchecked {
-          i++;
-        }
-      }
     }
 
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
