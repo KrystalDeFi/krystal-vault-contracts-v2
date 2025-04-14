@@ -344,7 +344,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -376,7 +376,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -449,7 +449,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -472,10 +472,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    assertEq(vaultAssets[3].amount, 0);
+    assertEq(vaultAssets[3].amount, 1);
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
@@ -496,14 +496,46 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 0);
+    assertEq(vaultAssets[2].amount, 1);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    assertEq(vaultAssets[3].amount, 0);
+    assertEq(vaultAssets[3].amount, 1);
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
     assertEq(valueOfPositionInPrincipal, 0);
+
+    {
+      // Test re-allocate to zero asset
+      AssetLib.Asset[] memory incAssets = new AssetLib.Asset[](2);
+      incAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.3 ether);
+      incAssets[1] = vaultAssets[3];
+      ILpStrategy.SwapAndIncreaseLiquidityParams memory incParams =
+        ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
+      ICommon.Instruction memory incInstruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
+        params: abi.encode(incParams)
+      });
+      vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
+      vaultAssets = vaultInstance.getInventory();
+      assertEq(vaultAssets.length, 4);
+      assertEq(vaultAssets[0].amount, 1_700_000_000_430_602_689);
+      assertEq(vaultAssets[0].token, WETH);
+      assertEq(vaultAssets[0].tokenId, 0);
+      assertEq(vaultAssets[0].strategy, address(0));
+      assertEq(vaultAssets[1].amount, 0);
+      assertEq(vaultAssets[1].token, USDC);
+      assertEq(vaultAssets[1].tokenId, 0);
+      assertEq(vaultAssets[1].strategy, address(0));
+      assertEq(vaultAssets[2].amount, 1);
+      assertEq(vaultAssets[2].token, NFPM);
+      assertEq(vaultAssets[2].strategy, address(lpStrategy));
+      assertEq(vaultAssets[3].amount, 1);
+      assertEq(vaultAssets[3].token, NFPM);
+      assertEq(vaultAssets[3].strategy, address(lpStrategy));
+      valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
+      assertEq(valueOfPositionInPrincipal, 299_925_573_181_771_659);
+    }
 
     {
       // Manage Public Vault (allowed deposit)

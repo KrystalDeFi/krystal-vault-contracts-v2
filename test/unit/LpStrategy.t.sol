@@ -257,7 +257,7 @@ contract LpStrategyTest is TestCommon {
     assertNotEq(returnAssets[2].tokenId, 0);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     assertEq(returnAssets[3].token, NFPM);
-    assertEq(returnAssets[3].amount, 0);
+    assertEq(returnAssets[3].amount, 1);
     assertEq(returnAssets[3].tokenId, assets[0].tokenId);
     assertEq(IERC721(NFPM).ownerOf(returnAssets[3].tokenId), USER);
     console.log("==== swapAndCompound ====");
