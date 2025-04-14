@@ -1,11 +1,11 @@
 {
   "base_mainnet": {
-    "vault": "0x1776f8e9e00b78aec2780a8ab69e37928d48f471",
+    "vault": "0xc22223b0e9f563b3fe00277ed1c83e474c46e030",
     "vaultAutomator": ["0x90849b9e9e9f5ee3db1b45d94a0ed5e32ef3281b"],
     "poolOptimalSwapper": "0x617ac8d19f312a573f3c3425573fa6b22ff43b3d",
     "configManager": "0xb039b5347981312b490f18382ad67858b4eaac18",
     "lpValidator": "0x0a682f2a665ac56ab91a7cf8f41497e4a27b6961",
-    "lpStrategy": "0x8ec8389ea7ae457d2966c2fed05eaad3889d5462",
+    "lpStrategy": "0x9910f22c4b2a1634c985985d7cbc714d18926aee",
     "vaultFactory": "0x2381af0ffc4f72440f1351cf091a1b772f2e8c9d"
   }
 }
