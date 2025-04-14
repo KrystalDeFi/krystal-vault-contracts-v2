@@ -692,8 +692,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       returnAssets[1] = tmp[1];
       returnAssets[2] = tmp[2];
       returnAssets[3] = asset0;
-      // Prevent it from being added into vault's inventory
-      returnAssets[3].amount = 0;
     }
     if (!params.compoundFee) {
       returnAssets[0].amount += collected0;
