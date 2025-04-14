@@ -154,8 +154,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amountInUsed;
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
 
-    if (vaultConfig.allowDeposit) validator.validatePriceSanity(pool);
-
     if (swapAmount > 0) {
       (amountOut, amountInUsed) = _swapToPrinciple(
         SwapToPrincipalParams({
@@ -165,7 +163,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount: swapAmount,
           amountOutMin: 0,
           swapData: ""
-        })
+        }),
+        vaultConfig.allowDeposit
       );
     }
 
@@ -212,7 +211,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         tickLower: tickLower,
         tickUpper: tickUpper,
         swapData: ""
-      })
+      }),
+      vaultConfig.allowDeposit
     );
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](3);
     inputAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
@@ -262,7 +262,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount: returnAssets[indexOfOtherToken].amount,
           amountOutMin: 0,
           swapData: ""
-        })
+        }),
+        config.allowDeposit
       );
       returnAssets[indexOfPrincipalAsset].amount += amountOut;
       returnAssets[indexOfOtherToken].amount -= amountInUsed;
@@ -334,7 +335,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         tickLower: params.tickLower,
         tickUpper: params.tickUpper,
         swapData: params.swapData
-      })
+      }),
+      vaultConfig.allowDeposit
     );
 
     AssetLib.Asset[] memory mintAssets = new AssetLib.Asset[](2);
@@ -463,7 +465,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           tickLower: tickLower,
           tickUpper: tickUpper,
           swapData: swapData
-        })
+        }),
+        vaultConfig.allowDeposit
       );
     }
 
@@ -763,10 +766,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param params The parameters for swapping the principal token
   /// @return amount0 The amount of token0
   /// @return amount1 The amount of token1
-  function _optimalSwapFromPrincipal(SwapFromPrincipalParams memory params)
+  function _optimalSwapFromPrincipal(SwapFromPrincipalParams memory params, bool checkPriceSanity)
     internal
     returns (uint256 amount0, uint256 amount1)
   {
+    if (checkPriceSanity) validator.validatePriceSanity(params.pool);
+
     (amount0, amount1) = params.principalToken < params.otherToken
       ? (params.principalTokenAmount, 0)
       : (uint256(0), params.principalTokenAmount);
@@ -782,11 +787,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param params The parameters for swapping the token
   /// @return amountOut The result amount of principal token
   /// @return amountInUsed The amount of token used
-  function _swapToPrinciple(SwapToPrincipalParams memory params)
+  function _swapToPrinciple(SwapToPrincipalParams memory params, bool checkPriceSanity)
     internal
     returns (uint256 amountOut, uint256 amountInUsed)
   {
     require(params.token != params.principalToken, InvalidAsset());
+
+    if (checkPriceSanity) validator.validatePriceSanity(params.pool);
 
     IERC20(params.token).approve(address(optimalSwapper), params.amount);
     (amountOut, amountInUsed) = optimalSwapper.poolSwap(

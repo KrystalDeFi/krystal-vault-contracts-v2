@@ -344,7 +344,7 @@ Swaps the principal token to the other token and compounds the position
 ### _optimalSwapFromPrincipal
 
 ```solidity
-function _optimalSwapFromPrincipal(struct ILpStrategy.SwapFromPrincipalParams params) internal returns (uint256 amount0, uint256 amount1)
+function _optimalSwapFromPrincipal(struct ILpStrategy.SwapFromPrincipalParams params, bool checkPriceSanity) internal returns (uint256 amount0, uint256 amount1)
 ```
 
 Swaps the principal token to the other token
@@ -354,6 +354,7 @@ Swaps the principal token to the other token
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | params | struct ILpStrategy.SwapFromPrincipalParams | The parameters for swapping the principal token |
+| checkPriceSanity | bool |  |
 
 #### Return Values
 
@@ -365,7 +366,7 @@ Swaps the principal token to the other token
 ### _swapToPrinciple
 
 ```solidity
-function _swapToPrinciple(struct ILpStrategy.SwapToPrincipalParams params) internal returns (uint256 amountOut, uint256 amountInUsed)
+function _swapToPrinciple(struct ILpStrategy.SwapToPrincipalParams params, bool checkPriceSanity) internal returns (uint256 amountOut, uint256 amountInUsed)
 ```
 
 Swaps the token to the principal token
@@ -375,6 +376,7 @@ Swaps the token to the principal token
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | params | struct ILpStrategy.SwapToPrincipalParams | The parameters for swapping the token |
+| checkPriceSanity | bool |  |
 
 #### Return Values
 
