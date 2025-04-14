@@ -5,6 +5,8 @@ import "../../interfaces/strategies/ILpValidator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
@@ -47,13 +49,10 @@ contract LpValidator is ILpValidator {
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
 
-    (uint256 poolAmount0, uint256 poolAmount1) = _getAmountsForPool(IUniswapV3Pool(pool));
+    uint256 poolPrincipalTokenAmount = IERC20(config.principalToken).balanceOf(pool);
 
     // Check if the pool amount is greater than the minimum amount principal token
-    require(
-      (config.principalToken == token0 ? poolAmount0 : poolAmount1) >= tvlConfig.principalTokenAmountMin,
-      InvalidPoolAmountMin()
-    );
+    require(poolPrincipalTokenAmount >= tvlConfig.principalTokenAmountMin, InvalidPoolAmountMin());
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     uint256 token0Type = configManager.getTypedToken(token0);
@@ -151,16 +150,5 @@ contract LpValidator is ILpValidator {
     }
 
     return false;
-  }
-
-  /// @dev Gets the amounts for the pool
-  /// @param pool IUniswapV3Pool
-  /// @return amount0 The amount of token0
-  /// @return amount1 The amount of token1
-  function _getAmountsForPool(IUniswapV3Pool pool) internal view returns (uint256 amount0, uint256 amount1) {
-    (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
-    uint128 liquidity = pool.liquidity();
-    (amount0, amount1) =
-      LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, TickMath.MIN_SQRT_RATIO, TickMath.MAX_SQRT_RATIO, liquidity);
   }
 }
