@@ -579,8 +579,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
 
-    amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
-    amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
+    if (amount0Collected > 0) amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
+    if (amount1Collected > 0) amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
 
     if (params.liquidity > 0) {
       nfpm.decreaseLiquidity(
@@ -729,8 +729,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       INFPM.CollectParams(asset0.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
 
-    amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
-    amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
+    if (amount0Collected > 0) amount0Collected -= _takeFee(token0, amount0Collected, feeConfig);
+    if (amount1Collected > 0) amount1Collected -= _takeFee(token1, amount1Collected, feeConfig);
 
     IERC20(token0).approve(address(optimalSwapper), amount0Collected);
     IERC20(token1).approve(address(optimalSwapper), amount1Collected);

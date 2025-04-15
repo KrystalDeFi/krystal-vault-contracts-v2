@@ -31,31 +31,19 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    wrapToken: "0x4200000000000000000000000000000000000006",
+    wrapToken: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
     typedTokens: [
-      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // USDC
-      "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2", // USDT
-      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb", // DAI
-      "0x4200000000000000000000000000000000000006", // WETH
-      "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca", // USDBC
-      "0x820c137fa70c8691f0e44dc420a5e53c168921dc", // USDS
-      "0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452", // wstETH
-      "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22", // CBETH
-      "0xb6fe221fe9eef5aba221c348ba20a1bf5e73624c", // RETH
-      "0xb29749498954a3a821ec37bde86e386df3ce30b6", // LSETH
+      "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+      "0xc2132D05D31c914a87C6611C10748Aaeb04B58e8", // USDT
+      "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063", // DAI
+      "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WPOL
     ],
     // 1 for stable, 2 for ETH,...
     typedTokensTypes: [
       1, // USDC
       1, // USDT
       1, // DAI
-      2, // WETH
-      1, // USDBC
-      1, // USDS
-      2, // wstETH
-      2, // CBETH
-      2, // RETH
-      2, // LSETH
+      2, // WPOL
     ],
   },
 };
