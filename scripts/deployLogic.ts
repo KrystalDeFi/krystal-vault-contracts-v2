@@ -10,6 +10,7 @@ import {
   VaultAutomator as LpUniV3VaultAutomator,
   LpValidator,
 } from "../typechain-types/contracts/strategies/lpUniV3";
+import { commonConfig } from "../configs/config_common";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -86,8 +87,48 @@ async function deployContracts(
   });
 
   // whitelist lp strategy in config manager
-  if (configManager.configManager && lpStrategy.lpStrategy) {
+  if (configManager.configManager && lpStrategy.lpStrategy && lpValidator.lpValidator) {
     await configManager.configManager.whitelistStrategy([lpStrategy.lpStrategy.target], true);
+    await configManager.configManager.setFeeConfig(true, {
+      vaultOwnerFeeBasisPoint: commonConfig.vaultOwnerFeeBasisPoint,
+      vaultOwner: commonConfig.feeCollector,
+      platformFeeBasisPoint: commonConfig.platformFeeBasisPoint,
+      platformFeeRecipient: commonConfig.feeCollector,
+      gasFeeX64: 0,
+      gasFeeRecipient: commonConfig.feeCollector,
+    });
+    await configManager.configManager.setFeeConfig(false, {
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: commonConfig.feeCollector,
+      platformFeeBasisPoint: commonConfig.platformFeeBasisPoint,
+      platformFeeRecipient: commonConfig.feeCollector,
+      gasFeeX64: 0,
+      gasFeeRecipient: commonConfig.feeCollector,
+    });
+    // Config for wrap token
+    await configManager.configManager.setStrategyConfig(
+      lpValidator.lpValidator.target,
+      networkConfig?.wrapToken || "",
+      commonConfig.nativeConfig,
+    );
+    // Config for USDC
+    await configManager.configManager.setStrategyConfig(
+      lpValidator.lpValidator.target,
+      networkConfig?.typedTokens?.[0] || "",
+      commonConfig.stableConfigWith6Decimals,
+    );
+    // Config for USDT
+    await configManager.configManager.setStrategyConfig(
+      lpValidator.lpValidator.target,
+      networkConfig?.typedTokens?.[1] || "",
+      commonConfig.stableConfigWith6Decimals,
+    );
+    // Config for DAI
+    await configManager.configManager.setStrategyConfig(
+      lpValidator.lpValidator.target,
+      networkConfig?.typedTokens?.[2] || "",
+      commonConfig.stableConfigWith18Decimals,
+    );
   }
 
   return contracts;
