@@ -167,6 +167,11 @@
   },
   {
     "inputs": [],
+    "name": "ExceedMaxAllocatePerBlock",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FailedToSendEther",
     "type": "error"
   },

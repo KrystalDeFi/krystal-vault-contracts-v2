@@ -134,6 +134,12 @@ error InvalidWETH()
 error InsufficientReturnAmount()
 ```
 
+### ExceedMaxAllocatePerBlock
+
+```solidity
+error ExceedMaxAllocatePerBlock()
+```
+
 ### vaultOwner
 
 ```solidity
