@@ -131,6 +131,7 @@ contract IntegrationTest is TestCommon {
     vm.startPrank(USER);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
+    vm.roll(block.number + 1);
     vaultAssets = vaultInstance.getInventory();
 
     console.log("==== Owner is allocating 1 ether to a new LP position ====");
@@ -154,12 +155,14 @@ contract IntegrationTest is TestCommon {
     });
     vm.startPrank(USER);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    vm.roll(block.number + 1);
     assertEq(vaultInstance.balanceOf(USER), 10_000_000_000_000_000_000_000);
 
     console.log("==== Player 1 is depositing 1 ether to the vault ====");
     vm.startPrank(PLAYER_1);
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
+    vm.roll(block.number + 1);
     vaultAssets = vaultInstance.getInventory();
 
     uint256 totalSupply = vaultInstance.totalSupply();
@@ -187,6 +190,7 @@ contract IntegrationTest is TestCommon {
       0, // amountOutMin - 0 for testing
       "" // empty data
     );
+    vm.roll(block.number + 1);
 
     console.log("==== Player 1 is withdrawing all from the vault (expect to be reverted) ====");
     vm.startPrank(PLAYER_1);
@@ -194,10 +198,12 @@ contract IntegrationTest is TestCommon {
     vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
 
     vaultInstance.withdraw(vaultInstanceBalanceP1, false, 0);
+    vm.roll(block.number + 1);
 
     console.log("==== User is setting maxHarvestSlippage to 1000% ====");
     vm.startPrank(USER);
     configManager.setMaxHarvestSlippage(100_000);
+    vm.roll(block.number + 1);
     console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
 
     console.log("==== Player 1 is withdrawing all from the vault (again) ====");

@@ -147,6 +147,7 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(params)
     });
     vm.startPrank(USER);
+    vm.roll(block.number + 1);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(vaultInstance.balanceOf(USER), 10_000_000_000_000_000_000_000);
 

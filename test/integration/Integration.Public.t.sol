@@ -149,6 +149,7 @@ contract IntegrationTest is TestCommon {
   }
 
   function test_integration() public {
+    uint256 currentBlock = block.number;
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
 
     console.log("==== Owner is depositing 1 ether to an empty vault ====");
@@ -177,6 +178,7 @@ contract IntegrationTest is TestCommon {
       params: abi.encode(params)
     });
     vm.startPrank(USER);
+    vm.roll(++currentBlock);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     console.log("balance of the shares of the owner: ", vaultInstance.balanceOf(USER));

@@ -158,6 +158,8 @@ contract IntegrationTest is TestCommon {
     console.log("==== test_deposit on Sushi ====");
     console.log("==== User can deposit principal to mint shares ====");
 
+    uint256 currentBlock = block.number;
+
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
 
     // Deposit to a empty vault
@@ -205,6 +207,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
+    vm.roll(++currentBlock);
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     vaultAssets = vaultInstance.getInventory();
@@ -267,6 +270,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(incParams)
     });
+    vm.roll(++currentBlock);
     vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
 
     vaultAssets = vaultInstance.getInventory();
@@ -316,6 +320,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       params: abi.encode(decParams)
     });
+    vm.roll(++currentBlock);
     vaultInstance.allocate(decAssets, lpStrategy, 0, abi.encode(decInstruction));
 
     vaultAssets = vaultInstance.getInventory();
@@ -357,6 +362,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition),
       params: abi.encode(rebalanceParams)
     });
+    vm.roll(++currentBlock);
     vaultInstance.allocate(rebalanceAssets, lpStrategy, 0, abi.encode(rebalanceInstruction));
 
     vaultAssets = vaultInstance.getInventory();
@@ -392,6 +398,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndCompound),
       params: abi.encode(compoundParams)
     });
+    vm.roll(++currentBlock);
     vaultInstance.allocate(compoundAssets, lpStrategy, 0, abi.encode(compoundInstruction));
 
     vaultAssets = vaultInstance.getInventory();
@@ -615,6 +622,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams1)
     });
+    vm.roll(++currentBlock);
     vm.expectRevert(ILpValidator.InvalidPoolAmountMin.selector);
     vaultInstance.allocate(anotherAssets1, lpStrategy, 0, abi.encode(anotherInstruction1));
 
@@ -650,6 +658,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams2)
     });
+    vm.roll(++currentBlock);
     vm.expectRevert(ILpValidator.InvalidTickWidth.selector);
     vaultInstance.allocate(anotherAssets2, lpStrategy, 0, abi.encode(anotherInstruction2));
 
@@ -671,6 +680,7 @@ contract IntegrationTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(anotherParams3)
     });
+    vm.roll(++currentBlock);
     vm.expectRevert(ILpValidator.InvalidPool.selector);
     vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
   }
