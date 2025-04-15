@@ -11,7 +11,15 @@ dotenv.config({
   path: "./.env",
 });
 
-const { PRIVATE_KEY, BASESCAN_APIKEY } = process.env;
+const {
+  PRIVATE_KEY,
+  BASESCAN_APIKEY,
+  ETHERSCAN_APIKEY,
+  ARBISCAN_APIKEY,
+  POLYGONSCAN_APIKEY,
+  OPTIMISM_APIKEY,
+  BSCSCAN_APIKEY,
+} = process.env;
 const customNetworkConfig = process.env.CHAIN && process.env.CHAIN ? `${process.env.CHAIN}_${process.env.NETWORK}` : "";
 
 const config: HardhatUserConfig = {
@@ -74,7 +82,12 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
+      mainnet: ETHERSCAN_APIKEY || "",
       base: BASESCAN_APIKEY || "",
+      optimisticEthereum: OPTIMISM_APIKEY || "",
+      bsc: BSCSCAN_APIKEY || "",
+      polygon: POLYGONSCAN_APIKEY || "",
+      arbitrumOne: ARBISCAN_APIKEY || "",
     },
     customChains: [
       {
@@ -104,6 +117,41 @@ if (PRIVATE_KEY) {
   config.networks!.base_mainnet = {
     url: `https://mainnet.base.org`,
     chainId: 8453,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.eth_mainnet = {
+    url: `https://eth.llamarpc.com`,
+    chainId: 1,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.bsc_mainnet = {
+    url: `https://binance.llamarpc.com`,
+    chainId: 56,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.polygon_mainnet = {
+    url: `https://polygon-rpc.com`,
+    chainId: 137,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.optimism_mainnet = {
+    url: `https://op-pokt.nodies.app`,
+    chainId: 10,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.arbitrum_mainnet = {
+    url: `https://arbitrum-one-rpc.publicnode.com`,
+    chainId: 42161,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",

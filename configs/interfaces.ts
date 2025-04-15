@@ -33,5 +33,4 @@ export interface IConfig {
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
   typedTokensTypes?: number[];
-  automatorAddress?: string;
 }
