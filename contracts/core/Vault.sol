@@ -49,6 +49,7 @@ contract Vault is
   VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
+  uint256 lastAllocateBlockNumber;
 
   modifier onlyAutomator() {
     require(configManager.isWhitelistedAutomator(_msgSender()), Unauthorized());
@@ -272,6 +273,8 @@ contract Vault is
     onlyAdminOrAutomator
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
+    require(block.number > lastAllocateBlockNumber, ExceedMaxAllocatePerBlock());
+    lastAllocateBlockNumber = block.number;
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount;

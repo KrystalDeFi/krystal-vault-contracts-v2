@@ -509,6 +509,7 @@ contract LpStrategyTest is TestCommon {
     {
       IUniswapV3Pool(pool).increaseObservationCardinalityNext(3);
       skip(100);
+      vm.roll(block.number + 1);
     }
 
     ICommon.FeeConfig memory publicFeeConfig = ICommon.FeeConfig({
@@ -549,6 +550,7 @@ contract LpStrategyTest is TestCommon {
       transferAssets(assets, address(lpStrategy));
       returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
       skip(100);
+      vm.roll(block.number + 1);
       int24 tick;
       (, tick,,,,,) = IUniswapV3Pool(pool).slot0();
       console.log("==== tick before price surge %s ====", tick);
@@ -557,6 +559,7 @@ contract LpStrategyTest is TestCommon {
       // swap a very large amount to drive the price up
       IERC20(DAI).approve(address(swapper), 20_000 ether);
       swapper.poolSwap(pool, 20_000 ether, false, 0, "");
+      vm.roll(block.number + 1);
       console.log("==== tick after price surge %s ====", tick);
 
       console.log("==== cannot harvest because price surge pass 5% ====");

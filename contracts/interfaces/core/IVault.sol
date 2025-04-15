@@ -37,6 +37,7 @@ interface IVault is ICommon {
   error FailedToSendEther();
   error InvalidWETH();
   error InsufficientReturnAmount();
+  error ExceedMaxAllocatePerBlock();
 
   function vaultOwner() external view returns (address);
 

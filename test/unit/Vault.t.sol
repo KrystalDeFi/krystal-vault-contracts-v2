@@ -101,6 +101,7 @@ contract VaultTest is TestCommon {
     });
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
+    vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
@@ -179,6 +180,9 @@ contract VaultTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+
+    vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
     setErc20Balance(WETH, USER, 0);
@@ -242,11 +246,13 @@ contract VaultTest is TestCommon {
     });
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
+    vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
   }
 
   function test_vaultWithEmptyPosition() public {
     vm.deal(USER, 100 ether);
+    uint256 currentBlock = block.number;
 
     vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
@@ -269,6 +275,7 @@ contract VaultTest is TestCommon {
       params: abi.encode(params)
     });
 
+    vm.roll(++currentBlock);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     AssetLib.Asset[] memory inventoryAssets = vault.getInventory();
     AssetLib.Asset memory position;
@@ -294,6 +301,7 @@ contract VaultTest is TestCommon {
     });
 
     assets[0] = position;
+    vm.roll(++currentBlock);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     inventoryAssets = vault.getInventory();
@@ -321,6 +329,7 @@ contract VaultTest is TestCommon {
         params: abi.encode(increaseParams)
       });
 
+      vm.roll(++currentBlock);
       vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     }
   }
