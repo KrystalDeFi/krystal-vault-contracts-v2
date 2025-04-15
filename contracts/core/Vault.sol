@@ -112,6 +112,7 @@ contract Vault is
   /// @return shares Amount of shares minted
   function deposit(uint256 principalAmount, uint256 minShares) external payable nonReentrant returns (uint256 shares) {
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
+    require(principalAmount != 0, InvalidAssetAmount());
 
     uint256 length = inventory.assets.length;
 
@@ -489,11 +490,11 @@ contract Vault is
   /// @param to Recipient of the asset
   function _transferAsset(AssetLib.Asset memory asset, address to) internal {
     inventory.removeAsset(asset);
-    if (asset.assetType == AssetLib.AssetType.ERC20) {
+    if (asset.assetType == AssetLib.AssetType.ERC20 && asset.amount != 0) {
       IERC20(asset.token).safeTransfer(to, asset.amount);
     } else if (asset.assetType == AssetLib.AssetType.ERC721) {
       IERC721(asset.token).safeTransferFrom(address(this), to, asset.tokenId);
-    } else if (asset.assetType == AssetLib.AssetType.ERC1155) {
+    } else if (asset.assetType == AssetLib.AssetType.ERC1155 && asset.amount != 0) {
       IERC1155(asset.token).safeTransferFrom(address(this), to, asset.tokenId, asset.amount, "");
     }
   }
