@@ -32,12 +32,10 @@ const config: HardhatUserConfig = {
           optimizer: {
             enabled: true,
             runs: 150,
-            details: {
-              yul: true,
-            },
           },
+          evmVersion: "cancun",
           metadata: {
-            bytecodeHash: "none",
+            bytecodeHash: "none"
           },
         },
       },

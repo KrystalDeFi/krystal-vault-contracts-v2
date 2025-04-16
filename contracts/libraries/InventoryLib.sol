@@ -4,6 +4,8 @@ pragma solidity >=0.8.28;
 import { AssetLib } from "./AssetLib.sol";
 
 library InventoryLib {
+  error AssetNotFound();
+
   struct Inventory {
     AssetLib.Asset[] assets;
     mapping(address => mapping(uint256 => uint256)) assetIndex;
@@ -21,7 +23,7 @@ library InventoryLib {
 
   function removeAsset(Inventory storage self, AssetLib.Asset memory asset) internal {
     uint256 index = self.assetIndex[asset.token][asset.tokenId];
-    require(index != 0, "InventoryLib: asset not found");
+    require(index != 0, AssetNotFound());
     AssetLib.Asset storage storedAsset = self.assets[index - 1];
     require(storedAsset.amount >= asset.amount, "InventoryLib: insufficient amount");
     storedAsset.amount -= asset.amount;
@@ -33,7 +35,7 @@ library InventoryLib {
     returns (AssetLib.Asset memory)
   {
     uint256 index = self.assetIndex[token][tokenId];
-    require(index != 0, "InventoryLib: asset not found");
+    require(index != 0, AssetNotFound());
     return self.assets[index - 1];
   }
 
