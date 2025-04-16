@@ -145,14 +145,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     );
 
     (,, address pToken, address swapToken, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
-    if (swapToken == tokenOut) {
+    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(pToken, swapToken, fee);
+    if (tokenOut == swapToken) {
       (principalAmount, swapAmount) = (swapAmount, principalAmount);
       swapToken = pToken;
     }
 
     uint256 amountOut;
     uint256 amountInUsed;
-    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(tokenOut, swapToken, fee);
 
     if (swapAmount > 0) {
       (amountOut, amountInUsed) = _swapToPrinciple(
@@ -168,22 +168,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       );
     }
 
-    // validate principalAmount + amountOut and swapAmount - amountInUsed must be greater than amountTokenOutMin
-    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-    uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
-    require(
-      principalAmount + amountOut + FullMath.mulDiv(swapAmount - amountInUsed, priceX96, FixedPoint96.Q96)
-        >= amountTokenOutMin,
-      InsufficientAmountOut()
-    );
-
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
 
+    require(returnAssets[0].amount >= amountTokenOutMin, InsufficientAmountOut());
+
     if (returnAssets[0].amount > 0) returnAssets[0].amount -= _takeFee(tokenOut, returnAssets[0].amount, feeConfig);
     if (returnAssets[1].amount > 0) returnAssets[1].amount -= _takeFee(swapToken, returnAssets[1].amount, feeConfig);
+    if (tokenOut > swapToken) (returnAssets[0], returnAssets[1]) = (returnAssets[1], returnAssets[0]);
   }
 
   /// @notice convert the asset from the principal token
