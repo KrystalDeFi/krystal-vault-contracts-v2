@@ -14,6 +14,12 @@ enum InstructionType {
 }
 ```
 
+### LpStrategyCompound
+
+```solidity
+event LpStrategyCompound(uint256 amount0Collected, uint256 amount1Collected, struct AssetLib.Asset[] compoundAssets)
+```
+
 ### MintPositionParams
 
 ```solidity

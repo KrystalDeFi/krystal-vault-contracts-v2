@@ -754,6 +754,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     if (amount0 > 0 || amount1 > 0) {
       uint256 amount0Min = params.amount0Min;
       uint256 amount1Min = params.amount1Min;
+      emit LpStrategyCompound(msg.sender, amount0Collected, amount1Collected, returnAssets);
       returnAssets = _increaseLiquidity(returnAssets, IncreaseLiquidityParams(amount0Min, amount1Min));
     }
 
