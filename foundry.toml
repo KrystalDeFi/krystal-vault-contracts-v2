@@ -13,6 +13,7 @@ gas_reports = ['*']
 auto_detect_solc = true
 offline = false
 ignored_error_codes = ["license", "code-size"]
+bytecode_hash = 'none'
 
 [fuzz]
 runs = 256

@@ -2,6 +2,12 @@
 
 ## InventoryLib
 
+### AssetNotFound
+
+```solidity
+error AssetNotFound()
+```
+
 ### Inventory
 
 ```solidity
