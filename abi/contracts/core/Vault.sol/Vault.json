@@ -314,6 +314,11 @@
   },
   {
     "inputs": [],
+    "name": "VaultPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
   },

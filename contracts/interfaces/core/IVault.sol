@@ -23,6 +23,7 @@ interface IVault is ICommon {
 
   event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
 
+  error VaultPaused();
   error InvalidAssetToken();
   error InvalidAssetAmount();
   error InvalidSweepAsset();

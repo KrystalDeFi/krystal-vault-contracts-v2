@@ -50,6 +50,12 @@ event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts)
 event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config)
 ```
 
+### VaultPaused
+
+```solidity
+error VaultPaused()
+```
+
 ### InvalidAssetToken
 
 ```solidity

@@ -56,6 +56,12 @@ modifier onlyAutomator()
 modifier onlyAdminOrAutomator()
 ```
 
+### whenNotPaused
+
+```solidity
+modifier whenNotPaused()
+```
+
 ### initialize
 
 ```solidity

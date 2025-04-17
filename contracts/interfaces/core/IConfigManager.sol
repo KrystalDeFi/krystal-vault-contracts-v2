@@ -8,6 +8,8 @@ interface IConfigManager is ICommon {
 
   event MaxHarvestSlippageSet(int24 _maxHarvestSlippage);
 
+  event VaultPausedSet(bool _isVaultPaused);
+
   event WhitelistStrategy(address[] _strategies, bool _isWhitelisted);
 
   event WhitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted);
@@ -23,6 +25,8 @@ interface IConfigManager is ICommon {
   function maxPositions() external view returns (uint8 _maxPositions);
 
   function maxHarvestSlippage() external view returns (int24 _maxHarvestSlippage);
+
+  function isVaultPaused() external view returns (bool _isVaultPaused);
 
   function whitelistStrategy(address[] memory _strategies, bool _isWhitelisted) external;
 
@@ -49,6 +53,10 @@ interface IConfigManager is ICommon {
   function setStrategyConfig(address _strategy, address _principalToken, bytes memory _config) external;
 
   function setMaxPositions(uint8 _maxPositions) external;
+
+  function setMaxHarvestSlippage(int24 _maxHarvestSlippage) external;
+
+  function setVaultPaused(bool _isVaultPaused) external;
 
   function setFeeConfig(bool allowDeposit, FeeConfig memory _feeConfig) external;
 
