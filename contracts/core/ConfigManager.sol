@@ -55,6 +55,7 @@ contract ConfigManager is Ownable, IConfigManager {
 
   uint8 public override maxPositions = 10;
   int24 public override maxHarvestSlippage = 500; // ~5%
+  bool public override isVaultPaused = false;
 
   FeeConfig private publicVaultFeeConfig;
   FeeConfig private privateVaultFeeConfig;
@@ -245,6 +246,14 @@ contract ConfigManager is Ownable, IConfigManager {
     maxHarvestSlippage = _maxHarvestSlippage;
 
     emit MaxHarvestSlippageSet(_maxHarvestSlippage);
+  }
+
+  /// @notice Set vault paused
+  /// @param _isVaultPaused Boolean value to set vault paused or unpaused
+  function setVaultPaused(bool _isVaultPaused) external onlyOwner {
+    isVaultPaused = _isVaultPaused;
+
+    emit VaultPausedSet(_isVaultPaused);
   }
 
   /// @notice Set fee config

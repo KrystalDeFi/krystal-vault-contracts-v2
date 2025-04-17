@@ -160,6 +160,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "name": "VaultPausedSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address[]",
         "name": "_automators",
         "type": "address[]"
@@ -349,6 +362,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "isVaultPaused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -484,6 +510,19 @@
   {
     "inputs": [
       {
+        "internalType": "int24",
+        "name": "_maxHarvestSlippage",
+        "type": "int24"
+      }
+    ],
+    "name": "setMaxHarvestSlippage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint8",
         "name": "_maxPositions",
         "type": "uint8"
@@ -531,6 +570,19 @@
       }
     ],
     "name": "setTypedTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "name": "setVaultPaused",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

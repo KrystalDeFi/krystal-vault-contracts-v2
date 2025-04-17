@@ -63,6 +63,11 @@ contract Vault is
     _;
   }
 
+  modifier whenNotPaused() {
+    require(!configManager.isVaultPaused(), VaultPaused());
+    _;
+  }
+
   /// @notice Initializes the vault
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
@@ -111,7 +116,13 @@ contract Vault is
   /// @param principalAmount Amount of in principalToken
   /// @param minShares Minimum amount of shares to mint
   /// @return shares Amount of shares minted
-  function deposit(uint256 principalAmount, uint256 minShares) external payable nonReentrant returns (uint256 shares) {
+  function deposit(uint256 principalAmount, uint256 minShares)
+    external
+    payable
+    nonReentrant
+    whenNotPaused
+    returns (uint256 shares)
+  {
     require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
     require(principalAmount != 0, InvalidAssetAmount());
 
@@ -271,6 +282,7 @@ contract Vault is
   function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint64 gasFeeX64, bytes calldata data)
     external
     onlyAdminOrAutomator
+    whenNotPaused
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
     require(block.number > lastAllocateBlockNumber, ExceedMaxAllocatePerBlock());
@@ -320,7 +332,11 @@ contract Vault is
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external onlyAdminOrAutomator {
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+    external
+    onlyAdminOrAutomator
+    whenNotPaused
+  {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
@@ -439,7 +455,7 @@ contract Vault is
 
   /// @notice Turn on allow deposit
   /// @param _config New vault config
-  function allowDeposit(VaultConfig calldata _config) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+  function allowDeposit(VaultConfig calldata _config) external override onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
     require(!vaultConfig.allowDeposit && _config.allowDeposit, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 

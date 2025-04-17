@@ -21,7 +21,6 @@ interface ILpStrategy is IStrategy {
     address vaultAddress, uint256 amount0Collected, uint256 amount1Collected, AssetLib.Asset[] compoundAssets
   );
 
-
   struct MintPositionParams {
     INFPM nfpm;
     address token0;

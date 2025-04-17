@@ -38,6 +38,12 @@ uint8 maxPositions
 int24 maxHarvestSlippage
 ```
 
+### isVaultPaused
+
+```solidity
+bool isVaultPaused
+```
+
 ### constructor
 
 ```solidity
@@ -284,6 +290,20 @@ Set max harvest slippage
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _maxHarvestSlippage | int24 | Max harvest slippage |
+
+### setVaultPaused
+
+```solidity
+function setVaultPaused(bool _isVaultPaused) external
+```
+
+Set vault paused
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _isVaultPaused | bool | Boolean value to set vault paused or unpaused |
 
 ### setFeeConfig
 

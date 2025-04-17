@@ -6,6 +6,7 @@ import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
+import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -301,6 +302,15 @@ contract VaultTest is TestCommon {
     });
 
     assets[0] = position;
+
+    vm.expectRevert(IVault.ExceedMaxAllocatePerBlock.selector);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+
+    configManager.setVaultPaused(true);
+    vm.expectRevert(IVault.VaultPaused.selector);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    configManager.setVaultPaused(false);
+    
     vm.roll(++currentBlock);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 

@@ -238,6 +238,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "name": "VaultPausedSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "address[]",
         "name": "_automators",
         "type": "address[]"
@@ -416,6 +429,19 @@
       }
     ],
     "name": "isMatchedWithType",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isVaultPaused",
     "outputs": [
       {
         "internalType": "bool",
@@ -642,6 +668,19 @@
       }
     ],
     "name": "setTypedTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "name": "setVaultPaused",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

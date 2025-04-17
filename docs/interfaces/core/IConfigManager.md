@@ -14,6 +14,12 @@ event MaxPositionsSet(uint8 _maxPositions)
 event MaxHarvestSlippageSet(int24 _maxHarvestSlippage)
 ```
 
+### VaultPausedSet
+
+```solidity
+event VaultPausedSet(bool _isVaultPaused)
+```
+
 ### WhitelistStrategy
 
 ```solidity
@@ -60,6 +66,12 @@ function maxPositions() external view returns (uint8 _maxPositions)
 
 ```solidity
 function maxHarvestSlippage() external view returns (int24 _maxHarvestSlippage)
+```
+
+### isVaultPaused
+
+```solidity
+function isVaultPaused() external view returns (bool _isVaultPaused)
 ```
 
 ### whitelistStrategy
@@ -138,6 +150,18 @@ function setStrategyConfig(address _strategy, address _principalToken, bytes _co
 
 ```solidity
 function setMaxPositions(uint8 _maxPositions) external
+```
+
+### setMaxHarvestSlippage
+
+```solidity
+function setMaxHarvestSlippage(int24 _maxHarvestSlippage) external
+```
+
+### setVaultPaused
+
+```solidity
+function setVaultPaused(bool _isVaultPaused) external
 ```
 
 ### setFeeConfig
