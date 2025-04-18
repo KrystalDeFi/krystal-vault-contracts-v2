@@ -8,6 +8,12 @@
 uint256 Q64
 ```
 
+### Q192
+
+```solidity
+uint256 Q192
+```
+
 ### optimalSwapper
 
 ```solidity
@@ -18,6 +24,12 @@ contract IOptimalSwapper optimalSwapper
 
 ```solidity
 contract ILpValidator validator
+```
+
+### thisAddress
+
+```solidity
+address thisAddress
 ```
 
 ### constructor
@@ -50,7 +62,7 @@ Get value of the asset in terms of principalToken
 ### convert
 
 ```solidity
-function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig, bytes data) external returns (struct AssetLib.Asset[] returnAssets)
+function convert(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig, bytes data) external payable returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Converts the asset to another assets
@@ -73,7 +85,7 @@ Converts the asset to another assets
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
+function harvest(struct AssetLib.Asset asset, address tokenOut, uint256 amountTokenOutMin, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) external payable returns (struct AssetLib.Asset[])
 ```
 
 Harvest the asset fee
@@ -92,7 +104,7 @@ Harvest the asset fee
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
+| [0] | struct AssetLib.Asset[] | returnAssets The assets that were returned to the msg.sender |
 
 ### _harvest
 
@@ -121,7 +133,7 @@ _Harvest the asset fee_
 ### convertFromPrincipal
 
 ```solidity
-function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external returns (struct AssetLib.Asset[] returnAssets)
+function convertFromPrincipal(struct AssetLib.Asset existingAsset, uint256 principalTokenAmount, struct ICommon.VaultConfig vaultConfig) external payable returns (struct AssetLib.Asset[])
 ```
 
 convert the asset from the principal token
@@ -138,12 +150,12 @@ convert the asset from the principal token
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| returnAssets | struct AssetLib.Asset[] | The assets that were returned to the msg.sender |
+| [0] | struct AssetLib.Asset[] | returnAssets The assets that were returned to the msg.sender |
 
 ### convertToPrincipal
 
 ```solidity
-function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) external returns (struct AssetLib.Asset[] returnAssets)
+function convertToPrincipal(struct AssetLib.Asset existingAsset, uint256 shares, uint256 totalSupply, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) external payable returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 convert the asset to the principal token

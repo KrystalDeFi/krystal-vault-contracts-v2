@@ -376,3 +376,9 @@ NOTE: This information is only used for _display_ purposes: it in
 no way affects any of the arithmetic of the contract, including
 {IERC20-balanceOf} and {IERC20-transfer}._
 
+### _delegateCallToStrategy
+
+```solidity
+function _delegateCallToStrategy(address strategy, bytes cData) internal returns (bytes returnData)
+```
+
