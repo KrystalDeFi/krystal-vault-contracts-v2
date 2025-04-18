@@ -319,7 +319,7 @@
         "type": "tuple[]"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -425,11 +425,11 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -581,7 +581,7 @@
         "type": "tuple[]"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -729,11 +729,11 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {

@@ -31,12 +31,11 @@ contract Vault is
   AccessControlUpgradeable,
   ERC20PermitUpgradeable,
   ReentrancyGuard,
-  IVault,
   ERC721Holder,
-  ERC1155Holder
+  ERC1155Holder,
+  IVault
 {
   using SafeERC20 for IERC20;
-
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
@@ -141,7 +140,6 @@ contract Vault is
       }
     }
     address principalToken = vaultConfig.principalToken;
-
     uint256 totalValue = getTotalValue();
 
     if (msg.value > 0) {
@@ -161,14 +159,15 @@ contract Vault is
         uint256 strategyPosValue = IStrategy(currentAsset.strategy).valueOf(currentAsset, principalToken);
         if (strategyPosValue != 0) {
           uint256 pAmountForStrategy = FullMath.mulDiv(principalAmount, strategyPosValue, totalValue);
-          _transferAsset(currentAsset, currentAsset.strategy);
-          _transferAsset(
-            AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy),
-            currentAsset.strategy
+          inventory.removeAsset(currentAsset);
+          inventory.removeAsset(
+            AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, pAmountForStrategy)
           );
-          _addAssets(
-            IStrategy(currentAsset.strategy).convertFromPrincipal(currentAsset, pAmountForStrategy, vaultConfig)
+          bytes memory cData = abi.encodeWithSelector(
+            IStrategy.convertFromPrincipal.selector, currentAsset, pAmountForStrategy, vaultConfig
           );
+          bytes memory returnData = _delegateCallToStrategy(currentAsset.strategy, cData);
+          _addAssets(abi.decode(returnData, (AssetLib.Asset[])));
         }
       }
 
@@ -235,10 +234,13 @@ contract Vault is
         }
       }
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
-        _transferAsset(currentAsset, currentAsset.strategy);
-        assets = IStrategy(currentAsset.strategy).convertToPrincipal(
-          currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
+        inventory.removeAsset(currentAsset);
+        bytes memory cData = abi.encodeWithSelector(
+          IStrategy.convertToPrincipal.selector, currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
         );
+        bytes memory returnData = _delegateCallToStrategy(currentAsset.strategy, cData);
+        // Decode the returned data
+        assets = abi.decode(returnData, (AssetLib.Asset[]));
         for (uint256 k; k < assets.length;) {
           if (assets[k].assetType != AssetLib.AssetType.ERC20) {
             inventory.addAsset(assets[k]);
@@ -301,18 +303,13 @@ contract Vault is
     }
 
     require(strategyCount < configManager.maxPositions(), MaxPositionsReached());
-
-    AssetLib.Asset memory currentAsset;
-
+    AssetLib.Asset memory inputAsset;
     length = inputAssets.length;
-
     for (uint256 i; i < length;) {
-      require(inputAssets[i].amount != 0, InvalidAssetAmount());
+      inputAsset = inputAssets[i];
+      require(inputAsset.amount != 0, InvalidAssetAmount());
 
-      currentAsset = inventory.getAsset(inputAssets[i].token, inputAssets[i].tokenId);
-      require(currentAsset.amount >= inputAssets[i].amount, InvalidAssetAmount());
-
-      _transferAsset(inputAssets[i], address(strategy));
+      inventory.removeAsset(inputAsset);
 
       unchecked {
         i++;
@@ -323,7 +320,12 @@ contract Vault is
     feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
 
-    AssetLib.Asset[] memory newAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+    // Encode the function call parameters
+    bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
+    bytes memory returnData = _delegateCallToStrategy(address(strategy), cData);
+
+    // Decode the returned data
+    AssetLib.Asset[] memory newAssets = abi.decode(returnData, (AssetLib.Asset[]));
     _addAssets(newAssets);
 
     emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);
@@ -351,11 +353,18 @@ contract Vault is
     internal
     returns (AssetLib.Asset[] memory harvestedAssets)
   {
-    _transferAsset(asset, asset.strategy);
+    inventory.removeAsset(asset);
+
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
-    harvestedAssets =
-      IStrategy(asset.strategy).harvest(asset, vaultConfig.principalToken, amountTokenOutMin, vaultConfig, feeConfig);
+
+    // Encode the function call parameters
+    bytes memory data = abi.encodeWithSelector(
+      IStrategy.harvest.selector, asset, vaultConfig.principalToken, amountTokenOutMin, vaultConfig, feeConfig
+    );
+    bytes memory returnData = _delegateCallToStrategy(asset.strategy, data);
+    // Decode the returned data
+    harvestedAssets = abi.decode(returnData, (AssetLib.Asset[]));
     _addAssets(harvestedAssets);
   }
 
@@ -565,5 +574,17 @@ contract Vault is
 
   function decimals() public view override returns (uint8) {
     return IERC20Metadata(vaultConfig.principalToken).decimals() + 4;
+  }
+
+  function _delegateCallToStrategy(address strategy, bytes memory cData) internal returns (bytes memory returnData) {
+    bool success;
+    (success, returnData) = strategy.delegatecall(cData);
+    if (!success) {
+      if (returnData.length == 0) revert("Strategy delegatecall failed");
+      assembly {
+        let returnDataSize := mload(returnData)
+        revert(add(32, returnData), returnDataSize)
+      }
+    }
   }
 }
