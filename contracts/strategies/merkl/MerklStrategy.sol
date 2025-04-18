@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import "../../libraries/AssetLib.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import { IMerklStrategy } from "../../interfaces/strategies/IMerklStrategy.sol";
 
 interface IMerklDistributor {
@@ -19,66 +18,57 @@ interface IMerklDistributor {
  * @title MerklStrategy
  * @notice Strategy for handling Merkl rewards for LP positions
  */
-contract MerklStrategy is ReentrancyGuard, IStrategy {
+contract MerklStrategy is IMerklStrategy {
   using SafeERC20 for IERC20;
 
   // Constants
   address private immutable thisAddress;
   address private immutable swapRouter;
-  IConfigManager public immutable configManager;
 
   // Events
   event MerklRewardsClaimed(address indexed token, uint256 amount);
 
   /**
    * @notice Constructor
-   * @param _configManager Address of the config manager
+   * @param _swapRouter Address of the config manager
    */
-  constructor(address _configManager) {
-    require(_configManager != address(0), "Zero address");
-    configManager = IConfigManager(_configManager);
+  constructor(address _swapRouter) {
+    require(_swapRouter != address(0), ZeroAddress());
+
+    swapRouter = _swapRouter;
     thisAddress = address(this);
   }
 
   /**
-   * @notice Calculate the value of an asset in terms of the principal token
-   * @param asset The asset to value
-   * @param principalToken The principal token to value against
-   * @return The value of the asset in terms of the principal token
+   * @notice Cannot be calculated
+   * @return 0
    */
-  function valueOf(AssetLib.Asset calldata asset, address principalToken) external view override returns (uint256) {
+  function valueOf(AssetLib.Asset calldata, address) external pure override returns (uint256) {
     return 0;
   }
 
   /**
    * @notice This function is used to claim Merkl rewwards, it does not convert any assets
-   * @param assets The assets to convert
+   * @param assets The assets passed must be an empty array
    * @param config The vault configuration
    * @param feeConfig The fee configuration
    * @param data Additional data for the conversion
-   * @return The resulting assets after conversion
+   * @return returnAssets The resulting assets after conversion
    */
   function convert(
     AssetLib.Asset[] calldata assets,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external payable override nonReentrant returns (AssetLib.Asset[] memory) {
+  ) external payable override returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 0, InvalidNumberOfAssets());
 
-    ClaimParams memory claimParams = abi.decode(data, (IMerklStrategy.ClaimParams));
-    _claim(claimParams.distributor, claimParams.token, claimParams.amount, claimParams.proof);
-
-    // Process the assets according to the strategy
-    // This would typically involve claiming Merkl rewards
-
-    // Return the processed assets
-    AssetLib.Asset[] memory resultAssets = new AssetLib.Asset[](assets.length);
-    for (uint256 i = 0; i < assets.length; i++) {
-      resultAssets[i] = assets[i];
+    Instruction memory instruction = abi.decode(data, (Instruction));
+    if (instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap)) {
+      return _claimAndSwap(config, feeConfig, data);
+    } else {
+      revert InvalidInstructionType();
     }
-
-    return resultAssets;
   }
 
   /**
@@ -96,7 +86,7 @@ contract MerklStrategy is ReentrancyGuard, IStrategy {
     uint256 amountTokenOutMin,
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
-  ) external payable override nonReentrant returns (AssetLib.Asset[] memory) { }
+  ) external payable override returns (AssetLib.Asset[] memory) { }
 
   /**
    * @notice Convert principal token to strategy assets
@@ -109,7 +99,7 @@ contract MerklStrategy is ReentrancyGuard, IStrategy {
     AssetLib.Asset calldata existingAsset,
     uint256 principalTokenAmount,
     VaultConfig calldata config
-  ) external payable override nonReentrant returns (AssetLib.Asset[] memory) { }
+  ) external payable override returns (AssetLib.Asset[] memory) { }
 
   /**
    * @notice Convert strategy assets to principal token
@@ -126,35 +116,42 @@ contract MerklStrategy is ReentrancyGuard, IStrategy {
     uint256 totalSupply,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
-  ) external payable override nonReentrant returns (AssetLib.Asset[] memory) { }
+  ) external payable override returns (AssetLib.Asset[] memory) { }
 
   /**
    * @notice Validate that an asset can be used with this strategy
    * @param asset The asset to validate
    * @param config The vault configuration
    */
-  function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view override {
-    require(asset.strategy == thisAddress, "InvalidAsset");
+  function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view override { }
 
-    // Validate that the asset is compatible with the strategy
-    // For Merkl strategy, this might involve checking if the token is eligible for Merkl rewards
-    // This is a simplified implementation
+  function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata, bytes calldata data)
+    internal
+    returns (AssetLib.Asset[] memory returnAssets)
+  {
+    ClaimAndSwapParams memory claimParams = abi.decode(data, (IMerklStrategy.ClaimAndSwapParams));
 
-    // Check if the token is supported by the vault
-    bool isSupported = false;
-    for (uint256 i = 0; i < config.supportedAddresses.length; i++) {
-      if (asset.token == config.supportedAddresses[i]) {
-        isSupported = true;
-        break;
-      }
-    }
+    address tokenIn = claimParams.token;
+    address tokenOut = config.principalToken;
+    uint256 amountInBefore = IERC20(tokenIn).balanceOf(address(this));
+    uint256 amountOutBefore = IERC20(tokenOut).balanceOf(address(this));
 
-    require(isSupported, "Token not supported");
+    _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
 
-    // Additional validation can be added here
+    _swap(tokenIn, claimParams.amount, claimParams.swapData);
+
+    uint256 amountInAfter = IERC20(tokenIn).balanceOf(address(this));
+    uint256 amountOutAfter = IERC20(tokenOut).balanceOf(address(this));
+
+    require(amountOutAfter - amountOutBefore >= claimParams.amountOutMin, NotEnoughAmountOut());
+
+    returnAssets = new AssetLib.Asset[](2);
+    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountInAfter - amountInBefore);
+    returnAssets[1] =
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOutAfter - amountOutBefore);
   }
 
-  function _claim(address distributor, address token, uint256 amount, bytes32[] calldata proofs) internal {
+  function _claim(address distributor, address token, uint256 amount, bytes32[] memory proofs) internal {
     address[] memory users = new address[](1);
     users[0] = address(this);
     address[] memory tokens = new address[](1);
@@ -167,9 +164,7 @@ contract MerklStrategy is ReentrancyGuard, IStrategy {
     IMerklDistributor(distributor).claim(users, tokens, amounts, proofsArray);
   }
 
-  function _swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes calldata swapData)
-    internal
-  {
+  function _swap(address tokenIn, uint256 amountIn, bytes memory swapData) internal {
     // Implement the swap logic here
     // This could involve calling a DEX router or other swap mechanism
     _safeApprove(IERC20(tokenIn), swapRouter, amountIn);
