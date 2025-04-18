@@ -187,7 +187,7 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
+
     console.log("==== swapAndIncreasePosition ====");
     ILpStrategy.SwapAndIncreaseLiquidityParams memory increaseParams =
       ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -210,7 +210,8 @@ contract LpStrategyTest is TestCommon {
       tokenId: returnAssets[2].tokenId,
       amount: 1
     });
-    transferAssets(assets, address(lpStrategy));
+    transferAsset(assets[0], address(lpStrategy));
+
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
@@ -220,7 +221,7 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
+
     console.log("==== swapAndRebalancePosition ====");
     ILpStrategy.SwapAndRebalancePositionParams memory rebalanceParams = ILpStrategy.SwapAndRebalancePositionParams({
       tickLower: -443_580,
@@ -245,7 +246,7 @@ contract LpStrategyTest is TestCommon {
       tokenId: returnAssets[2].tokenId,
       amount: 1
     });
-    transferAssets(assets, address(lpStrategy));
+
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 4);
     assertEq(returnAssets[0].token, WETH);
@@ -255,11 +256,9 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
     assertEq(returnAssets[3].token, NFPM);
     assertEq(returnAssets[3].amount, 1);
     assertEq(returnAssets[3].tokenId, assets[0].tokenId);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[3].tokenId), USER);
     console.log("==== swapAndCompound ====");
     ILpStrategy.SwapAndCompoundParams memory compoundParams =
       ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -275,7 +274,7 @@ contract LpStrategyTest is TestCommon {
       tokenId: returnAssets[2].tokenId,
       amount: 1
     });
-    transferAssets(assets, address(lpStrategy));
+
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
@@ -285,7 +284,7 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
+
     console.log("==== decreasePositionAndSwap ====");
     (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
     ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
@@ -307,7 +306,7 @@ contract LpStrategyTest is TestCommon {
       tokenId: returnAssets[2].tokenId,
       amount: 1
     });
-    transferAssets(assets, address(lpStrategy));
+
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
     assertEq(returnAssets.length, 3);
     assertEq(returnAssets[0].token, WETH);
@@ -317,7 +316,6 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
-    assertEq(IERC721(NFPM).ownerOf(returnAssets[2].tokenId), USER);
   }
 
   function test_LpStrategyFeeTaker() public {
@@ -385,7 +383,7 @@ contract LpStrategyTest is TestCommon {
       // uint256 fee1 = 2_651_766_154_928_366_678;
 
       console.log("==== test take fee when harvest ====");
-      transferAsset(returnAssets[2], address(lpStrategy));
+
       returnAssets = lpStrategy.harvest(returnAssets[2], WETH, 0, vaultConfig, publicFeeConfig);
 
       assertEq(returnAssets.length, 3);
@@ -431,7 +429,6 @@ contract LpStrategyTest is TestCommon {
         amount: 1
       });
 
-      transferAssets(assets, address(lpStrategy));
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
       // uint256 fee0 = 2_601_269_379_622_417;
@@ -486,7 +483,7 @@ contract LpStrategyTest is TestCommon {
         tokenId: returnAssets[2].tokenId,
         amount: 1
       });
-      transferAssets(assets, address(lpStrategy));
+
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
       assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
@@ -563,7 +560,6 @@ contract LpStrategyTest is TestCommon {
       console.log("==== tick after price surge %s ====", tick);
 
       console.log("==== cannot harvest because price surge pass 5% ====");
-      transferAsset(returnAssets[2], address(lpStrategy));
       vm.expectRevert(ILpValidator.PriceSanityCheckFailed.selector);
       returnAssets = lpStrategy.harvest(
         returnAssets[2],

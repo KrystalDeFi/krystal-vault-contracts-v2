@@ -100,10 +100,10 @@ contract VaultTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    console.log("vault.getTotalValue() 2: %d", vault.getTotalValue());
     assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
 
     IERC20(WETH).approve(address(vault), 100 ether);

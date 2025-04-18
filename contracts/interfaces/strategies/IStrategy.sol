@@ -24,7 +24,7 @@ interface IStrategy is ICommon {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external returns (AssetLib.Asset[] memory);
+  ) external payable returns (AssetLib.Asset[] memory);
 
   function harvest(
     AssetLib.Asset calldata asset,
@@ -32,13 +32,13 @@ interface IStrategy is ICommon {
     uint256 amountTokenOutMin,
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
-  ) external returns (AssetLib.Asset[] memory);
+  ) external payable returns (AssetLib.Asset[] memory);
 
   function convertFromPrincipal(
     AssetLib.Asset calldata existingAsset,
     uint256 principalTokenAmount,
     VaultConfig calldata config
-  ) external returns (AssetLib.Asset[] memory);
+  ) external payable returns (AssetLib.Asset[] memory);
 
   function convertToPrincipal(
     AssetLib.Asset memory existingAsset,
@@ -46,7 +46,7 @@ interface IStrategy is ICommon {
     uint256 totalSupply,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
-  ) external returns (AssetLib.Asset[] memory);
+  ) external payable returns (AssetLib.Asset[] memory);
 
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external;
 }
