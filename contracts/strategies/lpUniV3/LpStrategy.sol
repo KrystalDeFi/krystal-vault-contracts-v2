@@ -25,6 +25,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
   uint256 constant Q64 = 0x10000000000000000;
+  uint256 constant Q192 = 0x1000000000000000000000000000000000000000000000000;
 
   IOptimalSwapper public immutable optimalSwapper;
   ILpValidator public immutable validator;
@@ -55,7 +56,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
     uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, FixedPoint96.Q96);
     if (token0 == principalToken) {
-      priceX96 = FullMath.mulDiv(FixedPoint96.Q96, FixedPoint96.Q96, priceX96);
+      priceX96 = Q192 / priceX96;
       valueInPrincipal = amount0 + fee0 + FullMath.mulDiv(amount1 + fee1, priceX96, FixedPoint96.Q96);
     } else {
       valueInPrincipal = amount1 + fee1 + FullMath.mulDiv(amount0 + fee0, priceX96, FixedPoint96.Q96);
