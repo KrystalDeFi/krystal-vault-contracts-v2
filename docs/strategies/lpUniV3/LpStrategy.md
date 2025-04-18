@@ -26,12 +26,6 @@ contract IOptimalSwapper optimalSwapper
 contract ILpValidator validator
 ```
 
-### thisAddress
-
-```solidity
-address thisAddress
-```
-
 ### constructor
 
 ```solidity
