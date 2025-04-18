@@ -121,12 +121,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amountTokenOutMin,
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
-  ) external payable returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable returns (AssetLib.Asset[] memory) {
     require(asset.strategy == thisAddress, InvalidAsset());
-    returnAssets = _harvest(asset, tokenOut, amountTokenOutMin, vaultConfig, feeConfig);
-    // if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    // if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    // IERC721(asset.token).safeTransferFrom(address(this), msg.sender, asset.tokenId);
+    return _harvest(asset, tokenOut, amountTokenOutMin, vaultConfig, feeConfig);
   }
 
   /// @dev Harvest the asset fee
@@ -192,7 +189,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     AssetLib.Asset calldata existingAsset,
     uint256 principalTokenAmount,
     VaultConfig calldata vaultConfig
-  ) external payable returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable returns (AssetLib.Asset[] memory) {
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(existingAsset.token).positions(existingAsset.tokenId);
     address otherToken = (token0 == vaultConfig.principalToken) ? token1 : token0;
@@ -214,10 +211,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     inputAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
     inputAssets[2] = existingAsset;
 
-    returnAssets = _increaseLiquidity(inputAssets, IncreaseLiquidityParams(0, 0));
-    // if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    // if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    // IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
+    return _increaseLiquidity(inputAssets, IncreaseLiquidityParams(0, 0));
   }
 
   /// @notice convert the asset to the principal token
@@ -553,9 +547,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
     returnAssets[2] = lpAsset;
-    // if (principalAsset.amount > 0) IERC20(principalAsset.token).safeTransfer(msg.sender, principalAsset.amount);
-    // if (otherAsset.amount > 0) IERC20(otherAsset.token).safeTransfer(msg.sender, otherAsset.amount);
-    // IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
   /// @notice Decreases the liquidity of the position
@@ -697,11 +688,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       returnAssets[0].amount += collected0;
       returnAssets[1].amount += collected1;
     }
-
-    // if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    // if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    // IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
-    // IERC721(returnAssets[3].token).safeTransferFrom(address(this), msg.sender, returnAssets[3].tokenId);
   }
 
   /// @notice Swaps the principal token to the other token and compounds the position
@@ -754,10 +740,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       emit LpStrategyCompound(msg.sender, amount0Collected, amount1Collected, returnAssets);
       returnAssets = _increaseLiquidity(returnAssets, IncreaseLiquidityParams(amount0Min, amount1Min));
     }
-
-    // if (returnAssets[0].amount > 0) IERC20(returnAssets[0].token).safeTransfer(msg.sender, returnAssets[0].amount);
-    // if (returnAssets[1].amount > 0) IERC20(returnAssets[1].token).safeTransfer(msg.sender, returnAssets[1].amount);
-    // IERC721(returnAssets[2].token).safeTransferFrom(address(this), msg.sender, returnAssets[2].tokenId);
   }
 
   /// @notice Swaps the principal token to the other token
