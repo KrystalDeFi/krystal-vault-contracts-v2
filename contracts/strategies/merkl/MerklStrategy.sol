@@ -58,9 +58,6 @@ contract MerklStrategy is IMerklStrategy {
    * @param data Additional data for the conversion
    * @return returnAssets The resulting assets after conversion
    */
-  error InvalidInstructionType();
-  error InvalidSwapRouter();
-
   function convert(
     AssetLib.Asset[] calldata assets,
     VaultConfig calldata config,
@@ -131,7 +128,7 @@ contract MerklStrategy is IMerklStrategy {
    */
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view override { }
 
-  function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata, bytes calldata data)
+  function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata, bytes memory data)
     internal
     returns (AssetLib.Asset[] memory returnAssets)
   {
