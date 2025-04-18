@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "../../libraries/AssetLib.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "../../libraries/AssetLib.sol";
+
+import "../../interfaces/core/IConfigManager.sol";
 import { IMerklStrategy } from "../../interfaces/strategies/IMerklStrategy.sol";
 
 interface IMerklDistributor {
@@ -23,19 +26,19 @@ contract MerklStrategy is IMerklStrategy {
 
   // Constants
   address private immutable thisAddress;
-  address private immutable swapRouter;
+  IConfigManager private immutable configManager;
 
   // Events
   event MerklRewardsClaimed(address indexed token, uint256 amount);
 
   /**
    * @notice Constructor
-   * @param _swapRouter Address of the config manager
+   * @param _configManager Address of the config manager
    */
-  constructor(address _swapRouter) {
-    require(_swapRouter != address(0), ZeroAddress());
+  constructor(address _configManager) {
+    require(_configManager != address(0), ZeroAddress());
 
-    swapRouter = _swapRouter;
+    configManager = IConfigManager(_configManager);
     thisAddress = address(this);
   }
 
@@ -138,7 +141,7 @@ contract MerklStrategy is IMerklStrategy {
 
     _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
 
-    _swap(tokenIn, claimParams.amount, claimParams.swapData);
+    _swap(tokenIn, claimParams.amount, claimParams.swapRouter, claimParams.swapData);
 
     uint256 amountInAfter = IERC20(tokenIn).balanceOf(address(this));
     uint256 amountOutAfter = IERC20(tokenOut).balanceOf(address(this));
@@ -164,7 +167,8 @@ contract MerklStrategy is IMerklStrategy {
     IMerklDistributor(distributor).claim(users, tokens, amounts, proofsArray);
   }
 
-  function _swap(address tokenIn, uint256 amountIn, bytes memory swapData) internal {
+  function _swap(address tokenIn, uint256 amountIn, address swapRouter, bytes memory swapData) internal {
+    require(configManager.isWhitelistedSwapRouter(swapRouter), InvalidSwapRouter());
     // Implement the swap logic here
     // This could involve calling a DEX router or other swap mechanism
     _safeApprove(IERC20(tokenIn), swapRouter, amountIn);
@@ -180,7 +184,7 @@ contract MerklStrategy is IMerklStrategy {
           revert(add(32, returnData), returnDataSize)
         }
       } else {
-        revert("Swap failed with no error message");
+        revert SwapFailed();
       }
     }
   }
@@ -191,7 +195,8 @@ contract MerklStrategy is IMerklStrategy {
   /// the token not allow to approve 0, which means the following line code will work properly
   function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
     /// @dev omitted approve(0) result because it might fail and does not break the flow
-    address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
+    (bool success,) = address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
+    require(success, ApproveFailed());
 
     /// @dev value for approval after reset must greater than 0
     require(_value > 0);
@@ -205,7 +210,7 @@ contract MerklStrategy is IMerklStrategy {
       // some token does not allow approve(0) so we skip check for this case
       return;
     }
-    require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), "SafeERC20: approve failed");
+    require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
   }
 
   /**

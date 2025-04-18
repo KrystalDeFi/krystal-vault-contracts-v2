@@ -310,7 +310,7 @@ contract VaultTest is TestCommon {
     vm.expectRevert(IVault.VaultPaused.selector);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     configManager.setVaultPaused(false);
-    
+
     vm.roll(++currentBlock);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 

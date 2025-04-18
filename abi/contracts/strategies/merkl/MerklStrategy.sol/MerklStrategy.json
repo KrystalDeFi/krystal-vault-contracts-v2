@@ -3,12 +3,17 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_swapRouter",
+        "name": "_configManager",
         "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -53,6 +58,11 @@
   {
     "inputs": [],
     "name": "NotEnoughAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapFailed",
     "type": "error"
   },
   {

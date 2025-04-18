@@ -8,6 +8,18 @@
 error NotEnoughAmountOut()
 ```
 
+### ApproveFailed
+
+```solidity
+error ApproveFailed()
+```
+
+### SwapFailed
+
+```solidity
+error SwapFailed()
+```
+
 ### InstructionType
 
 ```solidity
@@ -24,6 +36,7 @@ struct ClaimAndSwapParams {
   address token;
   uint256 amount;
   bytes32[] proof;
+  address swapRouter;
   bytes swapData;
   uint256 amountOutMin;
 }

@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientAmountOut",
     "type": "error"
   },
@@ -42,6 +47,11 @@
   {
     "inputs": [],
     "name": "NotEnoughAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapFailed",
     "type": "error"
   },
   {

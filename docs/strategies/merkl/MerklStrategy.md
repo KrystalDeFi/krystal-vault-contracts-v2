@@ -21,7 +21,7 @@ event MerklRewardsClaimed(address token, uint256 amount)
 ### constructor
 
 ```solidity
-constructor(address _swapRouter) public
+constructor(address _configManager) public
 ```
 
 Constructor
@@ -30,7 +30,7 @@ Constructor
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| _swapRouter | address | Address of the config manager |
+| _configManager | address | Address of the config manager |
 
 ### valueOf
 
@@ -169,7 +169,7 @@ function _claim(address distributor, address token, uint256 amount, bytes32[] pr
 ### _swap
 
 ```solidity
-function _swap(address tokenIn, uint256 amountIn, bytes swapData) internal
+function _swap(address tokenIn, uint256 amountIn, address swapRouter, bytes swapData) internal
 ```
 
 ### _safeResetAndApprove

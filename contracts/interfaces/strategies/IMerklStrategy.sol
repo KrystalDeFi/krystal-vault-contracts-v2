@@ -5,6 +5,8 @@ import { IStrategy } from "./IStrategy.sol";
 
 interface IMerklStrategy is IStrategy {
   error NotEnoughAmountOut();
+  error ApproveFailed();
+  error SwapFailed();
 
   enum InstructionType {
     ClaimAndSwap
@@ -15,6 +17,7 @@ interface IMerklStrategy is IStrategy {
     address token;
     uint256 amount;
     bytes32[] proof;
+    address swapRouter;
     bytes swapData;
     uint256 amountOutMin;
   }
