@@ -59,7 +59,7 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
     vaultsByAddress[sender].push(vault);
     allVaults.push(vault);
 
-    emit VaultCreated(sender, vault, params);
+    emit VaultCreated(sender, vault, configManager, params);
   }
 
   /// @notice Pause the contract
