@@ -29,7 +29,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
   IOptimalSwapper public immutable optimalSwapper;
   ILpValidator public immutable validator;
-  address public immutable thisAddress;
+  address private immutable thisAddress;
 
   constructor(address _optimalSwapper, address _validator) {
     require(_optimalSwapper != address(0), ZeroAddress());

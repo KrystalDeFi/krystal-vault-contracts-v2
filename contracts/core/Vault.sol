@@ -26,8 +26,6 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
 import { IVaultFactory } from "../interfaces/core/IVaultFactory.sol";
-import { VaultStorage } from "./VaultStorage.sol";
-import "forge-std/console.sol";
 
 contract Vault is
   AccessControlUpgradeable,
@@ -47,7 +45,7 @@ contract Vault is
   address public override vaultOwner;
   address public override WETH;
   address public vaultFactory;
-  ICommon.VaultConfig private vaultConfig;
+  VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
   uint256 lastAllocateBlockNumber;
@@ -143,7 +141,6 @@ contract Vault is
     }
     address principalToken = vaultConfig.principalToken;
     uint256 totalValue = getTotalValue();
-    console.log("totalValue", totalValue);
 
     if (msg.value > 0) {
       require(principalToken == WETH, InvalidAssetToken());
@@ -155,7 +152,7 @@ contract Vault is
 
     inventory.addAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, principalAmount));
 
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
 
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
