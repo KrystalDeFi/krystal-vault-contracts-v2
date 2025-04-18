@@ -176,7 +176,18 @@ contract MerklStrategy is ReentrancyGuard, IStrategy {
     // execute swap
     (bool success, bytes memory returnData) = swapRouter.call(swapData);
     // Implement revert using returnData as error message
-    if (!success) revert("swap failed!");
+    if (!success) {
+      // If there's return data, extract the error message
+      if (returnData.length > 0) {
+        // First try to extract the revert reason from the returnData
+        assembly {
+          let returnDataSize := mload(returnData)
+          revert(add(32, returnData), returnDataSize)
+        }
+      } else {
+        revert("Swap failed with no error message");
+      }
+    }
   }
 
   /// @dev some tokens require allowance == 0 to approve new amount
