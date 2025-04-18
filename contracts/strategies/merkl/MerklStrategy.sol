@@ -58,6 +58,9 @@ contract MerklStrategy is IMerklStrategy {
    * @param data Additional data for the conversion
    * @return returnAssets The resulting assets after conversion
    */
+  error InvalidInstructionType();
+  error InvalidSwapRouter();
+
   function convert(
     AssetLib.Asset[] calldata assets,
     VaultConfig calldata config,
@@ -68,7 +71,7 @@ contract MerklStrategy is IMerklStrategy {
 
     Instruction memory instruction = abi.decode(data, (Instruction));
     if (instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap)) {
-      return _claimAndSwap(config, feeConfig, data);
+      return _claimAndSwap(config, feeConfig, instruction.params);
     } else {
       revert InvalidInstructionType();
     }
