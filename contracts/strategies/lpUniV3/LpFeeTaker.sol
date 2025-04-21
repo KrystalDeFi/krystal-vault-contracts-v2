@@ -50,15 +50,6 @@ contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallba
     else if (amount1Delta > 0) token1.safeTransfer(msg.sender, uint256(amount1Delta));
   }
 
-  struct SwapToPrincipalParams {
-    address pool;
-    address principalToken;
-    address token;
-    uint256 amount;
-    uint256 amountOutMin;
-    bytes swapData;
-  }
-
   function takeFees(
     address token0,
     uint256 amount0,
@@ -165,11 +156,11 @@ contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallba
     returns (uint256 totalFeeAmount, uint256 platformFeeAmount, uint256 vaultOwnerFeeAmount, uint256 gasFeeAmount)
   {
     if (feeConfig.platformFeeBasisPoint > 0) {
-      platformFeeAmount = amount * feeConfig.platformFeeBasisPoint / 10_000;
+      platformFeeAmount = (amount * feeConfig.platformFeeBasisPoint) / 10_000;
       if (platformFeeAmount > 0) totalFeeAmount += platformFeeAmount;
     }
     if (feeConfig.vaultOwnerFeeBasisPoint > 0) {
-      vaultOwnerFeeAmount = amount * feeConfig.vaultOwnerFeeBasisPoint / 10_000;
+      vaultOwnerFeeAmount = (amount * feeConfig.vaultOwnerFeeBasisPoint) / 10_000;
       if (vaultOwnerFeeAmount > 0) totalFeeAmount += vaultOwnerFeeAmount;
     }
     if (feeConfig.gasFeeX64 > 0) {

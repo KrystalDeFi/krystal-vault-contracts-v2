@@ -52,19 +52,6 @@ Callback function required by Pancake V3 to finalize swaps
 | amount1Delta | int256 | The change in token1 balance |
 |  | bytes |  |
 
-### SwapToPrincipalParams
-
-```solidity
-struct SwapToPrincipalParams {
-  address pool;
-  address principalToken;
-  address token;
-  uint256 amount;
-  uint256 amountOutMin;
-  bytes swapData;
-}
-```
-
 ### takeFees
 
 ```solidity
@@ -98,7 +85,7 @@ _Takes the fee from the amount_
 ### _swapToPrincipal
 
 ```solidity
-function _swapToPrincipal(struct LpFeeTaker.SwapToPrincipalParams params, contract ILpValidator validator) internal returns (uint256 amountOut, uint256 amountInUsed)
+function _swapToPrincipal(struct ILpFeeTaker.SwapToPrincipalParams params, contract ILpValidator validator) internal returns (uint256 amountOut, uint256 amountInUsed)
 ```
 
 Swaps the token to the principal token
@@ -107,7 +94,7 @@ Swaps the token to the principal token
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| params | struct LpFeeTaker.SwapToPrincipalParams | The parameters for swapping the token |
+| params | struct ILpFeeTaker.SwapToPrincipalParams | The parameters for swapping the token |
 | validator | contract ILpValidator |  |
 
 #### Return Values

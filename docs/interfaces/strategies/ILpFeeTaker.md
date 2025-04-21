@@ -2,6 +2,19 @@
 
 ## ILpFeeTaker
 
+### SwapToPrincipalParams
+
+```solidity
+struct SwapToPrincipalParams {
+  address pool;
+  address principalToken;
+  address token;
+  uint256 amount;
+  uint256 amountOutMin;
+  bytes swapData;
+}
+```
+
 ### takeFees
 
 ```solidity

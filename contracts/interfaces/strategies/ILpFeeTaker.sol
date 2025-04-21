@@ -5,6 +5,15 @@ import { IFeeTaker } from "./IFeeTaker.sol";
 import { ICommon } from "../ICommon.sol";
 
 interface ILpFeeTaker is IFeeTaker, ICommon {
+  struct SwapToPrincipalParams {
+    address pool;
+    address principalToken;
+    address token;
+    uint256 amount;
+    uint256 amountOutMin;
+    bytes swapData;
+  }
+
   function takeFees(
     address token0,
     uint256 amount0,
