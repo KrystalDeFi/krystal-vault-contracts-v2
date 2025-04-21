@@ -8,6 +8,18 @@
 uint256 Q64
 ```
 
+### Q96
+
+```solidity
+uint256 Q96
+```
+
+### Q128
+
+```solidity
+uint256 Q128
+```
+
 ### Q192
 
 ```solidity
@@ -29,7 +41,7 @@ contract ILpValidator validator
 ### constructor
 
 ```solidity
-constructor(address _optimalSwapper, address _validator) public
+constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) public
 ```
 
 ### valueOf
@@ -283,7 +295,7 @@ Decreases the liquidity of the position and swaps the other token to the princip
 ### _decreaseLiquidity
 
 ```solidity
-function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params, struct ICommon.FeeConfig feeConfig, address principalToken) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position
@@ -295,6 +307,7 @@ Decreases the liquidity of the position
 | lpAsset | struct AssetLib.Asset | The assets to decrease the liquidity assets[0] = lpAsset |
 | params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
+| principalToken | address |  |
 
 #### Return Values
 
@@ -328,7 +341,7 @@ Swaps the principal token to the other token and rebalances the position
 ### swapAndCompound
 
 ```solidity
-function swapAndCompound(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndCompoundParams params, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function swapAndCompound(struct AssetLib.Asset[] assets, struct ILpStrategy.SwapAndCompoundParams params, struct ICommon.VaultConfig vaultConfig, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Swaps the principal token to the other token and compounds the position
@@ -339,6 +352,7 @@ Swaps the principal token to the other token and compounds the position
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | The assets to swap and compound, assets[0] = principalToken |
 | params | struct ILpStrategy.SwapAndCompoundParams | The parameters for swapping and compounding the position |
+| vaultConfig | struct ICommon.VaultConfig |  |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 
 #### Return Values
@@ -369,10 +383,10 @@ Swaps the principal token to the other token
 | amount0 | uint256 | The amount of token0 |
 | amount1 | uint256 | The amount of token1 |
 
-### _swapToPrinciple
+### _swapToPrincipal
 
 ```solidity
-function _swapToPrinciple(struct ILpStrategy.SwapToPrincipalParams params, bool checkPriceSanity) internal returns (uint256 amountOut, uint256 amountInUsed)
+function _swapToPrincipal(struct ILpStrategy.SwapToPrincipalParams params, bool checkPriceSanity) internal returns (uint256 amountOut, uint256 amountInUsed)
 ```
 
 Swaps the token to the principal token
@@ -495,27 +509,11 @@ _Gets the fee growth inside the position_
 | feeGrowthInside0X128 | uint256 | The fee growth of token0 |
 | feeGrowthInside1X128 | uint256 | The fee growth of token1 |
 
-### _takeFee
+### _takeFees
 
 ```solidity
-function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
+function _takeFees(address token0, uint256 amount0, address token1, uint256 amount1, struct ICommon.FeeConfig feeConfig, address principalToken, address pool) internal returns (uint256, uint256)
 ```
-
-_Takes the fee from the amount_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| token | address | The token to take the fee |
-| amount | uint256 | The amount to take the fee |
-| feeConfig | struct ICommon.FeeConfig | The fee configuration |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| totalFeeAmount | uint256 | The total fee amount |
 
 ### receive
 

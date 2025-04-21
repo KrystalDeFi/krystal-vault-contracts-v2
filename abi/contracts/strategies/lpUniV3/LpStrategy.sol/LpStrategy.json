@@ -10,6 +10,11 @@
         "internalType": "address",
         "name": "_validator",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_lpFeeTaker",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -61,17 +66,6 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "T",
     "type": "error"
@@ -91,7 +85,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "enum IStrategy.FeeType",
+        "internalType": "enum IFeeTaker.FeeType",
         "name": "feeType",
         "type": "uint8"
       },
