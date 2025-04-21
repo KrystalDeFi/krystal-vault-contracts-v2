@@ -8,6 +8,12 @@
 uint256 SHARES_PRECISION
 ```
 
+### WITHDRAWAL_FEE
+
+```solidity
+uint16 WITHDRAWAL_FEE
+```
+
 ### ADMIN_ROLE_HASH
 
 ```solidity

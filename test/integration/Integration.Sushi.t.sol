@@ -510,7 +510,7 @@ contract IntegrationTest is TestCommon {
     );
     assertLt(
       vaultAssets[0].amount,
-      450_000_000_000_000_000,
+      451_000_000_000_000_000,
       "the amount of vaultAssets[0] should be less than 450_000_000_000_000_000"
     );
     assertEq(vaultAssets[0].token, WETH, "the token of vaultAssets[0] should be WETH");
@@ -534,7 +534,7 @@ contract IntegrationTest is TestCommon {
     );
     assertLt(
       valueOfPositionInPrincipal,
-      1_050_000_000_000_000_000,
+      1_051_000_000_000_000_000,
       "the value of position in principal should be less than 1_049_800_000_000_000_000"
     );
 

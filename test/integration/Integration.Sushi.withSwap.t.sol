@@ -119,8 +119,8 @@ contract IntegrationTest is TestCommon {
   }
 
   function test_sushi() public {
-    uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
-    uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
+    // uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
+    // uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
 
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
 
@@ -220,7 +220,7 @@ contract IntegrationTest is TestCommon {
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
 
     assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
-    assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
+    assert(IERC20(WETH).balanceOf(USER) > IERC20(WETH).balanceOf(PLAYER_1));
 
     // the WETH balance of players shouldn't be too much different with the initial balance
     assert(0.99 ether < IERC20(WETH).balanceOf(USER));

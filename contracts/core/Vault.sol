@@ -39,6 +39,7 @@ contract Vault is
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
+  uint16 public constant WITHDRAWAL_FEE = 10; // 0.1%
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   IConfigManager public configManager;
 
@@ -200,6 +201,10 @@ contract Vault is
     uint256 currentTotalSupply = totalSupply();
 
     _burn(_msgSender(), shares);
+
+    uint256 deductedShares =
+      shares == currentTotalSupply ? shares : FullMath.mulDiv(shares, 10_000 - WITHDRAWAL_FEE, 10_000);
+
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
 
@@ -223,7 +228,7 @@ contract Vault is
         currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20
           && currentAsset.amount != 0
       ) {
-        uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, shares, currentTotalSupply);
+        uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, deductedShares, currentTotalSupply);
         if (currentAsset.token == principalToken) {
           returnAmount += proportionalAmount;
         } else {
@@ -236,7 +241,12 @@ contract Vault is
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         inventory.removeAsset(currentAsset);
         bytes memory cData = abi.encodeWithSelector(
-          IStrategy.convertToPrincipal.selector, currentAsset, shares, currentTotalSupply, vaultConfig, feeConfig
+          IStrategy.convertToPrincipal.selector,
+          currentAsset,
+          deductedShares,
+          currentTotalSupply,
+          vaultConfig,
+          feeConfig
         );
         bytes memory returnData = _delegateCallToStrategy(currentAsset.strategy, cData);
         // Decode the returned data
