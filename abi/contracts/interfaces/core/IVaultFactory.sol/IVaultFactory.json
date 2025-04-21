@@ -68,12 +68,6 @@
         "type": "address"
       },
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "configManager",
-        "type": "address"
-      },
-      {
         "components": [
           {
             "internalType": "string",
