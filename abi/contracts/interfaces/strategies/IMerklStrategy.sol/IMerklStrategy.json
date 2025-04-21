@@ -69,7 +69,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "enum IStrategy.FeeType",
+        "internalType": "enum IFeeTaker.FeeType",
         "name": "feeType",
         "type": "uint8"
       },

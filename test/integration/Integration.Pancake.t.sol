@@ -24,6 +24,7 @@ import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract IntegrationTest is TestCommon {
   ConfigManager public configManager;
@@ -59,7 +60,8 @@ contract IntegrationTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
@@ -446,9 +448,9 @@ contract IntegrationTest is TestCommon {
       IERC20(vaultInstance).balanceOf(USER),
       20_000_598_002_258_138_415_593 - 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 449_958_118_665_131_086);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 450_108_098_725_458_479);
     assertEq(vaultAssets.length, 4);
-    assertEq(vaultAssets[0].amount, 449_958_118_665_131_086);
+    assertEq(vaultAssets[0].amount, 450_108_098_725_458_479);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -463,7 +465,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_049_789_349_069_797_786);
+    assertEq(valueOfPositionInPrincipal, 1_050_139_375_046_085_275);
 
     // Burn all shares
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);

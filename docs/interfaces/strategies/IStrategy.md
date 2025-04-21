@@ -20,22 +20,6 @@ error InvalidNumberOfAssets()
 error InsufficientAmountOut()
 ```
 
-### FeeType
-
-```solidity
-enum FeeType {
-  PLATFORM,
-  OWNER,
-  GAS
-}
-```
-
-### FeeCollected
-
-```solidity
-event FeeCollected(enum IStrategy.FeeType feeType, address recipient, address token, uint256 amount)
-```
-
 ### valueOf
 
 ```solidity

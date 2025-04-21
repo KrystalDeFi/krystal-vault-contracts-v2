@@ -22,6 +22,7 @@ import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract LpStrategyTest is TestCommon {
   LpStrategy public lpStrategy;
@@ -53,7 +54,8 @@ contract LpStrategyTest is TestCommon {
 
     ConfigManager configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
     LpValidator validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     vaultConfig = ICommon.VaultConfig({
       principalToken: WETH,
       allowDeposit: false,
@@ -433,15 +435,15 @@ contract LpStrategyTest is TestCommon {
 
       // uint256 fee0 = 2_601_269_379_622_417;
       // uint256 fee1 = 243_296_432_368_259_167;
-      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 130_063_468_981_120, "vault owner fee 0"); // fee0 * 500 / 10_000
-      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 12_164_821_618_412_958, "vault owner fee 1"); // fee1 * 500 /
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_483_721_965_001, "vault owner fee 0"); // fee0 * 500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0, "vault owner fee 1"); // fee1 * 500 /
         // 10_000
-      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 260_126_937_962_241, "platform fee 0"); // fee0 * 1000 /
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_967_443_930_004, "platform fee 0"); // fee0 * 1000 /
         // 10_000
-      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 24_329_643_236_825_916, "platform fee 1"); // fee1 * 1000 /
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0, "platform fee 1"); // fee1 * 1000 /
         // 10_000
-      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 390_190_406_943_362, "gas fee 0"); // fee0 * 1500 / 10_000
-      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 36_494_464_855_238_875, "gas fee 1"); // fee1 * 1500 / 10_000
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 649_451_165_895_007, "gas fee 0"); // fee0 * 1500 / 10_000
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0, "gas fee 1"); // fee1 * 1500 / 10_000
     }
 
     {
@@ -459,8 +461,6 @@ contract LpStrategyTest is TestCommon {
       IERC20(DAI).approve(address(swapper), amountOut);
       swapper.poolSwap(pool, amountOut, false, 0, "");
       lpStrategy.valueOf(returnAssets[2], WETH);
-      uint256 fee0 = 2_602_363_878_740_862;
-      uint256 fee1 = 242_288_240_783_372_807;
 
       console.log("==== decreasePosition ====");
       (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(returnAssets[2].tokenId);
@@ -486,12 +486,12 @@ contract LpStrategyTest is TestCommon {
 
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
-      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), fee0 * 500 / 10_000, "vault owner fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), fee1 * 500 / 10_000, "vault owner fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), fee0 * 1000 / 10_000, "platform fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), fee1 * 1000 / 10_000, "platform fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), fee0 * 1500 / 10_000, "gas fee 0");
-      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), fee1 * 1500 / 10_000, "gas fee 1");
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_439_552_697_973, "vault owner fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0, "vault owner fee 1");
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_879_105_395_949, "platform fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0, "platform fee 1");
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 649_318_658_093_924, "gas fee 0");
+      assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0, "gas fee 1");
     }
   }
 

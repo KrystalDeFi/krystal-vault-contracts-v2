@@ -3,19 +3,12 @@ pragma solidity ^0.8.28;
 
 import "../ICommon.sol";
 import { AssetLib } from "../../libraries/AssetLib.sol";
+import { IFeeTaker } from "./IFeeTaker.sol";
 
-interface IStrategy is ICommon {
+interface IStrategy is ICommon, IFeeTaker {
   error InvalidAsset();
   error InvalidNumberOfAssets();
   error InsufficientAmountOut();
-
-  enum FeeType {
-    PLATFORM,
-    OWNER,
-    GAS
-  }
-
-  event FeeCollected(FeeType indexed feeType, address indexed recipient, address indexed token, uint256 amount);
 
   function valueOf(AssetLib.Asset calldata asset, address principalToken) external view returns (uint256);
 

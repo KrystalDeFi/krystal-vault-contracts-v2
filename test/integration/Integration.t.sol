@@ -24,6 +24,7 @@ import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract IntegrationTest is TestCommon {
   ConfigManager public configManager;
@@ -59,7 +60,8 @@ contract IntegrationTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker feeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
@@ -446,9 +448,9 @@ contract IntegrationTest is TestCommon {
       IERC20(vaultInstance).balanceOf(USER),
       20_003_372_819_126_354_888_407 - 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 449_946_709_337_041_714);
+    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 450_096_657_856_871_685);
     assertEq(vaultAssets.length, 4);
-    assertEq(vaultAssets[0].amount, 449_946_709_337_041_714);
+    assertEq(vaultAssets[0].amount, 450_096_657_856_871_685);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -463,7 +465,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_049_767_369_166_682_815);
+    assertEq(valueOfPositionInPrincipal, 1_050_117_217_379_688_146);
 
     // Burn all shares
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);
@@ -527,7 +529,7 @@ contract IntegrationTest is TestCommon {
       vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
       vaultAssets = vaultInstance.getInventory();
       assertEq(vaultAssets.length, 4);
-      assertEq(vaultAssets[0].amount, 1_700_000_000_430_602_689);
+      assertEq(vaultAssets[0].amount, 1_700_000_000_403_656_060);
       assertEq(vaultAssets[0].token, WETH);
       assertEq(vaultAssets[0].tokenId, 0);
       assertEq(vaultAssets[0].strategy, address(0));
@@ -542,7 +544,7 @@ contract IntegrationTest is TestCommon {
       assertEq(vaultAssets[3].token, NFPM);
       assertEq(vaultAssets[3].strategy, address(lpStrategy));
       valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-      assertEq(valueOfPositionInPrincipal, 299_925_573_181_771_659);
+      assertEq(valueOfPositionInPrincipal, 299_925_573_181_777_501);
     }
 
     {

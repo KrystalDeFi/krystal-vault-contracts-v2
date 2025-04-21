@@ -5,7 +5,7 @@
 ### VaultCreated
 
 ```solidity
-event VaultCreated(address owner, address vault, address configManager, struct ICommon.VaultCreateParams params)
+event VaultCreated(address owner, address vault, struct ICommon.VaultCreateParams params)
 ```
 
 ### ConfigManagerSet

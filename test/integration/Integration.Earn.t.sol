@@ -24,6 +24,7 @@ import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract IntegrationTest is TestCommon {
   ConfigManager public configManager;
@@ -66,7 +67,8 @@ contract IntegrationTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
@@ -218,7 +220,7 @@ contract IntegrationTest is TestCommon {
 
     assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
 
-    assert(IERC20(WETH).balanceOf(USER) < IERC20(WETH).balanceOf(PLAYER_1));
+    assert(IERC20(WETH).balanceOf(USER) > IERC20(WETH).balanceOf(PLAYER_1));
 
     // the WETH balance of players shouldn't be too much different with the initial balance
     assert(0.99 ether < IERC20(WETH).balanceOf(USER));
@@ -228,6 +230,7 @@ contract IntegrationTest is TestCommon {
 
     console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
     console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));
-    console.log(">>> weth loss of the owner:", user_old_weth_balance - IERC20(WETH).balanceOf(USER));
+    console.log(">>> weth old balance of the owner:", user_old_weth_balance);
+    console.log(">>> weth new balance of the owner:", IERC20(WETH).balanceOf(USER));
   }
 }
