@@ -6,11 +6,13 @@ import { sleep } from "./helpers";
 import { isArray, last } from "lodash";
 import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typechain-types/contracts/core";
 import {
+  LpFeeTaker,
   LpStrategy,
   VaultAutomator as LpUniV3VaultAutomator,
   LpValidator,
 } from "../typechain-types/contracts/strategies/lpUniV3";
 import { commonConfig } from "../configs/config_common";
+import { MerklStrategy } from "../typechain-types";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -26,7 +28,9 @@ export interface Contracts {
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
   lpValidator?: LpValidator;
+  lpFeeTaker?: LpFeeTaker;
   lpStrategy?: LpStrategy;
+  merklStrategy?: MerklStrategy;
   vaultFactory?: VaultFactory;
 }
 
@@ -73,22 +77,29 @@ async function deployContracts(
   });
 
   const lpValidator = await deployLpValidatorContract(++step, existingContract, deployer, undefined, contracts);
+  const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, deployer, undefined, contracts);
 
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
+    lpFeeTaker: lpFeeTaker.lpFeeTaker,
   });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
+  const merklStrategy = await deployMerklStrategyContract(++step, existingContract, deployer, undefined, contracts);
   const vaultFactory = await deployVaultFactoryContract(++step, existingContract, deployer, undefined, contracts);
 
   Object.assign(contracts, {
     lpStrategy: lpStrategy.lpStrategy,
     vaultFactory: vaultFactory.vaultFactory,
+    merklStrategy: merklStrategy.merklStrategy,
   });
 
   // whitelist lp strategy in config manager
-  if (configManager.configManager && lpStrategy.lpStrategy && lpValidator.lpValidator) {
-    await configManager.configManager.whitelistStrategy([lpStrategy.lpStrategy.target], true);
+  if (configManager.configManager && lpStrategy.lpStrategy && lpValidator.lpValidator && merklStrategy.merklStrategy) {
+    await configManager.configManager.whitelistStrategy(
+      [lpStrategy.lpStrategy.target, merklStrategy.merklStrategy.target],
+      true,
+    );
     await configManager.configManager.setFeeConfig(true, {
       vaultOwnerFeeBasisPoint: commonConfig.vaultOwnerFeeBasisPoint,
       vaultOwner: commonConfig.feeCollector,
@@ -245,6 +256,30 @@ export const deployPoolOptimalSwapperContract = async (
   };
 };
 
+export const deployLpFeeTakerContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpFeeTaker;
+  if (config.lpFeeTaker?.enabled) {
+    lpFeeTaker = (await deployContract(
+      `${step} >>`,
+      config.lpFeeTaker?.autoVerifyContract,
+      "LpFeeTaker",
+      existingContract?.["lpFeeTaker"],
+      "contracts/strategies/lpUniV3/LpFeeTaker.sol:LpFeeTaker",
+    )) as LpFeeTaker;
+  }
+  return {
+    lpFeeTaker,
+  };
+};
+
 export const deployLpValidatorContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
@@ -289,15 +324,42 @@ export const deployLpStrategyContract = async (
       existingContract?.["lpStrategy"],
       "contracts/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
       undefined,
-      ["address", "address"],
+      ["address", "address", "address"],
       [
         existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpFeeTaker"] || contracts?.lpFeeTaker?.target,
       ],
     )) as LpStrategy;
   }
   return {
     lpStrategy,
+  };
+};
+
+export const deployMerklStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  deployer: string,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+  let merklStrategy;
+  if (config.merklStrategy?.enabled) {
+    merklStrategy = (await deployContract(
+      `${step} >>`,
+      config.merklStrategy?.autoVerifyContract,
+      "MerklStrategy",
+      existingContract?.["merklStrategy"],
+      "contracts/strategies/merkl/MerklStrategy.sol:MerklStrategy",
+      undefined,
+      ["address"],
+      [existingContract?.["configManager"] || contracts?.configManager?.target],
+    )) as MerklStrategy;
+  }
+  return {
+    merklStrategy,
   };
 };
 

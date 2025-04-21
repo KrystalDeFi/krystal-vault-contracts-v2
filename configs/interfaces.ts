@@ -25,7 +25,15 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  lpFeeTaker?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   lpStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  merklStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
