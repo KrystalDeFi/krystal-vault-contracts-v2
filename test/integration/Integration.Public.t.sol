@@ -24,6 +24,7 @@ import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract IntegrationTest is TestCommon {
   ConfigManager public configManager;
@@ -63,7 +64,8 @@ contract IntegrationTest is TestCommon {
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker feeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);

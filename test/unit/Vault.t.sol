@@ -16,6 +16,7 @@ import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { console } from "forge-std/console.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -52,7 +53,8 @@ contract VaultTest is TestCommon {
 
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
     LpValidator validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);

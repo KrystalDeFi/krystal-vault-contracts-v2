@@ -24,6 +24,7 @@ import { Vault } from "../../contracts/core/Vault.sol";
 import { VaultAutomator } from "../../contracts/strategies/lpUniV3/VaultAutomator.sol";
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract VaultAutomatorTest is TestCommon {
   LpUniV3StructHash.Order emptyUserConfig;
@@ -59,7 +60,8 @@ contract VaultAutomatorTest is TestCommon {
 
     configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
     LpValidator validator = new LpValidator(address(configManager));
-    lpStrategy = new LpStrategy(address(swapper), address(validator));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
     address[] memory whitelistStrategies = new address[](1);
     whitelistStrategies[0] = address(lpStrategy);
