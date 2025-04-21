@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "../ICommon.sol";
 
 interface IVaultFactory is ICommon {
-  event VaultCreated(address owner, address vault, address configManager, VaultCreateParams params);
+  event VaultCreated(address owner, address vault, VaultCreateParams params);
 
   event ConfigManagerSet(address configManager);
 
