@@ -96,10 +96,21 @@ async function deployContracts(
 
   // whitelist lp strategy in config manager
   if (configManager.configManager && lpStrategy.lpStrategy && lpValidator.lpValidator && merklStrategy.merklStrategy) {
+    // Whitelist all strategies
     await configManager.configManager.whitelistStrategy(
       [lpStrategy.lpStrategy.target, merklStrategy.merklStrategy.target],
       true,
     );
+
+    // Whitelist all swap routers
+    await configManager.configManager.whitelistSwapRouter(networkConfig.swapRouters, true);
+
+    // Whitelist all vault automators operators
+    for (const operator of commonConfig.automationOperators) {
+      await vaultAutomator.vaultAutomator?.[0]?.grantOperator(operator);
+    }
+
+    // Set fee config
     await configManager.configManager.setFeeConfig(true, {
       vaultOwnerFeeBasisPoint: commonConfig.vaultOwnerFeeBasisPoint,
       vaultOwner: commonConfig.feeCollector,
@@ -116,6 +127,7 @@ async function deployContracts(
       gasFeeX64: 0,
       gasFeeRecipient: commonConfig.feeCollector,
     });
+
     // Config for wrap token
     await configManager.configManager.setStrategyConfig(
       lpValidator.lpValidator.target,

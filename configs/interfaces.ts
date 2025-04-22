@@ -1,3 +1,5 @@
+import { AddressLike } from "ethers";
+
 export interface IConfig {
   autoVerifyContract?: boolean;
   sleepTime?: number;
@@ -41,4 +43,5 @@ export interface IConfig {
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
   typedTokensTypes?: number[];
+  swapRouters: AddressLike[];
 }

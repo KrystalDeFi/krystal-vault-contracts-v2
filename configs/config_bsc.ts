@@ -53,5 +53,6 @@ export const BaseConfig: Record<string, IConfig> = {
       1, // DAI
       2, // WBNB
     ],
+    swapRouters: ["0x051DC16b2ECB366984d1074dCC07c342a9463999"],
   },
 };

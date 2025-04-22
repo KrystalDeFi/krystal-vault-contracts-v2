@@ -55,5 +55,6 @@ export const BaseConfig: Record<string, IConfig> = {
       2, // WETH
       2, // wstETH
     ],
+    swapRouters: ["0x864F01c5E46b0712643B956BcA607bF883e0dbC5"],
   },
 };

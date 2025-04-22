@@ -53,5 +53,6 @@ export const BaseConfig: Record<string, IConfig> = {
       1, // DAI
       2, // WPOL
     ],
+    swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
   },
 };
