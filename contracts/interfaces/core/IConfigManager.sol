@@ -16,6 +16,8 @@ interface IConfigManager is ICommon {
 
   event WhitelistAutomator(address[] _automators, bool _isWhitelisted);
 
+  event WhitelistSigner(address[] _signers, bool _isWhitelisted);
+
   event SetStrategyConfig(address indexed _strategy, address indexed _principalToken, bytes _config);
 
   event SetTypedTokens(address[] _typedTokens, uint256[] _typedTokenTypes);
@@ -39,6 +41,10 @@ interface IConfigManager is ICommon {
   function whitelistAutomator(address[] memory _automators, bool _isWhitelisted) external;
 
   function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted);
+
+  function whitelistSigner(address[] memory signers, bool _isWhitelisted) external;
+
+  function isWhitelistSigner(address signer) external view returns (bool _isWhitelisted);
 
   function getTypedTokens() external view returns (address[] memory _typedTokens, uint256[] memory _typedTokenTypes);
 

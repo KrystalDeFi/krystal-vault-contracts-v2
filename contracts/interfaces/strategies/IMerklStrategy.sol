@@ -7,6 +7,8 @@ interface IMerklStrategy is IStrategy {
   error NotEnoughAmountOut();
   error ApproveFailed();
   error SwapFailed();
+  error InvalidSigner();
+  error SignatureExpired();
 
   enum InstructionType {
     ClaimAndSwap
@@ -20,5 +22,7 @@ interface IMerklStrategy is IStrategy {
     address swapRouter;
     bytes swapData;
     uint256 amountOutMin;
+    uint32 deadline;
+    bytes signature;
   }
 }

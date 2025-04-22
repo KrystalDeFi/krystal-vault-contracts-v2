@@ -7,6 +7,7 @@ import "../../libraries/AssetLib.sol";
 
 import "../../interfaces/core/IConfigManager.sol";
 import { IMerklStrategy } from "../../interfaces/strategies/IMerklStrategy.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface IMerklDistributor {
   function claim(
@@ -29,7 +30,7 @@ contract MerklStrategy is IMerklStrategy {
   IConfigManager private immutable configManager;
 
   // Events
-  event MerklRewardsClaimed(address indexed token, uint256 amount);
+  event MerklRewardsClaimed(address indexed token, uint256 amount, address principalToken, uint256 principalAmount);
 
   /**
    * @notice Constructor
@@ -134,12 +135,30 @@ contract MerklStrategy is IMerklStrategy {
   {
     ClaimAndSwapParams memory claimParams = abi.decode(data, (IMerklStrategy.ClaimAndSwapParams));
 
+    // Verify the signer is whitelisted
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        claimParams.distributor,
+        claimParams.token,
+        claimParams.amount,
+        claimParams.proof,
+        claimParams.swapRouter,
+        claimParams.swapData,
+        claimParams.amountOutMin,
+        claimParams.deadline
+      )
+    );
+    address signer = ECDSA.recover(messageHash, claimParams.signature);
+    require(configManager.isWhitelistSigner(signer), InvalidSigner());
+    require(block.timestamp <= claimParams.deadline, SignatureExpired());
+
     address tokenIn = claimParams.token;
     address tokenOut = config.principalToken;
     uint256 amountInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 amountOutBefore = IERC20(tokenOut).balanceOf(address(this));
 
     _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
+    uint256 amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
 
     _swap(tokenIn, claimParams.amount, claimParams.swapRouter, claimParams.swapData);
 
@@ -152,6 +171,7 @@ contract MerklStrategy is IMerklStrategy {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountInAfter - amountInBefore);
     returnAssets[1] =
       AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOutAfter - amountOutBefore);
+    emit MerklRewardsClaimed(tokenIn, amountClaimed, tokenOut, returnAssets[1].amount);
   }
 
   function _claim(address distributor, address token, uint256 amount, bytes32[] memory proofs) internal {
