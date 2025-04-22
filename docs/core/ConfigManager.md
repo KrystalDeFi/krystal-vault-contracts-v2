@@ -20,6 +20,12 @@ mapping(address => bool) whitelistSwapRouters
 mapping(address => bool) whitelistAutomators
 ```
 
+### whitelistSigners
+
+```solidity
+mapping(address => bool) whitelistSigners
+```
+
 ### strategyConfigs
 
 ```solidity
@@ -154,6 +160,41 @@ Check if automator is whitelisted
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | bool | _isWhitelisted Boolean value if automator is whitelisted |
+
+### whitelistSigner
+
+```solidity
+function whitelistSigner(address[] _signers, bool _isWhitelisted) external
+```
+
+Whitelist signer
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _signers | address[] | Array of signer addresses |
+| _isWhitelisted | bool | Boolean value to whitelist or unwhitelist |
+
+### isWhitelistSigner
+
+```solidity
+function isWhitelistSigner(address _signer) external view returns (bool)
+```
+
+Check if signer is whitelisted
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _signer | address | Signer address |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | bool | Boolean value if signer is whitelisted |
 
 ### getTypedTokens
 

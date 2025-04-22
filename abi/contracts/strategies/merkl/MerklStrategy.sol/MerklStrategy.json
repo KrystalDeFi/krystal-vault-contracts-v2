@@ -17,6 +17,33 @@
   },
   {
     "inputs": [],
+    "name": "ECDSAInvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureLength",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureS",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientAmountOut",
     "type": "error"
   },
@@ -42,6 +69,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSigner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -58,6 +90,11 @@
   {
     "inputs": [],
     "name": "NotEnoughAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {
@@ -119,6 +156,18 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "principalToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "principalAmount",
         "type": "uint256"
       }
     ],

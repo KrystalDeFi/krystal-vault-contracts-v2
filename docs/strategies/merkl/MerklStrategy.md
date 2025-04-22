@@ -15,7 +15,7 @@ Strategy for handling Merkl rewards for LP positions
 ### MerklRewardsClaimed
 
 ```solidity
-event MerklRewardsClaimed(address token, uint256 amount)
+event MerklRewardsClaimed(address token, uint256 amount, address principalToken, uint256 principalAmount)
 ```
 
 ### constructor

@@ -193,6 +193,25 @@
       {
         "indexed": false,
         "internalType": "address[]",
+        "name": "_signers",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "WhitelistSigner",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
         "name": "_strategies",
         "type": "address[]"
       },
@@ -368,6 +387,25 @@
       {
         "internalType": "bool",
         "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistSigner",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
         "type": "bool"
       }
     ],
@@ -601,6 +639,24 @@
       }
     ],
     "name": "whitelistAutomator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "whitelistSigner",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

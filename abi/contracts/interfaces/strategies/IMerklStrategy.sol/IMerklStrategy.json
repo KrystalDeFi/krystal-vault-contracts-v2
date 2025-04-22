@@ -31,6 +31,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSigner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -47,6 +52,11 @@
   {
     "inputs": [],
     "name": "NotEnoughAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {
