@@ -27,7 +27,15 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    lpFeeTaker: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     lpStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    merklStrategy: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -45,5 +53,6 @@ export const BaseConfig: Record<string, IConfig> = {
       1, // DAI
       2, // WPOL
     ],
+    swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
   },
 };

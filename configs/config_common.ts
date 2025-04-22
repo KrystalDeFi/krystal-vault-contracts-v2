@@ -1,4 +1,11 @@
 export const commonConfig = {
+  automationOperators: [
+    "0x9729585607568Dcbf1f5f3802AfBf5B221702932",
+    "0x4b82847C82087ea19418beD079966810f64f39f4",
+    "0xffe13b591d671dac66d0dbb858f4fdb92438de01",
+    "0x6bc61977f3a411e43be83c9bb5bc0d92c2a6585b",
+    "0xbf14fea889a9c45fbbc07755eb98e667fcca0d42",
+  ],
   feeCollector: "0x12Eb25bc8f57f4F7920150F9EeC0b96d96278be4",
   vaultOwnerFeeBasisPoint: 500,
   platformFeeBasisPoint: 1000,

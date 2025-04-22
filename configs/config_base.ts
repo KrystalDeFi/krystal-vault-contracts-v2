@@ -27,7 +27,15 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    lpFeeTaker: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     lpStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    merklStrategy: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -57,5 +65,6 @@ export const BaseConfig: Record<string, IConfig> = {
       2, // RETH
       2, // LSETH
     ],
+    swapRouters: ["0x6fD481970744F9Bc0044a81859FD92431a2Dd67D"],
   },
 };
