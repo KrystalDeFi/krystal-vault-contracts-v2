@@ -1,11 +1,13 @@
 {
   "base_mainnet": {
-    "vault": "0xc22223b0e9f563b3fe00277ed1c83e474c46e030",
-    "vaultAutomator": ["0x90849b9e9e9f5ee3db1b45d94a0ed5e32ef3281b"],
-    "poolOptimalSwapper": "0x617ac8d19f312a573f3c3425573fa6b22ff43b3d",
-    "configManager": "0xb039b5347981312b490f18382ad67858b4eaac18",
-    "lpValidator": "0x0a682f2a665ac56ab91a7cf8f41497e4a27b6961",
-    "lpStrategy": "0x9910f22c4b2a1634c985985d7cbc714d18926aee",
-    "vaultFactory": "0x2381af0ffc4f72440f1351cf091a1b772f2e8c9d"
+    "vault": "0x18e2283953b4fe8657072e09cfe59faff2351189",
+    "vaultAutomator": ["0xbced8687ea99611693bfcb7ff71948401f1efcbf"],
+    "poolOptimalSwapper": "0x618afc53376fee6c0d6fdd5a27cca6372816475c",
+    "configManager": "0x130fe703e9e44533830e032c97233ae824e3b10a",
+    "lpValidator": "0xbde2e6cf15c941197e8cc49691251d7391404a01",
+    "lpFeeTaker": "0x8c79f871b3f8648cc1d7dd56cafeaf5c8886de25",
+    "lpStrategy": "0x8fb8f9c9bbf489a453e386e866cc6d205fef35be",
+    "vaultFactory": "0x4edf91d72ef35a291ab3b2b7b857d2ec2a948b1e",
+    "merklStrategy": "0xf99ad509773b313b9e1d843d8d70dfb27e41e9dd"
   }
 }
