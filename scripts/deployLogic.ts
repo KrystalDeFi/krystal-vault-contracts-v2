@@ -108,11 +108,6 @@ async function deployContracts(
     // Whitelist all signers
     await configManager.configManager.whitelistSigner(commonConfig.signers, true);
 
-    // Whitelist all vault automators operators
-    for (const operator of commonConfig.automationOperators) {
-      await vaultAutomator.vaultAutomator?.[0]?.grantOperator(operator);
-    }
-
     // Set fee config
     await configManager.configManager.setFeeConfig(true, {
       vaultOwnerFeeBasisPoint: commonConfig.vaultOwnerFeeBasisPoint,
@@ -155,6 +150,11 @@ async function deployContracts(
       networkConfig?.typedTokens?.[2] || "",
       commonConfig.stableConfigWith18Decimals,
     );
+
+    // Whitelist all vault automators operators
+    for (const operator of commonConfig.automationOperators) {
+      await vaultAutomator.vaultAutomator?.[0]?.grantOperator(operator);
+    }
   }
 
   return contracts;

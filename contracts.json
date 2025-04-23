@@ -1,13 +1,24 @@
 {
   "base_mainnet": {
-    "vault": "0x18e2283953b4fe8657072e09cfe59faff2351189",
-    "vaultAutomator": ["0xbced8687ea99611693bfcb7ff71948401f1efcbf"],
-    "poolOptimalSwapper": "0x618afc53376fee6c0d6fdd5a27cca6372816475c",
-    "configManager": "0x130fe703e9e44533830e032c97233ae824e3b10a",
-    "lpValidator": "0xbde2e6cf15c941197e8cc49691251d7391404a01",
-    "lpFeeTaker": "0x8c79f871b3f8648cc1d7dd56cafeaf5c8886de25",
-    "lpStrategy": "0x8fb8f9c9bbf489a453e386e866cc6d205fef35be",
-    "vaultFactory": "0x4edf91d72ef35a291ab3b2b7b857d2ec2a948b1e",
-    "merklStrategy": "0xf99ad509773b313b9e1d843d8d70dfb27e41e9dd"
+    "vault": "0xb9c48db47f7f904aeb12fe6e2f8d682759ca343c",
+    "vaultAutomator": ["0x1d4b9a151447308ece566f20bc97c2eadebc8935"],
+    "poolOptimalSwapper": "0xde4d8c9b7afbd0e8776f03c53e44dcb0f4619183",
+    "configManager": "0x626661237190226f54d286f309f40f3da69717cd",
+    "lpValidator": "0x294af8525378bbdb61683ab026349bcd00386d12",
+    "lpFeeTaker": "0xd8f098a9eb3125b45943043e9b4b98ae563ab2d5",
+    "lpStrategy": "0x4c14985fd1a7cdf7d6b755c0b78b3cb1112f31f3",
+    "vaultFactory": "0xd3de3b39feb0d21fe02c9e385315ddc9ca99dfd5",
+    "merklStrategy": "0xec962e25fbf29aa1ba0d7d06e83b00f174c0ba0e"
+  },
+  "arbitrum_mainnet": {
+    "vault": "0xb9c48db47f7f904aeb12fe6e2f8d682759ca343c",
+    "vaultAutomator": ["0x1d4b9a151447308ece566f20bc97c2eadebc8935"],
+    "poolOptimalSwapper": "0xde4d8c9b7afbd0e8776f03c53e44dcb0f4619183",
+    "configManager": "0xc0ef06871963a95cfd401b11427a460e2d831e46",
+    "lpValidator": "0x1cb6f1fc7706fcfaba37dddca62a1c00538e31ba",
+    "lpFeeTaker": "0xd8f098a9eb3125b45943043e9b4b98ae563ab2d5",
+    "lpStrategy": "0x8e6d632c56dcbbf0d00a5821e8f32a77f190ab00",
+    "vaultFactory": "0x92c355c372eb9c1eca92a0962610626a8b2ce975",
+    "merklStrategy": "0x165cbaca9e9b47a46c1f53deb054f75ddfb7a55c"
   }
 }
