@@ -15,6 +15,6 @@ enum FeeType {
 ### FeeCollected
 
 ```solidity
-event FeeCollected(enum IFeeTaker.FeeType feeType, address recipient, address token, uint256 amount)
+event FeeCollected(address vaultAddress, enum IFeeTaker.FeeType feeType, address recipient, address token, uint256 amount)
 ```
 

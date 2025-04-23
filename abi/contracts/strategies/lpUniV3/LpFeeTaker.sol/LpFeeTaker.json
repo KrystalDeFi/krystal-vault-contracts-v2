@@ -50,6 +50,12 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "vaultAddress",
+        "type": "address"
+      },
+      {
+        "indexed": true,
         "internalType": "enum IFeeTaker.FeeType",
         "name": "feeType",
         "type": "uint8"
@@ -61,7 +67,7 @@
         "type": "address"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "address",
         "name": "token",
         "type": "address"

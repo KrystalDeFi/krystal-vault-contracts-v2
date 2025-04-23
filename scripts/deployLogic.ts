@@ -106,7 +106,7 @@ async function deployContracts(
     await configManager.configManager.whitelistSwapRouter(networkConfig.swapRouters, true);
 
     // Whitelist all signers
-    await configManager.configManager.whitelistSigner(commonConfig.automationOperators, true);
+    await configManager.configManager.whitelistSigner(commonConfig.signers, true);
 
     // Whitelist all vault automators operators
     for (const operator of commonConfig.automationOperators) {
@@ -125,7 +125,7 @@ async function deployContracts(
     await configManager.configManager.setFeeConfig(false, {
       vaultOwnerFeeBasisPoint: 0,
       vaultOwner: commonConfig.feeCollector,
-      platformFeeBasisPoint: commonConfig.platformFeeBasisPoint,
+      platformFeeBasisPoint: commonConfig.privatePlatformFeeBasisPoint,
       platformFeeRecipient: commonConfig.feeCollector,
       gasFeeX64: 0,
       gasFeeRecipient: commonConfig.feeCollector,
