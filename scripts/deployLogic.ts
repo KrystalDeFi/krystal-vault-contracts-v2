@@ -452,7 +452,7 @@ async function deployContract(
   }
 
   // Only verify new contract to save time or Try to verify no matter what
-  if (autoVerify && !contractAddress) {
+  if (autoVerify) {
     // if (autoVerify) {
     try {
       log(3, ">> sleep first, wait for contract data to be propagated");
