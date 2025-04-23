@@ -105,6 +105,9 @@ async function deployContracts(
     // Whitelist all swap routers
     await configManager.configManager.whitelistSwapRouter(networkConfig.swapRouters, true);
 
+    // Whitelist all signers
+    await configManager.configManager.whitelistSigner(commonConfig.automationOperators, true);
+
     // Whitelist all vault automators operators
     for (const operator of commonConfig.automationOperators) {
       await vaultAutomator.vaultAutomator?.[0]?.grantOperator(operator);

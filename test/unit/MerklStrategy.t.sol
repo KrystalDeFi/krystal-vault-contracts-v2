@@ -7,6 +7,7 @@ import "../../contracts/core/ConfigManager.sol";
 import "../../test/TestCommon.t.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../../contracts/interfaces/ICommon.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // Mock contracts for testing
 contract MockMerklDistributor {
@@ -50,8 +51,18 @@ contract MerklStrategyTest is TestCommon {
 
   address public owner = address(0x1);
   address public user = address(0x2);
+  address public whitelistedSigner;
+  uint256 public whitelistedSignerPrivateKey;
+  uint256 public nonWhitelistedSignerPrivateKey;
+  address public nonWhitelistedSigner;
 
   function setUp() public {
+    // Generate test keys
+    whitelistedSignerPrivateKey = 0xA11CE;
+    whitelistedSigner = vm.addr(whitelistedSignerPrivateKey);
+    nonWhitelistedSignerPrivateKey = 0xB0B;
+    nonWhitelistedSigner = vm.addr(nonWhitelistedSignerPrivateKey);
+
     // Deploy mock tokens
     rewardToken = new MockERC20("Reward Token", "RWD");
     principalToken = new MockERC20("Principal Token", "PRIN");
@@ -75,6 +86,12 @@ contract MerklStrategyTest is TestCommon {
     routers[0] = address(swapRouter);
     vm.prank(owner);
     configManager.whitelistSwapRouter(routers, true);
+
+    // Whitelist the signer
+    address[] memory signers = new address[](1);
+    signers[0] = whitelistedSigner;
+    vm.prank(owner);
+    configManager.whitelistSigner(signers, true);
 
     // Deploy the strategy
     strategy = new MerklStrategy(address(configManager));
@@ -109,11 +126,30 @@ contract MerklStrategyTest is TestCommon {
     uint256 rewardAmount = 1000 * 10 ** 18;
     uint256 expectedSwapOut = 900 * 10 ** 18; // 90% of reward amount as an example
     bytes32[] memory proofs = new bytes32[](0); // Empty proofs for mock
+    uint32 deadline = uint32(block.timestamp + 1 hours);
 
     // Encode swap data (for the mock router)
     bytes memory swapData = abi.encodeWithSelector(
       MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
     );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(swapRouter),
+        swapData,
+        expectedSwapOut - 10 * 10 ** 18,
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
 
     // Encode claim and swap parameters
     IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
@@ -123,8 +159,10 @@ contract MerklStrategyTest is TestCommon {
       proof: proofs,
       swapRouter: address(swapRouter),
       swapData: swapData,
-      amountOutMin: expectedSwapOut - 10 * 10 ** 18 // Allow some slippage
-     });
+      amountOutMin: expectedSwapOut - 10 * 10 ** 18,
+      deadline: deadline,
+      signature: signature
+    });
 
     // Encode instruction
     ICommon.Instruction memory instruction = ICommon.Instruction({
@@ -179,11 +217,30 @@ contract MerklStrategyTest is TestCommon {
     uint256 rewardAmount = 1000 * 10 ** 18;
     uint256 expectedSwapOut = 900 * 10 ** 18;
     bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp + 1 hours);
 
     // Encode swap data
     bytes memory swapData = abi.encodeWithSelector(
       MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
     );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(nonWhitelistedRouter),
+        swapData,
+        expectedSwapOut - 10 * 10 ** 18,
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
 
     // Encode claim and swap parameters with non-whitelisted router
     IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
@@ -193,7 +250,9 @@ contract MerklStrategyTest is TestCommon {
       proof: proofs,
       swapRouter: address(nonWhitelistedRouter),
       swapData: swapData,
-      amountOutMin: expectedSwapOut - 10 * 10 ** 18
+      amountOutMin: expectedSwapOut - 10 * 10 ** 18,
+      deadline: deadline,
+      signature: signature
     });
 
     // Encode instruction
@@ -235,11 +294,31 @@ contract MerklStrategyTest is TestCommon {
     uint256 rewardAmount = 1000 * 10 ** 18;
     uint256 actualSwapOut = 800 * 10 ** 18;
     bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp + 1 hours);
+    uint256 minAmountOut = 900 * 10 ** 18; // Higher than actual output
 
     // Encode swap data
     bytes memory swapData = abi.encodeWithSelector(
       MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, actualSwapOut
     );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(swapRouter),
+        swapData,
+        minAmountOut,
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
 
     // Encode claim and swap parameters with high minimum out
     IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
@@ -249,8 +328,10 @@ contract MerklStrategyTest is TestCommon {
       proof: proofs,
       swapRouter: address(swapRouter),
       swapData: swapData,
-      amountOutMin: 900 * 10 ** 18 // Higher than actual output
-     });
+      amountOutMin: minAmountOut,
+      deadline: deadline,
+      signature: signature
+    });
 
     // Encode instruction
     ICommon.Instruction memory instruction = ICommon.Instruction({
@@ -296,6 +377,160 @@ contract MerklStrategyTest is TestCommon {
     // Call convert - should revert due to invalid instruction type
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
     vm.expectRevert(ICommon.InvalidInstructionType.selector);
+    strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+  }
+
+  function testRevertOnInvalidSigner() public {
+    // Create vault config
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: true,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      principalToken: address(principalToken),
+      supportedAddresses: new address[](0)
+    });
+
+    // Create fee config
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+
+    // Prepare claim parameters
+    uint256 rewardAmount = 1000 * 10 ** 18;
+    uint256 expectedSwapOut = 900 * 10 ** 18;
+    bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp + 1 hours);
+
+    // Encode swap data
+    bytes memory swapData = abi.encodeWithSelector(
+      MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
+    );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(swapRouter),
+        swapData,
+        expectedSwapOut - 10 * 10 ** 18,
+        deadline
+      )
+    );
+
+    // Sign the message with non-whitelisted signer
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(nonWhitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Encode claim and swap parameters
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
+      distributor: address(distributor),
+      token: address(rewardToken),
+      amount: rewardAmount,
+      proof: proofs,
+      swapRouter: address(swapRouter),
+      swapData: swapData,
+      amountOutMin: expectedSwapOut - 10 * 10 ** 18,
+      deadline: deadline,
+      signature: signature
+    });
+
+    // Encode instruction
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      params: abi.encode(claimParams)
+    });
+
+    // Encode the full data
+    bytes memory data = abi.encode(instruction);
+
+    // Call convert - should revert due to invalid signer
+    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
+    vm.expectRevert(IMerklStrategy.InvalidSigner.selector);
+    strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+  }
+
+  function testRevertOnExpiredSignature() public {
+    // Create vault config
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: true,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      principalToken: address(principalToken),
+      supportedAddresses: new address[](0)
+    });
+
+    // Create fee config
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+
+    // Prepare claim parameters
+    uint256 rewardAmount = 1000 * 10 ** 18;
+    uint256 expectedSwapOut = 900 * 10 ** 18;
+    bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp - 1); // Expired deadline
+
+    // Encode swap data
+    bytes memory swapData = abi.encodeWithSelector(
+      MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
+    );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(swapRouter),
+        swapData,
+        expectedSwapOut - 10 * 10 ** 18,
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Encode claim and swap parameters
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
+      distributor: address(distributor),
+      token: address(rewardToken),
+      amount: rewardAmount,
+      proof: proofs,
+      swapRouter: address(swapRouter),
+      swapData: swapData,
+      amountOutMin: expectedSwapOut - 10 * 10 ** 18,
+      deadline: deadline,
+      signature: signature
+    });
+
+    // Encode instruction
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      params: abi.encode(claimParams)
+    });
+
+    // Encode the full data
+    bytes memory data = abi.encode(instruction);
+
+    // Call convert - should revert due to expired signature
+    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
+    vm.expectRevert(IMerklStrategy.SignatureExpired.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
   }
 }

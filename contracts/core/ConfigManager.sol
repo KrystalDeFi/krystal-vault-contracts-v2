@@ -13,6 +13,7 @@ contract ConfigManager is Ownable, IConfigManager {
   mapping(address => bool) public whitelistStrategies;
   mapping(address => bool) public whitelistSwapRouters;
   mapping(address => bool) public whitelistAutomators;
+  mapping(address => bool) public whitelistSigners;
 
   // strategy address -> principal token address -> encoded config
   /* 
@@ -157,6 +158,30 @@ contract ConfigManager is Ownable, IConfigManager {
   /// @return _isWhitelisted Boolean value if automator is whitelisted
   function isWhitelistedAutomator(address _automator) external view override returns (bool) {
     return whitelistAutomators[_automator];
+  }
+
+  /// @notice Whitelist signer
+  /// @param _signers Array of signer addresses
+  /// @param _isWhitelisted Boolean value to whitelist or unwhitelist
+  function whitelistSigner(address[] calldata _signers, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = _signers.length;
+
+    for (uint256 i; i < length;) {
+      whitelistSigners[_signers[i]] = _isWhitelisted;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    emit WhitelistSigner(_signers, _isWhitelisted);
+  }
+
+  /// @notice Check if signer is whitelisted
+  /// @param _signer Signer address
+  /// @return Boolean value if signer is whitelisted
+  function isWhitelistSigner(address _signer) external view override returns (bool) {
+    return whitelistSigners[_signer];
   }
 
   /// @notice Get typed tokens

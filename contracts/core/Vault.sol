@@ -300,21 +300,8 @@ contract Vault is
     require(block.number > lastAllocateBlockNumber, ExceedMaxAllocatePerBlock());
     lastAllocateBlockNumber = block.number;
 
-    // validate if number of assets that have strategy != address(0) < configManager.maxPositions
-    uint8 strategyCount;
-    uint256 length = inventory.assets.length;
-
-    for (uint256 i; i < length;) {
-      if (inventory.assets[i].strategy != address(0) && inventory.assets[i].amount != 0) strategyCount++;
-
-      unchecked {
-        i++;
-      }
-    }
-
-    require(strategyCount < configManager.maxPositions(), MaxPositionsReached());
     AssetLib.Asset memory inputAsset;
-    length = inputAssets.length;
+    uint256 length = inputAssets.length;
     for (uint256 i; i < length;) {
       inputAsset = inputAssets[i];
       require(inputAsset.amount != 0, InvalidAssetAmount());
@@ -337,6 +324,27 @@ contract Vault is
     // Decode the returned data
     AssetLib.Asset[] memory newAssets = abi.decode(returnData, (AssetLib.Asset[]));
     _addAssets(newAssets);
+
+    // validate if number of assets that have strategy != address(0) < configManager.maxPositions
+    uint8 strategyCount;
+    length = inventory.assets.length;
+    AssetLib.Asset memory currentAsset;
+
+    for (uint256 i; i < length;) {
+      currentAsset = inventory.assets[i];
+
+      if (
+        currentAsset.strategy != address(0)
+          && IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) != 0
+          && currentAsset.amount != 0
+      ) strategyCount++;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    require(strategyCount < configManager.maxPositions(), MaxPositionsReached());
 
     emit VaultAllocate(vaultFactory, inputAssets, strategy, newAssets);
   }

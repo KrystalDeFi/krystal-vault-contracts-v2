@@ -20,6 +20,18 @@ error ApproveFailed()
 error SwapFailed()
 ```
 
+### InvalidSigner
+
+```solidity
+error InvalidSigner()
+```
+
+### SignatureExpired
+
+```solidity
+error SignatureExpired()
+```
+
 ### InstructionType
 
 ```solidity
@@ -39,6 +51,8 @@ struct ClaimAndSwapParams {
   address swapRouter;
   bytes swapData;
   uint256 amountOutMin;
+  uint32 deadline;
+  bytes signature;
 }
 ```
 

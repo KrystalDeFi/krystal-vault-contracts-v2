@@ -38,6 +38,12 @@ event WhitelistSwapRouter(address[] _swapRouters, bool _isWhitelisted)
 event WhitelistAutomator(address[] _automators, bool _isWhitelisted)
 ```
 
+### WhitelistSigner
+
+```solidity
+event WhitelistSigner(address[] _signers, bool _isWhitelisted)
+```
+
 ### SetStrategyConfig
 
 ```solidity
@@ -108,6 +114,18 @@ function whitelistAutomator(address[] _automators, bool _isWhitelisted) external
 
 ```solidity
 function isWhitelistedAutomator(address _automator) external view returns (bool _isWhitelisted)
+```
+
+### whitelistSigner
+
+```solidity
+function whitelistSigner(address[] signers, bool _isWhitelisted) external
+```
+
+### isWhitelistSigner
+
+```solidity
+function isWhitelistSigner(address signer) external view returns (bool _isWhitelisted)
 ```
 
 ### getTypedTokens
