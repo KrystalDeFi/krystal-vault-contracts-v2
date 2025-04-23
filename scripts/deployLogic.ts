@@ -125,7 +125,7 @@ async function deployContracts(
     await configManager.configManager.setFeeConfig(false, {
       vaultOwnerFeeBasisPoint: 0,
       vaultOwner: commonConfig.feeCollector,
-      platformFeeBasisPoint: commonConfig.platformFeeBasisPoint,
+      platformFeeBasisPoint: commonConfig.privatePlatformFeeBasisPoint,
       platformFeeRecipient: commonConfig.feeCollector,
       gasFeeX64: 0,
       gasFeeRecipient: commonConfig.feeCollector,
