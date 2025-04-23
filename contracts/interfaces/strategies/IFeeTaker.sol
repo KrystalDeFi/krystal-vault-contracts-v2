@@ -8,5 +8,5 @@ interface IFeeTaker {
     GAS
   }
 
-  event FeeCollected(FeeType indexed feeType, address indexed recipient, address indexed token, uint256 amount);
+  event FeeCollected(address indexed vaultAddress, FeeType indexed feeType, address indexed recipient, address token, uint256 amount);
 }

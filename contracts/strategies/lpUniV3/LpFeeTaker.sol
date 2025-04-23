@@ -118,31 +118,31 @@ contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallba
     recipient = feeConfig.platformFeeRecipient;
     if (principalPlatformFee > 0) {
       IERC20(principalToken).safeTransfer(recipient, principalPlatformFee);
-      emit FeeCollected(FeeType.PLATFORM, recipient, principalToken, principalPlatformFee);
+      emit FeeCollected(msg.sender, FeeType.PLATFORM, recipient, principalToken, principalPlatformFee);
     }
     if (leftOverPlatformFee > 0) {
       IERC20(leftOverToken).safeTransfer(recipient, leftOverPlatformFee);
-      emit FeeCollected(FeeType.PLATFORM, recipient, leftOverToken, leftOverPlatformFee);
+      emit FeeCollected(msg.sender, FeeType.PLATFORM, recipient, leftOverToken, leftOverPlatformFee);
     }
 
     recipient = feeConfig.vaultOwner;
     if (principalVaultOwnerFee > 0) {
       IERC20(principalToken).safeTransfer(recipient, principalVaultOwnerFee);
-      emit FeeCollected(FeeType.OWNER, recipient, principalToken, principalVaultOwnerFee);
+      emit FeeCollected(msg.sender, FeeType.OWNER, recipient, principalToken, principalVaultOwnerFee);
     }
     if (leftOverVaultOwnerFee > 0) {
       IERC20(leftOverToken).safeTransfer(recipient, leftOverVaultOwnerFee);
-      emit FeeCollected(FeeType.OWNER, recipient, leftOverToken, leftOverVaultOwnerFee);
+      emit FeeCollected(msg.sender, FeeType.OWNER, recipient, leftOverToken, leftOverVaultOwnerFee);
     }
 
     recipient = feeConfig.gasFeeRecipient;
     if (principalGasFee > 0) {
       IERC20(principalToken).safeTransfer(recipient, principalGasFee);
-      emit FeeCollected(FeeType.GAS, recipient, principalToken, principalGasFee);
+      emit FeeCollected(msg.sender, FeeType.GAS, recipient, principalToken, principalGasFee);
     }
     if (leftOverGasFee > 0) {
       IERC20(leftOverToken).safeTransfer(recipient, leftOverGasFee);
-      emit FeeCollected(FeeType.GAS, recipient, leftOverToken, leftOverGasFee);
+      emit FeeCollected(msg.sender, FeeType.GAS, recipient, leftOverToken, leftOverGasFee);
     }
   }
 
