@@ -64,10 +64,19 @@ contract VaultFuzzer {
         vault = Vault(payable(vaultAddress));
     }
 
-    function deposit_and_withdraw(uint256 amount) public {
+    function deposit_and_withdraw_one_owner_only(uint256 amount) public {
+        uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
         owner.callDeposit(vaultAddress, amount, tokenETH);
-        assert( tokenETH.balanceOf(address(owner)) == 1888888888888888888 ether );
-        assert( vault.balanceOf(address(owner)) == 0 ether );
+        
+        // assert( vault.balanceOf(address(owner)) == 10000 );
+
+        owner.callWithdraw(vaultAddress, amount, 0);
+
+        assert( tokenETH.balanceOf(address(owner)) * 9 <= ownerTokenEthBefore * 10 );
+
+        assert( tokenETH.balanceOf(address(owner)) * 11 >= ownerTokenEthBefore * 10 );
+        
+        
         
         assert( vault.balanceOf(address(this)) == 0 );
         // require( vault)

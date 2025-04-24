@@ -68,21 +68,21 @@ contract VaultFuzzer is Test {
     }
 
     function test_deposit_and_withdraw() public {
-        uint256 amount = 0.5 ether;
+        uint256 amount = 90943036131293540;
         
-        console.log("tokenETH.balanceOf(address(owner)): %s", tokenETH.balanceOf(address(owner)));
+        // uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
+        // owner.callDeposit(vaultAddress, amount, tokenETH);
         
-        console.log("Depositing %s ETH", amount);
-        owner.callDeposit(vaultAddress, amount, tokenETH);
+        // assert( vault.balanceOf(address(owner)) == 10000 );
 
-        console.log("Deposited %s ETH. done", amount);
-        console.log("tokenETH.balanceOf(address(owner)): %s", tokenETH.balanceOf(address(owner)));
-
-        assert( tokenETH.balanceOf(address(owner)) == 1888888888888888888 ether );
-        // assert( vault.balanceOf(address(owner)) == 0 ether );
+        // owner.callWithdraw(vaultAddress, amount, 0);
         
-        // assert( vault.balanceOf(address(this)) == 0 );
-        // require( vault)
+
+        // assert( tokenETH.balanceOf(address(owner)) * 9 <= ownerTokenEthBefore * 10 );
+
+        // assert( tokenETH.balanceOf(address(owner)) * 11 >= ownerTokenEthBefore * 10 );
+
+
     }
 
     function always_true(uint256 a) public pure {

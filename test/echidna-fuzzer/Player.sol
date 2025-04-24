@@ -11,9 +11,9 @@ contract Player {
     constructor() payable {
     } 
 
-    function callDeposit(address vault, uint256 amount, MockERC20Token token) public {
+    function callDeposit(address vault, uint256 amount, MockERC20Token token) public returns (uint256) {
         token.approve(vault, amount);    
-        Vault(payable(vault)).deposit(amount, 0);
+        return Vault(payable(vault)).deposit(amount, 0);        
     }
 
     function callWithdraw(address vault, uint256 shares, uint256 minAmount) public {
