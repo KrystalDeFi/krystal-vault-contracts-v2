@@ -8,6 +8,7 @@ import "../../test/TestCommon.t.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "../../contracts/interfaces/ICommon.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 // Mock contracts for testing
 contract MockMerklDistributor {
@@ -125,9 +126,11 @@ contract MerklStrategyTest is TestCommon {
     // Prepare claim parameters
     uint256 rewardAmount = 1000 * 10 ** 18;
     uint256 expectedSwapOut = 900 * 10 ** 18; // 90% of reward amount as an example
-    bytes32[] memory proofs = new bytes32[](0); // Empty proofs for mock
-    uint32 deadline = uint32(block.timestamp + 1 hours);
+    bytes32[] memory proofs = new bytes32[](1); // Empty proofs for mock
+    proofs[0] = hex"A1";
 
+    // uint32 deadline = uint32(block.timestamp + 1 hours);
+    uint32 deadline = 1745491945;
     // Encode swap data (for the mock router)
     bytes memory swapData = abi.encodeWithSelector(
       MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
@@ -146,6 +149,16 @@ contract MerklStrategyTest is TestCommon {
         deadline
       )
     );
+
+    console.logAddress(address(distributor));
+    console.logAddress(address(rewardToken));
+    console.log(rewardAmount);
+    // console.log(proofs);
+    console.logAddress(address(swapRouter));
+    console.logBytes(swapData);
+    console.log(expectedSwapOut - 10 * 10 ** 18);
+    console.log("deadline: ", deadline);
+    console.log("Message Hash: ", Strings.toHexString(uint256(messageHash)));
 
     // Sign the message
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
