@@ -2,6 +2,8 @@
 
 ## VaultAutomator
 
+Contract that automates vault operations for liquidity provision and management
+
 ### OPERATOR_ROLE_HASH
 
 ```solidity

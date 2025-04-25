@@ -7,8 +7,6 @@ interface IMerklStrategy is IStrategy {
   error NotEnoughAmountOut();
   error ApproveFailed();
   error SwapFailed();
-  error InvalidSigner();
-  error SignatureExpired();
 
   enum InstructionType {
     ClaimAndSwap

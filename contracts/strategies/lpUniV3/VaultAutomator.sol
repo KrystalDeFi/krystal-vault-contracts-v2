@@ -8,6 +8,10 @@ import "./CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 
+/**
+ * @title VaultAutomator
+ * @notice Contract that automates vault operations for liquidity provision and management
+ */
 contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
