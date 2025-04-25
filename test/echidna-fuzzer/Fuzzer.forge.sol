@@ -68,19 +68,28 @@ contract VaultFuzzer is Test {
     }
 
     function test_deposit_and_withdraw() public {
-        uint256 amount = 90943036131293540;
-        
-        // uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
-        // owner.callDeposit(vaultAddress, amount, tokenETH);
-        
-        // assert( vault.balanceOf(address(owner)) == 10000 );
-
-        // owner.callWithdraw(vaultAddress, amount, 0);
+        uint256 amount = 1 ether;
         
 
-        // assert( tokenETH.balanceOf(address(owner)) * 9 <= ownerTokenEthBefore * 10 );
+        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
 
-        // assert( tokenETH.balanceOf(address(owner)) * 11 >= ownerTokenEthBefore * 10 );
+        uint256 ownerShares = owner.callDeposit(vaultAddress, amount, tokenETH);
+        console.log("owner deposited %s", amount);
+        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
+        
+
+        uint256 player1Shares = player1.callDeposit(vaultAddress, amount, tokenETH);
+        console.log("p1 deposited %s", amount);
+        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+
+
+        player1.callWithdraw(vaultAddress, player1Shares, 0);
+        owner.callWithdraw(vaultAddress, ownerShares, 0);
+        
+        console.log("tokenETH.balanceOf(address(owner))  x: %s", tokenETH.balanceOf(address(owner)));
+        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+
+        // assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );
 
 
     }

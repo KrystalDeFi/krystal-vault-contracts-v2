@@ -30,6 +30,10 @@ contract VaultFuzzer {
         tokenETH.transfer(address(player1), 1 ether);
         tokenUSD.transfer(address(player1), 1 ether);
 
+        player2 = new Player();
+        tokenETH.transfer(address(player2), 1 ether);
+        tokenUSD.transfer(address(player2), 1 ether);
+
         address[] memory whitelistAutomator = new address[](1);
         whitelistAutomator[0] = address(player1);
 
@@ -64,25 +68,38 @@ contract VaultFuzzer {
         vault = Vault(payable(vaultAddress));
     }
 
-    function deposit_and_withdraw_one_owner_only(uint256 amount) public {
-        uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
+    function owner_doDeposit(uint256 amount) public {
         owner.callDeposit(vaultAddress, amount, tokenETH);
-        
-        // assert( vault.balanceOf(address(owner)) == 10000 );
-
-        owner.callWithdraw(vaultAddress, amount, 0);
-
-        assert( tokenETH.balanceOf(address(owner)) * 9 <= ownerTokenEthBefore * 10 );
-
-        assert( tokenETH.balanceOf(address(owner)) * 11 >= ownerTokenEthBefore * 10 );
-        
-        
-        
-        assert( vault.balanceOf(address(this)) == 0 );
-        // require( vault)
     }
 
-    // function always_true(uint256 a) public pure {
-    //     assert( true );
-    // }
+    function owner_doWithdraw(uint256 shares) public {
+        owner.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player1_doDeposit(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player1_doWithdraw(uint256 shares) public {
+        player1.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player2_doDeposit(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player2_doWithdraw(uint256 shares) public {
+        player2.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function deposit_and_withdraw_one_owner_only(uint256 amount) public {
+        uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));        
+        
+        uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, tokenETH);
+        owner.callWithdraw(vaultAddress, sharesDelta, 0);
+
+        // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
+        assert( tokenETH.balanceOf(address(owner)) <= ownerTokenEthBefore );
+    }
+
 }
