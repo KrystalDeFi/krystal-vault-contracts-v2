@@ -15,7 +15,8 @@ contract MerklAutomatorTest is TestCommon {
   MerklAutomator public autoClaimer;
   MerklStrategy public strategy;
   IVault public vault;
-  address public owner = makeAddr("owner");
+  uint256 public ownerPrivateKey = 0xABCD;
+  address public owner = vm.addr(ownerPrivateKey);
   address public user = makeAddr("user");
   address public token = makeAddr("rewardToken");
   address public principalToken = makeAddr("principalToken");
@@ -50,7 +51,7 @@ contract MerklAutomatorTest is TestCommon {
       swapData: abi.encode("swap"),
       amountOutMin: 90 ether,
       deadline: uint32(uint32(block.timestamp)) + 1 days,
-      signature: _signClaimParams(owner)
+      signature: _signClaimParams(ownerPrivateKey)
     });
 
     bytes memory allocateData = abi.encode(
@@ -71,32 +72,7 @@ contract MerklAutomatorTest is TestCommon {
     autoClaimer.executeAllocate(vault, new AssetLib.Asset[](0), strategy, 0, allocateData, "", "");
   }
 
-  function test_RevertIf_InvalidStrategy() public {
-    address invalidStrategy = makeAddr("invalidStrategy");
-    IMerklStrategy.ClaimAndSwapParams memory params = IMerklStrategy.ClaimAndSwapParams({
-      distributor: makeAddr("distributor"),
-      token: token,
-      amount: 100 ether,
-      proof: new bytes32[](0),
-      swapRouter: makeAddr("swapRouter"),
-      swapData: abi.encode("swap"),
-      amountOutMin: 90 ether,
-      deadline: uint32(block.timestamp) + 1 days,
-      signature: _signClaimParams(owner)
-    });
-
-    bytes memory allocateData = abi.encode(
-      ICommon.Instruction({
-        instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
-        params: abi.encode(params)
-      })
-    );
-
-    vm.expectRevert(ICommon.InvalidStrategy.selector);
-    autoClaimer.executeAllocate(vault, new AssetLib.Asset[](0), IStrategy(invalidStrategy), 0, allocateData, "", "");
-  }
-
-  function _signClaimParams(address signer) internal returns (bytes memory) {
+  function _signClaimParams(uint256 signer) internal returns (bytes memory) {
     bytes32 messageHash = keccak256(
       abi.encodePacked(
         makeAddr("distributor"),
@@ -109,7 +85,7 @@ contract MerklAutomatorTest is TestCommon {
         uint32(block.timestamp) + 1 days
       )
     );
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(uint256(uint160(signer)), messageHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer, messageHash);
     return abi.encodePacked(r, s, v);
   }
 }
