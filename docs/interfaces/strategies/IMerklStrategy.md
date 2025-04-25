@@ -20,18 +20,6 @@ error ApproveFailed()
 error SwapFailed()
 ```
 
-### InvalidSigner
-
-```solidity
-error InvalidSigner()
-```
-
-### SignatureExpired
-
-```solidity
-error SignatureExpired()
-```
-
 ### InstructionType
 
 ```solidity

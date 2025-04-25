@@ -73,6 +73,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSigner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -117,6 +122,11 @@
       }
     ],
     "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {
