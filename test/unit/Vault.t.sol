@@ -51,7 +51,23 @@ contract VaultTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));

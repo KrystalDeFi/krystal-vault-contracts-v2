@@ -60,7 +60,23 @@ contract IntegrationTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
@@ -90,7 +106,8 @@ contract IntegrationTest is TestCommon {
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vaultImplementation));
 
     console.log("vaultFactory: ", address(vaultFactory));
     // Owner can create a Vault without any assets
@@ -246,8 +263,8 @@ contract IntegrationTest is TestCommon {
     console.log("balance of the shares of the player 1: ", vaultInstance.balanceOf(PLAYER_1));
     console.log("weth balance of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1));
 
-    uint256 dollar_gain_player_1 = (IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance) * 2000 / (10 ** 12); // given
-      // the ETH price is 2000
+    uint256 dollar_gain_player_1 = ((IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance) * 2000) / (10 ** 12); // given
+    // the ETH price is 2000
     uint256 dollar_loss_bighand_player = 100_000_000_000 - IERC20(USDC).balanceOf(BIGHAND_PLAYER);
 
     console.log(">>> weth gain of the player 1: ", IERC20(WETH).balanceOf(PLAYER_1) - p1_old_weth_balance);

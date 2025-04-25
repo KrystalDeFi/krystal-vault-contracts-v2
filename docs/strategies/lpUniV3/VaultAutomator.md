@@ -11,7 +11,7 @@ bytes32 OPERATOR_ROLE_HASH
 ### constructor
 
 ```solidity
-constructor(address _owner) public
+constructor(address _owner, address[] _operators) public
 ```
 
 ### executeAllocate

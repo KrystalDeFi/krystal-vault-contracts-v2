@@ -56,7 +56,23 @@ contract IntegrationTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     validator = new LpValidator(address(configManager));
@@ -80,7 +96,8 @@ contract IntegrationTest is TestCommon {
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vaultImplementation));
 
     // User can create a Vault without any assets
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
@@ -312,7 +329,7 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory decAssets = new AssetLib.Asset[](1);
     decAssets[0] = vaultAssets[2];
     ILpStrategy.DecreaseLiquidityAndSwapParams memory decParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
-      liquidity: liquidity * 3 / 17,
+      liquidity: (liquidity * 3) / 17,
       amount0Min: 0,
       amount1Min: 0,
       principalAmountOutMin: 0,

@@ -2,32 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address[]",
-        "name": "_whitelistAutomator",
-        "type": "address[]"
-      },
-      {
-        "internalType": "address[]",
-        "name": "_typedTokens",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_typedTokenTypes",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "key",
         "type": "bytes32"
@@ -39,6 +13,11 @@
   {
     "inputs": [],
     "name": "InvalidFeeConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
     "type": "error"
   },
   {
@@ -59,6 +38,11 @@
   {
     "inputs": [],
     "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
     "type": "error"
   },
   {
@@ -92,6 +76,19 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -432,6 +429,84 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistStrategies",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistSwapRouters",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistAutomator",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistSigners",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_typedTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_typedTokenTypes",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_platformFeeBasisPoint",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_privatePlatformFeeBasisPoint",
+        "type": "uint16"
+      },
+      {
+        "internalType": "address",
+        "name": "_feeCollector",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_strategies",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_principalTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_configs",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

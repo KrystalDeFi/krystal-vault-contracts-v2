@@ -10,6 +10,7 @@ import {
   LpStrategy,
   VaultAutomator as LpUniV3VaultAutomator,
   LpValidator,
+  VaultAutomator,
 } from "../typechain-types/contracts/strategies/lpUniV3";
 import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
@@ -24,7 +25,7 @@ if (!networkConfig) {
 
 export interface Contracts {
   vault?: Vault;
-  vaultAutomator?: any[];
+  vaultAutomator?: VaultAutomator;
   configManager?: ConfigManager;
   poolOptimalSwapper?: PoolOptimalSwapper;
   lpValidator?: LpValidator;
@@ -42,7 +43,7 @@ export const deploy = async (existingContract: Record<string, any> | undefined =
   log(0, "Start deployin contracts");
   log(0, "======================\n");
 
-  let deployedContracts = await deployContracts(existingContract, deployerAddress);
+  let deployedContracts = await deployContracts(existingContract);
 
   // Summary
   log(0, "Summary");
@@ -54,15 +55,12 @@ export const deploy = async (existingContract: Record<string, any> | undefined =
   return deployedContracts;
 };
 
-async function deployContracts(
-  existingContract: Record<string, any> | undefined = undefined,
-  deployer: string,
-): Promise<Contracts> {
+async function deployContracts(existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> {
   let step = 0;
 
-  const vault = await deployVaultContract(++step, existingContract, deployer);
-  const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract, deployer);
-  const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract, deployer);
+  const vault = await deployVaultContract(++step, existingContract);
+  const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract);
+  const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract);
 
   const contracts: Contracts = {
     vault: vault.vault,
@@ -70,23 +68,23 @@ async function deployContracts(
     poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
   };
 
-  const configManager = await deployConfigManagerContract(++step, existingContract, deployer, undefined, contracts);
+  const configManager = await deployConfigManagerContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     configManager: configManager.configManager,
   });
 
-  const lpValidator = await deployLpValidatorContract(++step, existingContract, deployer, undefined, contracts);
-  const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, deployer, undefined, contracts);
+  const lpValidator = await deployLpValidatorContract(++step, existingContract, undefined, contracts);
+  const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
     lpFeeTaker: lpFeeTaker.lpFeeTaker,
   });
 
-  const lpStrategy = await deployLpStrategyContract(++step, existingContract, deployer, undefined, contracts);
-  const merklStrategy = await deployMerklStrategyContract(++step, existingContract, deployer, undefined, contracts);
-  const vaultFactory = await deployVaultFactoryContract(++step, existingContract, deployer, undefined, contracts);
+  const lpStrategy = await deployLpStrategyContract(++step, existingContract, undefined, contracts);
+  const merklStrategy = await deployMerklStrategyContract(++step, existingContract, undefined, contracts);
+  const vaultFactory = await deployVaultFactoryContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpStrategy: lpStrategy.lpStrategy,
@@ -94,67 +92,48 @@ async function deployContracts(
     merklStrategy: merklStrategy.merklStrategy,
   });
 
-  // whitelist lp strategy in config manager
-  if (configManager.configManager && lpStrategy.lpStrategy && lpValidator.lpValidator && merklStrategy.merklStrategy) {
-    // Whitelist all strategies
-    await configManager.configManager.whitelistStrategy(
-      [lpStrategy.lpStrategy.target, merklStrategy.merklStrategy.target],
-      true,
+  if (vaultFactory?.vaultFactory && configManager?.configManager) {
+    await vaultFactory.vaultFactory.initialize(
+      commonConfig.admin,
+      networkConfig.wrapToken || "",
+      existingContract?.["configManager"] || contracts?.configManager?.target,
+      existingContract?.["vault"] || contracts?.vault?.target,
     );
 
-    // Whitelist all swap routers
-    await configManager.configManager.whitelistSwapRouter(networkConfig.swapRouters, true);
-
-    // Whitelist all signers
-    await configManager.configManager.whitelistSigner(commonConfig.signers, true);
-
-    // Set fee config
-    await configManager.configManager.setFeeConfig(true, {
-      vaultOwnerFeeBasisPoint: commonConfig.vaultOwnerFeeBasisPoint,
-      vaultOwner: commonConfig.feeCollector,
-      platformFeeBasisPoint: commonConfig.platformFeeBasisPoint,
-      platformFeeRecipient: commonConfig.feeCollector,
-      gasFeeX64: 0,
-      gasFeeRecipient: commonConfig.feeCollector,
-    });
-    await configManager.configManager.setFeeConfig(false, {
-      vaultOwnerFeeBasisPoint: 0,
-      vaultOwner: commonConfig.feeCollector,
-      platformFeeBasisPoint: commonConfig.privatePlatformFeeBasisPoint,
-      platformFeeRecipient: commonConfig.feeCollector,
-      gasFeeX64: 0,
-      gasFeeRecipient: commonConfig.feeCollector,
-    });
-
-    // Config for wrap token
-    await configManager.configManager.setStrategyConfig(
-      lpValidator.lpValidator.target,
-      networkConfig?.wrapToken || "",
-      commonConfig.nativeConfig,
+    await configManager.configManager.initialize(
+      commonConfig.admin,
+      [
+        existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
+        existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
+      ],
+      networkConfig.swapRouters,
+      [existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target],
+      commonConfig.signers,
+      networkConfig.typedTokens || [],
+      networkConfig.typedTokensTypes || [],
+      commonConfig.vaultOwnerFeeBasisPoint,
+      commonConfig.platformFeeBasisPoint,
+      commonConfig.privatePlatformFeeBasisPoint,
+      commonConfig.feeCollector,
+      [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+      ],
+      [
+        networkConfig?.wrapToken || "",
+        networkConfig?.typedTokens?.[0] || "",
+        networkConfig?.typedTokens?.[1] || "",
+        networkConfig?.typedTokens?.[2] || "",
+      ],
+      [
+        commonConfig.nativeConfig,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith18Decimals,
+      ],
     );
-    // Config for USDC
-    await configManager.configManager.setStrategyConfig(
-      lpValidator.lpValidator.target,
-      networkConfig?.typedTokens?.[0] || "",
-      commonConfig.stableConfigWith6Decimals,
-    );
-    // Config for USDT
-    await configManager.configManager.setStrategyConfig(
-      lpValidator.lpValidator.target,
-      networkConfig?.typedTokens?.[1] || "",
-      commonConfig.stableConfigWith6Decimals,
-    );
-    // Config for DAI
-    await configManager.configManager.setStrategyConfig(
-      lpValidator.lpValidator.target,
-      networkConfig?.typedTokens?.[2] || "",
-      commonConfig.stableConfigWith18Decimals,
-    );
-
-    // Whitelist all vault automators operators
-    for (const operator of commonConfig.automationOperators) {
-      await vaultAutomator.vaultAutomator?.[0]?.grantOperator(operator);
-    }
   }
 
   return contracts;
@@ -163,7 +142,6 @@ async function deployContracts(
 export const deployVaultContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
@@ -188,37 +166,33 @@ export const deployVaultContract = async (
 export const deployVaultAutomatorContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let vaultAutomators: any[] = [];
+  let vaultAutomator;
 
   if (config.vaultAutomator?.enabled) {
-    vaultAutomators.push(
-      (await deployContract(
-        `${step} >>`,
-        config.vaultAutomator?.autoVerifyContract,
-        "VaultAutomator",
-        existingContract?.["vaultAutomator"]?.[0],
-        "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
-        undefined,
-        ["address"],
-        [deployer],
-      )) as LpUniV3VaultAutomator,
-    );
+    vaultAutomator = (await deployContract(
+      `${step} >>`,
+      config.vaultAutomator?.autoVerifyContract,
+      "VaultAutomator",
+      existingContract?.["vaultAutomator"]?.[0],
+      "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
+      undefined,
+      ["address", "address[]"],
+      [commonConfig.admin, commonConfig.automationOperators],
+    )) as LpUniV3VaultAutomator;
   }
 
   return {
-    vaultAutomator: vaultAutomators,
+    vaultAutomator,
   };
 };
 
 export const deployConfigManagerContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -232,14 +206,6 @@ export const deployConfigManagerContract = async (
       "ConfigManager",
       existingContract?.["configManager"],
       "contracts/core/ConfigManager.sol:ConfigManager",
-      undefined,
-      ["address", "address[]", "address[]", "uint256[]"],
-      [
-        deployer,
-        existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.map((c) => c?.target),
-        config.typedTokens,
-        config.typedTokensTypes,
-      ],
     )) as ConfigManager;
   }
   return {
@@ -250,7 +216,6 @@ export const deployConfigManagerContract = async (
 export const deployPoolOptimalSwapperContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -274,7 +239,6 @@ export const deployPoolOptimalSwapperContract = async (
 export const deployLpFeeTakerContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -298,7 +262,6 @@ export const deployLpFeeTakerContract = async (
 export const deployLpValidatorContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -324,7 +287,6 @@ export const deployLpValidatorContract = async (
 export const deployLpStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -355,7 +317,6 @@ export const deployLpStrategyContract = async (
 export const deployMerklStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -381,7 +342,6 @@ export const deployMerklStrategyContract = async (
 export const deployVaultFactoryContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
-  deployer: string,
   customNetworkConfig?: IConfig,
   contracts?: Contracts,
 ): Promise<Contracts> => {
@@ -395,14 +355,6 @@ export const deployVaultFactoryContract = async (
       "VaultFactory",
       existingContract?.["vaultFactory"],
       "contracts/core/VaultFactory.sol:VaultFactory",
-      undefined,
-      ["address", "address", "address", "address"],
-      [
-        deployer,
-        config.wrapToken,
-        existingContract?.["configManager"] || contracts?.configManager?.target,
-        existingContract?.["vault"] || contracts?.vault?.target,
-      ],
     )) as VaultFactory;
   }
   return {
