@@ -92,7 +92,7 @@ contract VaultFuzzer {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function deposit_and_withdraw_one_owner_only(uint256 amount) public {
+    function deposit_and_withdraw_only(uint256 amount) public {
         uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));        
         
         uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, tokenETH);
@@ -100,6 +100,23 @@ contract VaultFuzzer {
 
         // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
         assert( tokenETH.balanceOf(address(owner)) <= ownerTokenEthBefore );
+
+        uint256 player1TokenEthBefore = tokenETH.balanceOf(address(player1));
+        uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, tokenETH);
+        player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
+
+        // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
+        assert( tokenETH.balanceOf(address(player1)) <= player1TokenEthBefore );
+    }
+
+    function deposit_withdraw_empty_vault() public {
+        require(vault.totalSupply() == 0);     // in this case, no one has never deposited into the vault
+
+        uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
+        uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, tokenETH);
+        owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
+        
+        assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );    // it is expected that the owner has not earned or lost any amount
     }
 
 }
