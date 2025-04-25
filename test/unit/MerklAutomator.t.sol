@@ -48,7 +48,7 @@ contract MerklAutomatorTest is TestCommon {
     strategy = new MerklStrategy(address(this)); // Using test contract as config manager
     address[] memory allowedStrategies = new address[](1);
     allowedStrategies[0] = address(strategy);
-    autoClaimer = new MerklAutomator(address(configManager));
+    autoClaimer = new MerklAutomator(owner, address(configManager));
 
     // Setup mock vault
     vault = IVault(makeAddr("vault"));

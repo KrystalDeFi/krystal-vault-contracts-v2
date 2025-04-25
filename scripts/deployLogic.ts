@@ -212,8 +212,8 @@ export const deployMerklAutomatorContract = async (
       existingContract?.["merklAutomator"],
       "contracts/strategies/merkl/MerklAutomator.sol:MerklAutomator",
       undefined,
-      ["address"],
-      [existingContract?.["configManager"] || contracts?.configManager?.target],
+      ["address", "address"],
+      [commonConfig.admin, existingContract?.["configManager"] || contracts?.configManager?.target],
     )) as MerklAutomator;
   }
   return {

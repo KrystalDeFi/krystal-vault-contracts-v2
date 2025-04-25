@@ -163,6 +163,22 @@ Revoke operator role
 | ---- | ---- | ----------- |
 | operator | address | Operator address |
 
+### pause
+
+```solidity
+function pause() external
+```
+
+Pause the contract
+
+### unpause
+
+```solidity
+function unpause() external
+```
+
+Unpause the contract
+
 ### receive
 
 ```solidity

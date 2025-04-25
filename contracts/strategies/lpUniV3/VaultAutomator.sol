@@ -123,5 +123,15 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     revokeRole(OPERATOR_ROLE_HASH, operator);
   }
 
+  /// @notice Pause the contract
+  function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _pause();
+  }
+
+  /// @notice Unpause the contract
+  function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _unpause();
+  }
+
   receive() external payable { }
 }
