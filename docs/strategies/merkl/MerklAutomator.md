@@ -10,19 +10,11 @@ Contract that allows anyone to trigger Merkl reward claims through vault allocat
 contract IConfigManager configManager
 ```
 
-### initialize
+### constructor
 
 ```solidity
-function initialize(address _configManager) public
+constructor(address _configManager) public
 ```
-
-Initializes the vault
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _configManager | address | Address of the config manager |
 
 ### executeAllocate
 

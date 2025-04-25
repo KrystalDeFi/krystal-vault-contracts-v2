@@ -32,8 +32,7 @@ contract MerklAutomatorTest is TestCommon {
     strategy = new MerklStrategy(address(this)); // Using test contract as config manager
     address[] memory allowedStrategies = new address[](1);
     allowedStrategies[0] = address(strategy);
-    autoClaimer = new MerklAutomator();
-    autoClaimer.initialize(address(configManager));
+    autoClaimer = new MerklAutomator(address(configManager));
 
     // Setup mock vault
     vault = IVault(makeAddr("vault"));
@@ -100,7 +99,7 @@ contract MerklAutomatorTest is TestCommon {
 
   function test_RevertIf_InvalidSigner() public {
     // Sign with non-whitelisted private key
-    uint256 invalidPrivateKey = 12345;
+    uint256 invalidPrivateKey = 12_345;
 
     IMerklStrategy.ClaimAndSwapParams memory params = IMerklStrategy.ClaimAndSwapParams({
       distributor: makeAddr("distributor"),
