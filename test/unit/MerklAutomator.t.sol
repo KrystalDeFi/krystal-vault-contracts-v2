@@ -22,7 +22,23 @@ contract MerklAutomatorTest is TestCommon {
   address public principalToken = makeAddr("principalToken");
 
   function setUp() public {
-    ConfigManager configManager = new ConfigManager(owner, new address[](0), new address[](0), new uint256[](0));
+    ConfigManager configManager = new ConfigManager();
+    configManager.initialize(
+      owner,
+      new address[](0),
+      new address[](0),
+      new address[](0),
+      new address[](0),
+      new address[](0),
+      new uint256[](0),
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
     address[] memory whitelistedSigners = new address[](1);
     whitelistedSigners[0] = owner;
     vm.startPrank(owner);
