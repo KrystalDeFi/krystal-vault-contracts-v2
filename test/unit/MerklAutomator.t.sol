@@ -72,6 +72,60 @@ contract MerklAutomatorTest is TestCommon {
     autoClaimer.executeAllocate(vault, new AssetLib.Asset[](0), strategy, 0, allocateData, "", "");
   }
 
+  function test_RevertIf_ExpiredSignature() public {
+    IMerklStrategy.ClaimAndSwapParams memory params = IMerklStrategy.ClaimAndSwapParams({
+      distributor: makeAddr("distributor"),
+      token: token,
+      amount: 100 ether,
+      proof: new bytes32[](0),
+      swapRouter: makeAddr("swapRouter"),
+      swapData: abi.encode("swap"),
+      amountOutMin: 90 ether,
+      deadline: uint32(uint32(block.timestamp)) + 1 days, // expired
+      signature: _signClaimParams(ownerPrivateKey)
+    });
+
+    bytes memory allocateData = abi.encode(
+      ICommon.Instruction({
+        instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+        params: abi.encode(params)
+      })
+    );
+
+    skip(2 days); // skip to make signature expired
+    vm.expectRevert(ICommon.SignatureExpired.selector);
+    vm.prank(user);
+    autoClaimer.executeAllocate(vault, new AssetLib.Asset[](0), strategy, 0, allocateData, "", "");
+  }
+
+  function test_RevertIf_InvalidSigner() public {
+    // Sign with non-whitelisted private key
+    uint256 invalidPrivateKey = 12345;
+
+    IMerklStrategy.ClaimAndSwapParams memory params = IMerklStrategy.ClaimAndSwapParams({
+      distributor: makeAddr("distributor"),
+      token: token,
+      amount: 100 ether,
+      proof: new bytes32[](0),
+      swapRouter: makeAddr("swapRouter"),
+      swapData: abi.encode("swap"),
+      amountOutMin: 90 ether,
+      deadline: uint32(uint32(block.timestamp)) + 1 days,
+      signature: _signClaimParams(invalidPrivateKey)
+    });
+
+    bytes memory allocateData = abi.encode(
+      ICommon.Instruction({
+        instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+        params: abi.encode(params)
+      })
+    );
+
+    vm.expectRevert(ICommon.InvalidSigner.selector);
+    vm.prank(user);
+    autoClaimer.executeAllocate(vault, new AssetLib.Asset[](0), strategy, 0, allocateData, "", "");
+  }
+
   function _signClaimParams(uint256 signer) internal returns (bytes memory) {
     bytes32 messageHash = keccak256(
       abi.encodePacked(

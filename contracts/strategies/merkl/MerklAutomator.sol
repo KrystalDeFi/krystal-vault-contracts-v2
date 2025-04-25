@@ -30,16 +30,14 @@ contract MerklAutomator is Pausable, Initializable, IMerklAutomator {
   /// @param inputAssets Input assets
   /// @param strategy Strategy
   /// @param allocateData allocateData data to be passed to vault's allocate function
-  /// @param abiEncodedUserOrder ABI encoded user order
-  /// @param orderSignature Signature of the order
   function executeAllocate(
     IVault vault,
     AssetLib.Asset[] memory inputAssets,
     IStrategy strategy,
     uint64 gasFeeX64,
     bytes calldata allocateData,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
+    bytes calldata,
+    bytes calldata
   ) external whenNotPaused {
     require(inputAssets.length == 0, InvalidAssetStrategy());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
