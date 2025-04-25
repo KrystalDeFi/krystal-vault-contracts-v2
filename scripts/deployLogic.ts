@@ -14,6 +14,7 @@ import {
 } from "../typechain-types/contracts/strategies/lpUniV3";
 import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
+import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
 
 const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
@@ -32,6 +33,7 @@ export interface Contracts {
   lpFeeTaker?: LpFeeTaker;
   lpStrategy?: LpStrategy;
   merklStrategy?: MerklStrategy;
+  merklAutomator?: MerklAutomator;
   vaultFactory?: VaultFactory;
 }
 
@@ -76,10 +78,12 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   const lpValidator = await deployLpValidatorContract(++step, existingContract, undefined, contracts);
   const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, undefined, contracts);
+  const merklAutomator = await deployMerklAutomatorContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
     lpFeeTaker: lpFeeTaker.lpFeeTaker,
+    merklAutomator: merklAutomator.merklAutomator,
   });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, undefined, contracts);
@@ -177,7 +181,7 @@ export const deployVaultAutomatorContract = async (
       `${step} >>`,
       config.vaultAutomator?.autoVerifyContract,
       "VaultAutomator",
-      existingContract?.["vaultAutomator"]?.[0],
+      existingContract?.["vaultAutomator"],
       "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
       undefined,
       ["address", "address[]"],
@@ -187,6 +191,33 @@ export const deployVaultAutomatorContract = async (
 
   return {
     vaultAutomator,
+  };
+};
+
+export const deployMerklAutomatorContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let merklAutomator;
+
+  if (config.merklAutomator?.enabled) {
+    merklAutomator = (await deployContract(
+      `${step} >>`,
+      config.merklAutomator?.autoVerifyContract,
+      "MerklAutomator",
+      existingContract?.["merklAutomator"],
+      "contracts/strategies/merkl/MerklAutomator.sol:MerklAutomator",
+      undefined,
+      ["address"],
+      [existingContract?.["configManager"] || contracts?.configManager?.target],
+    )) as MerklAutomator;
+  }
+  return {
+    merklAutomator,
   };
 };
 

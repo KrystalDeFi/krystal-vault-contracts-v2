@@ -2,7 +2,7 @@ import { IConfig } from "./interfaces";
 
 export const BaseConfig: Record<string, IConfig> = {
   base_mainnet: {
-    sleepTime: 6 * 1000,
+    sleepTime: 10000,
     vault: {
       enabled: true,
       autoVerifyContract: true,
@@ -36,6 +36,10 @@ export const BaseConfig: Record<string, IConfig> = {
       autoVerifyContract: true,
     },
     merklStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    merklAutomator: {
       enabled: true,
       autoVerifyContract: true,
     },
