@@ -12,6 +12,12 @@ function claim(address[] users, address[] tokens, uint256[] amounts, bytes32[][]
 
 Strategy for handling Merkl rewards for LP positions
 
+### Q64
+
+```solidity
+uint256 Q64
+```
+
 ### MerklRewardsClaimed
 
 ```solidity
@@ -157,7 +163,7 @@ Validate that an asset can be used with this strategy
 ### _claimAndSwap
 
 ```solidity
-function _claimAndSwap(struct ICommon.VaultConfig config, struct ICommon.FeeConfig, bytes data) internal returns (struct AssetLib.Asset[] returnAssets)
+function _claimAndSwap(struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig, bytes data) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 ### _claim
@@ -187,6 +193,12 @@ the token not allow to approve 0, which means the following line code will work 
 
 ```solidity
 function _safeApprove(contract IERC20 token, address _spender, uint256 _value) internal
+```
+
+### _takeFee
+
+```solidity
+function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
 ```
 
 ### receive
