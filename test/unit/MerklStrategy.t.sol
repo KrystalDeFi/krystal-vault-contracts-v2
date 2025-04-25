@@ -453,7 +453,7 @@ contract MerklStrategyTest is TestCommon {
 
     // Call convert - should revert due to invalid signer
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
-    vm.expectRevert(IMerklStrategy.InvalidSigner.selector);
+    vm.expectRevert(ICommon.InvalidSigner.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
   }
 
@@ -471,13 +471,13 @@ contract MerklStrategyTest is TestCommon {
     address vaultOwner = address(0x3);
     address platformRecipient = address(0x4);
     address gasRecipient = address(0x5);
-    
+
     ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 100, // 1%
       vaultOwner: vaultOwner,
       platformFeeBasisPoint: 200, // 2%
       platformFeeRecipient: platformRecipient,
-      gasFeeX64: 184467440737095520, // ~1% in Q64
+      gasFeeX64: 184_467_440_737_095_520, // ~1% in Q64
       gasFeeRecipient: gasRecipient
     });
 
@@ -544,7 +544,7 @@ contract MerklStrategyTest is TestCommon {
     // Calculate expected fees
     uint256 expectedVaultOwnerFee = expectedSwapOut * 100 / 10_000; // 1%
     uint256 expectedPlatformFee = expectedSwapOut * 200 / 10_000; // 2%
-    uint256 expectedGasFee = expectedSwapOut * 184467440737095520 / (2 ** 64); // ~1%
+    uint256 expectedGasFee = expectedSwapOut * 184_467_440_737_095_520 / (2 ** 64); // ~1%
 
     // Verify fee transfers
     assertEq(
@@ -565,11 +565,7 @@ contract MerklStrategyTest is TestCommon {
 
     // Verify output amount is reduced by fees
     uint256 totalFees = expectedVaultOwnerFee + expectedPlatformFee + expectedGasFee;
-    assertEq(
-      outputAssets[1].amount,
-      expectedSwapOut - totalFees,
-      "Output amount should be reduced by total fees"
-    );
+    assertEq(outputAssets[1].amount, expectedSwapOut - totalFees, "Output amount should be reduced by total fees");
   }
 
   function testRevertOnExpiredSignature() public {
@@ -645,7 +641,7 @@ contract MerklStrategyTest is TestCommon {
 
     // Call convert - should revert due to expired signature
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
-    vm.expectRevert(IMerklStrategy.SignatureExpired.selector);
+    vm.expectRevert(ICommon.SignatureExpired.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
   }
 }
