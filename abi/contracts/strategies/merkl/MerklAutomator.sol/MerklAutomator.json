@@ -204,12 +204,12 @@
       },
       {
         "internalType": "bytes",
-        "name": "abiEncodedUserOrder",
+        "name": "",
         "type": "bytes"
       },
       {
         "internalType": "bytes",
-        "name": "orderSignature",
+        "name": "",
         "type": "bytes"
       }
     ],

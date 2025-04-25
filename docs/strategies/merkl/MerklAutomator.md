@@ -27,7 +27,7 @@ Initializes the vault
 ### executeAllocate
 
 ```solidity
-function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeX64, bytes allocateData, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeX64, bytes allocateData, bytes, bytes) external
 ```
 
 Execute an allocate on a Vault
@@ -41,6 +41,6 @@ Execute an allocate on a Vault
 | strategy | contract IStrategy | Strategy |
 | gasFeeX64 | uint64 |  |
 | allocateData | bytes | allocateData data to be passed to vault's allocate function |
-| abiEncodedUserOrder | bytes | ABI encoded user order |
-| orderSignature | bytes | Signature of the order |
+|  | bytes |  |
+|  | bytes |  |
 
