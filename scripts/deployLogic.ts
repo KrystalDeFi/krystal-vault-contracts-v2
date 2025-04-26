@@ -3,7 +3,7 @@ import { NetworkConfig } from "../configs/networkConfig";
 import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { IConfig } from "../configs/interfaces";
 import { sleep } from "./helpers";
-import { isArray, last } from "lodash";
+import { isArray } from "lodash";
 import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typechain-types/contracts/core";
 import {
   LpFeeTaker,
@@ -17,7 +17,9 @@ import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
 
 const { SALT } = process.env;
+
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
+const createXTopic = "0xb8fda7e00c6b06a2b54e58521bc5894fee35f1090e5a3bb6390bfe2b98b497f7";
 
 const networkConfig = NetworkConfig[network.name];
 if (!networkConfig) {
@@ -427,8 +429,10 @@ async function deployContract(
       log(2, "failed to deploy contract", e);
     }
     const txHash = deployTx?.hash || "";
+    await sleep(networkConfig.sleepTime ?? 60000);
     const txReceipt = await ethers.provider.getTransactionReceipt(txHash);
-    const contractAddress = "0x" + last(txReceipt?.logs)?.topics?.[1]?.slice(26);
+    const contractAddress =
+      "0x" + txReceipt?.logs?.find((l) => l?.topics?.includes(createXTopic))?.topics?.[1]?.slice(26);
     contract = await ethers.getContractAt(contractName, contractAddress);
     await printInfo(deployTx);
     log(2, `> address:\t${contract.target}`);
