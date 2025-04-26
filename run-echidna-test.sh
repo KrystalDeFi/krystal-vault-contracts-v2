@@ -34,7 +34,7 @@ log_info "[+] Comment out all forge-test-only lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*\/\/forge-test-only.*$/\/\/ &/g' {} \;
 
 log_info "[+] Comment out all forge-std lines in the contracts"
-find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*forge-std\/.*$/\/\/ &/g' {} \;
+find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"forge-std\/.*/\/\/ &/g' {} \;
 
 log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer"
 echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer
