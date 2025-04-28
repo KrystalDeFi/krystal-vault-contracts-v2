@@ -1,13 +1,23 @@
+// This is a test file to develop the VaultFuzzer contract
+
 pragma solidity ^0.8.0;
+
+import "forge-std/console.sol";
+import { Test } from "forge-std/Test.sol";
 
 import "./Player.sol";
 import "./MockERC20Token.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
-
-import "forge-std/console.sol";
-import { Test } from "forge-std/Test.sol";
+import "../../contracts/interfaces/ICommon.sol";
+import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+// import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
 contract VaultFuzzer is Test {
     Player public owner;
@@ -33,6 +43,10 @@ contract VaultFuzzer is Test {
         tokenETH.transfer(address(player1), 1 ether);
         tokenUSD.transfer(address(player1), 1 ether);
 
+        player2 = new Player();
+        tokenETH.transfer(address(player2), 1 ether);
+        tokenUSD.transfer(address(player2), 1 ether);
+
         address[] memory whitelistAutomator = new address[](1);
         whitelistAutomator[0] = address(player1);
 
@@ -45,7 +59,7 @@ contract VaultFuzzer is Test {
         typedTokenTypes[1] = uint256(1);
 
         configManager = new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes);
-
+        
         Vault vaultImplementation = new Vault();
         vaultFactory = new VaultFactory(address(owner), address(tokenETH), address(configManager), address(vaultImplementation));
     
@@ -65,9 +79,34 @@ contract VaultFuzzer is Test {
         // Call createVault through the owner contract
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
         vault = Vault(payable(vaultAddress));
+
     }
 
-    function test_deposit_and_withdraw() public {
+    function owner_doDeposit(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function owner_doWithdraw(uint256 shares) public {
+        owner.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player1_doDeposit(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player1_doWithdraw(uint256 shares) public {
+        player1.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player2_doDeposit(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player2_doWithdraw(uint256 shares) public {
+        player2.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function deposit_and_withdraw() public {
         uint256 amount = 1 ether;
         
 
@@ -90,11 +129,30 @@ contract VaultFuzzer is Test {
         console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
 
         // assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );
-
-
     }
 
     function always_true(uint256 a) public pure {
         assert( true );
     }
+
+    function test_assest() public {
+
+        owner_doDeposit(0.7 ether);
+
+        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
+        console.log("vaultAssets.length: %s", vaultAssets.length);
+
+        for (uint256 i = 0; i < vaultAssets.length; i++) {
+            console.log("vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
+            console.log("vaultAssets[%s].amount: %s", i, vaultAssets[i].amount);
+        }
+    }
+
+    function test_owner_doAllocate() public {
+        owner_doDeposit(1 ether);
+        uint256 principalTokenAmount = 0.2 ether;
+        console.log("principalTokenAmount: %s", principalTokenAmount);
+        owner.callAllocate(vaultAddress, principalTokenAmount, address(tokenETH), address(tokenUSD), address(configManager));
+    }
+
 }

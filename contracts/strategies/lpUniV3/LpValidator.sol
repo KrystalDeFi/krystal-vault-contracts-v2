@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // import "forge-std/console.sol";     //forge-test-only
 import "../../interfaces/strategies/ILpValidator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
@@ -38,25 +39,39 @@ contract LpValidator is ILpValidator {
     int24 tickUpper,
     VaultConfig calldata config
   ) external view {
+// console.log("LpValidator validateConfig");
+// console.log("LpValidator config.principalToken: %s", config.principalToken);
+
     LpStrategyConfig memory lpConfig =
       abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
+// console.log("LpValidator:: pass the getStrategyConfig");
 
     LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
     LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
 
+// console.log("LpValidator:: got the rangeConfig and tvlConfig");
+    token0 = address(0x4200000000000000000000000000000000000006);
+    token1 = address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913);
+// console.log("fee: %s", fee);
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+
+// console.log("LpValidator pool: %s", pool);
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
 
     uint256 poolPrincipalTokenAmount = IERC20(config.principalToken).balanceOf(pool);
 
+// console.log("LpValidator poolPrincipalTokenAmount: %s", poolPrincipalTokenAmount);
     // Check if the pool amount is greater than the minimum amount principal token
     require(poolPrincipalTokenAmount >= tvlConfig.principalTokenAmountMin, InvalidPoolAmountMin());
 
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     uint256 token0Type = configManager.getTypedToken(token0);
     uint256 token1Type = configManager.getTypedToken(token1);
+
+// console.log("LpValidator token0Type: %s", token0Type);
+// console.log("LpValidator token1Type: %s", token1Type);
 
     int24 minTickWidth = token0Type == token1Type && token0Type > 0 && token1Type > 0
       ? rangeConfig.tickWidthTypedMin

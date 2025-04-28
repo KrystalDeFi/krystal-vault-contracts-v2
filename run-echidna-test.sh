@@ -36,6 +36,9 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*\/\/forg
 log_info "[+] Comment out all forge-std lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"forge-std\/.*/\/\/ &/g' {} \;
 
+export ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
+export ECHIDNA_RPC_BLOCK=22365182 
+
 log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer"
 echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer
 

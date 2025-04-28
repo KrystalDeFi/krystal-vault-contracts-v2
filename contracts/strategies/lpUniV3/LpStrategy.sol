@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // import "forge-std/console.sol";     //forge-test-only
+
+
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -78,13 +81,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig,
     bytes calldata data
   ) external payable nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
+
+// console.log("in lpStrategy convert func");
+
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
+
+// console.log("instructionType: %s", instructionType);
 
     // if (instructionType == uint8(InstructionType.MintPosition)) {
     //   return mintPosition(assets, abi.decode(instruction.params, (MintPositionParams)), vaultConfig);
     // }
     if (instructionType == uint8(InstructionType.SwapAndMintPosition)) {
+// console.log("in swapAndMintPosition");
       return swapAndMintPosition(assets, abi.decode(instruction.params, (SwapAndMintPositionParams)), vaultConfig);
     }
     // if (instructionType == uint8(InstructionType.IncreaseLiquidity)) {
@@ -317,11 +326,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     AssetLib.Asset memory principalAsset = assets[0];
     require(principalAsset.token == vaultConfig.principalToken, InvalidAsset());
 
+// console.log("in swapAndMintPosition, vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
     if (vaultConfig.allowDeposit) {
+// console.log("nfpm: %s", address(params.nfpm));
+// console.log("token0: %s", params.token0);
+// console.log("token1: %s", params.token1);
+// console.log("fee: %s", params.fee);
+// console.log("swapAndMintPosition tickLower: %s", params.tickLower);
+// console.log("swapAndMintPosition tickUpper: %s", params.tickUpper);
       validator.validateConfig(
         params.nfpm, params.fee, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
       );
     }
+// console.log("swapAndMintPosition: validateConfig done");
 
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
     address principalToken = vaultConfig.principalToken;

@@ -7,5 +7,6 @@ contract MockERC20Token is ERC20 {
     constructor() ERC20("MockERC20Token", "TOKEN") {
         _mint(msg.sender, type(uint256).max);
     }  
+    
 }
 

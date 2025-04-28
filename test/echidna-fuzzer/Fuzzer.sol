@@ -5,6 +5,12 @@ import "./MockERC20Token.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+interface IHevm {
+    function warp(uint256 newTimestamp) external;
+    function roll(uint256 newNumber) external;
+}
 
 contract VaultFuzzer {
     Player public owner;
@@ -17,6 +23,9 @@ contract VaultFuzzer {
     address public vaultAddress;
     Vault public vault;    
     ConfigManager public configManager;
+
+    address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    IHevm hevm = IHevm(HEVM_ADDRESS);
 
     constructor() payable {
         owner = new Player();
@@ -66,7 +75,24 @@ contract VaultFuzzer {
         // Call createVault through the owner contract
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
         vault = Vault(payable(vaultAddress));
+
+        player1.callDepositWETH(1 ether);        
+
     }
+
+    function assertWETHBalance() public {
+        assert(IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2).balanceOf(address(0xF51D0C3D466b1B0A763031970276047B4a9338E5)) == 1 ether);
+    }
+
+    function assertUSDCBalance() public {
+        assert(IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(0xF51D0C3D466b1B0A763031970276047B4a9338E5)) == 0);
+    }
+
+
+    // function assert_fork_no() public {
+    //     uint256 forkId = hevm.activeFork();
+    //     assert(forkId == 0);
+    // }
 
     function owner_doDeposit(uint256 amount) public {
         owner.callDeposit(vaultAddress, amount, tokenETH);
@@ -90,6 +116,20 @@ contract VaultFuzzer {
 
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function owner_doAllocate(uint256 principalTokenAmount, IStrategy strategy, uint64 gasFeeX64, bytes calldata data) public {
+        AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+        assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), address(tokenETH), 0, principalTokenAmount);
+
+        vault.allocate(assets, strategy, gasFeeX64, data);
+        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
+        assert(vaultAssets.length < 2);
+    }
+
+    function assets_length() public {
+        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
+        assert(vaultAssets.length == 1);
     }
 
     function deposit_and_withdraw_only(uint256 amount) public {
