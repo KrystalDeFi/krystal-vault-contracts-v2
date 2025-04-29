@@ -80,6 +80,8 @@ contract VaultFuzzer is Test {
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
         vault = Vault(payable(vaultAddress));
 
+
+        // TODO: create a uniswap v3 pool for tokenETH/tokenUSD
     }
 
     function owner_doDeposit(uint256 amount) public {

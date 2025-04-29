@@ -1,27 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { Test } from "forge-std/Test.sol";    //forge-test-only
-import { stdStorage, StdStorage } from "forge-std/Test.sol";    //forge-test-only
+import { Test } from "forge-std/Test.sol";
+import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
-address constant WETH = 0x4200000000000000000000000000000000000006;
-address constant DAI = 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb;
-address constant USER = 0xaaA72CEd70ce1C4E0c36443F2d236049A9640697;
-address constant PLAYER_1 = 0x1234567890123456789012345678901234567891;
-address constant PLAYER_2 = 0x1234567890123456789012345678901234567892;
-address constant BIGHAND_PLAYER = 0xaaaa567890123456789012345678901234567893;
-address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-address constant MORPHO = 0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842;
-address constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
-address constant SUSHI_NFPM = 0x80C7DD17B01855a6D2347444a0FCC36136a314de;
-address constant PANCAKE_NFPM = 0x46A15B0b27311cedF172AB29E4f4766fbE7F4364;
+// addresses on ethereum mainnet
+address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
-// address constant UNISWAP_NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
+address constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1; // not sure ??
 
 address constant PLATFORM_WALLET = 0x0000000000000000000000000000000000000010;
 
@@ -45,4 +37,14 @@ interface IV3SwapRouter {
   /// calldata
   /// @return amountOut The amount of the received token
   function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+}
+
+using stdStorage for StdStorage;
+
+abstract contract TestCommon is Test {
+  using stdStorage for StdStorage;
+
+  function setErc20Balance(address token, address account, uint256 amount) internal {
+    stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(account).checked_write(amount);
+  }
 }

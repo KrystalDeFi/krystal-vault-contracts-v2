@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import "../../contracts/core/Vault.sol";
 import "./MockERC20Token.sol";
-import "./FuzzerTestConfig.sol";
+import "./Config.sol";
 
 import "forge-std/console.sol";     //forge-test-only
 import { Test } from "forge-std/Test.sol";      //forge-test-only
@@ -15,6 +15,7 @@ import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { IWETH9 } from "../../contracts/interfaces/IWETH9.sol";
 
 contract Player {
     constructor() payable {
@@ -34,7 +35,7 @@ contract Player {
     }
 
     function callDepositWETH(uint256 amount) public {
-        WETH9(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{value: amount}();
+        IWETH9(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{value: amount}();
     }
 
     function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenUSDAddress, address configManagerAddress) public {
