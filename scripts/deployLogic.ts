@@ -113,7 +113,10 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
       ],
       networkConfig.swapRouters,
-      [existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target],
+      [
+        existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
+        existingContract?.["merklAutomator"] || contracts?.merklAutomator?.target,
+      ],
       commonConfig.signers,
       networkConfig.typedTokens || [],
       networkConfig.typedTokensTypes || [],
