@@ -164,7 +164,7 @@ contract MerklStrategy is IMerklStrategy {
     _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
     uint256 amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
 
-    _swap(tokenIn, claimParams.amount, claimParams.swapRouter, claimParams.swapData);
+    _swap(tokenIn, amountClaimed, claimParams.swapRouter, claimParams.swapData);
 
     uint256 amountIn = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
     uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - amountOutBefore;

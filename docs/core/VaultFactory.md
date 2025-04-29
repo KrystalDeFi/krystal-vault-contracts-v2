@@ -32,10 +32,10 @@ mapping(address => address[]) vaultsByAddress
 address[] allVaults
 ```
 
-### constructor
+### initialize
 
 ```solidity
-constructor(address _owner, address _weth, address _configManager, address _vaultImplementation) public
+function initialize(address _owner, address _weth, address _configManager, address _vaultImplementation) external
 ```
 
 ### createVault

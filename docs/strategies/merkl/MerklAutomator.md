@@ -13,7 +13,7 @@ contract IConfigManager configManager
 ### constructor
 
 ```solidity
-constructor(address _configManager) public
+constructor(address _owner, address _configManager) public
 ```
 
 ### executeAllocate
@@ -35,4 +35,20 @@ Execute an allocate on a Vault
 | allocateData | bytes | allocateData data to be passed to vault's allocate function |
 |  | bytes |  |
 |  | bytes |  |
+
+### pause
+
+```solidity
+function pause() external
+```
+
+Pause the contract
+
+### unpause
+
+```solidity
+function unpause() external
+```
+
+Unpause the contract
 

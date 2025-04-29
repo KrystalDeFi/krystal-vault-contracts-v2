@@ -39,6 +39,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  merklAutomator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   wrapToken?: string;
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...

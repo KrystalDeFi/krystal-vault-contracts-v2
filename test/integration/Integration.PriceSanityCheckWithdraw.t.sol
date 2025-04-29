@@ -66,7 +66,23 @@ contract IntegrationTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
 
@@ -98,7 +114,8 @@ contract IntegrationTest is TestCommon {
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vaultImplementation));
 
     console.log("vaultFactory: ", address(vaultFactory));
     // Owner can create a Vault without any assets
@@ -125,7 +142,7 @@ contract IntegrationTest is TestCommon {
 
   function test_uniswap_price_sanity_check_withdraw() public {
     // uint256 p1_old_weth_balance = IERC20(WETH).balanceOf(PLAYER_1);
-    uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
+    // uint256 user_old_weth_balance = IERC20(WETH).balanceOf(USER);
 
     AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
 
@@ -262,7 +279,7 @@ contract IntegrationTest is TestCommon {
     }
 
     uint256 lost_weth_balance = 998_252_990_397_992_028 - IERC20(WETH).balanceOf(PLAYER_1); // 998252990397992028 is the
-      // WETH balance of player 1 if no bighand's swap happens
+    // WETH balance of player 1 if no bighand's swap happens
     console.log(">>> lost weth balance of player 1 after withdrawing: ", lost_weth_balance);
 
     vm.startPrank(USER);

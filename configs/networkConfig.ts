@@ -20,7 +20,7 @@ NetworkConfig.hardhat = {
   ...NetworkConfig["base_mainnet"],
   ...NetworkConfig["arbitrum_mainnet"],
   ...NetworkConfig["bsc_mainnet"],
-  ...NetworkConfig["ethereum_mainnet"],
+  ...NetworkConfig["eth_mainnet"],
   ...NetworkConfig["optimism_mainnet"],
   ...NetworkConfig["polygon_mainnet"],
   autoVerifyContract: false,

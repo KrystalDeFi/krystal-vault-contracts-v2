@@ -79,7 +79,23 @@ contract MerklStrategyTest is TestCommon {
     uint256[] memory typedTokenTypes = new uint256[](0);
     address[] memory whitelistAutomator = new address[](0);
     // Deploy config manager
-    configManager = new ConfigManager(owner, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      owner,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     // Whitelist the swap router
     address[] memory routers = new address[](1);

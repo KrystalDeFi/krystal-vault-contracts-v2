@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -12,10 +13,10 @@ import "../../interfaces/strategies/IMerklAutomator.sol";
  * @title MerklAutomator
  * @notice Contract that allows anyone to trigger Merkl reward claims through vault allocation
  */
-contract MerklAutomator is Pausable, IMerklAutomator {
+contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
   IConfigManager public configManager;
 
-  constructor(address _configManager) {
+  constructor(address _owner, address _configManager) Ownable(_owner) {
     require(_configManager != address(0), ZeroAddress());
 
     configManager = IConfigManager(_configManager);
@@ -59,5 +60,15 @@ contract MerklAutomator is Pausable, IMerklAutomator {
     require(block.timestamp <= claimParams.deadline, SignatureExpired());
 
     vault.allocate(inputAssets, strategy, gasFeeX64, allocateData);
+  }
+
+  /// @notice Pause the contract
+  function pause() external onlyOwner {
+    _pause();
+  }
+
+  /// @notice Unpause the contract
+  function unpause() external onlyOwner {
+    _unpause();
   }
 }

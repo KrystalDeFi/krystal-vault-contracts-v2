@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 import "../interfaces/core/IConfigManager.sol";
 
 /// @title ConfigManager
-contract ConfigManager is Ownable, IConfigManager {
+contract ConfigManager is OwnableUpgradeable, IConfigManager {
   using EnumerableMap for EnumerableMap.AddressToUintMap;
 
   mapping(address => bool) public whitelistStrategies;
@@ -61,12 +61,24 @@ contract ConfigManager is Ownable, IConfigManager {
   FeeConfig private publicVaultFeeConfig;
   FeeConfig private privateVaultFeeConfig;
 
-  constructor(
+  function initialize(
     address _owner,
+    address[] memory _whitelistStrategies,
+    address[] memory _whitelistSwapRouters,
     address[] memory _whitelistAutomator,
+    address[] memory _whitelistSigners,
     address[] memory _typedTokens,
-    uint256[] memory _typedTokenTypes
-  ) Ownable(_owner) {
+    uint256[] memory _typedTokenTypes,
+    uint16 _vaultOwnerFeeBasisPoint,
+    uint16 _platformFeeBasisPoint,
+    uint16 _privatePlatformFeeBasisPoint,
+    address _feeCollector,
+    address[] memory _strategies,
+    address[] memory _principalTokens,
+    bytes[] memory _configs
+  ) public initializer {
+    __Ownable_init(_owner);
+
     uint256 length = _typedTokens.length;
 
     for (uint256 i; i < length;) {
@@ -77,10 +89,67 @@ contract ConfigManager is Ownable, IConfigManager {
       }
     }
 
+    length = _whitelistStrategies.length;
+
+    for (uint256 i; i < length;) {
+      whitelistStrategies[_whitelistStrategies[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    length = _whitelistSwapRouters.length;
+
+    for (uint256 i; i < length;) {
+      whitelistSwapRouters[_whitelistSwapRouters[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
+
     length = _whitelistAutomator.length;
 
     for (uint256 i; i < length;) {
       whitelistAutomators[_whitelistAutomator[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    length = _whitelistSigners.length;
+
+    for (uint256 i; i < length;) {
+      whitelistSigners[_whitelistSigners[i]] = true;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    publicVaultFeeConfig = FeeConfig({
+      vaultOwnerFeeBasisPoint: _vaultOwnerFeeBasisPoint,
+      vaultOwner: _feeCollector,
+      platformFeeBasisPoint: _platformFeeBasisPoint,
+      platformFeeRecipient: _feeCollector,
+      gasFeeX64: 0,
+      gasFeeRecipient: _feeCollector
+    });
+
+    privateVaultFeeConfig = FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: _feeCollector,
+      platformFeeBasisPoint: _privatePlatformFeeBasisPoint,
+      platformFeeRecipient: _feeCollector,
+      gasFeeX64: 0,
+      gasFeeRecipient: _feeCollector
+    });
+
+    length = _strategies.length;
+    for (uint256 i; i < length;) {
+      strategyConfigs[_strategies[i]][_principalTokens[i]] = _configs[i];
 
       unchecked {
         i++;
