@@ -5,16 +5,29 @@ import "./MockERC20Token.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./Config.sol";
 interface IHevm {
-    function warp(uint256 newTimestamp) external;
-    function roll(uint256 newNumber) external;
+    function prank(address sender) external;
+    function startPrank(address sender) external;
+    function stopPrank() external;
+    function deal(address usr, uint amt) external;
+    function store(address c, bytes32 loc, bytes32 val) external;
+    function warp(uint x) external;
+    function roll(uint x) external;
+    function assume(bool b) external;
+    function load(address c, bytes32 loc) external returns (bytes32 val);
+    function sign(uint sk, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
+    function addr(uint sk) external returns (address addr);
+    function ffi(string[] calldata) external returns (bytes memory);
+    function createFork(string calldata urlOrAlias) external returns (uint256);
+    function selectFork(uint256 forkId) external;
+    function activeFork() external returns (uint256);
+    function label(address addr, string calldata label) external;
 }
 
 
-contract VaultFuzzer is TestCommon {
+contract VaultFuzzer is Test {
     
     event LogUint256(string, uint256);
     event LogAddress(string, address);
@@ -33,7 +46,7 @@ contract VaultFuzzer is TestCommon {
     Vault public vault;    
     ConfigManager public configManager;
 
-    address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    
     IHevm hevm = IHevm(HEVM_ADDRESS);
 
     constructor() payable {
@@ -85,38 +98,49 @@ contract VaultFuzzer is TestCommon {
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
         vault = Vault(payable(vaultAddress));
 
-        // player1.callDepositWETH(1 ether);        
+
         hevm.roll(22365182);
 
+        hevm.startPrank(BANK_ADDRESS);
+        
+        IERC20(USDC).transfer(address(owner), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(WETH).transfer(address(owner), 2 ether);   // decimal of WETH is 18
+
+        IERC20(USDC).transfer(address(player1), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(WETH).transfer(address(player1), 2 ether);   // decimal of WETH is 18
+
+        IERC20(USDC).transfer(address(player2), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(WETH).transfer(address(player2), 2 ether);   // decimal of WETH is 18
+
+        hevm.stopPrank();
+
     }
 
-    function setUp() public {
-        if (!setupDone) {
-            setErc20Balance(address(WETH), address(player1), 1 ether);
-            setErc20Balance(address(WETH), address(player2), 2 ether);
-            setupDone = true;
-        }
-    }
 
-    function test_some_invariant_log(uint256 someValue) public {
+    // function test_some_invariant_log(uint256 someValue) public {
     
-        emit LogUint256("someValue", someValue + 15);
-        emit LogString("we're hereeeee");
-        assert( 1 == 0);
-    }
+    //     emit LogUint256("someValue", someValue + 15);
+    //     emit LogString("we're hereeeee");
+    //     assert( 1 == 0);
+    // }
 
     function assertWETHBalancePlayer1() public {
-        require(setupDone);
+        // require(setupDone);
+        assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    }
+
+    function assertWETHBalancePlayer1WithoutRequire() public {        
         assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
     }
 
     function assertWETHBalancePlayer2() public {
-        require(setupDone);
+        // require(setupDone);
         assert(IERC20(WETH).balanceOf(address(player2)) >= 2 ether);
     }
 
     function assertUSDCBalance() public {
-        assert(IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48).balanceOf(address(0xF51D0C3D466b1B0A763031970276047B4a9338E5)) > 0);
+
+        assert(IERC20(USDC).balanceOf(address(player1)) == 404);
     }
 
 

@@ -1,0 +1,149 @@
+// This is a test file to develop the VaultFuzzer contract
+
+pragma solidity ^0.8.0;
+
+import "forge-std/console.sol";
+import { Test } from "forge-std/Test.sol";
+
+import "./Player.sol";
+import "./MockERC20Token.sol";
+import "./Config.sol";
+import "../../contracts/core/VaultFactory.sol";
+import "../../contracts/core/Vault.sol";
+import "../../contracts/core/ConfigManager.sol";
+import "../../contracts/interfaces/ICommon.sol";
+import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+// import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+
+contract VaultFuzzer is TestCommon {
+    Player public owner;
+    Player public player1;
+    Player public player2;
+    
+    VaultFactory public vaultFactory;
+    address public vaultAddress;
+    Vault public vault;    
+    ConfigManager public configManager;
+
+    address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    IHevm hevm = IHevm(HEVM_ADDRESS);
+
+    constructor() payable {
+        owner = new Player();
+
+        address[] memory whitelistAutomator = new address[](1);
+        whitelistAutomator[0] = address(player1);
+
+        address[] memory typedTokens = new address[](2);
+        typedTokens[0] = address(tokenETH);
+        typedTokens[1] = address(tokenUSD);
+
+        uint256[] memory typedTokenTypes = new uint256[](2);
+        typedTokenTypes[0] = uint256(1);
+        typedTokenTypes[1] = uint256(1);
+
+        configManager = new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes);
+        
+        Vault vaultImplementation = new Vault();
+        vaultFactory = new VaultFactory(address(owner), address(tokenETH), address(configManager), address(vaultImplementation));
+    
+        ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+            name: "Test Public Vault",
+            symbol: "TV",
+            principalTokenAmount: 0,
+            config: ICommon.VaultConfig({
+                allowDeposit: true,
+                rangeStrategyType: 0,
+                tvlStrategyType: 0,
+                principalToken: address(tokenETH),
+                supportedAddresses: new address[](0)
+            })
+        });
+
+        // Call createVault through the owner contract
+        vaultAddress = owner.callCreateVault(address(vaultFactory), params);
+        vault = Vault(payable(vaultAddress));
+
+
+        // TODO: create a uniswap v3 pool for tokenETH/tokenUSD
+    }
+
+    function owner_doDeposit(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function owner_doWithdraw(uint256 shares) public {
+        owner.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player1_doDeposit(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player1_doWithdraw(uint256 shares) public {
+        player1.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player2_doDeposit(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, tokenETH);
+    }
+
+    function player2_doWithdraw(uint256 shares) public {
+        player2.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function deposit_and_withdraw() public {
+        uint256 amount = 1 ether;
+        
+
+        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
+
+        uint256 ownerShares = owner.callDeposit(vaultAddress, amount, tokenETH);
+        console.log("owner deposited %s", amount);
+        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
+        
+
+        uint256 player1Shares = player1.callDeposit(vaultAddress, amount, tokenETH);
+        console.log("p1 deposited %s", amount);
+        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+
+
+        player1.callWithdraw(vaultAddress, player1Shares, 0);
+        owner.callWithdraw(vaultAddress, ownerShares, 0);
+        
+        console.log("tokenETH.balanceOf(address(owner))  x: %s", tokenETH.balanceOf(address(owner)));
+        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+
+        // assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );
+    }
+
+    function always_true(uint256 a) public pure {
+        assert( true );
+    }
+
+    function test_assest() public {
+
+        owner_doDeposit(0.7 ether);
+
+        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
+        console.log("vaultAssets.length: %s", vaultAssets.length);
+
+        for (uint256 i = 0; i < vaultAssets.length; i++) {
+            console.log("vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
+            console.log("vaultAssets[%s].amount: %s", i, vaultAssets[i].amount);
+        }
+    }
+
+    function test_owner_doAllocate() public {
+        owner_doDeposit(1 ether);
+        uint256 principalTokenAmount = 0.2 ether;
+        console.log("principalTokenAmount: %s", principalTokenAmount);
+        owner.callAllocate(vaultAddress, principalTokenAmount, address(tokenETH), address(tokenUSD), address(configManager));
+    }
+
+}

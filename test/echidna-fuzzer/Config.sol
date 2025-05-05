@@ -39,12 +39,5 @@ interface IV3SwapRouter {
   function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
-using stdStorage for StdStorage;
-
-abstract contract TestCommon is Test {
-  using stdStorage for StdStorage;
-
-  function setErc20Balance(address token, address account, uint256 amount) internal {
-    stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(account).checked_write(amount);
-  }
-}
+address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+address constant BANK_ADDRESS = 0x3ee18B2214AFF97000D974cf647E7C347E8fa585;
