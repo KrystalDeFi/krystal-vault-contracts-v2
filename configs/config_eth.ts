@@ -49,7 +49,24 @@ export const EthereumConfig: Record<string, IConfig> = {
       "0xdAC17F958D2ee523a2206206994597C13D831ec7", // USDT
       "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
       "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
+      "0x4c9edd5852cd905f086c759e8383e09bff1e68b3", // USDe
+      "0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f", // GHO
+      "0x853d955acef822db058eb8505911ed77f175b99e", // FRAX
+      "0x5f98805a4e8be255a32880fdec7f6728c6568ba0", // LUSD
+      "0x8292bb45bf1ee4d140127049757c2e0ff06317ed", // RLUSD
+      "0x8d0d000ee44948fc98c9b98a4fa4921476f08b0d", // USD1
+      "0x73a15fed60bf67631dc6cd7bc5b6e8da8190acf5", // USD0
+      "0x6c3ea9036406852006290770bedfcaba0e23a0e8", // PYUSD
       "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0", // wstETH
+      "0xbf5495efe5db9ce00f80364c8b423567e58d2110", // ezETH
+      "0xae78736cd615f374d3085123a210448e74fc6393", // rETH
+      "0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee", // weETH
+      "0xd5f7838f5c461feff7fe49ea5ebaf7728bb0adfa", // METH
+      "0xf951e335afb289353dc249e82926178eac7ded78", // SWETH
+      "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", // WBTC
+      "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", // CBBTC
+      "0x18084fba666a33d37592fa2633fd49a74dd93a88", // tBTC
+      "0x8236a87084f8b84306f72007f36f2618a5634494", // LBTC
     ],
     // 1 for stable, 2 for ETH,...
     typedTokensTypes: [
@@ -57,7 +74,24 @@ export const EthereumConfig: Record<string, IConfig> = {
       1, // USDT
       1, // DAI
       2, // WETH
+      1, // USDe
+      1, // GHO
+      1, // FRAX
+      1, // LUSD
+      1, // RLUSD
+      1, // USD1
+      1, // USD0
+      1, // PYUSD
       2, // wstETH
+      2, // ezETH
+      2, // rETH
+      2, // weETH
+      2, // METH
+      2, // SWETH
+      3, // WBTC
+      3, // CBBTC
+      3, // tBTC
+      3, // LBTC
     ],
     swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
   },

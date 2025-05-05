@@ -49,7 +49,19 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", // USDT
       "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", // DAI
       "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", // WETH
+      "0x6491c05A82219b8D1479057361ff1654749b876b", // USDS
+      "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe
+      "0xd3443ee1e91af28e5fb858fbd0d72a63ba8046e0", // GUSDC
       "0x5979D7b546E38E414F7E9822514be443A4800529", // wstETH
+      "0xec70dcb4a1efa46b8f2d97c310c9c4790ba5ffa8", // rETH
+      "0x2416092f143378750bb29b79ed961ab195cceea5", // ezETH
+      "0x4186bfc76e2e237523cbc30fd220fe055156b41f", // rsETH
+      "0x1debd73e752beaf79865fd6446b0c970eae7732f", // cbETH
+      "0x35751007a407ca6feffe80b3cb397736d2cf4dbe", // weETH
+      "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f", // WBTC
+      "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", // CBBTC
+      "0x3647c54c4c2c65bc7a2d63c0da2809b399dbbdc0", // SOLVBTC
+      "0x6c84a8f1c29108f47a79964b5fe888d4f4d0de40", // TBTC
     ],
     // 1 for stable, 2 for ETH,...
     typedTokensTypes: [
@@ -57,7 +69,19 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       1, // USDT
       1, // DAI
       2, // WETH
+      1, // USDS
+      1, // USDe
+      1, // GUSDC
       2, // wstETH
+      2, // rETH
+      2, // ezETH
+      2, // rsETH
+      2, // cbETH
+      2, // weETH
+      3, // WBTC
+      3, // CBBTC
+      3, // SOLVBTC
+      3, // TBTC
     ],
     swapRouters: ["0x864F01c5E46b0712643B956BcA607bF883e0dbC5"],
   },
