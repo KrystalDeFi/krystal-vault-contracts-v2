@@ -136,8 +136,7 @@ contract VaultFuzzer {
     function owner_doAllocate(uint256 principalTokenAmount) public {
         owner_doDepositPrincipalToken(principalTokenAmount);
         owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
-        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
-        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();        
         assert(vaultAssets.length > 1);
     }
 
