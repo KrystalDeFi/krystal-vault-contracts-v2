@@ -1,33 +1,14 @@
 pragma solidity ^0.8.0;
 
 import "./Player.sol";
-import "./MockERC20Token.sol";
+import "./IHevm.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
 
 import "./Config.sol";
-interface IHevm {
-    function prank(address sender) external;
-    function startPrank(address sender) external;
-    function stopPrank() external;
-    function deal(address usr, uint amt) external;
-    function store(address c, bytes32 loc, bytes32 val) external;
-    function warp(uint x) external;
-    function roll(uint x) external;
-    function assume(bool b) external;
-    function load(address c, bytes32 loc) external returns (bytes32 val);
-    function sign(uint sk, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
-    function addr(uint sk) external returns (address addr);
-    function ffi(string[] calldata) external returns (bytes memory);
-    function createFork(string calldata urlOrAlias) external returns (uint256);
-    function selectFork(uint256 forkId) external;
-    function activeFork() external returns (uint256);
-    function label(address addr, string calldata label) external;
-}
 
-
-contract VaultFuzzer is Test {
+contract VaultFuzzer {
     
     event LogUint256(string, uint256);
     event LogAddress(string, address);
@@ -39,67 +20,21 @@ contract VaultFuzzer is Test {
     Player public player1;
     Player public player2;
     
-    MockERC20Token public tokenETH;
-    MockERC20Token public tokenUSD;
     VaultFactory public vaultFactory;
     address public vaultAddress;
-    Vault public vault;    
-    ConfigManager public configManager;
+    
+    address public configManagerAddress;
 
     
     IHevm hevm = IHevm(HEVM_ADDRESS);
 
     constructor() payable {
-        owner = new Player();
-        tokenETH = new MockERC20Token();
-        tokenUSD = new MockERC20Token();
-
-        tokenETH.transfer(address(owner), 1 ether);
-        tokenUSD.transfer(address(owner), 1 ether);
-
-        player1 = new Player();
-        tokenETH.transfer(address(player1), 1 ether);
-        tokenUSD.transfer(address(player1), 1 ether);
-
+        owner = new Player();                
+        player1 = new Player();        
         player2 = new Player();
-        tokenETH.transfer(address(player2), 1 ether);
-        tokenUSD.transfer(address(player2), 1 ether);        
-
-        address[] memory whitelistAutomator = new address[](1);
-        whitelistAutomator[0] = address(player1);
-
-        address[] memory typedTokens = new address[](2);
-        typedTokens[0] = address(tokenETH);
-        typedTokens[1] = address(tokenUSD);
-
-        uint256[] memory typedTokenTypes = new uint256[](2);
-        typedTokenTypes[0] = uint256(1);
-        typedTokenTypes[1] = uint256(1);
-
-        configManager = new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes);
-
-        Vault vaultImplementation = new Vault();
-        vaultFactory = new VaultFactory(address(owner), address(tokenETH), address(configManager), address(vaultImplementation));
-    
-        ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
-            name: "Test Public Vault",
-            symbol: "TV",
-            principalTokenAmount: 0,
-            config: ICommon.VaultConfig({
-                allowDeposit: true,
-                rangeStrategyType: 0,
-                tvlStrategyType: 0,
-                principalToken: address(tokenETH),
-                supportedAddresses: new address[](0)
-            })
-        });
-
-        // Call createVault through the owner contract
-        vaultAddress = owner.callCreateVault(address(vaultFactory), params);
-        vault = Vault(payable(vaultAddress));
-
-
+        
         hevm.roll(22365182);
+        hevm.warp(1745814599);
 
         hevm.startPrank(BANK_ADDRESS);
         
@@ -114,6 +49,40 @@ contract VaultFuzzer is Test {
 
         hevm.stopPrank();
 
+
+        
+        address[] memory whitelistAutomator = new address[](1);
+        whitelistAutomator[0] = address(player1);
+
+        address[] memory typedTokens = new address[](2);
+        typedTokens[0] = WETH;
+        typedTokens[1] = USDC;
+
+        uint256[] memory typedTokenTypes = new uint256[](2);
+        typedTokenTypes[0] = uint256(1);
+        typedTokenTypes[1] = uint256(1);
+
+        configManagerAddress = address(new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes));
+
+        Vault vaultImplementation = new Vault();
+        vaultFactory = new VaultFactory(address(owner), WETH, configManagerAddress, address(vaultImplementation));
+    
+        ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+            name: "Test Public Vault",
+            symbol: "TV",
+            principalTokenAmount: 0,
+            config: ICommon.VaultConfig({
+                allowDeposit: true,
+                rangeStrategyType: 0,
+                tvlStrategyType: 0,
+                principalToken: WETH,
+                supportedAddresses: new address[](0)
+            })
+        });
+
+        // Call createVault through the owner contract
+        vaultAddress = owner.callCreateVault(address(vaultFactory), params);
+
     }
 
 
@@ -124,94 +93,88 @@ contract VaultFuzzer is Test {
     //     assert( 1 == 0);
     // }
 
-    function assertWETHBalancePlayer1() public {
-        // require(setupDone);
-        assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    // function assertWETHBalancePlayer1() public {
+    //     // require(setupDone);
+    //     assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    // }
+
+
+    function owner_doDepositPrincipalToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, WETH);
     }
 
-    function assertWETHBalancePlayer1WithoutRequire() public {        
-        assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    function owner_doWithdraw(uint256 shares) public {
+        owner.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function assertWETHBalancePlayer2() public {
-        // require(setupDone);
-        assert(IERC20(WETH).balanceOf(address(player2)) >= 2 ether);
+    function player1_doDepositPrincipalToken(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, WETH);
     }
 
-    function assertUSDCBalance() public {
-
-        assert(IERC20(USDC).balanceOf(address(player1)) == 404);
+    function player1_doWithdraw(uint256 shares) public {
+        player1.callWithdraw(vaultAddress, shares, 0);
     }
 
+    function player2_doDepositPrincipalToken(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, WETH);
+    }
 
-    // // function assert_fork_no() public {
-    // //     uint256 forkId = hevm.activeFork();
-    // //     assert(forkId == 0);
-    // // }
-
-    // function owner_doDeposit(uint256 amount) public {
-    //     owner.callDeposit(vaultAddress, amount, tokenETH);
-    // }
-
-    // function owner_doWithdraw(uint256 shares) public {
-    //     owner.callWithdraw(vaultAddress, shares, 0);
-    // }
-
-    // function player1_doDeposit(uint256 amount) public {
-    //     player1.callDeposit(vaultAddress, amount, tokenETH);
-    // }
-
-    // function player1_doWithdraw(uint256 shares) public {
-    //     player1.callWithdraw(vaultAddress, shares, 0);
-    // }
-
-    // function player2_doDeposit(uint256 amount) public {
-    //     player2.callDeposit(vaultAddress, amount, tokenETH);
-    // }
-
-    // function player2_doWithdraw(uint256 shares) public {
-    //     player2.callWithdraw(vaultAddress, shares, 0);
-    // }
+    function player2_doWithdraw(uint256 shares) public {
+        player2.callWithdraw(vaultAddress, shares, 0);
+    }
 
     // function owner_doAllocate(uint256 principalTokenAmount, IStrategy strategy, uint64 gasFeeX64, bytes calldata data) public {
     //     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    //     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), address(tokenETH), 0, principalTokenAmount);
+    //     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, principalTokenAmount);
 
     //     vault.allocate(assets, strategy, gasFeeX64, data);
     //     AssetLib.Asset[] memory vaultAssets = vault.getInventory();
     //     assert(vaultAssets.length < 2);
     // }
 
-    // function assets_length() public {
-    //     AssetLib.Asset[] memory vaultAssets = vault.getInventory();
-    //     assert(vaultAssets.length == 1);
+    // function owner_doAllocate(uint256 principalTokenAmount) public {
+    function owner_doAllocate(uint256 principalTokenAmount) public {
+        owner_doDepositPrincipalToken(principalTokenAmount);
+        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
+        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
+        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        assert(vaultAssets.length > 1);
+    }
+
+    // function failed() public {
+    //     assert(Vault(payable(vaultAddress)).getTotalValue() == 0 ether);
     // }
 
+    function assets_length() public {
+        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
+        assert(vaultAssets.length == 1);
+    }
+
     // function deposit_and_withdraw_only(uint256 amount) public {
-    //     uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));        
+    //     uint256 ownerWETHBefore = WETH.balanceOf(address(owner));        
         
-    //     uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, tokenETH);
+    //     uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, WETH);
     //     owner.callWithdraw(vaultAddress, sharesDelta, 0);
 
     //     // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-    //     assert( tokenETH.balanceOf(address(owner)) <= ownerTokenEthBefore );
+    //     assert( WETH.balanceOf(address(owner)) <= ownerWETHBefore );
 
-    //     uint256 player1TokenEthBefore = tokenETH.balanceOf(address(player1));
-    //     uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, tokenETH);
+    //     uint256 player1WETHBefore = WETH.balanceOf(address(player1));
+    //     uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, WETH);
     //     player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
 
     //     // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-    //     assert( tokenETH.balanceOf(address(player1)) <= player1TokenEthBefore );
+    //     assert( WETH.balanceOf(address(player1)) <= player1WETHBefore );
     // }
 
     // function deposit_withdraw_empty_vault() public {
     //     require(vault.totalSupply() == 0);     // in this case, no one has never deposited into the vault
 
-    //     uint256 ownerTokenEthBefore = tokenETH.balanceOf(address(owner));
-    //     uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, tokenETH);
+    //     uint256 ownerWETHBefore = WETH.balanceOf(address(owner));
+    //     uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, WETH);
     //     owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
         
-    //     assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );    // it is expected that the owner has not earned or lost any amount
+    //     assert( WETH.balanceOf(address(owner)) == ownerWETHBefore );    // it is expected that the owner has not earned or lost any amount
     // }
 
 }

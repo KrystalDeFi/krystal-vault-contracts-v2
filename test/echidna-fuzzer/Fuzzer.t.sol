@@ -6,8 +6,8 @@ import "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
 
 import "./Player.sol";
-import "./MockERC20Token.sol";
 import "./Config.sol";
+import "./IHevm.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
@@ -18,7 +18,7 @@ import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol"
 import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-// import { TestCommon, USER, PLAYER_1, PLAYER_2, BIGHAND_PLAYER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
+import { TestCommon } from "../TestCommon.t.sol";
 
 contract VaultFuzzer is TestCommon {
     Player public owner;
@@ -27,30 +27,42 @@ contract VaultFuzzer is TestCommon {
     
     VaultFactory public vaultFactory;
     address public vaultAddress;
-    Vault public vault;    
-    ConfigManager public configManager;
+    
+    address public configManagerAddress;
 
-    address constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
     IHevm hevm = IHevm(HEVM_ADDRESS);
 
-    constructor() payable {
-        owner = new Player();
+    function setUp() public {
+        owner = new Player();                
+        player1 = new Player();        
+        player2 = new Player();
+        
+
+        uint256 fork = vm.createFork(vm.envString("ECHIDNA_RPC_URL"), 22365182);
+        vm.selectFork(fork);
+
+        setErc20Balance(WETH, address(owner), 2 ether);
+        setErc20Balance(WETH, address(player1), 2 ether);
+        setErc20Balance(WETH, address(player2), 2 ether);
+        setErc20Balance(USDC, address(owner), 3000 * 10 ** 6);
+        setErc20Balance(USDC, address(player1), 3000 * 10 ** 6);
+        setErc20Balance(USDC, address(player2), 3000 * 10 ** 6);        
 
         address[] memory whitelistAutomator = new address[](1);
         whitelistAutomator[0] = address(player1);
 
         address[] memory typedTokens = new address[](2);
-        typedTokens[0] = address(tokenETH);
-        typedTokens[1] = address(tokenUSD);
+        typedTokens[0] = WETH;
+        typedTokens[1] = USDC;
 
         uint256[] memory typedTokenTypes = new uint256[](2);
         typedTokenTypes[0] = uint256(1);
         typedTokenTypes[1] = uint256(1);
 
-        configManager = new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes);
-        
+        configManagerAddress = address(new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes));
+
         Vault vaultImplementation = new Vault();
-        vaultFactory = new VaultFactory(address(owner), address(tokenETH), address(configManager), address(vaultImplementation));
+        vaultFactory = new VaultFactory(address(owner), WETH, configManagerAddress, address(vaultImplementation));
     
         ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
             name: "Test Public Vault",
@@ -60,64 +72,69 @@ contract VaultFuzzer is TestCommon {
                 allowDeposit: true,
                 rangeStrategyType: 0,
                 tvlStrategyType: 0,
-                principalToken: address(tokenETH),
+                principalToken: WETH,
                 supportedAddresses: new address[](0)
             })
         });
 
         // Call createVault through the owner contract
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
-        vault = Vault(payable(vaultAddress));
 
+        console.log("Finished setup!");
 
-        // TODO: create a uniswap v3 pool for tokenETH/tokenUSD
     }
 
-    function owner_doDeposit(uint256 amount) public {
-        owner.callDeposit(vaultAddress, amount, tokenETH);
+    function assertWETHBalancePlayer1() public {        
+        assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    }
+
+
+    function owner_doDepositPrincipalToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, WETH);
     }
 
     function owner_doWithdraw(uint256 shares) public {
         owner.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player1_doDeposit(uint256 amount) public {
-        player1.callDeposit(vaultAddress, amount, tokenETH);
+    function player1_doDepositPrincipalToken(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, WETH);
     }
 
     function player1_doWithdraw(uint256 shares) public {
         player1.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player2_doDeposit(uint256 amount) public {
-        player2.callDeposit(vaultAddress, amount, tokenETH);
+    function player2_doDepositPrincipalToken(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, WETH);
     }
 
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
 
+
     function deposit_and_withdraw() public {
         uint256 amount = 1 ether;
         
 
-        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
+        console.log("IERC20(WETH).balanceOf(address(owner)) x: %s", IERC20(WETH).balanceOf(address(owner)));
 
-        uint256 ownerShares = owner.callDeposit(vaultAddress, amount, tokenETH);
+        uint256 ownerShares = owner.callDeposit(vaultAddress, amount, WETH);
         console.log("owner deposited %s", amount);
-        console.log("tokenETH.balanceOf(address(owner)) x: %s", tokenETH.balanceOf(address(owner)));
+        console.log("IERC20(WETH).balanceOf(address(owner)) x: %s", IERC20(WETH).balanceOf(address(owner)));
         
 
-        uint256 player1Shares = player1.callDeposit(vaultAddress, amount, tokenETH);
+        uint256 player1Shares = player1.callDeposit(vaultAddress, amount, WETH);
         console.log("p1 deposited %s", amount);
-        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+        console.log("IERC20(WETH).balanceOf(address(player1)) x: %s", IERC20(WETH).balanceOf(address(player1)));
 
 
         player1.callWithdraw(vaultAddress, player1Shares, 0);
         owner.callWithdraw(vaultAddress, ownerShares, 0);
         
-        console.log("tokenETH.balanceOf(address(owner))  x: %s", tokenETH.balanceOf(address(owner)));
-        console.log("tokenETH.balanceOf(address(player1)) x: %s", tokenETH.balanceOf(address(player1)));
+        console.log("IERC20(WETH).balanceOf(address(owner))  x: %s", IERC20(WETH).balanceOf(address(owner)));
+        console.log("IERC20(WETH).balanceOf(address(player1)) x: %s", IERC20(WETH).balanceOf(address(player1)));
 
         // assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );
     }
@@ -126,24 +143,40 @@ contract VaultFuzzer is TestCommon {
         assert( true );
     }
 
-    function test_assest() public {
+    // function test_assest() public {
 
-        owner_doDeposit(0.7 ether);
+    //     owner_doDeposit(0.7 ether);
 
-        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
-        console.log("vaultAssets.length: %s", vaultAssets.length);
+    //     AssetLib.Asset[] memory vaultAssets = vault.getInventory();
+    //     console.log("vaultAssets.length: %s", vaultAssets.length);
 
-        for (uint256 i = 0; i < vaultAssets.length; i++) {
-            console.log("vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
-            console.log("vaultAssets[%s].amount: %s", i, vaultAssets[i].amount);
-        }
-    }
+    //     for (uint256 i = 0; i < vaultAssets.length; i++) {
+    //         console.log("vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
+    //         console.log("vaultAssets[%s].amount: %s", i, vaultAssets[i].amount);
+    //     }
+    // }
 
-    function test_owner_doAllocate() public {
-        owner_doDeposit(1 ether);
+    function owner_doAllocate() public {
+        owner_doDepositPrincipalToken(1 ether);
+        console.log("vault totalValue now: %s", Vault(payable(vaultAddress)).getTotalValue());
         uint256 principalTokenAmount = 0.2 ether;
         console.log("principalTokenAmount: %s", principalTokenAmount);
-        owner.callAllocate(vaultAddress, principalTokenAmount, address(tokenETH), address(tokenUSD), address(configManager));
+
+        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);
+        console.log("allocated already");
+        console.log("vault totalValue now: %s", Vault(payable(vaultAddress)).getTotalValue());
+        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
+        console.log("vaultAssets.length: %s", vaultAssets.length);
+        // assert(vaultAssets.length < 2);
+    }
+
+    function test_dummy() public {
+        owner_doDepositPrincipalToken(1 ether);
+        uint256 principalTokenAmount = 0.2 ether;
+        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);
+        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
+        console.log(">>> vaultAssets.length: %s", vaultAssets.length);
+        // assert(vaultAssets.length < 2);
     }
 
 }

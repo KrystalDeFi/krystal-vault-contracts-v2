@@ -13,7 +13,7 @@ import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 
-address constant NFPM = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1; // not sure ??
+address constant NFPM_ON_ETH_MAINNET = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
 
 address constant PLATFORM_WALLET = 0x0000000000000000000000000000000000000010;
 

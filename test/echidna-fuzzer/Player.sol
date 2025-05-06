@@ -2,7 +2,6 @@ pragma solidity ^0.8.0;
 
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import "../../contracts/core/Vault.sol";
-import "./MockERC20Token.sol";
 import "./Config.sol";
 
 import "forge-std/console.sol";     //forge-test-only
@@ -15,14 +14,16 @@ import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
-import { IWETH9 } from "../../contracts/interfaces/IWETH9.sol";
 
 contract Player {
+
+    event LogAddress(string, address);
+
     constructor() payable {
     } 
 
-    function callDeposit(address vault, uint256 amount, MockERC20Token token) public returns (uint256) {
-        token.approve(vault, amount);    
+    function callDeposit(address vault, uint256 amount, address token) public returns (uint256) {
+        IERC20(token).approve(vault, amount);    
         return Vault(payable(vault)).deposit(amount, 0);        
     }
 
@@ -32,11 +33,7 @@ contract Player {
 
     function callCreateVault(address vaultFactory, ICommon.VaultCreateParams memory params) public returns (address) {
         return IVaultFactory(vaultFactory).createVault(params);
-    }
-
-    function callDepositWETH(uint256 amount) public {
-        IWETH9(address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2)).deposit{value: amount}();
-    }
+    }    
 
     function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenUSDAddress, address configManagerAddress) public {
         
@@ -55,6 +52,7 @@ contract Player {
 
         LpValidator validator = new LpValidator(configManagerAddress);
         LpFeeTaker feeTaker = new LpFeeTaker();
+
         AssetLib.Asset[] memory vaultAssets = vault.getInventory();
 
         LpStrategy lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
@@ -64,6 +62,8 @@ contract Player {
         strategies[0] = address(lpStrategy);
         configManager.whitelistStrategy(strategies, true);
 
+        emit LogAddress("strategies[0]", strategies[0]);
+
         ILpValidator.LpStrategyConfig memory initialConfig = ILpValidator.LpStrategyConfig({
             rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
             tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
@@ -71,15 +71,17 @@ contract Player {
 
         initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
         initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 ether });
+
         configManager.setStrategyConfig(address(validator), tokenETHAddress, abi.encode(initialConfig));
 
+
         ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-            nfpm: INFPM(NFPM),
+            nfpm: INFPM(NFPM_ON_ETH_MAINNET),
             token0: tokenETHAddress,
             token1: tokenUSDAddress,
             fee: 500,
-            tickLower: -287_220,
-            tickUpper: -107_220,
+            tickLower: 200_000,
+            tickUpper: 202_000,
             amount0Min: 0,
             amount1Min: 0,
             swapData: ""
@@ -93,6 +95,8 @@ contract Player {
         console.log("I will do allocate now");
         console.log("vaultAssets.length: %s", vaultAssets.length);
         console.log("lp strategy address: %s", address(lpStrategy));
+
+        
 
         vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
         console.log("vault.allocate done");
