@@ -7,14 +7,13 @@ import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
 
 import "./Config.sol";
+import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 
 contract VaultFuzzer {
     
     event LogUint256(string, uint256);
     event LogAddress(string, address);
-    event LogString(string);
-
-    bool setupDone = false;
+    event LogString(string);    
 
     Player public owner;
     Player public player1;
@@ -22,9 +21,7 @@ contract VaultFuzzer {
     
     VaultFactory public vaultFactory;
     address public vaultAddress;
-    
     address public configManagerAddress;
-
     
     IHevm hevm = IHevm(HEVM_ADDRESS);
 
@@ -93,10 +90,13 @@ contract VaultFuzzer {
     //     assert( 1 == 0);
     // }
 
-    // function assertWETHBalancePlayer1() public {
-    //     // require(setupDone);
-    //     assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
-    // }
+    function assertWETHBalancePlayer1() public {    
+        assert(IERC20(WETH).balanceOf(address(player1))  <= 2.0001 ether);
+    }
+
+    function assertWETHBalanceOwner() public {    
+        assert(IERC20(WETH).balanceOf(address(owner)) <= 2.0001 ether);
+    }
 
 
     function owner_doDepositPrincipalToken(uint256 amount) public {
@@ -123,57 +123,55 @@ contract VaultFuzzer {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
 
-    // function owner_doAllocate(uint256 principalTokenAmount, IStrategy strategy, uint64 gasFeeX64, bytes calldata data) public {
-    //     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    //     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, principalTokenAmount);
-
-    //     vault.allocate(assets, strategy, gasFeeX64, data);
-    //     AssetLib.Asset[] memory vaultAssets = vault.getInventory();
-    //     assert(vaultAssets.length < 2);
-    // }
-
-    // function owner_doAllocate(uint256 principalTokenAmount) public {
     function owner_doAllocate(uint256 principalTokenAmount) public {
-        owner_doDepositPrincipalToken(principalTokenAmount);
+        owner_doDepositPrincipalToken(principalTokenAmount + 0.001 ether);
+
+        emit LogString("owner do the deposit");
+        assert( IVault(payable(vaultAddress)).getTotalValue() > principalTokenAmount);
+        
         owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
-        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();        
-        assert(vaultAssets.length > 1);
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
+        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        assert(vaultAssets.length == 1);
     }
 
-    // function failed() public {
-    //     assert(Vault(payable(vaultAddress)).getTotalValue() == 0 ether);
-    // }
-
     function assets_length() public {
-        AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();
         assert(vaultAssets.length == 1);
     }
 
     // function deposit_and_withdraw_only(uint256 amount) public {
-    //     uint256 ownerWETHBefore = WETH.balanceOf(address(owner));        
+    //     uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));        
         
     //     uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, WETH);
     //     owner.callWithdraw(vaultAddress, sharesDelta, 0);
 
     //     // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-    //     assert( WETH.balanceOf(address(owner)) <= ownerWETHBefore );
+    //     assert( IERC20(WETH).balanceOf(address(owner)) <= ownerWETHBefore );
 
-    //     uint256 player1WETHBefore = WETH.balanceOf(address(player1));
+    //     uint256 player1WETHBefore = IERC20(WETH).balanceOf(address(player1));
     //     uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, WETH);
     //     player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
 
     //     // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-    //     assert( WETH.balanceOf(address(player1)) <= player1WETHBefore );
+    //     assert( IERC20(WETH).balanceOf(address(player1)) <= player1WETHBefore );
     // }
 
     // function deposit_withdraw_empty_vault() public {
-    //     require(vault.totalSupply() == 0);     // in this case, no one has never deposited into the vault
+    //     require(IVault(payable(vaultAddress)).totalSupply() == 0);     // in this case, no one has never deposited into the vault
 
-    //     uint256 ownerWETHBefore = WETH.balanceOf(address(owner));
+    //     uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));
     //     uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, WETH);
     //     owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
         
-    //     assert( WETH.balanceOf(address(owner)) == ownerWETHBefore );    // it is expected that the owner has not earned or lost any amount
+    //     assert( IERC20(WETH).balanceOf(address(owner)) == ownerWETHBefore );    // it is expected that the owner has not earned or lost any amount
     // }
 
 }
+
+/*
+
+* harvesting functions
+* do the swap -> increate the liquidity
+
+*/

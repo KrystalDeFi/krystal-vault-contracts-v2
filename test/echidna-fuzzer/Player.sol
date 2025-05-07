@@ -1,7 +1,6 @@
 pragma solidity ^0.8.0;
 
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import "../../contracts/core/Vault.sol";
 import "./Config.sol";
 
 import "forge-std/console.sol";     //forge-test-only
@@ -14,6 +13,8 @@ import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { IVault } from "../../contracts/interfaces/core/IVault.sol";
+import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
 
 contract Player {
 
@@ -24,11 +25,11 @@ contract Player {
 
     function callDeposit(address vault, uint256 amount, address token) public returns (uint256) {
         IERC20(token).approve(vault, amount);    
-        return Vault(payable(vault)).deposit(amount, 0);        
+        return IVault(payable(vault)).deposit(amount, 0);        
     }
 
     function callWithdraw(address vault, uint256 shares, uint256 minAmount) public {
-        Vault(payable(vault)).withdraw(shares, false, minAmount);
+        IVault(payable(vault)).withdraw(shares, false, minAmount);
     }
 
     function callCreateVault(address vaultFactory, ICommon.VaultCreateParams memory params) public returns (address) {
@@ -41,7 +42,7 @@ contract Player {
         console.log("tokenETHAddress: %s", tokenETHAddress);
         console.log("tokenUSDAddress: %s", tokenUSDAddress);
         
-        Vault vault = Vault(payable(vaultAddress));
+        IVault vault = IVault(payable(vaultAddress));
         
         console.log("eth amount of the player: %s", IERC20(tokenETHAddress).balanceOf(address(this)));
 
