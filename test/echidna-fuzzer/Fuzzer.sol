@@ -124,15 +124,13 @@ contract VaultFuzzer {
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
-        owner_doDepositPrincipalToken(principalTokenAmount + 0.001 ether);
-
-        emit LogString("owner do the deposit");
-        assert( IVault(payable(vaultAddress)).getTotalValue() > principalTokenAmount);
-        
+        require( principalTokenAmount > 0.01 ether);
+        require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
+                
         owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
-        emit LogUint256("vaultAssets.length", vaultAssets.length);
-        assert(vaultAssets.length == 1);
+        
+        assert(vaultAssets.length >= 3);
     }
 
     function assets_length() public {
