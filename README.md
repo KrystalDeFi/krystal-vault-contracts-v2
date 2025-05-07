@@ -16,6 +16,8 @@ Uniswap V3 Liquidity Pool types.
   - [Deployment](#deployment)
   - [Contracts](#contracts)
   - [Events](#events)
+  - [ConfigEncoderAndDecoder check](#configencoderanddecoder-check)
+  - [High Level Design](#high-level-design)
 
 ## Installation
 
@@ -65,7 +67,12 @@ The main contracts in this repository are:
 
 The contracts emit various events. Some of the key events are:
 
+## ConfigEncoderAndDecoder check
+
+```sh
+forge test -vvv ./test/helpers/ConfigEncoder.sol
+```
+
 ## High Level Design
+
 ![Screenshot 2025-03-19 at 14 40 52](https://github.com/user-attachments/assets/66023d25-b095-47af-800c-35f87262093d)
-
-
