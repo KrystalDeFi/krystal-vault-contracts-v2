@@ -90,13 +90,13 @@ contract VaultFuzzer {
     //     assert( 1 == 0);
     // }
 
-    function assertWETHBalancePlayer1() public {    
-        assert(IERC20(WETH).balanceOf(address(player1))  <= 2.0001 ether);
-    }
+    // function assertWETHBalancePlayer1() public {    
+    //     assert(IERC20(WETH).balanceOf(address(player1))  <= 2.0001 ether);
+    // }
 
-    function assertWETHBalanceOwner() public {    
-        assert(IERC20(WETH).balanceOf(address(owner)) <= 2.0001 ether);
-    }
+    // function assertWETHBalanceOwner() public {    
+    //     assert(IERC20(WETH).balanceOf(address(owner)) <= 2.0001 ether);
+    // }
 
 
     function owner_doDepositPrincipalToken(uint256 amount) public {

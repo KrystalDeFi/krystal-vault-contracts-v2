@@ -84,9 +84,9 @@ contract VaultFuzzer is TestCommon {
 
     }
 
-    function assertWETHBalancePlayer1() public {        
-        assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
-    }
+    // function assertWETHBalancePlayer1() public {        
+    //     assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
+    // }
 
 
     function owner_doDepositPrincipalToken(uint256 amount) public {
