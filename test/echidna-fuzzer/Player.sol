@@ -6,6 +6,8 @@ import "./Config.sol";
 import "forge-std/console.sol";     //forge-test-only
 import { Test } from "forge-std/Test.sol";      //forge-test-only
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
@@ -15,6 +17,7 @@ import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
+
 
 contract Player {
 
@@ -104,5 +107,12 @@ contract Player {
         console.log("vaultAssets.length: %s", vaultAssets.length);
 
         assert(vaultAssets.length < 2);
+    }
+
+    function doSwap(address token0Address, address token1Address, uint24 fee, uint256 token0Amount) public {
+        address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(token0Address, token1Address, fee);        
+        PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+        IERC20(token0Address).approve(address(swapper), token0Amount);
+        swapper.poolSwap(pool, token0Amount, token1Address > token0Address, 0, "");
     }
 }

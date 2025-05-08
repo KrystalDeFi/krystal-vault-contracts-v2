@@ -176,6 +176,8 @@ contract VaultFuzzer is TestCommon {
         owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);
         AssetLib.Asset[] memory vaultAssets = Vault(payable(vaultAddress)).getInventory();
         console.log(">>> vaultAssets.length: %s", vaultAssets.length);
+
+        player1.doSwap(WETH, USDC, 500, 1 ether);
         // assert(vaultAssets.length < 2);
     }
 

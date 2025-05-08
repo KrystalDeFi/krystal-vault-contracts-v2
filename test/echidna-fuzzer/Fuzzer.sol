@@ -35,13 +35,13 @@ contract VaultFuzzer {
 
         hevm.startPrank(BANK_ADDRESS);
         
-        IERC20(USDC).transfer(address(owner), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(USDC).transfer(address(owner), 10);   // decimal of USDC is 6
         IERC20(WETH).transfer(address(owner), 2 ether);   // decimal of WETH is 18
 
-        IERC20(USDC).transfer(address(player1), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(USDC).transfer(address(player1), 10);   // decimal of USDC is 6
         IERC20(WETH).transfer(address(player1), 2 ether);   // decimal of WETH is 18
 
-        IERC20(USDC).transfer(address(player2), 3000 * 10 ** 6);   // decimal of USDC is 6
+        IERC20(USDC).transfer(address(player2), 10);   // decimal of USDC is 6
         IERC20(WETH).transfer(address(player2), 2 ether);   // decimal of WETH is 18
 
         hevm.stopPrank();
@@ -82,22 +82,15 @@ contract VaultFuzzer {
 
     }
 
+    function assertWETHBalancePlayer1() public {    
+        uint256 wethBalance = IERC20(WETH).balanceOf(address(player1));
+        assert(wethBalance <= 2.0001 ether);
+    }
 
-    // function test_some_invariant_log(uint256 someValue) public {
-    
-    //     emit LogUint256("someValue", someValue + 15);
-    //     emit LogString("we're hereeeee");
-    //     assert( 1 == 0);
-    // }
-
-    // function assertWETHBalancePlayer1() public {    
-    //     assert(IERC20(WETH).balanceOf(address(player1))  <= 2.0001 ether);
-    // }
-
-    // function assertWETHBalanceOwner() public {    
-    //     assert(IERC20(WETH).balanceOf(address(owner)) <= 2.0001 ether);
-    // }
-
+    function assertWETHBalanceOwner() public {    
+        uint256 wethBalance = IERC20(WETH).balanceOf(address(owner));
+        assert(wethBalance <= 2.0001 ether);
+    }
 
     function owner_doDepositPrincipalToken(uint256 amount) public {
         owner.callDeposit(vaultAddress, amount, WETH);
@@ -115,12 +108,19 @@ contract VaultFuzzer {
         player1.callWithdraw(vaultAddress, shares, 0);
     }
 
+    function player1_doSwap(bool token0AddressIsWETH, uint256 token0Amount) public {        
+        player1.doSwap(token0AddressIsWETH ? WETH : USDC, token0AddressIsWETH ? USDC : WETH, 500, token0Amount);
+    }
+
     function player2_doDepositPrincipalToken(uint256 amount) public {
         player2.callDeposit(vaultAddress, amount, WETH);
     }
 
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
+    }
+    function player2_doSwap(bool token0AddressIsWETH, uint256 token0Amount) public {        
+        player2.doSwap(token0AddressIsWETH ? WETH : USDC, token0AddressIsWETH ? USDC : WETH, 500, token0Amount);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
@@ -129,41 +129,55 @@ contract VaultFuzzer {
                 
         owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
+        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        assert(vaultAssets.length >= 2);
+    }    
+
+    function deposit_and_withdraw_only(uint256 amount) public {
+        uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));        
         
-        assert(vaultAssets.length >= 3);
+        uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, WETH);
+        owner.callWithdraw(vaultAddress, sharesDelta, 0);
+
+        // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
+        assert( IERC20(WETH).balanceOf(address(owner)) <= ownerWETHBefore );
+
+        uint256 player1WETHBefore = IERC20(WETH).balanceOf(address(player1));
+        uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, WETH);
+        player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
+
+        // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
+        assert( IERC20(WETH).balanceOf(address(player1)) <= player1WETHBefore );
     }
 
-    function assets_length() public {
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();
-        assert(vaultAssets.length == 1);
+    function deposit_withdraw_empty_vault() public {
+        require( IVault(payable(vaultAddress)).getTotalValue() == 0 );     // in this case, no one has never deposited into the vault
+
+        uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));
+        uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, WETH);
+        owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
+        
+        assert( IERC20(WETH).balanceOf(address(owner)) == ownerWETHBefore );    // it is expected that the owner has not earned or lost any amount
     }
 
-    // function deposit_and_withdraw_only(uint256 amount) public {
-    //     uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));        
-        
-    //     uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, WETH);
-    //     owner.callWithdraw(vaultAddress, sharesDelta, 0);
-
-    //     // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-    //     assert( IERC20(WETH).balanceOf(address(owner)) <= ownerWETHBefore );
-
-    //     uint256 player1WETHBefore = IERC20(WETH).balanceOf(address(player1));
-    //     uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, WETH);
-    //     player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
-
-    //     // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-    //     assert( IERC20(WETH).balanceOf(address(player1)) <= player1WETHBefore );
+    // this function is for debugging purpose
+    // function assets_length() public {
+    //     AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();
+    //     assert(vaultAssets.length == 1);
     // }
 
-    // function deposit_withdraw_empty_vault() public {
-    //     require(IVault(payable(vaultAddress)).totalSupply() == 0);     // in this case, no one has never deposited into the vault
-
-    //     uint256 ownerWETHBefore = IERC20(WETH).balanceOf(address(owner));
-    //     uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, WETH);
-    //     owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
+    function multiple_deposits_withdrawals(uint256 amount1, uint256 amount2) public {
+        require(amount1 > 0 && amount2 > 0);
+        uint256 initialBalance = IERC20(WETH).balanceOf(address(player1));
         
-    //     assert( IERC20(WETH).balanceOf(address(owner)) == ownerWETHBefore );    // it is expected that the owner has not earned or lost any amount
-    // }
+        uint256 shares1 = player1.callDeposit(vaultAddress, amount1, WETH);
+        uint256 shares2 = player1.callDeposit(vaultAddress, amount2, WETH);
+        
+        player1.callWithdraw(vaultAddress, shares1 + shares2, 0);
+        
+        assert(IERC20(WETH).balanceOf(address(player1)) <= initialBalance);
+    }
+    
 
 }
 
