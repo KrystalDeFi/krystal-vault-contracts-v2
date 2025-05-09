@@ -3,22 +3,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_optimalSwapper",
+        "name": "_oldStrategy",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "_validator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_lpFeeTaker",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_oldLpStrategy",
+        "name": "_newStrategy",
         "type": "address"
       }
     ],
@@ -82,17 +72,7 @@
   },
   {
     "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SignatureExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "T",
     "type": "error"
   },
   {
@@ -140,64 +120,6 @@
       }
     ],
     "name": "FeeCollected",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "vaultAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount0Collected",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount1Collected",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "indexed": false,
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "compoundAssets",
-        "type": "tuple[]"
-      }
-    ],
-    "name": "LpStrategyCompound",
     "type": "event"
   },
   {
@@ -263,7 +185,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       },
       {
@@ -340,7 +262,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "result",
         "type": "tuple[]"
       }
     ],
@@ -415,7 +337,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       }
     ],
@@ -602,7 +524,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -762,45 +684,24 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "name": "onERC721Received",
+    "inputs": [],
+    "name": "newStrategy",
     "outputs": [
       {
-        "internalType": "bytes4",
+        "internalType": "address",
         "name": "",
-        "type": "bytes4"
+        "type": "address"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "optimalSwapper",
+    "name": "oldStrategy",
     "outputs": [
       {
-        "internalType": "contract IOptimalSwapper",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -877,20 +778,7 @@
     ],
     "name": "revalidate",
     "outputs": [],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "validator",
-    "outputs": [
-      {
-        "internalType": "contract ILpValidator",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -937,15 +825,11 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "valueInPrincipal",
+        "name": "",
         "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]

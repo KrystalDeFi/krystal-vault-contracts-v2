@@ -41,7 +41,7 @@ contract ILpValidator validator
 ### constructor
 
 ```solidity
-constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) public
+constructor(address _optimalSwapper, address _validator, address _lpFeeTaker, address _oldLpStrategy) public
 ```
 
 ### valueOf
