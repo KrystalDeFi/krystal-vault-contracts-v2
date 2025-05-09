@@ -170,12 +170,18 @@ contract VaultFuzzer is TestCommon {
         console.log("player2 shares: %s", player2Shares);
     
         console.log("player2 balance: %s", IERC20(WETH).balanceOf(address(player2)));
+
+        console.log("vault total value (B): %s", IVault(payable(vaultAddress)).getTotalValue());
         owner_doAllocate(0.02 ether);
 
+        console.log("vault total value (A): %s", IVault(payable(vaultAddress)).getTotalValue());
+
                 
-        console.log("player2 shares:    %s", player2Shares);
+        console.log("player2 shares:    %s", player2Shares);        
 
         player2_doWithdraw(player2Shares);
+
+
         console.log("player2 balance: %s", IERC20(WETH).balanceOf(address(player2)));
         
     }
