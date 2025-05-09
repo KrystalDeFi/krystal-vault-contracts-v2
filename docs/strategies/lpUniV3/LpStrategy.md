@@ -515,6 +515,23 @@ _Gets the fee growth inside the position_
 function _takeFees(address token0, uint256 amount0, address token1, uint256 amount1, struct ICommon.FeeConfig feeConfig, address principalToken, address pool) internal returns (uint256, uint256)
 ```
 
+### _safeResetAndApprove
+
+```solidity
+function _safeResetAndApprove(contract IERC20 token, address _spender, uint256 _value) internal
+```
+
+_some tokens require allowance == 0 to approve new amount
+but some tokens does not allow approve amount = 0
+we try to set allowance = 0 before approve new amount. if it revert means that
+the token not allow to approve 0, which means the following line code will work properly_
+
+### _safeApprove
+
+```solidity
+function _safeApprove(contract IERC20 token, address _spender, uint256 _value) internal
+```
+
 ### receive
 
 ```solidity

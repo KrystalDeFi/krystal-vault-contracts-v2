@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientAmountOut",
     "type": "error"
   },

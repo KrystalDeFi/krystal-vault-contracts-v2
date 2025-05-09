@@ -48,4 +48,6 @@ interface ICommon {
   error InvalidSigner();
 
   error SignatureExpired();
+
+  error ApproveFailed();
 }

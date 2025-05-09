@@ -8,12 +8,6 @@
 error NotEnoughAmountOut()
 ```
 
-### ApproveFailed
-
-```solidity
-error ApproveFailed()
-```
-
 ### SwapFailed
 
 ```solidity

@@ -22,6 +22,11 @@
   },
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "AssetNotFound",
     "type": "error"
   },

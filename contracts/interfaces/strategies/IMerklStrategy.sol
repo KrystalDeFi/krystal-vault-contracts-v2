@@ -5,7 +5,6 @@ import { IStrategy } from "./IStrategy.sol";
 
 interface IMerklStrategy is IStrategy {
   error NotEnoughAmountOut();
-  error ApproveFailed();
   error SwapFailed();
 
   enum InstructionType {

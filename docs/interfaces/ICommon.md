@@ -101,3 +101,9 @@ error InvalidSigner()
 error SignatureExpired()
 ```
 
+### ApproveFailed
+
+```solidity
+error ApproveFailed()
+```
+
