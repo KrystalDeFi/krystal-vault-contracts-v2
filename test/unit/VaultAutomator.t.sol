@@ -77,7 +77,7 @@ contract VaultAutomatorTest is TestCommon {
     );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(0));
 
     address[] memory whitelistStrategies = new address[](1);
     whitelistStrategies[0] = address(lpStrategy);
