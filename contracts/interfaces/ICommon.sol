@@ -50,4 +50,6 @@ interface ICommon {
   error SignatureExpired();
 
   error ApproveFailed();
+
+  error InvalidParams();
 }

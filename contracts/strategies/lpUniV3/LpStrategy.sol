@@ -313,6 +313,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     VaultConfig calldata vaultConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
+    require(params.token0 < params.token1, InvalidParams());
 
     AssetLib.Asset memory principalAsset = assets[0];
     require(principalAsset.token == vaultConfig.principalToken, InvalidAsset());
