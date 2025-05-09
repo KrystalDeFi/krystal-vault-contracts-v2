@@ -17,6 +17,7 @@ import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { console } from "forge-std/console.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpMigrator } from "../../contracts/strategies/lpMigrator/LpMigrator.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -70,7 +71,7 @@ contract VaultTest is TestCommon {
     );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(0));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
@@ -360,5 +361,87 @@ contract VaultTest is TestCommon {
       vm.roll(++currentBlock);
       vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     }
+  }
+
+  function test_vaultMigrateLp() public {
+    console.log("===== test_vaultMigrateLp =====");
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    uint256 blockNumber = block.number;
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(blockNumber++);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+
+    vm.roll(blockNumber++);
+    console.log("===== deploy new lpStrategy =====");
+    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    LpValidator validator = new LpValidator(address(configManager));
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    LpStrategy newLpStrategy =
+      new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(lpStrategy));
+
+    console.log("===== remove lpStrategy from whitelist =====");
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(lpStrategy);
+    configManager.whitelistStrategy(strategies, false);
+
+    console.log("===== add newLpStrategy to whitelist =====");
+    strategies[0] = address(newLpStrategy);
+    configManager.whitelistStrategy(strategies, true);
+
+    console.log("===== position cannot be decrease =====");
+    AssetLib.Asset[] memory inventoryAssets = vault.getInventory();
+    AssetLib.Asset memory position;
+    for (uint256 i = 0; i < inventoryAssets.length; i++) {
+      if (inventoryAssets[i].token == NFPM) {
+        position = inventoryAssets[i];
+        break;
+      }
+    }
+    uint128 liquidity;
+    (,,,,,,, liquidity,,,,) = INFPM(position.token).positions(position.tokenId);
+    ILpStrategy.DecreaseLiquidityAndSwapParams memory decreaseParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
+      liquidity: liquidity,
+      amount0Min: 0,
+      amount1Min: 0,
+      principalAmountOutMin: 0,
+      swapData: ""
+    });
+    instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+      params: abi.encode(decreaseParams)
+    });
+
+    assets[0] = position;
+
+    vm.roll(blockNumber++);
+    vm.expectRevert(ICommon.InvalidStrategy.selector);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+
+    vm.roll(blockNumber++);
+    console.log("===== position can be decrease using new lpStrategy =====");
+    vault.allocate(assets, newLpStrategy, 0, abi.encode(instruction));
   }
 }

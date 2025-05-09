@@ -32,14 +32,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   ILpValidator public immutable validator;
   ILpFeeTaker private immutable lpFeeTaker;
   address private immutable thisAddress;
+  address private immutable oldLpStrategy;
 
-  constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) {
+  constructor(address _optimalSwapper, address _validator, address _lpFeeTaker, address _oldLpStrategy) {
     require(_optimalSwapper != address(0), ZeroAddress());
     require(_validator != address(0), ZeroAddress());
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
     validator = ILpValidator(_validator);
     lpFeeTaker = ILpFeeTaker(_lpFeeTaker);
     thisAddress = address(this);
+    oldLpStrategy = _oldLpStrategy == address(0) ? address(this) : _oldLpStrategy;
   }
 
   /// @notice Get value of the asset in terms of principalToken
@@ -125,7 +127,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
   ) external payable returns (AssetLib.Asset[] memory) {
-    require(asset.strategy == thisAddress, InvalidAsset());
+    require(asset.strategy == thisAddress || asset.strategy == oldLpStrategy, InvalidAsset());
     return _harvest(asset, tokenOut, amountTokenOutMin, vaultConfig, feeConfig);
   }
 
@@ -242,7 +244,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) external payable returns (AssetLib.Asset[] memory returnAssets) {
-    require(existingAsset.strategy == thisAddress, InvalidStrategy());
+    require(existingAsset.strategy == thisAddress || existingAsset.strategy == oldLpStrategy, InvalidStrategy());
     if (shares > totalSupply) shares = totalSupply;
 
     INFPM nfpm = INFPM(existingAsset.token);
@@ -490,7 +492,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returns (AssetLib.Asset[] memory returnAssets)
   {
     AssetLib.Asset memory lpAsset = assets[2];
-    require(lpAsset.strategy == thisAddress, InvalidAsset());
+    require(lpAsset.strategy == thisAddress || lpAsset.strategy == oldLpStrategy, InvalidAsset());
 
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
@@ -525,7 +527,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].strategy == thisAddress, InvalidAsset());
+    require(assets[0].strategy == thisAddress || assets[0].strategy == oldLpStrategy, InvalidAsset());
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
 
@@ -618,7 +620,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].strategy == thisAddress, InvalidAsset());
+    require(assets[0].strategy == thisAddress || assets[0].strategy == oldLpStrategy, InvalidAsset());
 
     AssetLib.Asset calldata asset0 = assets[0];
     IUniswapV3Pool pool = _getPoolForPosition(INFPM(asset0.token), asset0.tokenId);
@@ -721,7 +723,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    require(assets[0].strategy == thisAddress, InvalidAsset());
+    require(assets[0].strategy == thisAddress || assets[0].strategy == oldLpStrategy, InvalidAsset());
 
     AssetLib.Asset calldata asset0 = assets[0];
 
@@ -809,7 +811,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param asset The asset to revalidate
   /// @param config The vault configuration
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view {
-    require(asset.strategy == thisAddress, InvalidAsset());
+    require(asset.strategy == thisAddress || asset.strategy == oldLpStrategy, InvalidAsset());
 
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
