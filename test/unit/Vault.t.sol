@@ -70,7 +70,7 @@ contract VaultTest is TestCommon {
     );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(0));
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
@@ -398,8 +398,7 @@ contract VaultTest is TestCommon {
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    LpStrategy newLpStrategy =
-      new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(lpStrategy));
+    LpStrategy newLpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
     console.log("===== remove lpStrategy from whitelist =====");
     address[] memory strategies = new address[](1);
@@ -441,6 +440,7 @@ contract VaultTest is TestCommon {
 
     vm.roll(blockNumber++);
     console.log("===== position can be decrease using new lpStrategy =====");
+    console.log("===== lpStrategy address: %s", address(lpStrategy));
     vault.allocate(assets, newLpStrategy, 0, abi.encode(instruction));
   }
 }

@@ -71,7 +71,7 @@ contract LpStrategyTest is TestCommon {
     );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker), address(0));
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     vaultConfig = ICommon.VaultConfig({
       principalToken: WETH,
       allowDeposit: false,

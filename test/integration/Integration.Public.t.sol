@@ -81,7 +81,7 @@ contract IntegrationTest is TestCommon {
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker feeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker), address(0));
+    lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
