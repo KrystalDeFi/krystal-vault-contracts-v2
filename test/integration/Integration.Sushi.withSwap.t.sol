@@ -63,7 +63,23 @@ contract IntegrationTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
     LpValidator validator = new LpValidator(address(configManager));
@@ -93,7 +109,8 @@ contract IntegrationTest is TestCommon {
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vaultImplementation));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vaultImplementation));
 
     console.log("vaultFactory: ", address(vaultFactory));
     // Owner can create a Vault without any assets

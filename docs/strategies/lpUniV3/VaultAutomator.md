@@ -2,6 +2,8 @@
 
 ## VaultAutomator
 
+Contract that automates vault operations for liquidity provision and management
+
 ### OPERATOR_ROLE_HASH
 
 ```solidity
@@ -11,7 +13,7 @@ bytes32 OPERATOR_ROLE_HASH
 ### constructor
 
 ```solidity
-constructor(address _owner) public
+constructor(address _owner, address[] _operators) public
 ```
 
 ### executeAllocate
@@ -160,6 +162,22 @@ Revoke operator role
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | operator | address | Operator address |
+
+### pause
+
+```solidity
+function pause() external
+```
+
+Pause the contract
+
+### unpause
+
+```solidity
+function unpause() external
+```
+
+Unpause the contract
 
 ### receive
 

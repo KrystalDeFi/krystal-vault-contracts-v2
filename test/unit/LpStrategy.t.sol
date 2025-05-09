@@ -52,7 +52,23 @@ contract LpStrategyTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    ConfigManager configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    ConfigManager configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
@@ -437,11 +453,11 @@ contract LpStrategyTest is TestCommon {
       // uint256 fee1 = 243_296_432_368_259_167;
       assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_483_721_965_001, "vault owner fee 0"); // fee0 * 500 / 10_000
       assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0, "vault owner fee 1"); // fee1 * 500 /
-        // 10_000
+      // 10_000
       assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_967_443_930_004, "platform fee 0"); // fee0 * 1000 /
-        // 10_000
+      // 10_000
       assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0, "platform fee 1"); // fee1 * 1000 /
-        // 10_000
+      // 10_000
       assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 649_451_165_895_007, "gas fee 0"); // fee0 * 1500 / 10_000
       assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0, "gas fee 1"); // fee1 * 1500 / 10_000
     }

@@ -1,29 +1,8 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_weth",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_configManager",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_vaultImplementation",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -63,12 +42,22 @@
   },
   {
     "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidPrincipalToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSigner",
     "type": "error"
   },
   {
@@ -84,6 +73,11 @@
   {
     "inputs": [],
     "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
     "type": "error"
   },
   {
@@ -121,6 +115,11 @@
   },
   {
     "inputs": [],
+    "name": "SignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
@@ -140,6 +139,19 @@
       }
     ],
     "name": "ConfigManagerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -385,6 +397,34 @@
       }
     ],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_weth",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_configManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_vaultImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

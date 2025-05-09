@@ -4,8 +4,8 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
 import "../interfaces/core/IVaultFactory.sol";
@@ -13,10 +13,10 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/IWETH9.sol";
 
 /// @title VaultFactory
-contract VaultFactory is Ownable, Pausable, IVaultFactory {
+contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory {
   using SafeERC20 for IERC20;
 
-  address public immutable override WETH;
+  address public override WETH;
   address public configManager;
   address public vaultImplementation;
 
@@ -24,11 +24,17 @@ contract VaultFactory is Ownable, Pausable, IVaultFactory {
 
   address[] public allVaults;
 
-  constructor(address _owner, address _weth, address _configManager, address _vaultImplementation) Ownable(_owner) {
+  function initialize(address _owner, address _weth, address _configManager, address _vaultImplementation)
+    external
+    initializer
+  {
     require(
       _owner != address(0) && _weth != address(0) && _configManager != address(0) && _vaultImplementation != address(0),
       ZeroAddress()
     );
+
+    __Ownable_init(_owner);
+    __Pausable_init();
 
     WETH = _weth;
     configManager = _configManager;

@@ -79,7 +79,23 @@ contract MerklStrategyTest is TestCommon {
     uint256[] memory typedTokenTypes = new uint256[](0);
     address[] memory whitelistAutomator = new address[](0);
     // Deploy config manager
-    configManager = new ConfigManager(owner, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      owner,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     // Whitelist the swap router
     address[] memory routers = new address[](1);
@@ -453,8 +469,119 @@ contract MerklStrategyTest is TestCommon {
 
     // Call convert - should revert due to invalid signer
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
-    vm.expectRevert(IMerklStrategy.InvalidSigner.selector);
+    vm.expectRevert(ICommon.InvalidSigner.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+  }
+
+  function testFeeTakingMechanism() public {
+    // Create vault config
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: true,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      principalToken: address(principalToken),
+      supportedAddresses: new address[](0)
+    });
+
+    // Create fee config with all fee types
+    address vaultOwner = address(0x3);
+    address platformRecipient = address(0x4);
+    address gasRecipient = address(0x5);
+
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 100, // 1%
+      vaultOwner: vaultOwner,
+      platformFeeBasisPoint: 200, // 2%
+      platformFeeRecipient: platformRecipient,
+      gasFeeX64: 184_467_440_737_095_520, // ~1% in Q64
+      gasFeeRecipient: gasRecipient
+    });
+
+    // Prepare claim parameters
+    uint256 rewardAmount = 1000 * 10 ** 18;
+    uint256 expectedSwapOut = 900 * 10 ** 18;
+    bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp + 1 hours);
+
+    // Encode swap data
+    bytes memory swapData = abi.encodeWithSelector(
+      MockSwapRouter.swap.selector, address(rewardToken), address(principalToken), rewardAmount, expectedSwapOut
+    );
+
+    // Create message hash for signing
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(rewardToken),
+        rewardAmount,
+        proofs,
+        address(swapRouter),
+        swapData,
+        expectedSwapOut - 10 * 10 ** 18,
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Encode claim and swap parameters
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
+      distributor: address(distributor),
+      token: address(rewardToken),
+      amount: rewardAmount,
+      proof: proofs,
+      swapRouter: address(swapRouter),
+      swapData: swapData,
+      amountOutMin: expectedSwapOut - 10 * 10 ** 18,
+      deadline: deadline,
+      signature: signature
+    });
+
+    // Encode instruction
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      params: abi.encode(claimParams)
+    });
+
+    // Encode the full data
+    bytes memory data = abi.encode(instruction);
+
+    // Get initial balances
+    uint256 initialVaultOwnerBalance = principalToken.balanceOf(vaultOwner);
+    uint256 initialPlatformBalance = principalToken.balanceOf(platformRecipient);
+    uint256 initialGasRecipientBalance = principalToken.balanceOf(gasRecipient);
+
+    // Call convert
+    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
+    AssetLib.Asset[] memory outputAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+
+    // Calculate expected fees
+    uint256 expectedVaultOwnerFee = expectedSwapOut * 100 / 10_000; // 1%
+    uint256 expectedPlatformFee = expectedSwapOut * 200 / 10_000; // 2%
+    uint256 expectedGasFee = expectedSwapOut * 184_467_440_737_095_520 / (2 ** 64); // ~1%
+
+    // Verify fee transfers
+    assertEq(
+      principalToken.balanceOf(vaultOwner) - initialVaultOwnerBalance,
+      expectedVaultOwnerFee,
+      "Vault owner fee not transferred correctly"
+    );
+    assertEq(
+      principalToken.balanceOf(platformRecipient) - initialPlatformBalance,
+      expectedPlatformFee,
+      "Platform fee not transferred correctly"
+    );
+    assertEq(
+      principalToken.balanceOf(gasRecipient) - initialGasRecipientBalance,
+      expectedGasFee,
+      "Gas fee not transferred correctly"
+    );
+
+    // Verify output amount is reduced by fees
+    uint256 totalFees = expectedVaultOwnerFee + expectedPlatformFee + expectedGasFee;
+    assertEq(outputAssets[1].amount, expectedSwapOut - totalFees, "Output amount should be reduced by total fees");
   }
 
   function testRevertOnExpiredSignature() public {
@@ -530,7 +657,7 @@ contract MerklStrategyTest is TestCommon {
 
     // Call convert - should revert due to expired signature
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
-    vm.expectRevert(IMerklStrategy.SignatureExpired.selector);
+    vm.expectRevert(ICommon.SignatureExpired.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
   }
 }

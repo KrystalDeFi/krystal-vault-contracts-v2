@@ -58,7 +58,23 @@ contract VaultAutomatorTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = address(vaultAutomatorLpStrategy);
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
     LpValidator validator = new LpValidator(address(configManager));
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
@@ -69,7 +85,8 @@ contract VaultAutomatorTest is TestCommon {
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vault));
   }
 
   function test_executeAllocateLpStrategy() public {

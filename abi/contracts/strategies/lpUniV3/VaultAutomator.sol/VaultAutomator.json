@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "_owner",
         "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_operators",
+        "type": "address[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -29,6 +34,11 @@
       }
     ],
     "name": "AccessControlUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ApproveFailed",
     "type": "error"
   },
   {
@@ -90,6 +100,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidSigner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidStrategy",
     "type": "error"
   },
@@ -106,6 +121,11 @@
   {
     "inputs": [],
     "name": "OrderCancelled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {
@@ -535,6 +555,13 @@
   },
   {
     "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "paused",
     "outputs": [
       {
@@ -612,6 +639,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

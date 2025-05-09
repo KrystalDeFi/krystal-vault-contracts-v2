@@ -8,28 +8,10 @@
 error NotEnoughAmountOut()
 ```
 
-### ApproveFailed
-
-```solidity
-error ApproveFailed()
-```
-
 ### SwapFailed
 
 ```solidity
 error SwapFailed()
-```
-
-### InvalidSigner
-
-```solidity
-error InvalidSigner()
-```
-
-### SignatureExpired
-
-```solidity
-error SignatureExpired()
 ```
 
 ### InstructionType

@@ -2,7 +2,7 @@ import { IConfig } from "./interfaces";
 
 export const BaseConfig: Record<string, IConfig> = {
   base_mainnet: {
-    sleepTime: 6 * 1000,
+    sleepTime: 10000,
     vault: {
       enabled: true,
       autoVerifyContract: true,
@@ -39,6 +39,10 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    merklAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     wrapToken: "0x4200000000000000000000000000000000000006",
     typedTokens: [
       "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // USDC
@@ -51,6 +55,7 @@ export const BaseConfig: Record<string, IConfig> = {
       "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22", // CBETH
       "0xb6fe221fe9eef5aba221c348ba20a1bf5e73624c", // RETH
       "0xb29749498954a3a821ec37bde86e386df3ce30b6", // LSETH
+      "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", // cbBTC
     ],
     // 1 for stable, 2 for ETH,...
     typedTokensTypes: [
@@ -64,6 +69,7 @@ export const BaseConfig: Record<string, IConfig> = {
       2, // CBETH
       2, // RETH
       2, // LSETH
+      3, // cbBTC
     ],
     swapRouters: ["0x6fD481970744F9Bc0044a81859FD92431a2Dd67D"],
   },

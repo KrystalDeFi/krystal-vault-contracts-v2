@@ -35,7 +35,7 @@ const config: HardhatUserConfig = {
           },
           evmVersion: "cancun",
           metadata: {
-            bytecodeHash: "none"
+            bytecodeHash: "none",
           },
         },
       },

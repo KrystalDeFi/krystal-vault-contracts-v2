@@ -44,4 +44,10 @@ interface ICommon {
   error InvalidSwapRouter();
 
   error InvalidInstructionType();
+
+  error InvalidSigner();
+
+  error SignatureExpired();
+
+  error ApproveFailed();
 }
