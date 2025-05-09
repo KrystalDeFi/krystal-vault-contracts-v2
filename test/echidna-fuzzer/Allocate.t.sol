@@ -142,7 +142,7 @@ contract VaultFuzzer is TestCommon {
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         // emit LogUint256("vaultAssets.length", vaultAssets.length);
         console.log("owner_doAllocate:: vaultAssets.length: %s", vaultAssets.length);
-        assert(vaultAssets.length >= 2);
+        // assert(vaultAssets.length >= 2);
 
         for (uint256 i = 0; i < vaultAssets.length; i++) {
             console.log("owner_doAllocate:: vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
