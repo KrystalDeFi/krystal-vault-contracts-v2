@@ -214,20 +214,6 @@ contract MerklStrategy is IMerklStrategy {
     }
   }
 
-  /// @dev some tokens require allowance == 0 to approve new amount
-  /// but some tokens does not allow approve amount = 0
-  /// we try to set allowance = 0 before approve new amount. if it revert means that
-  /// the token not allow to approve 0, which means the following line code will work properly
-  function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
-    /// @dev omitted approve(0) result because it might fail and does not break the flow
-    (bool success,) = address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
-    require(success, ApproveFailed());
-
-    /// @dev value for approval after reset must greater than 0
-    require(_value > 0);
-    _safeApprove(token, _spender, _value);
-  }
-
   function _safeApprove(IERC20 token, address _spender, uint256 _value) internal {
     (bool success, bytes memory returnData) =
       address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, _value));
