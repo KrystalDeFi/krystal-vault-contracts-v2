@@ -358,8 +358,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     console.log("amount1:               %s", amount1);
 
     AssetLib.Asset[] memory mintAssets = new AssetLib.Asset[](2);
-    mintAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token1, 0, amount0);
-    mintAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token0, 0, amount1);
+    mintAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token0, 0, amount0);
+    mintAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token1, 0, amount1);
     returnAssets = _mintPosition(
       vaultConfig,
       mintAssets,

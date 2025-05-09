@@ -7,7 +7,6 @@ import { Test } from "forge-std/Test.sol";
 
 import "./Player.sol";
 import "./Config.sol";
-import "./IHevm.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
