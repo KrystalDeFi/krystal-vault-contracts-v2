@@ -30,18 +30,18 @@ contract VaultFuzzer {
         player1 = new Player();        
         player2 = new Player();
         
-        hevm.roll(22365182);
-        hevm.warp(1745814599);
+        hevm.roll(22443326);
+        hevm.warp(1746762227);
 
         hevm.startPrank(BANK_ADDRESS);
         
-        IERC20(USDC).transfer(address(owner), 10);   // decimal of USDC is 6
+        // IERC20(VIRTUAL).transfer(address(owner), 10);   // decimal of VIRTUAL is 18
         IERC20(WETH).transfer(address(owner), 2 ether);   // decimal of WETH is 18
 
-        IERC20(USDC).transfer(address(player1), 10);   // decimal of USDC is 6
+        // IERC20(VIRTUAL).transfer(address(player1), 10);   // decimal of VIRTUAL is 18
         IERC20(WETH).transfer(address(player1), 2 ether);   // decimal of WETH is 18
 
-        IERC20(USDC).transfer(address(player2), 10);   // decimal of USDC is 6
+        // IERC20(VIRTUAL).transfer(address(player2), 10);   // decimal of VIRTUAL is 18
         IERC20(WETH).transfer(address(player2), 2 ether);   // decimal of WETH is 18
 
         hevm.stopPrank();
@@ -53,7 +53,7 @@ contract VaultFuzzer {
 
         address[] memory typedTokens = new address[](2);
         typedTokens[0] = WETH;
-        typedTokens[1] = USDC;
+        typedTokens[1] = VIRTUAL;
 
         uint256[] memory typedTokenTypes = new uint256[](2);
         typedTokenTypes[0] = uint256(1);
@@ -109,7 +109,7 @@ contract VaultFuzzer {
     }
 
     function player1_doSwap(bool token0AddressIsWETH, uint256 token0Amount) public {        
-        player1.doSwap(token0AddressIsWETH ? WETH : USDC, token0AddressIsWETH ? USDC : WETH, 500, token0Amount);
+        player1.doSwap(token0AddressIsWETH ? WETH : VIRTUAL, token0AddressIsWETH ? VIRTUAL : WETH, token0Amount);
     }
 
     function player2_doDepositPrincipalToken(uint256 amount) public {
@@ -120,14 +120,14 @@ contract VaultFuzzer {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
     function player2_doSwap(bool token0AddressIsWETH, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsWETH ? WETH : USDC, token0AddressIsWETH ? USDC : WETH, 500, token0Amount);
+        player2.doSwap(token0AddressIsWETH ? WETH : VIRTUAL, token0AddressIsWETH ? VIRTUAL : WETH, token0Amount);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
         require( principalTokenAmount > 0.01 ether);
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
-        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, USDC, configManagerAddress);        
+        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, VIRTUAL, configManagerAddress);        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         emit LogUint256("vaultAssets.length", vaultAssets.length);
         assert(vaultAssets.length >= 2);

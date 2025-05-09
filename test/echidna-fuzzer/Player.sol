@@ -23,6 +23,11 @@ contract Player {
 
     event LogAddress(string, address);
 
+    // this config is for the WETH/VIRTUAL pool on ETH mainnet https://etherscan.io/address/0x95a45a87dd4d3a1803039072f37e075f37b23d75#readContract
+    uint24 public fee = 10000;
+    int24 public tickLower = -71_000;
+    int24 public tickUpper = -69_000;
+
     constructor() payable {
     } 
 
@@ -39,15 +44,30 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenUSDAddress, address configManagerAddress) public {
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenAnotherAddress, address configManagerAddress) public {
         
         console.log("this player address: %s", address(this));
-        console.log("tokenETHAddress: %s", tokenETHAddress);
-        console.log("tokenUSDAddress: %s", tokenUSDAddress);
+        console.log("tokenETHAddress:                   %s", tokenETHAddress);
+        console.log("eth amount of the player:          %s", IERC20(tokenETHAddress).balanceOf(address(this)));
+
+        console.log("tokenAnotherAddress:               %s", tokenAnotherAddress);
+        console.log("tokenAnother amount of the player: %s", IERC20(tokenAnotherAddress).balanceOf(address(this)));
+
+        console.log("principalTokenAmount:              %s", principalTokenAmount);
+
+        console.log("in player.callAllocate:: vault.allocate BEFORE");
         
+        // for (uint256 i = 0; i < vault.getInventory().length; i++) {
+        //     console.log("   + vaultAssets[%s].assetType: %s", i, uint256(vault.getInventory()[i].assetType));
+        //     console.log("   + vaultAssets[%s].amount: %s", i, vault.getInventory()[i].amount);
+        // }
         IVault vault = IVault(payable(vaultAddress));
+        // console.log("vaultAssets.length: %s", vault.getInventory().length);        
+        // console.log("amount of first asset: %s", vault.getInventory()[0].amount);
+        // console.log("token of first asset: %s", vault.getInventory()[0].token);
         
-        console.log("eth amount of the player: %s", IERC20(tokenETHAddress).balanceOf(address(this)));
+        
+        
 
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
         assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenETHAddress, 0, principalTokenAmount);
@@ -82,10 +102,10 @@ contract Player {
         ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
             nfpm: INFPM(NFPM_ON_ETH_MAINNET),
             token0: tokenETHAddress,
-            token1: tokenUSDAddress,
-            fee: 500,
-            tickLower: 200_000,
-            tickUpper: 202_000,
+            token1: tokenAnotherAddress,
+            fee: fee,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
             amount0Min: 0,
             amount1Min: 0,
             swapData: ""
@@ -96,21 +116,33 @@ contract Player {
             params: abi.encode(params)
         });
 
+        console.log("vaultAssets.length (before): %s", vaultAssets.length);
         console.log("I will do allocate now");
-        console.log("vaultAssets.length: %s", vaultAssets.length);
         console.log("lp strategy address: %s", address(lpStrategy));
 
         
+        console.log("A0 vault.getTotalValue():       %s" , vault.getTotalValue());
 
         vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-        console.log("vault.allocate done");
-        console.log("vaultAssets.length: %s", vaultAssets.length);
+        console.log("A1212121 vault.getTotalValue(): %s" , vault.getTotalValue());
+        
+        // debug
+        // address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(tokenETHAddress, tokenAnotherAddress, fee);
+        // console.log("pool address: %s", pool);
+        
+        console.log("in player.callAllocate:: vault.allocate done");
+        console.log("vaultAssets.length: %s", vault.getInventory().length);        
+        for (uint256 i = 0; i < vault.getInventory().length; i++) {
+            console.log("   + vaultAssets[%s].assetType: %s", i, uint256(vault.getInventory()[i].assetType));
+            console.log("   + vaultAssets[%s].amount: %s", i, vault.getInventory()[i].amount);
+            // console.log("   + vaultAssets[%s].token: %s", i, vault.getInventory()[i].token);
+        }
 
-        assert(vaultAssets.length < 2);
     }
 
-    function doSwap(address token0Address, address token1Address, uint24 fee, uint256 token0Amount) public {
-        address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(token0Address, token1Address, fee);        
+    function doSwap(address token0Address, address token1Address, uint256 token0Amount) public {
+        address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(token0Address, token1Address, fee);
+        
         PoolOptimalSwapper swapper = new PoolOptimalSwapper();
         IERC20(token0Address).approve(address(swapper), token0Amount);
         swapper.poolSwap(pool, token0Amount, token1Address > token0Address, 0, "");
