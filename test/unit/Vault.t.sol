@@ -17,7 +17,6 @@ import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { console } from "forge-std/console.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { LpMigrator } from "../../contracts/strategies/lpMigrator/LpMigrator.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;

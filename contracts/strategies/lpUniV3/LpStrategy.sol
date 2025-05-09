@@ -177,6 +177,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, principalAmount + amountOut);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), swapToken, 0, swapAmount - amountInUsed);
     returnAssets[2] = asset;
+    if (returnAssets[2].strategy != thisAddress) returnAssets[2].strategy = thisAddress;
 
     require(returnAssets[0].amount >= amountTokenOutMin, InsufficientAmountOut());
 
@@ -493,6 +494,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     AssetLib.Asset memory lpAsset = assets[2];
     require(lpAsset.strategy == thisAddress || lpAsset.strategy == oldLpStrategy, InvalidAsset());
+    if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
 
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
@@ -530,6 +532,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     require(assets[0].strategy == thisAddress || assets[0].strategy == oldLpStrategy, InvalidAsset());
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
+    if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
 
     returnAssets = _decreaseLiquidity(
       lpAsset,
@@ -704,6 +707,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       returnAssets[1] = tmp[1];
       returnAssets[2] = tmp[2];
       returnAssets[3] = asset0;
+      if (returnAssets[3].strategy != thisAddress) returnAssets[3].strategy = thisAddress;
     }
     if (!params.compoundFee) {
       returnAssets[0].amount += collected0;
@@ -759,6 +763,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
     returnAssets[2] = asset0;
+    if (returnAssets[2].strategy != thisAddress) returnAssets[2].strategy = thisAddress;
 
     if (amount0 > 0 || amount1 > 0) {
       uint256 amount0Min = params.amount0Min;
