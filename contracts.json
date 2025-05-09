@@ -7,7 +7,7 @@
     "lpValidator": "0x3d8ae24906537af4b2e79b1fb5095311b7f4682f",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xb914ef1391f471cfd6b50b6ec0563b5584ec8e6c",
+    "lpStrategy": "0x1827e3cdc63a503a8f7143d4532c459dddff19a0",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
@@ -19,7 +19,7 @@
     "lpValidator": "0x3d8ae24906537af4b2e79b1fb5095311b7f4682f",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xb914ef1391f471cfd6b50b6ec0563b5584ec8e6c",
+    "lpStrategy": "0x1827e3cdc63a503a8f7143d4532c459dddff19a0 ",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
@@ -31,7 +31,7 @@
     "lpValidator": "0x3d8ae24906537af4b2e79b1fb5095311b7f4682f",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xb914ef1391f471cfd6b50b6ec0563b5584ec8e6c",
+    "lpStrategy": "0x1827e3cdc63a503a8f7143d4532c459dddff19a0",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
@@ -43,7 +43,7 @@
     "lpValidator": "0x3d8ae24906537af4b2e79b1fb5095311b7f4682f",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xb914ef1391f471cfd6b50b6ec0563b5584ec8e6c",
+    "lpStrategy": "0x1827e3cdc63a503a8f7143d4532c459dddff19a0",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
@@ -55,7 +55,7 @@
     "lpValidator": "0x3d8ae24906537af4b2e79b1fb5095311b7f4682f",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xb914ef1391f471cfd6b50b6ec0563b5584ec8e6c",
+    "lpStrategy": "0x1827e3cdc63a503a8f7143d4532c459dddff19a0",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   }
