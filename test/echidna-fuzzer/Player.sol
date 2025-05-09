@@ -21,8 +21,6 @@ import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol
 
 contract Player {
 
-    event LogAddress(string, address);
-
     // this config is for the WETH/VIRTUAL pool on ETH mainnet https://etherscan.io/address/0x95a45a87dd4d3a1803039072f37e075f37b23d75#readContract
     uint24 public fee = 10000;
     int24 public tickLower = -71_000;
@@ -45,30 +43,9 @@ contract Player {
     }    
 
     function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenAnotherAddress, address configManagerAddress) public {
+            
+        IVault vault = IVault(payable(vaultAddress));        
         
-        console.log("this player address: %s", address(this));
-        console.log("tokenETHAddress:                   %s", tokenETHAddress);
-        console.log("eth amount of the player:          %s", IERC20(tokenETHAddress).balanceOf(address(this)));
-
-        console.log("tokenAnotherAddress:               %s", tokenAnotherAddress);
-        console.log("tokenAnother amount of the player: %s", IERC20(tokenAnotherAddress).balanceOf(address(this)));
-
-        console.log("principalTokenAmount:              %s", principalTokenAmount);
-
-        console.log("in player.callAllocate:: vault.allocate BEFORE");
-        
-        // for (uint256 i = 0; i < vault.getInventory().length; i++) {
-        //     console.log("   + vaultAssets[%s].assetType: %s", i, uint256(vault.getInventory()[i].assetType));
-        //     console.log("   + vaultAssets[%s].amount: %s", i, vault.getInventory()[i].amount);
-        // }
-        IVault vault = IVault(payable(vaultAddress));
-        // console.log("vaultAssets.length: %s", vault.getInventory().length);        
-        // console.log("amount of first asset: %s", vault.getInventory()[0].amount);
-        // console.log("token of first asset: %s", vault.getInventory()[0].token);
-        
-        
-        
-
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
         assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenETHAddress, 0, principalTokenAmount);
 
@@ -85,8 +62,6 @@ contract Player {
         address[] memory strategies = new address[](1);
         strategies[0] = address(lpStrategy);
         configManager.whitelistStrategy(strategies, true);
-
-        emit LogAddress("strategies[0]", strategies[0]);
 
         ILpValidator.LpStrategyConfig memory initialConfig = ILpValidator.LpStrategyConfig({
             rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
@@ -116,27 +91,8 @@ contract Player {
             params: abi.encode(params)
         });
 
-        console.log("vaultAssets.length (before): %s", vaultAssets.length);
-        console.log("I will do allocate now");
-        console.log("lp strategy address: %s", address(lpStrategy));
-
         
-        console.log("A0 vault.getTotalValue():       %s" , vault.getTotalValue());
-
         vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-        console.log("A1212121 vault.getTotalValue(): %s" , vault.getTotalValue());
-        
-        // debug
-        // address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(tokenETHAddress, tokenAnotherAddress, fee);
-        // console.log("pool address: %s", pool);
-        
-        console.log("in player.callAllocate:: vault.allocate done");
-        console.log("vaultAssets.length: %s", vault.getInventory().length);        
-        for (uint256 i = 0; i < vault.getInventory().length; i++) {
-            console.log("   + vaultAssets[%s].assetType: %s", i, uint256(vault.getInventory()[i].assetType));
-            console.log("   + vaultAssets[%s].amount: %s", i, vault.getInventory()[i].amount);
-            // console.log("   + vaultAssets[%s].token: %s", i, vault.getInventory()[i].token);
-        }
 
     }
 
