@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
+
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
@@ -312,11 +313,6 @@ contract ConfigManager is OwnableUpgradeable, IConfigManager {
   /// @param _principalToken Principal token address
   /// @return _config Strategy config
   function getStrategyConfig(address _strategy, address _principalToken) external view returns (bytes memory) {
-// console.log("ConfigManager getStrategyConfig");
-// console.log("ConfigManager _strategy: %s", _strategy);
-// console.log("ConfigManager _principalToken: %s", _principalToken);
-// console.logBytes(strategyConfigs[_strategy][_principalToken]);
-    // if (strategyConfigs[_strategy][_principalToken].length == 0) console.log("ConfigManager strategyConfigs[_strategy][_principalToken] is empty");
     return strategyConfigs[_strategy][_principalToken];
   }
 
