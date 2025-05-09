@@ -107,3 +107,9 @@ error SignatureExpired()
 error ApproveFailed()
 ```
 
+### InvalidParams
+
+```solidity
+error InvalidParams()
+```
+
