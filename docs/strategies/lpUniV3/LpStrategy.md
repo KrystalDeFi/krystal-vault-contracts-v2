@@ -41,7 +41,7 @@ contract ILpValidator validator
 ### constructor
 
 ```solidity
-constructor(address _optimalSwapper, address _validator, address _lpFeeTaker, address _oldLpStrategy) public
+constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) public
 ```
 
 ### valueOf
@@ -531,6 +531,15 @@ the token not allow to approve 0, which means the following line code will work 
 ```solidity
 function _safeApprove(contract IERC20 token, address _spender, uint256 _value) internal
 ```
+
+### _checkAssetStrategy
+
+```solidity
+function _checkAssetStrategy(address strategy) internal view
+```
+
+_check old lp strategy for backward compatibility
+This was implemented as a migration method since old lp strategies have a bug_
 
 ### receive
 

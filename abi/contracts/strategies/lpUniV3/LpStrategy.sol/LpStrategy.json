@@ -15,11 +15,6 @@
         "internalType": "address",
         "name": "_lpFeeTaker",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_oldLpStrategy",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
