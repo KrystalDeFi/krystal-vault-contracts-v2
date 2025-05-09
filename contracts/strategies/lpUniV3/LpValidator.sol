@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // import "forge-std/console.sol";     //forge-test-only
 import "../../interfaces/strategies/ILpValidator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
@@ -39,7 +38,6 @@ contract LpValidator is ILpValidator {
     int24 tickUpper,
     VaultConfig calldata config
   ) external view {
-
     LpStrategyConfig memory lpConfig =
       abi.decode(configManager.getStrategyConfig(address(this), config.principalToken), (LpStrategyConfig));
 
@@ -47,7 +45,6 @@ contract LpValidator is ILpValidator {
     LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
 
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
@@ -60,7 +57,6 @@ contract LpValidator is ILpValidator {
     // Check if tick width to mint/increase liquidity is greater than the minimum tick width
     uint256 token0Type = configManager.getTypedToken(token0);
     uint256 token1Type = configManager.getTypedToken(token1);
-
 
     int24 minTickWidth = token0Type == token1Type && token0Type > 0 && token1Type > 0
       ? rangeConfig.tickWidthTypedMin
