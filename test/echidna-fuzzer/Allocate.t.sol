@@ -107,11 +107,6 @@ contract VaultFuzzer is TestCommon {
 
     }
 
-    // function assertWETHBalancePlayer1() public {        
-    //     assert(IERC20(WETH).balanceOf(address(player1)) >= 2 ether);
-    // }
-
-
     function owner_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
         return owner.callDeposit(vaultAddress, amount, WETH);
     }
@@ -134,33 +129,7 @@ contract VaultFuzzer is TestCommon {
 
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
-    }
-
-
-    function deposit_and_withdraw() public {
-        uint256 amount = 1 ether;
-        
-
-        console.log("IERC20(WETH).balanceOf(address(owner)) x: %s", IERC20(WETH).balanceOf(address(owner)));
-
-        uint256 ownerShares = owner.callDeposit(vaultAddress, amount, WETH);
-        console.log("owner deposited %s", amount);
-        console.log("IERC20(WETH).balanceOf(address(owner)) x: %s", IERC20(WETH).balanceOf(address(owner)));
-        
-
-        uint256 player1Shares = player1.callDeposit(vaultAddress, amount, WETH);
-        console.log("p1 deposited %s", amount);
-        console.log("IERC20(WETH).balanceOf(address(player1)) x: %s", IERC20(WETH).balanceOf(address(player1)));
-
-
-        player1.callWithdraw(vaultAddress, player1Shares, 0);
-        owner.callWithdraw(vaultAddress, ownerShares, 0);
-        
-        console.log("IERC20(WETH).balanceOf(address(owner))  x: %s", IERC20(WETH).balanceOf(address(owner)));
-        console.log("IERC20(WETH).balanceOf(address(player1)) x: %s", IERC20(WETH).balanceOf(address(player1)));
-
-        // assert( tokenETH.balanceOf(address(owner)) == ownerTokenEthBefore );
-    }
+    }    
 
     function always_true(uint256 a) public pure {
         assert( true );
@@ -190,8 +159,10 @@ contract VaultFuzzer is TestCommon {
         console.log("player2 shares: %s", player2Shares);
     
         console.log("player2 balance: %s", IERC20(WETH).balanceOf(address(player2)));
-        owner_doAllocate(0.02 ether);
 
+        console.log("vault total value (B): %s", IVault(payable(vaultAddress)).getTotalValue());
+        owner_doAllocate(0.02 ether);
+        console.log("vault total value (A): %s", IVault(payable(vaultAddress)).getTotalValue());
                 
         console.log("player2 shares:    %s", player2Shares);
 
