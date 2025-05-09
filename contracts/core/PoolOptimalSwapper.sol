@@ -9,6 +9,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@pancakeswap/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
 
+import "forge-std/console.sol";
+
 /// @title PoolOptimalSwapper
 contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancakeV3SwapCallback {
   using SafeERC20 for IERC20;
@@ -81,6 +83,12 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
     IERC20 token0 = IERC20(IUniswapV3Pool(params.pool).token0());
     IERC20 token1 = IERC20(IUniswapV3Pool(params.pool).token1());
 
+
+    console.log("optimalSwap. token0:                 %s", address(token0));
+    console.log("optimalSwap. params.amount0Desired:  %s", params.amount0Desired);
+    console.log("optimalSwap. token1:                 %s", address(token1));
+    console.log("optimalSwap. params.amount1Desired:  %s", params.amount1Desired);
+
     token0.safeTransferFrom(msg.sender, address(this), params.amount0Desired);
     token1.safeTransferFrom(msg.sender, address(this), params.amount1Desired);
 
@@ -88,7 +96,12 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
       V3PoolCallee.wrap(params.pool), params.tickLower, params.tickUpper, params.amount0Desired, params.amount1Desired
     );
 
+    console.log("optimalSwap. amountIn:               %s", amountIn);
+    console.log("optimalSwap. zeroForOne:             %s", zeroForOne);
+
     (uint256 amountOut, uint256 amountInUsed) = _poolSwap(params.pool, amountIn, zeroForOne);
+    console.log("optimalSwap. amountOut:              %s", amountOut);
+    console.log("optimalSwap. amountInUsed:           %s", amountInUsed);
 
     // balance0 = balance0 + zeroForOne ? - amountIn : amountOut
     // balance1 = balance1 + zeroForOne ? amountOut : - amountIn
@@ -99,6 +112,10 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
       amount0 = params.amount0Desired + amountOut;
       amount1 = params.amount1Desired - amountInUsed;
     }
+
+    console.log("after calc amount0 and amount1");
+    console.log("optimalSwap. amount0:                %s", amount0);
+    console.log("optimalSwap. amount1:                %s", amount1);
 
     token0.safeTransfer(msg.sender, amount0);
     token1.safeTransfer(msg.sender, amount1);

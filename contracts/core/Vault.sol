@@ -27,6 +27,8 @@ import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
 import { IVaultFactory } from "../interfaces/core/IVaultFactory.sol";
 
+import "forge-std/console.sol";
+
 contract Vault is
   AccessControlUpgradeable,
   ERC20PermitUpgradeable,
@@ -319,11 +321,15 @@ contract Vault is
 
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
+
+    console.log("in vault (1): vault getTotalValue: %s", getTotalValue());
     bytes memory returnData = _delegateCallToStrategy(address(strategy), cData);
 
     // Decode the returned data
     AssetLib.Asset[] memory newAssets = abi.decode(returnData, (AssetLib.Asset[]));
     _addAssets(newAssets);
+
+    console.log("in vault (2): vault getTotalValue: %s", getTotalValue());
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount;

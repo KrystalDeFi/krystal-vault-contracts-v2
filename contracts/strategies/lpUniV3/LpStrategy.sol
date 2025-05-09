@@ -20,6 +20,8 @@ import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/strategies/ILpValidator.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 
+import "forge-std/console.sol";
+
 contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
@@ -85,6 +87,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     //   return mintPosition(assets, abi.decode(instruction.params, (MintPositionParams)), vaultConfig);
     // }
     if (instructionType == uint8(InstructionType.SwapAndMintPosition)) {
+      console.log("LpStrategy convert assets 0 : %s", assets[0].amount);
       return swapAndMintPosition(assets, abi.decode(instruction.params, (SwapAndMintPositionParams)), vaultConfig);
     }
     // if (instructionType == uint8(InstructionType.IncreaseLiquidity)) {
@@ -221,6 +224,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       vaultConfig.allowDeposit
     );
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](3);
+    console.log("------- LpStrategy:: convertFromPrincipal.");
+    console.log("token0: %s", token0);
+    console.log("amount0: %s", amount0);
+
+    console.log("token1: %s", token1);    
+    console.log("amount1: %s", amount1);
     inputAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
     inputAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1);
     inputAssets[2] = existingAsset;
@@ -326,6 +335,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
     address principalToken = vaultConfig.principalToken;
     address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
+
+    console.log("LpStrategy:: swapAndMintPosition.");
+    console.log("principalAsset.amount: %s", principalAsset.amount);
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       SwapFromPrincipalParams({
         principalTokenAmount: principalAsset.amount,
@@ -338,10 +350,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       }),
       vaultConfig.allowDeposit
     );
+    console.log("------- LpStrategy:: swapAndMintPosition.");
+        
+    console.log("token0: %s", params.token0);
+    console.log("amount0:               %s", amount0);
+    console.log("token1: %s", params.token1);    
+    console.log("amount1:               %s", amount1);
 
     AssetLib.Asset[] memory mintAssets = new AssetLib.Asset[](2);
-    mintAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token0, 0, amount0);
-    mintAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token1, 0, amount1);
+    mintAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token1, 0, amount0);
+    mintAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.token0, 0, amount1);
     returnAssets = _mintPosition(
       vaultConfig,
       mintAssets,
@@ -779,11 +797,21 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       ? (params.principalTokenAmount, 0)
       : (uint256(0), params.principalTokenAmount);
     _safeResetAndApprove(IERC20(params.principalToken), address(optimalSwapper), params.principalTokenAmount);
+
+    console.log("LpStrategy:: _optimalSwapFromPrincipal.");
+    console.log("amount0: %s", amount0);
+    console.log("amount1: %s", amount1);
+    console.log("params.pool: ", params.pool);
+
     (amount0, amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams(
         params.pool, amount0, amount1, params.tickLower, params.tickUpper, params.swapData
       )
+      
     );
+
+    console.log("LpStrategy:: _optimalSwapFromPrincipal (A). amount0: %s", amount0);
+    console.log("LpStrategy:: _optimalSwapFromPrincipal (A). amount1: %s", amount1);
   }
 
   /// @notice Swaps the token to the principal token
