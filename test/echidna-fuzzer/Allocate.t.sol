@@ -62,10 +62,30 @@ contract VaultFuzzer is TestCommon {
         typedTokenTypes[0] = uint256(1);
         typedTokenTypes[1] = uint256(1);
 
-        configManagerAddress = address(new ConfigManager(address(owner), whitelistAutomator, typedTokens, typedTokenTypes));
+        ConfigManager configManager = new ConfigManager();
+        configManager.initialize(
+            address(owner),
+            new address[](0),
+            new address[](0),
+            whitelistAutomator,
+            new address[](0),
+            typedTokens,
+            typedTokenTypes,
+            0,
+            0,
+            0,
+            address(0),
+            new address[](0),
+            new address[](0),
+            new bytes[](0)
+        );
+        
+        configManagerAddress = address(configManager);
 
         Vault vaultImplementation = new Vault();
-        vaultFactory = new VaultFactory(address(owner), WETH, configManagerAddress, address(vaultImplementation));
+        
+        vaultFactory = new VaultFactory();
+        vaultFactory.initialize(address(owner), WETH, configManagerAddress, address(vaultImplementation));
     
         ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
             name: "Test Public Vault",
