@@ -490,7 +490,10 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory asset = inventory.assets[i];
-      if (asset.strategy != address(0) && asset.amount != 0) IStrategy(asset.strategy).revalidate(asset, _config);
+      if (
+        asset.strategy != address(0) && asset.amount != 0
+          && IStrategy(asset.strategy).valueOf(asset, vaultConfig.principalToken) != 0
+      ) IStrategy(asset.strategy).revalidate(asset, _config);
 
       unchecked {
         i++;
