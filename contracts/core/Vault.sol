@@ -2,8 +2,6 @@
 pragma solidity ^0.8.28;
 pragma abicoder v2;
 
-// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // import "forge-std/console.sol";     //forge-test-only
-
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -315,30 +313,16 @@ contract Vault is
       }
     }
 
-// console.log("getFeeConfig");
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    
     feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
 
-// console.log("vaultOwner: %s", vaultOwner);
-  
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
-
-// console.log("delegateCallToStrategy");
-// console.log("inputAssets.length: %s", inputAssets.length);
-// console.log("strategy address: %s", address(strategy));
-// console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
-// console.log("feeConfig.vaultOwner: %s", feeConfig.vaultOwner);
-
     bytes memory returnData = _delegateCallToStrategy(address(strategy), cData);
 
-// console.log("decode returned data");
     // Decode the returned data
     AssetLib.Asset[] memory newAssets = abi.decode(returnData, (AssetLib.Asset[]));
-
-// console.log("addAssets");
     _addAssets(newAssets);
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
@@ -614,8 +598,6 @@ contract Vault is
     bool success;
     (success, returnData) = strategy.delegatecall(cData);
     if (!success) {
-// console.log("strategy delegatecall failed");      
-
       if (returnData.length == 0) revert("Strategy delegatecall failed");
       assembly {
         let returnDataSize := mload(returnData)
