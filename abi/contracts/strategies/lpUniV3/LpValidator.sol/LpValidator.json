@@ -37,6 +37,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidPool",
     "type": "error"
   },

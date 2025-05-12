@@ -21,6 +21,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidSignature",
     "type": "error"
   },
