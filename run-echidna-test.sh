@@ -17,6 +17,10 @@ function log_error() {
     echo -e "${red}$1${clear}"
 }
 
+# Get the contract name from argv if provided, otherwise use default
+CONTRACT_NAME=${1:-VaultFuzzerWithSwap}
+log_info "[+] Doing echidna test for contract: $CONTRACT_NAME"
+
 log_info "[+] Clean the out directory"
 rm -rf out/
 
@@ -45,8 +49,8 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"for
 
 export ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
 
-log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer"
-echidna ./ --config test/echidna-fuzzer/config.yaml --contract VaultFuzzer
+log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME"
+echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME
 
 log_info "[+] Restore the hardhat.config.ts file"
 mv hardhat.config.ts.disabled hardhat.config.ts
