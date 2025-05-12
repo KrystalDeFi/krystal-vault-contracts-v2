@@ -19,6 +19,12 @@ import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.s
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { TestCommon } from "../TestCommon.t.sol";
 
+address constant TOKEN_PRINCIPAL = WETH;
+address constant TOKEN_ANOTHER = VIRTUAL;
+uint256 constant BLOCK_NUMBER = 22365182;
+uint256 constant BLOCK_TIMESTAMP = 1745814599;
+
+
 contract VaultFuzzer is TestCommon {
     Player public owner;
     Player public player1;
@@ -37,25 +43,25 @@ contract VaultFuzzer is TestCommon {
         player2 = new Player();
         bighandplayer = new Player();
         
-        uint256 fork = vm.createFork(vm.envString("ECHIDNA_RPC_URL"), 22443326);
+        uint256 fork = vm.createFork(vm.envString("ECHIDNA_RPC_URL"), BLOCK_NUMBER);
         vm.selectFork(fork);
 
         console.log("block.timestamp: %s", block.timestamp);
 
-        setErc20Balance(WETH, address(owner), 2 ether);
-        setErc20Balance(WETH, address(player1), 2 ether);
-        setErc20Balance(WETH, address(player2), 2 ether);
-        setErc20Balance(WETH, address(bighandplayer), 200 ether);
-        // setErc20Balance(VIRTUAL, address(owner), 3000 * 10 ** 6);
-        // setErc20Balance(VIRTUAL, address(player1), 3000 * 10 ** 6);
-        // setErc20Balance(VIRTUAL, address(player2), 3000 * 10 ** 6);        
+        setErc20Balance(TOKEN_PRINCIPAL, address(owner), 2 ether);
+        setErc20Balance(TOKEN_PRINCIPAL, address(player1), 2 ether);
+        setErc20Balance(TOKEN_PRINCIPAL, address(player2), 2 ether);
+        setErc20Balance(TOKEN_PRINCIPAL, address(bighandplayer), 200 ether);
+        // setErc20Balance(TOKEN_ANOTHER, address(owner), 3000 * 10 ** 6);
+        // setErc20Balance(TOKEN_ANOTHER, address(player1), 3000 * 10 ** 6);
+        // setErc20Balance(TOKEN_ANOTHER, address(player2), 3000 * 10 ** 6);        
 
         address[] memory whitelistAutomator = new address[](1);
         whitelistAutomator[0] = address(player1);
 
         address[] memory typedTokens = new address[](2);
-        typedTokens[0] = WETH;
-        typedTokens[1] = VIRTUAL;
+        typedTokens[0] = TOKEN_PRINCIPAL;
+        typedTokens[1] = TOKEN_ANOTHER;
 
         uint256[] memory typedTokenTypes = new uint256[](2);
         typedTokenTypes[0] = uint256(1);
@@ -99,12 +105,12 @@ contract VaultFuzzer is TestCommon {
         });
         initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
         initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 ether });
-        owner.callSetStrategyConfig(configManagerAddress, address(validator), WETH, initialConfig);
+        owner.callSetStrategyConfig(configManagerAddress, address(validator), TOKEN_PRINCIPAL, initialConfig);
 
         // Initialize the VaultFactory. The owner of the VaultFactory is this contract.
         Vault vaultImplementation = new Vault();
         vaultFactory = new VaultFactory();
-        vaultFactory.initialize(address(owner), WETH, configManagerAddress, address(vaultImplementation));    
+        vaultFactory.initialize(address(owner), TOKEN_PRINCIPAL, configManagerAddress, address(vaultImplementation));    
         ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
             name: "Test Public Vault",
             symbol: "TV",
@@ -113,7 +119,7 @@ contract VaultFuzzer is TestCommon {
                 allowDeposit: true,
                 rangeStrategyType: 0,
                 tvlStrategyType: 0,
-                principalToken: WETH,
+                principalToken: TOKEN_PRINCIPAL,
                 supportedAddresses: new address[](0)
             })
         });
@@ -126,7 +132,7 @@ contract VaultFuzzer is TestCommon {
     }
 
     function owner_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return owner.callDeposit(vaultAddress, amount, WETH);
+        return owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function owner_doWithdraw(uint256 shares) public {
@@ -134,7 +140,7 @@ contract VaultFuzzer is TestCommon {
     }
 
     function player1_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return player1.callDeposit(vaultAddress, amount, WETH);
+        return player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function player1_doWithdraw(uint256 shares) public {
@@ -142,7 +148,7 @@ contract VaultFuzzer is TestCommon {
     }
 
     function player2_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return player2.callDeposit(vaultAddress, amount, WETH);
+        return player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function player2_doWithdraw(uint256 shares) public {
@@ -157,7 +163,7 @@ contract VaultFuzzer is TestCommon {
         require( principalTokenAmount > 0.01 ether);
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
-        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, VIRTUAL, configManagerAddress, address(lpStrategy));        
+        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         // emit LogUint256("vaultAssets.length", vaultAssets.length);
         console.log("owner_doAllocate:: vaultAssets.length: %s", vaultAssets.length);
@@ -176,7 +182,7 @@ contract VaultFuzzer is TestCommon {
         uint256 player2Shares = player2_doDepositPrincipalToken(0.04 ether);
         console.log("player2 shares: %s", player2Shares);
     
-        console.log("player2 balance: %s", IERC20(WETH).balanceOf(address(player2)));
+        console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
 
         console.log("vault total value (B): %s", IVault(payable(vaultAddress)).getTotalValue());
         owner_doAllocate(0.02 ether);
@@ -185,7 +191,7 @@ contract VaultFuzzer is TestCommon {
         console.log("player2 shares:    %s", player2Shares);
 
         player2_doWithdraw(player2Shares);
-        console.log("player2 balance: %s", IERC20(WETH).balanceOf(address(player2)));
+        console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
         
     }
 

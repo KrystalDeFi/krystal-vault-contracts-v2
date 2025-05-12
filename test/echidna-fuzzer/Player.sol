@@ -51,17 +51,27 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenAnotherAddress, address configManagerAddress, address strategyAddress) public {
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address configManagerAddress, address strategyAddress) public {
             
         IVault vault = IVault(payable(vaultAddress));        
         
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-        assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenETHAddress, 0, principalTokenAmount);        
+        assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenPrincipalAddress, 0, principalTokenAmount);        
+
+        address token0;
+        address token1;
+        if (tokenPrincipalAddress < tokenAnotherAddress) {
+            token0 = tokenPrincipalAddress;
+            token1 = tokenAnotherAddress;
+        } else {
+            token0 = tokenAnotherAddress;
+            token1 = tokenPrincipalAddress;
+        }
 
         ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
             nfpm: INFPM(NFPM_ON_ETH_MAINNET),
-            token0: tokenAnotherAddress,
-            token1: tokenETHAddress,
+            token0: token0,
+            token1: token1,
             fee: fee,
             tickLower: tickLower,
             tickUpper: tickUpper,
