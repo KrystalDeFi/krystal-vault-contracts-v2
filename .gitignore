@@ -151,3 +151,5 @@ ignition/deployments/chain-31337
 .aider*
 crytic-export/
 abi/contracts/echidna-fuzzer/
+
+broadcast/
