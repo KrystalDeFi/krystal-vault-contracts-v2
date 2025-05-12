@@ -28,7 +28,8 @@ contract VaultFuzzer is TestCommon {
     address public vaultAddress;
     
     address public configManagerAddress;
-
+    
+    LpStrategy public lpStrategy;
 
     function setUp() public {
         owner = new Player();                
@@ -36,7 +37,6 @@ contract VaultFuzzer is TestCommon {
         player2 = new Player();
         bighandplayer = new Player();
         
-
         uint256 fork = vm.createFork(vm.envString("ECHIDNA_RPC_URL"), 22443326);
         vm.selectFork(fork);
 
@@ -77,15 +77,34 @@ contract VaultFuzzer is TestCommon {
             new address[](0),
             new address[](0),
             new bytes[](0)
-        );
-        
-        configManagerAddress = address(configManager);
+        );        
+        configManagerAddress = address(configManager);        
 
-        Vault vaultImplementation = new Vault();
+        // Initialize the LpStrategy
+        PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+        LpValidator validator = new LpValidator(configManagerAddress);
+        LpFeeTaker feeTaker = new LpFeeTaker();
+        lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));        
         
+        
+        // Whitelist the LpStrategy for the configManager
+        address[] memory strategies = new address[](1);
+        strategies[0] = address(lpStrategy);
+        owner.callWhitelistStrategy(configManagerAddress, strategies, true);        
+
+        // Set the initial config for the LpStrategy in the configManager
+        ILpValidator.LpStrategyConfig memory initialConfig = ILpValidator.LpStrategyConfig({
+            rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
+            tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
+        });
+        initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
+        initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 ether });
+        owner.callSetStrategyConfig(configManagerAddress, address(validator), WETH, initialConfig);
+
+        // Initialize the VaultFactory. The owner of the VaultFactory is this contract.
+        Vault vaultImplementation = new Vault();
         vaultFactory = new VaultFactory();
-        vaultFactory.initialize(address(owner), WETH, configManagerAddress, address(vaultImplementation));
-    
+        vaultFactory.initialize(address(owner), WETH, configManagerAddress, address(vaultImplementation));    
         ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
             name: "Test Public Vault",
             symbol: "TV",
@@ -138,7 +157,7 @@ contract VaultFuzzer is TestCommon {
         require( principalTokenAmount > 0.01 ether);
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
-        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, VIRTUAL, configManagerAddress);        
+        owner.callAllocate(vaultAddress, principalTokenAmount, WETH, VIRTUAL, configManagerAddress, address(lpStrategy));        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         // emit LogUint256("vaultAssets.length", vaultAssets.length);
         console.log("owner_doAllocate:: vaultAssets.length: %s", vaultAssets.length);

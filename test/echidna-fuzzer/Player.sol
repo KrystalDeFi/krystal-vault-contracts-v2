@@ -1,19 +1,20 @@
 pragma solidity ^0.8.0;
 
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
+import { IConfigManager } from "../../contracts/interfaces/core/IConfigManager.sol";
 import "./Config.sol";
 
 import "forge-std/console.sol";     //forge-test-only
 import { Test } from "forge-std/Test.sol";      //forge-test-only
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IStrategy } from "../../contracts/interfaces/strategies/IStrategy.sol";
 
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
 import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
@@ -27,7 +28,15 @@ contract Player {
     int24 public tickUpper = -69_000;
 
     constructor() payable {
-    } 
+    }
+
+    function callWhitelistStrategy(address configManagerAddress, address[] memory strategies, bool isWhitelisted) public {
+        IConfigManager(configManagerAddress).whitelistStrategy(strategies, isWhitelisted);
+    }
+
+    function callSetStrategyConfig(address configManagerAddress, address validator, address principalTokenAddress, ILpValidator.LpStrategyConfig memory config) public {
+        IConfigManager(configManagerAddress).setStrategyConfig(validator, principalTokenAddress, abi.encode(config));
+    }
 
     function callDeposit(address vault, uint256 amount, address token) public returns (uint256) {
         IERC20(token).approve(vault, amount);    
@@ -42,37 +51,12 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenAnotherAddress, address configManagerAddress) public {
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenETHAddress, address tokenAnotherAddress, address configManagerAddress, address strategyAddress) public {
             
         IVault vault = IVault(payable(vaultAddress));        
         
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-        assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenETHAddress, 0, principalTokenAmount);
-
-        PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-
-        LpValidator validator = new LpValidator(configManagerAddress);
-        LpFeeTaker feeTaker = new LpFeeTaker();
-
-        AssetLib.Asset[] memory vaultAssets = vault.getInventory();
-
-        LpStrategy lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
-
-        ConfigManager configManager = ConfigManager(configManagerAddress);
-        address[] memory strategies = new address[](1);
-        strategies[0] = address(lpStrategy);
-        configManager.whitelistStrategy(strategies, true);
-
-        ILpValidator.LpStrategyConfig memory initialConfig = ILpValidator.LpStrategyConfig({
-            rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](1),
-            tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](1)
-        });
-
-        initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
-        initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 ether });
-
-        configManager.setStrategyConfig(address(validator), tokenETHAddress, abi.encode(initialConfig));
-
+        assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenETHAddress, 0, principalTokenAmount);        
 
         ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
             nfpm: INFPM(NFPM_ON_ETH_MAINNET),
@@ -92,7 +76,7 @@ contract Player {
         });
 
         
-        vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+        vault.allocate(assets, IStrategy(strategyAddress), 0, abi.encode(instruction));
 
     }
 
