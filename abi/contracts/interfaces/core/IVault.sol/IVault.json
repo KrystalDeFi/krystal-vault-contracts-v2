@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DepositNotAllowed",
     "type": "error"
   },
@@ -61,7 +66,17 @@
   },
   {
     "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidShares",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSigner",
     "type": "error"
   },
   {
@@ -92,6 +107,11 @@
   {
     "inputs": [],
     "name": "MaxPositionsReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {

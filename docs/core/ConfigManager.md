@@ -50,10 +50,10 @@ int24 maxHarvestSlippage
 bool isVaultPaused
 ```
 
-### constructor
+### initialize
 
 ```solidity
-constructor(address _owner, address[] _whitelistAutomator, address[] _typedTokens, uint256[] _typedTokenTypes) public
+function initialize(address _owner, address[] _whitelistStrategies, address[] _whitelistSwapRouters, address[] _whitelistAutomator, address[] _whitelistSigners, address[] _typedTokens, uint256[] _typedTokenTypes, uint16 _vaultOwnerFeeBasisPoint, uint16 _platformFeeBasisPoint, uint16 _privatePlatformFeeBasisPoint, address _feeCollector, address[] _strategies, address[] _principalTokens, bytes[] _configs) public
 ```
 
 ### whitelistStrategy

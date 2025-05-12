@@ -8,6 +8,8 @@ import "../../libraries/AssetLib.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import { IMerklStrategy } from "../../interfaces/strategies/IMerklStrategy.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { IFeeTaker } from "../../interfaces/strategies/IFeeTaker.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 interface IMerklDistributor {
   function claim(
@@ -23,6 +25,8 @@ interface IMerklDistributor {
  * @notice Strategy for handling Merkl rewards for LP positions
  */
 contract MerklStrategy is IMerklStrategy {
+  uint256 internal constant Q64 = 0x10000000000000000;
+
   using SafeERC20 for IERC20;
 
   // Constants
@@ -129,7 +133,7 @@ contract MerklStrategy is IMerklStrategy {
    */
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view override { }
 
-  function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata, bytes memory data)
+  function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata feeConfig, bytes memory data)
     internal
     returns (AssetLib.Asset[] memory returnAssets)
   {
@@ -160,17 +164,18 @@ contract MerklStrategy is IMerklStrategy {
     _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
     uint256 amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
 
-    _swap(tokenIn, claimParams.amount, claimParams.swapRouter, claimParams.swapData);
+    _swap(tokenIn, amountClaimed, claimParams.swapRouter, claimParams.swapData);
 
-    uint256 amountInAfter = IERC20(tokenIn).balanceOf(address(this));
-    uint256 amountOutAfter = IERC20(tokenOut).balanceOf(address(this));
+    uint256 amountIn = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
+    uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - amountOutBefore;
 
-    require(amountOutAfter - amountOutBefore >= claimParams.amountOutMin, NotEnoughAmountOut());
+    require(amountOut >= claimParams.amountOutMin, NotEnoughAmountOut());
+    if (amountIn > 0) amountIn -= _takeFee(tokenIn, amountIn, feeConfig);
+    if (amountOut > 0) amountOut -= _takeFee(tokenOut, amountOut, feeConfig);
 
     returnAssets = new AssetLib.Asset[](2);
-    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountInAfter - amountInBefore);
-    returnAssets[1] =
-      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOutAfter - amountOutBefore);
+    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountIn);
+    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOut);
     emit MerklRewardsClaimed(tokenIn, amountClaimed, tokenOut, returnAssets[1].amount);
   }
 
@@ -209,20 +214,6 @@ contract MerklStrategy is IMerklStrategy {
     }
   }
 
-  /// @dev some tokens require allowance == 0 to approve new amount
-  /// but some tokens does not allow approve amount = 0
-  /// we try to set allowance = 0 before approve new amount. if it revert means that
-  /// the token not allow to approve 0, which means the following line code will work properly
-  function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
-    /// @dev omitted approve(0) result because it might fail and does not break the flow
-    (bool success,) = address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
-    require(success, ApproveFailed());
-
-    /// @dev value for approval after reset must greater than 0
-    require(_value > 0);
-    _safeApprove(token, _spender, _value);
-  }
-
   function _safeApprove(IERC20 token, address _spender, uint256 _value) internal {
     (bool success, bytes memory returnData) =
       address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, _value));
@@ -231,6 +222,38 @@ contract MerklStrategy is IMerklStrategy {
       return;
     }
     require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
+  }
+
+  function _takeFee(address token, uint256 amount, FeeConfig calldata feeConfig)
+    internal
+    returns (uint256 totalFeeAmount)
+  {
+    uint256 feeAmount;
+
+    if (feeConfig.vaultOwnerFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.vaultOwnerFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.vaultOwner, feeAmount);
+        emit FeeCollected(address(this), FeeType.OWNER, feeConfig.vaultOwner, token, feeAmount);
+      }
+    }
+    if (feeConfig.platformFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.platformFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.platformFeeRecipient, feeAmount);
+        emit FeeCollected(address(this), FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, feeAmount);
+      }
+    }
+    if (feeConfig.gasFeeX64 > 0) {
+      feeAmount = FullMath.mulDiv(amount, feeConfig.gasFeeX64, Q64);
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);
+        emit FeeCollected(address(this), FeeType.GAS, feeConfig.gasFeeRecipient, token, feeAmount);
+      }
+    }
   }
 
   /**

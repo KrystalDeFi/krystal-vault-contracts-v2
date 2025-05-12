@@ -44,11 +44,28 @@ contract VaultFactoryTest is TestCommon {
     address[] memory whitelistAutomator = new address[](1);
     whitelistAutomator[0] = USER;
 
-    configManager = new ConfigManager(USER, whitelistAutomator, typedTokens, typedTokenTypes);
+    configManager = new ConfigManager();
+    configManager.initialize(
+      USER,
+      new address[](0),
+      new address[](0),
+      whitelistAutomator,
+      new address[](0),
+      typedTokens,
+      typedTokenTypes,
+      0,
+      0,
+      0,
+      address(0),
+      new address[](0),
+      new address[](0),
+      new bytes[](0)
+    );
 
     vault = new Vault();
 
-    vaultFactory = new VaultFactory(USER, WETH, address(configManager), address(vault));
+    vaultFactory = new VaultFactory();
+    vaultFactory.initialize(USER, WETH, address(configManager), address(vault));
   }
 
   function test_createVault() public {

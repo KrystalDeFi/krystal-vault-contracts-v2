@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidFeeConfig",
     "type": "error"
   },
@@ -11,7 +16,17 @@
   },
   {
     "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidPrincipalToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSigner",
     "type": "error"
   },
   {
@@ -27,6 +42,11 @@
   {
     "inputs": [],
     "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
     "type": "error"
   },
   {

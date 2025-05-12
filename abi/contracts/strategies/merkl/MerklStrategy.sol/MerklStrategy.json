@@ -69,6 +69,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidSigner",
     "type": "error"
   },
@@ -90,6 +95,17 @@
   {
     "inputs": [],
     "name": "NotEnoughAmountOut",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
     "type": "error"
   },
   {

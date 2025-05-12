@@ -89,3 +89,27 @@ error InvalidSwapRouter()
 error InvalidInstructionType()
 ```
 
+### InvalidSigner
+
+```solidity
+error InvalidSigner()
+```
+
+### SignatureExpired
+
+```solidity
+error SignatureExpired()
+```
+
+### ApproveFailed
+
+```solidity
+error ApproveFailed()
+```
+
+### InvalidParams
+
+```solidity
+error InvalidParams()
+```
+

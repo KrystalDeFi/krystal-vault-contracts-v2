@@ -8,14 +8,21 @@ import "./CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 
+/**
+ * @title VaultAutomator
+ * @notice Contract that automates vault operations for liquidity provision and management
+ */
 contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
 
-  constructor(address _owner) CustomEIP712("V3AutomationOrder", "4.0") {
+  constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "4.0") {
     _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     _grantRole(OPERATOR_ROLE_HASH, _owner);
+    for (uint256 i = 0; i < _operators.length; i++) {
+      _grantRole(OPERATOR_ROLE_HASH, _operators[i]);
+    }
   }
 
   /// @notice Execute an allocate on a Vault
@@ -114,6 +121,16 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param operator Operator address
   function revokeOperator(address operator) external onlyRole(DEFAULT_ADMIN_ROLE) {
     revokeRole(OPERATOR_ROLE_HASH, operator);
+  }
+
+  /// @notice Pause the contract
+  function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _pause();
+  }
+
+  /// @notice Unpause the contract
+  function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _unpause();
   }
 
   receive() external payable { }
