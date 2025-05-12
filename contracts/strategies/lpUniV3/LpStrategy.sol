@@ -558,10 +558,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     require(principalAsset.amount >= params.principalAmountOutMin, InsufficientAmountOut());
 
-    returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
-    returnAssets[2] = lpAsset;
   }
 
   /// @notice Decreases the liquidity of the position
@@ -579,13 +577,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     INFPM nfpm = INFPM(lpAsset.token);
     uint256 tokenId = lpAsset.tokenId;
 
-    (,, address token0, address token1, uint24 fee,,,,,,,) = nfpm.positions(tokenId);
-
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
 
+    address token0;
+    address token1;
+    uint160 posLiquidity;
+    address pool;
     {
+      uint24 fee;
+      (,, token0, token1, fee,,, posLiquidity,,,,) = nfpm.positions(tokenId);
+      pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+
       (uint256 fee0, uint256 fee1) =
         _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool);
       amount0Collected -= fee0;
@@ -603,10 +606,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       amount1Collected += posAmount1;
     }
 
-    returnAssets = new AssetLib.Asset[](3);
-    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
-    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1Collected);
-    returnAssets[2] = lpAsset;
+    if (params.liquidity != posLiquidity) {
+      returnAssets = new AssetLib.Asset[](3);
+      returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
+      returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1Collected);
+      returnAssets[2] = lpAsset;
+    } else {
+      returnAssets = new AssetLib.Asset[](2);
+      returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
+      returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1Collected);
+    }
   }
 
   /// @notice Swaps the principal token to the other token and rebalances the position
@@ -701,12 +710,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount1Min: amount1Min
         })
       );
-      returnAssets = new AssetLib.Asset[](4);
+      returnAssets = new AssetLib.Asset[](tmp.length);
       returnAssets[0] = tmp[0];
       returnAssets[1] = tmp[1];
       returnAssets[2] = tmp[2];
-      returnAssets[3] = asset0;
-      if (returnAssets[3].strategy != thisAddress) returnAssets[3].strategy = thisAddress;
     }
     if (!params.compoundFee) {
       returnAssets[0].amount += collected0;

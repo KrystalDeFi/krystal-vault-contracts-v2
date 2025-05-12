@@ -344,7 +344,7 @@ contract VaultTest is TestCommon {
     assertEq(liquidity, 0);
 
     vault.withdraw(IERC20(vault).balanceOf(USER) / 2, false, 0);
-    // allocate into the closed position
+    // cannot allocate into the closed position
     {
       assets = new AssetLib.Asset[](2);
       assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.3 ether);
@@ -358,6 +358,8 @@ contract VaultTest is TestCommon {
       });
 
       vm.roll(++currentBlock);
+
+      vm.expectRevert(IVault.InvalidAssetAmount.selector);
       vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     }
   }
