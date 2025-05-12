@@ -11,7 +11,8 @@ import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
 
 // addresses on ethereum mainnet
 address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+// address constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+address constant VIRTUAL = 0x44ff8620b8cA30902395A7bD3F2407e1A091BF73;
 
 address constant NFPM_ON_ETH_MAINNET = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
 
