@@ -191,7 +191,7 @@ contract IntegrationTest is TestCommon {
     console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
 
     (,, address token0, address token1, uint24 fee,,,,,,,) =
-      INFPM(SUSHI_NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+      INFPM(SUSHI_NFPM).positions(vaultInstance.getInventory()[1].tokenId);
     address pool = IUniswapV3Factory(INFPM(SUSHI_NFPM).factory()).getPool(token0, token1, fee);
     console.log("++ pool address: ", pool);
 

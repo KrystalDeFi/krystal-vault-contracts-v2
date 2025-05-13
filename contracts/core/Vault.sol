@@ -26,6 +26,7 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
 import { IVaultFactory } from "../interfaces/core/IVaultFactory.sol";
+import "forge-std/console.sol";
 
 contract Vault is
   AccessControlUpgradeable,
@@ -130,10 +131,6 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      // if (
-      //   currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
-      //     && currentAsset.amount != 0
-      // ) revert DepositNotAllowed();
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
 
       unchecked {
@@ -224,6 +221,7 @@ contract Vault is
     length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
+
       if (
         currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20
           && currentAsset.amount != 0
@@ -257,7 +255,7 @@ contract Vault is
           } else if (assets[k].token == principalToken) {
             returnAmount += assets[k].amount;
             inventory.addAsset(assets[k]);
-          } else {
+          } else if (assets[k].amount > 0) {
             _transferAsset(assets[k], _msgSender());
           }
           unchecked {
@@ -283,6 +281,8 @@ contract Vault is
       );
     }
 
+    _cleanAssets();
+
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
@@ -306,7 +306,7 @@ contract Vault is
       inputAsset = inputAssets[i];
       require(inputAsset.amount != 0, InvalidAssetAmount());
 
-      inventory.removeAsset(inputAsset);
+      inventory.removeAsset(inputAsset, true);
 
       unchecked {
         i++;
@@ -602,6 +602,20 @@ contract Vault is
       assembly {
         let returnDataSize := mload(returnData)
         revert(add(32, returnData), returnDataSize)
+      }
+    }
+  }
+
+  function _cleanAssets() internal {
+    uint256 length = inventory.assets.length;
+    for (uint256 i; i < length;) {
+      if (inventory.assets[i].amount == 0) {
+        inventory.removeAsset(i);
+        length--;
+      } else {
+        unchecked {
+          i++;
+        }
       }
     }
   }
