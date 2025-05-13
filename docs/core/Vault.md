@@ -388,3 +388,9 @@ no way affects any of the arithmetic of the contract, including
 function _delegateCallToStrategy(address strategy, bytes cData) internal returns (bytes returnData)
 ```
 
+### _cleanAssets
+
+```solidity
+function _cleanAssets() internal
+```
+
