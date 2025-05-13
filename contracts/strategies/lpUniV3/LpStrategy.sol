@@ -700,10 +700,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount1Min: amount1Min
         })
       );
-      returnAssets = new AssetLib.Asset[](tmp.length);
+      returnAssets = new AssetLib.Asset[](4);
       returnAssets[0] = tmp[0];
       returnAssets[1] = tmp[1];
       returnAssets[2] = tmp[2];
+      returnAssets[3] = asset0;
+      returnAssets[3].amount = 0;
+      if (returnAssets[3].strategy != thisAddress) returnAssets[3].strategy = thisAddress;
     }
     if (!params.compoundFee) {
       returnAssets[0].amount += collected0;
