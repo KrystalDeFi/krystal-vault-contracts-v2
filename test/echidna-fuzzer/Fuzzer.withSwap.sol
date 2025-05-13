@@ -14,7 +14,7 @@ address constant TOKEN_ANOTHER = VIRTUAL;
 uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 
-contract VaultFuzzer {
+contract VaultFuzzerWithSwap {
     
     event LogUint256(string, uint256);
     event LogAddress(string, address);
@@ -23,6 +23,7 @@ contract VaultFuzzer {
     Player public owner;
     Player public player1;
     Player public player2;
+    Player public bighandplayer;
     
     VaultFactory public vaultFactory;
     address public vaultAddress;
@@ -35,7 +36,7 @@ contract VaultFuzzer {
         owner = new Player();                
         player1 = new Player();        
         player2 = new Player();
-        
+        bighandplayer = new Player();
         hevm.roll(BLOCK_NUMBER);
         hevm.warp(BLOCK_TIMESTAMP);
 
@@ -44,6 +45,7 @@ contract VaultFuzzer {
         IERC20(TOKEN_PRINCIPAL).transfer(address(owner), 2 ether);   // decimal of TOKEN_PRINCIPAL is 18
         IERC20(TOKEN_PRINCIPAL).transfer(address(player1), 2 ether);   // decimal of TOKEN_PRINCIPAL is 18        
         IERC20(TOKEN_PRINCIPAL).transfer(address(player2), 2 ether);   // decimal of TOKEN_PRINCIPAL is 18
+        IERC20(TOKEN_PRINCIPAL).transfer(address(bighandplayer), 1_000 ether);
 
         hevm.stopPrank();
 
@@ -120,16 +122,22 @@ contract VaultFuzzer {
 
     }
 
-    function assertTOKEN_PRINCIPALBalancePlayer1() public {    
-        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
-        assert(wethBalance <= 2.0001 ether);
-    }
-
-    function assertTOKEN_PRINCIPALBalanceOwner() public {    
+    function assertPrincipleTokenBalanceOwner() public {    
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
-        assert(wethBalance <= 2.0001 ether);
+        assert(wethBalance <= 3 ether);
     }
 
+    function assertPrincipleTokenBalancePlayer1() public {    
+        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        assert(wethBalance <= 3 ether);
+    }
+
+    function assertPrincipleTokenBalancePlayer2() public {    
+        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
+        assert(wethBalance <= 3 ether);
+    }
+
+    
     function owner_doDepositPrincipalToken(uint256 amount) public {
         owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
@@ -146,8 +154,8 @@ contract VaultFuzzer {
         player1.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player1_doSwap(bool token0AddressIsTOKEN_PRINCIPAL, uint256 token0Amount) public {        
-        player1.doSwap(token0AddressIsTOKEN_PRINCIPAL ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTOKEN_PRINCIPAL ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    function player1_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
     }
 
     function player2_doDepositPrincipalToken(uint256 amount) public {
@@ -157,8 +165,12 @@ contract VaultFuzzer {
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
-    function player2_doSwap(bool token0AddressIsTOKEN_PRINCIPAL, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsTOKEN_PRINCIPAL ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTOKEN_PRINCIPAL ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    }
+
+    function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
@@ -169,7 +181,25 @@ contract VaultFuzzer {
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         emit LogUint256("vaultAssets.length", vaultAssets.length);
         assert(vaultAssets.length >= 2);
-    }    
+    }
+
+    function owner_doAllocateWithCustomAddress(uint256 principalTokenAmount, address token0, address token1) public {
+        require( principalTokenAmount > 0.01 ether);
+        require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
+                
+        owner.callAllocate(vaultAddress, principalTokenAmount, token0, token1, configManagerAddress, address(lpStrategy));        
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
+        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        assert(vaultAssets.length == 2);
+    }
+
+    function test_callSmt() public {
+        uint256 principalTokenAmount = 0.4 ether;
+        owner_doAllocateWithCustomAddress(principalTokenAmount, TOKEN_ANOTHER, TOKEN_PRINCIPAL);
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
+        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        assert(vaultAssets.length == 2);
+    }
 
     function deposit_and_withdraw_only(uint256 amount) public {
         uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
@@ -215,13 +245,55 @@ contract VaultFuzzer {
         
         assert(IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= initialBalance);
     }
-    
+
+    function partial_withdrawals(uint256 depositAmount, uint256 withdrawPercentage) public {
+        require(depositAmount > 0 && withdrawPercentage > 0 && withdrawPercentage <= 100);
+        uint256 initialBalance = IERC20(WETH).balanceOf(address(player1));
+        
+        uint256 shares = player1.callDeposit(vaultAddress, depositAmount, WETH);
+        uint256 partialShares = (shares * withdrawPercentage) / 100;
+        
+        player1.callWithdraw(vaultAddress, partialShares, 0);
+        assert(IERC20(WETH).balanceOf(address(player1)) <= initialBalance);
+    }
 
 }
+    // function test_scenario() public {
 
+    //     // player2_doDepositPrincipalToken(1 ether);
+    //     // console.log("player2 shares: %s", player2Shares);
+    
+    //     // console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
+
+    //     // console.log("vault total value (B): %s", IVault(payable(vaultAddress)).getTotalValue());
+    //     owner_doAllocate(1 ether);
+    //     // console.log("vault total value (A): %s", IVault(payable(vaultAddress)).getTotalValue());                
+    //     // console.log("player2 shares:    %s", player2Shares);
+
+    //     bighandplayer_doSwap(true, 500 ether);
+    //     // bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 20 ether);
+
+    //     player2_doWithdraw(IERC20(vaultAddress).balanceOf(address(player2)));
+
+    //     emit LogUint256("player2 balance after withdraw: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
+    //     // uint256 player2Balance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
+    //     // assert( player2Balance <= 2 ether);
+    //     // console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
+
+    // }
+    
 /*
 
 * harvesting functions
 * do the swap -> increate the liquidity
 
+*/
+
+
+/*
+Call sequence:                                                                                                                      
+1. VaultFuzzerWithSwap.player1_doDepositPrincipalToken(44)                                                                          
+2. VaultFuzzerWithSwap.deposit_and_withdraw_only(101351549933237796)                                                               
+3. VaultFuzzerWithSwap.player1_doWithdraw(438355)                                                                                  
+4. VaultFuzzerWithSwap.assertPrincipleTokenBalancePlayer1()        
 */

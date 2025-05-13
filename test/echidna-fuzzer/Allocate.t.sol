@@ -51,7 +51,7 @@ contract VaultFuzzer is TestCommon {
         setErc20Balance(TOKEN_PRINCIPAL, address(owner), 2 ether);
         setErc20Balance(TOKEN_PRINCIPAL, address(player1), 2 ether);
         setErc20Balance(TOKEN_PRINCIPAL, address(player2), 2 ether);
-        setErc20Balance(TOKEN_PRINCIPAL, address(bighandplayer), 200 ether);
+        setErc20Balance(TOKEN_PRINCIPAL, address(bighandplayer), 1_000 ether);
         // setErc20Balance(TOKEN_ANOTHER, address(owner), 3000 * 10 ** 6);
         // setErc20Balance(TOKEN_ANOTHER, address(player1), 3000 * 10 ** 6);
         // setErc20Balance(TOKEN_ANOTHER, address(player2), 3000 * 10 ** 6);        
@@ -175,24 +175,41 @@ contract VaultFuzzer is TestCommon {
             console.log("owner_doAllocate:: vaultAssets[%s].token: %s", i, vaultAssets[i].token);
         }
     }    
+
+    function deposit_and_withdraw_only(uint256 amount) public {
+        uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
+        
+        uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+        owner.callWithdraw(vaultAddress, sharesDelta, 0);
+
+        console.log(">>> (0c) weth balance of the owner: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+
+        // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= ownerTOKEN_PRINCIPALBefore );
+
+        uint256 player1TOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+        player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
+
+        // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1TOKEN_PRINCIPALBefore );
+    }
     
     function test_scenario() public {
 
-    
-        uint256 player2Shares = player2_doDepositPrincipalToken(0.04 ether);
-        console.log("player2 shares: %s", player2Shares);
-    
-        console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
+        console.log(">>> (0a) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
 
-        console.log("vault total value (B): %s", IVault(payable(vaultAddress)).getTotalValue());
-        owner_doAllocate(0.02 ether);
-        console.log("vault total value (A): %s", IVault(payable(vaultAddress)).getTotalValue());
-                
-        console.log("player2 shares:    %s", player2Shares);
+        player1_doDepositPrincipalToken(44);
+        console.log(">>> (1) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
 
-        player2_doWithdraw(player2Shares);
-        console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
-        
+        deposit_and_withdraw_only(1013515499332377960);
+        console.log(">>> (2) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
+
+        player1_doWithdraw(438355);
+        console.log(">>> (3) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
+
+        console.log(">>> (0b) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
     }
+    
 
 }
