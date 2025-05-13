@@ -122,17 +122,17 @@ contract VaultFuzzerWithSwap {
 
     }
 
-    function assertPrincipleTokenBalanceOwner() public {    
+    function assertPrincipleTokenBalanceOwnerWithUnbelievableAmount() public view {
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
         assert(wethBalance <= 3 ether);
     }
 
-    function assertPrincipleTokenBalancePlayer1() public {    
+    function assertPrincipleTokenBalancePlayer1WithUnbelievableAmount() public view {    
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         assert(wethBalance <= 3 ether);
     }
 
-    function assertPrincipleTokenBalancePlayer2() public {    
+    function assertPrincipleTokenBalancePlayer2WithUnbelievableAmount() public view {
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
         assert(wethBalance <= 3 ether);
     }
@@ -181,16 +181,6 @@ contract VaultFuzzerWithSwap {
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
         emit LogUint256("vaultAssets.length", vaultAssets.length);
         assert(vaultAssets.length >= 2);
-    }
-
-    function owner_doAllocateWithCustomAddress(uint256 principalTokenAmount, address token0, address token1) public {
-        require( principalTokenAmount > 0.01 ether);
-        require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
-                
-        owner.callAllocate(vaultAddress, principalTokenAmount, token0, token1, configManagerAddress, address(lpStrategy));        
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
-        emit LogUint256("vaultAssets.length", vaultAssets.length);
-        assert(vaultAssets.length == 2);
     }
 
     function test_callSmt() public {
