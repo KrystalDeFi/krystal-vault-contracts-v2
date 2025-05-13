@@ -2,7 +2,6 @@
 pragma solidity >=0.8.28;
 
 import { AssetLib } from "./AssetLib.sol";
-import "forge-std/console.sol";
 
 library InventoryLib {
   error AssetNotFound();
