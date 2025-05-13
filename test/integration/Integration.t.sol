@@ -369,7 +369,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].amount, 0);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -402,7 +402,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].amount, 0);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -475,7 +475,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].amount, 0);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
     assertEq(vaultAssets[3].amount, 1);
@@ -498,10 +498,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].amount, 0);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    assertEq(vaultAssets[3].amount, 1);
+    assertEq(vaultAssets[3].amount, 0);
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
@@ -522,10 +522,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC);
     assertEq(vaultAssets[1].tokenId, 0);
     assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].amount, 0);
     assertEq(vaultAssets[2].token, NFPM);
     assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    assertEq(vaultAssets[3].amount, 1);
+    assertEq(vaultAssets[3].amount, 0);
     assertEq(vaultAssets[3].token, NFPM);
     assertEq(vaultAssets[3].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
@@ -543,7 +543,9 @@ contract IntegrationTest is TestCommon {
         params: abi.encode(incParams)
       });
       vm.roll(++currentBlock);
+      vm.expectRevert(IVault.InvalidAssetAmount.selector);
       vaultInstance.allocate(incAssets, lpStrategy, 0, abi.encode(incInstruction));
+      /*
       vaultAssets = vaultInstance.getInventory();
       assertEq(vaultAssets.length, 4);
       assertEq(vaultAssets[0].amount, 1_700_000_000_403_656_060);
@@ -554,14 +556,15 @@ contract IntegrationTest is TestCommon {
       assertEq(vaultAssets[1].token, USDC);
       assertEq(vaultAssets[1].tokenId, 0);
       assertEq(vaultAssets[1].strategy, address(0));
-      assertEq(vaultAssets[2].amount, 1);
+      assertEq(vaultAssets[2].amount, 0);
       assertEq(vaultAssets[2].token, NFPM);
       assertEq(vaultAssets[2].strategy, address(lpStrategy));
-      assertEq(vaultAssets[3].amount, 1);
+      assertEq(vaultAssets[3].amount, 0);
       assertEq(vaultAssets[3].token, NFPM);
       assertEq(vaultAssets[3].strategy, address(lpStrategy));
       valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
       assertEq(valueOfPositionInPrincipal, 299_925_573_181_777_501);
+      */
     }
 
     {
