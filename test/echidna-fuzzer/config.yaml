@@ -1,4 +1,4 @@
-# Config wiki: https://github.com/crytic/echidna/wiki/Config
+# Config wiki: https://secure-contracts.com/program-analysis/echidna/configuration.html
 
 # testMode: mode to use while testing
 # Available modes:

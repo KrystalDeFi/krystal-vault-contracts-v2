@@ -183,14 +183,6 @@ contract VaultFuzzerWithSwap {
         assert(vaultAssets.length >= 2);
     }
 
-    function test_callSmt() public {
-        uint256 principalTokenAmount = 0.4 ether;
-        owner_doAllocateWithCustomAddress(principalTokenAmount, TOKEN_ANOTHER, TOKEN_PRINCIPAL);
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
-        emit LogUint256("vaultAssets.length", vaultAssets.length);
-        assert(vaultAssets.length == 2);
-    }
-
     function deposit_and_withdraw_only(uint256 amount) public {
         uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
         
@@ -245,6 +237,36 @@ contract VaultFuzzerWithSwap {
         
         player1.callWithdraw(vaultAddress, partialShares, 0);
         assert(IERC20(WETH).balanceOf(address(player1)) <= initialBalance);
+    }
+
+    function ownerCanWithdrawAll() public {
+        require(IERC20(vaultAddress).balanceOf(address(owner)) > 10 * 10_000, "Owner has (almost) no shares");
+        uint256 pTokenOwnerBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        try owner.callWithdraw(vaultAddress, IERC20(vaultAddress).balanceOf(address(owner)), 0) {} catch {
+            emit LogString("There is an error when owner tries to withdraw all shares");
+        }
+        uint256 pTokenOwnerAfter = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        assert(pTokenOwnerAfter > pTokenOwnerBefore);
+    }
+
+    function player1CanWithdrawAll() public {
+        require(IERC20(vaultAddress).balanceOf(address(player1)) > 10 * 10_000, "Player1 has (almost)no shares");
+        uint256 pTokenPlayer1Before = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        try player1.callWithdraw(vaultAddress, IERC20(vaultAddress).balanceOf(address(player1)), 0) {} catch {
+            emit LogString("There is an error when player1 tries to withdraw all shares");
+        }
+        uint256 pTokenPlayer1After = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        assert(pTokenPlayer1After > pTokenPlayer1Before);
+    }
+
+    function player2CanWithdrawAll() public {
+        require(IERC20(vaultAddress).balanceOf(address(player2)) > 10 * 10_000, "Player2 has (almost) no shares");
+        uint256 pTokenPlayer2Before = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
+        try player2.callWithdraw(vaultAddress, IERC20(vaultAddress).balanceOf(address(player2)), 0) {} catch {
+            emit LogString("There is an error when player2 tries to withdraw all shares");
+        }
+        uint256 pTokenPlayer2After = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
+        assert(pTokenPlayer2After > pTokenPlayer2Before);
     }
 
 }

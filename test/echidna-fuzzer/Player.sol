@@ -43,7 +43,7 @@ contract Player {
         return IVault(payable(vault)).deposit(amount, 0);        
     }
 
-    function callWithdraw(address vault, uint256 shares, uint256 minAmount) public {
+    function callWithdraw(address vault, uint256 shares, uint256 minAmount) public {        
         IVault(payable(vault)).withdraw(shares, false, minAmount);
     }
 
