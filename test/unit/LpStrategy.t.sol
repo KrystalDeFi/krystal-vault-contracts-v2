@@ -266,7 +266,7 @@ contract LpStrategyTest is TestCommon {
     });
 
     returnAssets = lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
-    assertEq(returnAssets.length, 3);
+    assertEq(returnAssets.length, 4);
     assertEq(returnAssets[0].token, WETH);
     assertEq(returnAssets[0].amount, 1864);
     assertEq(returnAssets[1].token, USDC);
@@ -274,6 +274,9 @@ contract LpStrategyTest is TestCommon {
     assertEq(returnAssets[2].token, NFPM);
     assertEq(returnAssets[2].amount, 1);
     assertNotEq(returnAssets[2].tokenId, 0);
+    assertEq(returnAssets[3].token, NFPM);
+    assertEq(returnAssets[3].amount, 0);
+    assertNotEq(returnAssets[3].tokenId, 0);
 
     assertEq(IERC721(assets[0].token).ownerOf(assets[0].tokenId), address(lpStrategy));
 
