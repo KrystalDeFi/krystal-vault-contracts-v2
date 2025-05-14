@@ -231,19 +231,15 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     console.log("vaultAssets length (after allocating): ", vaultAssets.length);
-    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets.length, 2);
     assertGt(vaultAssets[0].amount, 300_000_000_000_000_000);
     assertLt(vaultAssets[0].amount, 300_000_000_001_000_000);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 0);
-    assertEq(vaultAssets[1].token, USDC);
-    assertEq(vaultAssets[1].tokenId, 0);
-    assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
-    assertEq(vaultAssets[2].token, SUSHI_NFPM);
-    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    assertEq(vaultAssets[1].amount, 1);
+    assertEq(vaultAssets[1].token, SUSHI_NFPM);
+    assertEq(vaultAssets[1].strategy, address(lpStrategy));
     // Deposit to a vault with both principal and LPs
     IERC20(WETH).approve(address(vaultInstance), 1 ether);
     vaultInstance.deposit(1 ether, 0);
@@ -257,31 +253,27 @@ contract IntegrationTest is TestCommon {
     assertGt(IERC20(WETH).balanceOf(address(vaultInstance)), 600_001_000_000_000_000);
     assertLt(IERC20(WETH).balanceOf(address(vaultInstance)), 600_101_000_000_000_000);
 
-    assertEq(vaultAssets.length, 3, "the number of assets in the vault is 3");
+    assertEq(vaultAssets.length, 2, "the number of assets in the vault is 2");
     assertLt(vaultAssets[0].amount, 600_060_000_000_000_000);
     assertGt(vaultAssets[0].amount, 600_020_000_000_000_000);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 0);
-    assertEq(vaultAssets[1].token, USDC);
-    assertEq(vaultAssets[1].tokenId, 0);
-    assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
-    assertEq(vaultAssets[2].token, SUSHI_NFPM);
-    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    assertEq(vaultAssets[1].amount, 1);
+    assertEq(vaultAssets[1].token, SUSHI_NFPM);
+    assertEq(vaultAssets[1].strategy, address(lpStrategy));
 
-    uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
     assertGt(valueOfPositionInPrincipal, 1_399_000_000_000_000_000);
     assertLt(valueOfPositionInPrincipal, 1_400_000_000_000_000_000);
 
     // Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
     console.log("==== test_managePrivateVault ====");
 
-    // User can add liquidity from principal to an existing LP position
+    console.log("===== User can add liquidity from principal to an existing LP position");
     AssetLib.Asset[] memory incAssets = new AssetLib.Asset[](2);
     incAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.3 ether);
-    incAssets[1] = vaultAssets[2];
+    incAssets[1] = vaultAssets[1];
 
     ILpStrategy.SwapAndIncreaseLiquidityParams memory incParams =
       ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
@@ -294,7 +286,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
 
-    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets.length, 2);
 
     assertLt(
       vaultAssets[0].amount, 300_100_000_000_000_000, "Asset 0 amount should be less than 300_100_000_000_000_000"
@@ -305,14 +297,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[0].token, WETH, "Asset 0 token should be WETH");
     assertEq(vaultAssets[0].tokenId, 0, "Asset 0 tokenId should be 0");
     assertEq(vaultAssets[0].strategy, address(0), "Asset 0 strategy should be zero address");
-    assertEq(vaultAssets[1].amount, 0, "Asset 1 amount should be 0");
-    assertEq(vaultAssets[1].token, USDC);
-    assertEq(vaultAssets[1].tokenId, 0);
-    assertEq(vaultAssets[1].strategy, address(0));
-    assertEq(vaultAssets[2].amount, 1);
-    assertEq(vaultAssets[2].token, SUSHI_NFPM);
-    assertEq(vaultAssets[2].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    assertEq(vaultAssets[1].amount, 1);
+    assertEq(vaultAssets[1].token, SUSHI_NFPM);
+    assertEq(vaultAssets[1].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
     assertGt(
       valueOfPositionInPrincipal,
       1_699_000_000_000_000_000,
@@ -324,10 +312,10 @@ contract IntegrationTest is TestCommon {
       "valueOfPositionInPrincipal should be less than 1_700_000_000_000_000_000"
     );
 
-    // User can remove liquidity from LP position to principal
-    (,,,,,,, uint128 liquidity,,,,) = INFPM(SUSHI_NFPM).positions(vaultAssets[2].tokenId);
+    console.log("===== User can remove liquidity from LP position to principal");
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(SUSHI_NFPM).positions(vaultAssets[1].tokenId);
     AssetLib.Asset[] memory decAssets = new AssetLib.Asset[](1);
-    decAssets[0] = vaultAssets[2];
+    decAssets[0] = vaultAssets[1];
     ILpStrategy.DecreaseLiquidityAndSwapParams memory decParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
       liquidity: (liquidity * 3) / 17,
       amount0Min: 0,
@@ -344,28 +332,24 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
 
-    assertEq(vaultAssets.length, 3);
+    assertEq(vaultAssets.length, 2);
 
     assertGt(vaultAssets[0].amount, 599_500_000_000_000_000);
     assertLt(vaultAssets[0].amount, 600_000_000_000_000_000);
     assertEq(vaultAssets[0].token, WETH, "Asset 0 token should be WETH");
     assertEq(vaultAssets[0].tokenId, 0, "Asset 0 tokenId should be 0");
     assertEq(vaultAssets[0].strategy, address(0), "Asset 0 strategy should be zero address");
-    assertLt(vaultAssets[1].amount, 100, "Asset 1 amount should be less than 100");
-    assertEq(vaultAssets[1].token, USDC, "Asset 1 token should be USDC");
-    assertEq(vaultAssets[1].tokenId, 0, "Asset 1 tokenId should be 0");
-    assertEq(vaultAssets[1].strategy, address(0), "Asset 1 strategy should be zero address");
-    assertEq(vaultAssets[2].amount, 1, "Asset 2 amount should be 1");
-    assertEq(vaultAssets[2].token, SUSHI_NFPM, "Asset 2 token should be SUSHI_NFPM");
-    assertEq(vaultAssets[2].strategy, address(lpStrategy), "Asset 2 strategy should be lpStrategy");
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
+    assertEq(vaultAssets[1].amount, 1, "Asset 2 amount should be 1");
+    assertEq(vaultAssets[1].token, SUSHI_NFPM, "Asset 2 token should be SUSHI_NFPM");
+    assertEq(vaultAssets[1].strategy, address(lpStrategy), "Asset 2 strategy should be lpStrategy");
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
 
     assertGt(valueOfPositionInPrincipal, 1_399_000_000_000_000_000, "Position value should be greater than 1.399 WETH");
     assertLt(valueOfPositionInPrincipal, 1_400_000_000_000_000_000, "Position value should be less than 1.4 WETH");
 
-    // User can rebalance 1 specific LP
+    console.log("===== User can rebalance 1 specific LP =====");
     AssetLib.Asset[] memory rebalanceAssets = new AssetLib.Asset[](1);
-    rebalanceAssets[0] = vaultAssets[2];
+    rebalanceAssets[0] = vaultAssets[1];
     ILpStrategy.SwapAndRebalancePositionParams memory rebalanceParams = ILpStrategy.SwapAndRebalancePositionParams({
       tickLower: -443_580,
       tickUpper: 443_580,
@@ -386,7 +370,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
 
-    assertEq(vaultAssets.length, 4);
+    assertEq(vaultAssets.length, 3);
 
     assertGt(vaultAssets[0].amount, 599_500_000_000_000_000);
     assertLt(vaultAssets[0].amount, 600_000_000_000_000_000);
@@ -397,20 +381,17 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "Asset 1 token should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "Asset 1 tokenId should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "Asset 1 strategy should be zero address");
-    assertEq(vaultAssets[2].amount, 0, "Asset 2 amount should be 0");
+    assertEq(vaultAssets[2].amount, 1, "Asset 2 amount should be 1");
     assertEq(vaultAssets[2].token, SUSHI_NFPM, "Asset 2 token should be SUSHI_NFPM");
     assertEq(vaultAssets[2].strategy, address(lpStrategy), "Asset 2 strategy should be lpStrategy");
-    assertEq(vaultAssets[3].amount, 1, "Asset 3 amount should be 1");
-    assertEq(vaultAssets[3].token, SUSHI_NFPM, "Asset 3 token should be SUSHI_NFPM");
-    assertEq(vaultAssets[3].strategy, address(lpStrategy), "Asset 3 strategy should be lpStrategy");
 
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
     assertGt(valueOfPositionInPrincipal, 1_399_000_000_000_000_000);
     assertLt(valueOfPositionInPrincipal, 1_400_000_000_000_000_000);
 
-    // User can compound 1 specific LP
+    console.log("===== User can compound 1 specific LP =====");
     AssetLib.Asset[] memory compoundAssets = new AssetLib.Asset[](1);
-    compoundAssets[0] = vaultAssets[3];
+    compoundAssets[0] = vaultAssets[2];
     ILpStrategy.SwapAndCompoundParams memory compoundParams =
       ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
     ICommon.Instruction memory compoundInstruction = ICommon.Instruction({
@@ -421,7 +402,7 @@ contract IntegrationTest is TestCommon {
     vaultInstance.allocate(compoundAssets, lpStrategy, 0, abi.encode(compoundInstruction));
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 4);
+    assertEq(vaultAssets.length, 3);
 
     assertGt(
       vaultAssets[0].amount,
@@ -440,13 +421,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "the token 1 should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
-    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
-    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
-    assertEq(vaultAssets[3].amount, 1, "the amount of vaultAssets[3] should be 1");
-    assertEq(vaultAssets[3].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
-    assertEq(vaultAssets[3].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
+    assertEq(vaultAssets[2].amount, 1, "the amount of vaultAssets[3] should be 1");
+    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
+    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
     assertGt(
       valueOfPositionInPrincipal,
       1_399_000_000_000_000_000,
@@ -502,6 +480,7 @@ contract IntegrationTest is TestCommon {
     vaultInstance.withdraw(0, false, 0);
 
     // Burn partial shares
+    console.log("===== Burn partial shares =====");
     vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false, 0);
     vaultAssets = vaultInstance.getInventory();
     assertEq(
@@ -519,7 +498,7 @@ contract IntegrationTest is TestCommon {
       449_900_000_000_000_000,
       "the weth balance of the vault should be greater than 449_900_000_000_000_000"
     );
-    assertEq(vaultAssets.length, 4, "the length of vaultAssets should be 4");
+    assertEq(vaultAssets.length, 3, "the length of vaultAssets should be 4");
     assertGt(
       vaultAssets[0].amount,
       449_900_000_000_000_000,
@@ -537,13 +516,10 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, USDC, "the token of vaultAssets[1] should be USDC");
     assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
     assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
-    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
-    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
-    assertEq(vaultAssets[3].amount, 1, "the amount of vaultAssets[3] should be 1");
-    assertEq(vaultAssets[3].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
-    assertEq(vaultAssets[3].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
+    assertEq(vaultAssets[2].amount, 1, "the amount of vaultAssets[3] should be 1");
+    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
+    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WETH);
     assertGt(
       valueOfPositionInPrincipal,
       1_049_700_000_000_000_000,
@@ -556,31 +532,17 @@ contract IntegrationTest is TestCommon {
     );
 
     // Burn all shares
+    console.log("===== Burn all shares =====");
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);
     vaultAssets = vaultInstance.getInventory();
     assertEq(IERC20(vaultInstance).balanceOf(USER), 0, "the user's shares should be 0 after burning all shares");
     assertEq(
       IERC20(WETH).balanceOf(address(vaultInstance)), 0, "the vault's WETH balance should be 0 after burning all shares"
     );
-    assertEq(vaultAssets.length, 4, "the length of vaultAssets should be 4");
-    assertEq(vaultAssets[0].amount, 0, "the amount of vaultAssets[0] should be 0");
-    assertEq(vaultAssets[0].token, WETH, "the token of vaultAssets[0] should be WETH");
-    assertEq(vaultAssets[0].tokenId, 0, "the tokenId of vaultAssets[0] should be 0");
-    assertEq(vaultAssets[0].strategy, address(0), "the strategy of vaultAssets[0] should be 0");
-    assertEq(vaultAssets[1].amount, 0, "the amount of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[1].token, USDC, "the token of vaultAssets[1] should be USDC");
-    assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
-    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
-    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
-    assertEq(vaultAssets[3].amount, 0, "the amount of vaultAssets[3] should be 0");
-    assertEq(vaultAssets[3].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
-    assertEq(vaultAssets[3].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 0, "the value of position in principal should be 0");
+    assertEq(vaultAssets.length, 0, "the length of vaultAssets should be 0");
 
     // Test re-deposit to zero vault
+    console.log("===== Test re-deposit to zero vault =====");
     IERC20(WETH).approve(address(vaultInstance), 2 ether);
     vaultInstance.deposit(2 ether, 0);
     vaultAssets = vaultInstance.getInventory();
@@ -590,23 +552,11 @@ contract IntegrationTest is TestCommon {
       "the user's shares should be 2 ether * vaultInstance.SHARES_PRECISION()"
     );
     assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 2 ether, "the vault's WETH balance should be 2 ether");
-    assertEq(vaultAssets.length, 4, "the length of vaultAssets should be 4");
+    assertEq(vaultAssets.length, 1, "the length of vaultAssets should be 1");
     assertEq(vaultAssets[0].amount, 2 ether, "the amount of vaultAssets[0] should be 2 ether");
     assertEq(vaultAssets[0].token, WETH, "the token of vaultAssets[0] should be WETH");
     assertEq(vaultAssets[0].tokenId, 0, "the tokenId of vaultAssets[0] should be 0");
     assertEq(vaultAssets[0].strategy, address(0), "the strategy of vaultAssets[0] should be 0");
-    assertEq(vaultAssets[1].amount, 0, "the amount of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[1].token, USDC, "the token of vaultAssets[1] should be USDC");
-    assertEq(vaultAssets[1].tokenId, 0, "the tokenId of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[1].strategy, address(0), "the strategy of vaultAssets[1] should be 0");
-    assertEq(vaultAssets[2].amount, 0, "the amount of vaultAssets[2] should be 0");
-    assertEq(vaultAssets[2].token, SUSHI_NFPM, "the token of vaultAssets[2] should be SUSHI_NFPM");
-    assertEq(vaultAssets[2].strategy, address(lpStrategy), "the strategy of vaultAssets[2] should be lpStrategy");
-    assertEq(vaultAssets[3].amount, 0, "the amount of vaultAssets[3] should be 0");
-    assertEq(vaultAssets[3].token, SUSHI_NFPM, "the token of vaultAssets[3] should be SUSHI_NFPM");
-    assertEq(vaultAssets[3].strategy, address(lpStrategy), "the strategy of vaultAssets[3] should be lpStrategy");
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[3], WETH);
-    assertEq(valueOfPositionInPrincipal, 0, "the value of position in principal should be 0");
 
     // Manage Public Vault (allowed deposit)
     console.log("==== test_managePublicVault ====");

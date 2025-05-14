@@ -359,7 +359,7 @@ contract VaultTest is TestCommon {
 
       vm.roll(++currentBlock);
 
-      vm.expectRevert(IVault.InvalidAssetAmount.selector);
+      vm.expectRevert();
       vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
     }
   }

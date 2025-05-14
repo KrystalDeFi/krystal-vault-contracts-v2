@@ -130,10 +130,6 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      // if (
-      //   currentAsset.assetType == AssetLib.AssetType.ERC20 && currentAsset.token != vaultConfig.principalToken
-      //     && currentAsset.amount != 0
-      // ) revert DepositNotAllowed();
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
 
       unchecked {
@@ -224,6 +220,7 @@ contract Vault is
     length = inventory.assets.length;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
+
       if (
         currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20
           && currentAsset.amount != 0
@@ -257,7 +254,7 @@ contract Vault is
           } else if (assets[k].token == principalToken) {
             returnAmount += assets[k].amount;
             inventory.addAsset(assets[k]);
-          } else {
+          } else if (assets[k].amount > 0) {
             _transferAsset(assets[k], _msgSender());
           }
           unchecked {
@@ -283,6 +280,13 @@ contract Vault is
       );
     }
 
+    if (totalSupply() == 0) {
+      length = inventory.assets.length;
+      for (; length > 0; length--) {
+        inventory.removeAsset(0);
+      }
+    }
+
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
@@ -306,7 +310,7 @@ contract Vault is
       inputAsset = inputAssets[i];
       require(inputAsset.amount != 0, InvalidAssetAmount());
 
-      inventory.removeAsset(inputAsset);
+      inventory.removeAsset(inputAsset, true);
 
       unchecked {
         i++;

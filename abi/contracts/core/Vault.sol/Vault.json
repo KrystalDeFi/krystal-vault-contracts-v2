@@ -27,11 +27,6 @@
   },
   {
     "inputs": [],
-    "name": "AssetNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "DepositNotAllowed",
     "type": "error"
   },
