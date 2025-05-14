@@ -210,7 +210,7 @@ contract IntegrationTest is TestCommon {
     IERC20(USDC).approve(address(swapper), IERC20(USDC).balanceOf(BIGHAND_PLAYER));
     console.log("bighand approved for USDC");
     (,, address token0, address token1, uint24 fee,,,,,,,) =
-      INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+      INFPM(NFPM).positions(vaultInstance.getInventory()[1].tokenId);
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
     console.log("pool: ", pool);
     swapper.poolSwap(

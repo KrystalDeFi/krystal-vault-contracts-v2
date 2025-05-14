@@ -29,6 +29,18 @@ function addAsset(struct InventoryLib.Inventory self, struct AssetLib.Asset asse
 function removeAsset(struct InventoryLib.Inventory self, struct AssetLib.Asset asset) internal
 ```
 
+### removeAsset
+
+```solidity
+function removeAsset(struct InventoryLib.Inventory self, struct AssetLib.Asset asset, bool _delete) internal
+```
+
+### removeAsset
+
+```solidity
+function removeAsset(struct InventoryLib.Inventory self, uint256 index) internal
+```
+
 ### getAsset
 
 ```solidity

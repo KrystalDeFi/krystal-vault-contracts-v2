@@ -192,7 +192,7 @@ contract IntegrationTest is TestCommon {
     console.log("++ total value of the vault (before the swap): ", vaultInstance.getTotalValue());
 
     (,, address token0, address token1, uint24 fee,,,,,,,) =
-      INFPM(NFPM).positions(vaultInstance.getInventory()[2].tokenId);
+      INFPM(NFPM).positions(vaultInstance.getInventory()[1].tokenId);
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 

@@ -558,10 +558,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     require(principalAsset.amount >= params.principalAmountOutMin, InsufficientAmountOut());
 
-    returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = principalAsset;
     returnAssets[1] = otherAsset;
-    returnAssets[2] = lpAsset;
   }
 
   /// @notice Decreases the liquidity of the position
@@ -579,12 +577,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     INFPM nfpm = INFPM(lpAsset.token);
     uint256 tokenId = lpAsset.tokenId;
 
-    (,, address token0, address token1, uint24 fee,,,,,,,) = nfpm.positions(tokenId);
+    (,, address token0, address token1, uint24 fee,,, uint160 posLiquidity,,,,) = nfpm.positions(tokenId);
 
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
 
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     {
       (uint256 fee0, uint256 fee1) =
         _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool);
@@ -603,6 +601,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       amount1Collected += posAmount1;
     }
 
+    if (params.liquidity == posLiquidity) lpAsset.amount = 0;
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0Collected);
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token1, 0, amount1Collected);
@@ -706,6 +705,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       returnAssets[1] = tmp[1];
       returnAssets[2] = tmp[2];
       returnAssets[3] = asset0;
+      returnAssets[3].amount = 0;
       if (returnAssets[3].strategy != thisAddress) returnAssets[3].strategy = thisAddress;
     }
     if (!params.compoundFee) {
@@ -958,7 +958,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @dev check old lp strategy for backward compatibility
   /// This was implemented as a migration method since old lp strategies have a bug
   function _checkAssetStrategy(address strategy) internal view {
-    address[12] memory oldStrategies = [
+    address[13] memory oldStrategies = [
       thisAddress,
       0x2AD2B6fAed8020354608381e29cF301921Cf8028,
       0x6ABE19d89396893fE8d051d982A75971ff1272FE,
@@ -970,6 +970,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       0x1827E3CDc63A503A8f7143d4532c459DddFF19a0,
       0xEa2459145c82fc7707FD53BA0ed754f99F186702,
       0x8e6d632C56dCBbf0D00a5821e8F32A77F190ab00,
+      0x1b7c5534190F74782D04142e3A27ECA05563498a,
       0x038394D8fBBf56CB27028a6C595afc347450627F // from unit test
     ];
     uint256 length = oldStrategies.length;
