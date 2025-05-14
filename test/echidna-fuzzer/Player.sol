@@ -39,7 +39,7 @@ contract Player {
     }
 
     function callDeposit(address vault, uint256 amount, address token) public returns (uint256) {
-        IERC20(token).approve(vault, amount);    
+        IERC20(token).approve(vault, amount);        
         return IVault(payable(vault)).deposit(amount, 0);        
     }
 

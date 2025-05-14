@@ -130,7 +130,8 @@ contract VaultFuzzerSoloOwner {
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        owner_doAllocate(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
+        // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
 
     }

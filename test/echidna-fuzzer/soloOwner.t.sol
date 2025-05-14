@@ -25,7 +25,7 @@ uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
 
-contract FoundryTestSoloPlayer is TestCommon {
+contract FoundryTestSoloOwner is TestCommon {
     Player public owner;
     Player public player1;
     Player public player2;
@@ -126,10 +126,16 @@ contract FoundryTestSoloPlayer is TestCommon {
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);        
+        owner_doAllocate(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
+        // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
+        console.log("swapping done");
 
+    }
+
+    function owner_doAllocate(uint256 amount, address token0, address token1) public {
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy));
     }
 
 
@@ -149,6 +155,8 @@ contract FoundryTestSoloPlayer is TestCommon {
             console.log("vaultAssets[%s] tokenId: %s", i, vaultAssets[i].tokenId);
             console.log("vaultAssets[%s] amount: %s", i, vaultAssets[i].amount);
         }
+
+        console.log("vault total value: %s", IVault(payable(vaultAddress)).getTotalValue());
 
         
         
