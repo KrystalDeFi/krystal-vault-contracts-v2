@@ -52,10 +52,22 @@ function validateObservationCardinality(contract INonfungiblePositionManager nfp
 function validatePriceSanity(address pool) external view
 ```
 
+### validateNfpm
+
+```solidity
+function validateNfpm(address nfpm) external view
+```
+
 ### InvalidPool
 
 ```solidity
 error InvalidPool()
+```
+
+### InvalidNfpm
+
+```solidity
+error InvalidNfpm()
 ```
 
 ### InvalidPoolAmountMin
