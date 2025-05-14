@@ -11,12 +11,13 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LpValidator is ILpValidator {
+contract LpValidator is ILpValidator, Ownable {
   IConfigManager public configManager;
   mapping(address => bool) public whitelistNfpms;
 
-  constructor(address _configManager, address[] memory _whitelistNfpms) {
+  constructor(address _configManager, address[] memory _whitelistNfpms) Ownable(msg.sender) {
     require(_configManager != address(0), ZeroAddress());
 
     configManager = IConfigManager(_configManager);
@@ -160,7 +161,7 @@ contract LpValidator is ILpValidator {
     return false;
   }
 
-  function setWhitelistNfpms(address[] calldata _whitelistNfpms, bool isWhitelist) external {
+  function setWhitelistNfpms(address[] calldata _whitelistNfpms, bool isWhitelist) external onlyOwner {
     for (uint256 i; i < _whitelistNfpms.length; i++) {
       whitelistNfpms[_whitelistNfpms[i]] = isWhitelist;
     }
