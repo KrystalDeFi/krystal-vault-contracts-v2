@@ -86,8 +86,10 @@ contract IntegrationTest is TestCommon {
 
     console.log("the current maxHarvestSlippage", configManager.maxHarvestSlippage());
 
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    LpValidator validator = new LpValidator(address(configManager));
+    LpValidator validator = new LpValidator(address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 

@@ -43,7 +43,11 @@ interface ILpValidator is ICommon {
 
   function validatePriceSanity(address pool) external view;
 
+  function validateNfpm(address nfpm) external view;
+
   error InvalidPool();
+
+  error InvalidNfpm();
 
   error InvalidPoolAmountMin();
 

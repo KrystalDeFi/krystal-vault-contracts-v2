@@ -14,11 +14,19 @@ import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/Liqu
 
 contract LpValidator is ILpValidator {
   IConfigManager public configManager;
+  mapping(address => bool) public whitelistNfpms;
 
-  constructor(address _configManager) {
+  constructor(address _configManager, address[] memory _whitelistNfpms) {
     require(_configManager != address(0), ZeroAddress());
 
     configManager = IConfigManager(_configManager);
+    for (uint256 i = 0; i < _whitelistNfpms.length; i++) {
+      whitelistNfpms[_whitelistNfpms[i]] = true;
+    }
+  }
+
+  function validateNfpm(address nfpm) external view {
+    require(whitelistNfpms[address(nfpm)], InvalidNfpm());
   }
 
   /// @dev Checks the principal amount in the pool
@@ -150,5 +158,11 @@ contract LpValidator is ILpValidator {
     }
 
     return false;
+  }
+
+  function setWhitelistNfpms(address[] calldata _whitelistNfpms, bool isWhitelist) external {
+    for (uint256 i; i < _whitelistNfpms.length; i++) {
+      whitelistNfpms[_whitelistNfpms[i]] = isWhitelist;
+    }
   }
 }
