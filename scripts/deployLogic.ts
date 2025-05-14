@@ -98,14 +98,16 @@ async function deployContracts(existingContract: Record<string, any> | undefined
     merklStrategy: merklStrategy.merklStrategy,
   });
 
-  if (networkConfig.vaultFactory.enabled && networkConfig.configManager?.enabled) {
+  if (networkConfig.vaultFactory.enabled) {
     await vaultFactory?.vaultFactory?.initialize(
       commonConfig.admin,
       networkConfig.wrapToken || "",
       existingContract?.["configManager"] || contracts?.configManager?.target,
       existingContract?.["vault"] || contracts?.vault?.target,
     );
+  }
 
+  if (networkConfig.configManager?.enabled) {
     await configManager?.configManager?.initialize(
       commonConfig.admin,
       [
@@ -142,6 +144,14 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         commonConfig.stableConfigWith6Decimals,
         commonConfig.stableConfigWith18Decimals,
       ],
+    );
+  }
+
+  if (networkConfig.lpValidator?.enabled) {
+    await lpValidator?.lpValidator?.initialize(
+      commonConfig.admin,
+      existingContract?.["configManager"] || contracts?.configManager?.target,
+      networkConfig.nfpmAddresses,
     );
   }
 
@@ -235,6 +245,7 @@ export const deployConfigManagerContract = async (
   const config = { ...networkConfig, ...customNetworkConfig };
 
   let configManager;
+  
   if (config.configManager?.enabled) {
     configManager = (await deployContract(
       `${step} >>`,
@@ -244,6 +255,7 @@ export const deployConfigManagerContract = async (
       "contracts/core/ConfigManager.sol:ConfigManager",
     )) as ConfigManager;
   }
+  
   return {
     configManager,
   };
@@ -302,7 +314,9 @@ export const deployLpValidatorContract = async (
   contracts?: Contracts,
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
+
   let lpValidator;
+
   if (config.lpValidator?.enabled) {
     lpValidator = (await deployContract(
       `${step} >>`,
@@ -310,15 +324,9 @@ export const deployLpValidatorContract = async (
       "LpValidator",
       existingContract?.["lpValidator"],
       "contracts/strategies/lpUniV3/LpValidator.sol:LpValidator",
-      undefined,
-      ["address", "address", "address[]"],
-      [
-        commonConfig.admin,
-        existingContract?.["configManager"] || contracts?.configManager?.target,
-        networkConfig.nfpmAddresses,
-      ],
     )) as LpValidator;
   }
+
   return {
     lpValidator,
   };
