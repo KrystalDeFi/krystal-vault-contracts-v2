@@ -138,4 +138,45 @@ contract InventoryLibTest is Test {
         vm.expectRevert("InventoryLib: insufficient amount");
         inventory.removeAsset(toRemove);
     }
+
+    function test_AddZeroAmount() public {
+        uint256 initialLength = inventory.assets.length;
+        
+        AssetLib.Asset memory zeroAsset = AssetLib.Asset({
+            assetType: AssetLib.AssetType.ERC20,
+            strategy: address(0),
+            token: TOKEN1,
+            tokenId: TOKEN_ID1,
+            amount: 0
+        });
+
+        inventory.addAsset(zeroAsset);
+        assertEq(inventory.assets.length, initialLength); // No change
+    }
+
+    function test_ArrayReorderingOnDelete() public {
+        // Add a third asset
+        AssetLib.Asset memory asset3 = AssetLib.Asset({
+            assetType: AssetLib.AssetType.ERC20,
+            strategy: address(0),
+            token: address(0x3),
+            tokenId: 3,
+            amount: 200
+        });
+        inventory.addAsset(asset3);
+
+        // Remove the middle asset (TOKEN2)
+        AssetLib.Asset memory toRemove = AssetLib.Asset({
+            assetType: AssetLib.AssetType.ERC721,
+            strategy: address(0),
+            token: TOKEN2,
+            tokenId: TOKEN_ID2,
+            amount: 1
+        });
+        inventory.removeAsset(toRemove, true);
+
+        // Verify the last asset moved to index 1
+        assertEq(inventory.assets[1].token, address(0x3));
+        assertTrue(inventory.contains(address(0x3), 3));
+    }
 }
