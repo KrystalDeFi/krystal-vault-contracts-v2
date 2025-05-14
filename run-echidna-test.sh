@@ -30,6 +30,10 @@ rm -rf contracts/echidna-fuzzer
 log_info "[+] Move the hardhat.config.ts file to hardhat.config.ts.disabled to use foundry as the compiler only"
 mv hardhat.config.ts hardhat.config.ts.disabled
 
+log_info "[+] Disable the sanityCheck in the LpValidator.sol file"
+cp contracts/strategies/lpUniV3/LpValidator.sol contracts/strategies/lpUniV3/LpValidator.sol.tmp
+sed -i '' 's/function validatePriceSanity(address pool) external view override {/function validatePriceSanity(address pool) external view override { return; \/\/ to disable the sanityCheck for debugging purposes/g' contracts/strategies/lpUniV3/LpValidator.sol
+
 log_info "[+] Replace the out directory in foundry.toml"
 cp foundry.toml foundry.toml.tmp
 sed -i '' 's/out = '\''artifacts'\''/out = '\''out\/'\''/g' foundry.toml
@@ -47,7 +51,8 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*\/\/forg
 log_info "[+] Comment out all forge-std lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"forge-std\/.*/\/\/ &/g' {} \;
 
-export ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
+export ECHIDNA_RPC_URL="https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true"
+# https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
 
 log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME"
 echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME
@@ -57,6 +62,10 @@ mv hardhat.config.ts.disabled hardhat.config.ts
 
 log_info "[+] Restore the foundry.toml file"
 mv foundry.toml.tmp foundry.toml
+
+log_info "[+] Restore the LpValidator.sol file"
+mv contracts/strategies/lpUniV3/LpValidator.sol.tmp contracts/strategies/lpUniV3/LpValidator.sol
+
 
 log_info "[+] Remove the echidna-fuzzer contract in the contracts directory"
 rm -rf contracts/echidna-fuzzer
