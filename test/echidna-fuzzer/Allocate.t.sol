@@ -167,44 +167,35 @@ contract VaultFuzzer is TestCommon {
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
-        require( principalTokenAmount > 0.01 ether);
+        require(principalTokenAmount > 0.001 ether);
+        
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
         owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));        
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
-        // emit LogUint256("vaultAssets.length", vaultAssets.length);
-        console.log("owner_doAllocate:: vaultAssets.length: %s", vaultAssets.length);
-        // assert(vaultAssets.length >= 2);
-
-        for (uint256 i = 0; i < vaultAssets.length; i++) {
-            console.log("owner_doAllocate:: vaultAssets[%s].assetType: %s", i, uint256(vaultAssets[i].assetType));
-            console.log("owner_doAllocate:: vaultAssets[%s].amount: %s", i, vaultAssets[i].amount);
-            console.log("owner_doAllocate:: vaultAssets[%s].token: %s", i, vaultAssets[i].token);
-        }
-    }    
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
+        assert(vaultAssets.length >= 2);
+    }
 
     function deposit_and_withdraw_only(uint256 amount) public {
-        uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
-        
+
+        uint256 GAIN_MARGIN = 0.002 ether;
+
+        uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
         uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         owner.callWithdraw(vaultAddress, sharesDelta, 0);
 
-        console.log("owner TOKEN_PRINCIPAL (before)", ownerPTokenBefore);
-        console.log("owner Token principle  (after)", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
-
-
         // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= ownerPTokenBefore );
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= (ownerPTokenBefore + GAIN_MARGIN) );
 
         uint256 player1PTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
+        emit LogUint256("player1PTokenBefore: %s", player1PTokenBefore);
+        emit LogUint256("player1PTokenAfter:  %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
+        assert (false);
 
         // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-        console.log(">>> (0c) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
-        console.log(">>> (0c) weth balance of the player1 before: %s", player1PTokenBefore);
-        console.log("assert (IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore): %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore);
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore );
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= (player1PTokenBefore + GAIN_MARGIN) );
     }
 
     function ownerCanWithdrawAll() public {

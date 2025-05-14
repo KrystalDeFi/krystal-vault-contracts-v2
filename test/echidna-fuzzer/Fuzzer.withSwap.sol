@@ -184,7 +184,6 @@ contract VaultFuzzerWithSwap {
     }
 
     function deposit_and_withdraw_only(uint256 amount) public {
-
         uint256 GAIN_MARGIN = 0.002 ether;
 
         uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
@@ -274,16 +273,19 @@ contract VaultFuzzerWithSwap {
         assert(pTokenPlayer2After > pTokenPlayer2Before);
     }
 
+
+    // function testDepositAndWithdrawOnly() public {                
+    //     bighandplayer_doSwap(true,585664197765691276451);
+    //     owner_doDepositPrincipalToken(63787088001659878);
+    //     owner_doAllocate(55706491220017704);
+    //     bighandplayer_doSwap(false,85138858533936051110675);
+    //     deposit_and_withdraw_only(4);
+    // }
+
 }
 
 /*
-    // function testDepositAndWithdrawOnly() public {                
-    //     // bighandplayer_doSwap(true,585664197765691276451);
-    //     owner_doDepositPrincipalToken(63787088001659878);
-    //     owner_doAllocate(55706491220017704);
-    //     // bighandplayer_doSwap(false,85138858533936051110675);
-    //     deposit_and_withdraw_only(6);
-    // }    
+        
 
     // function test_scenario() public {
 
