@@ -109,7 +109,7 @@ contract InventoryLibTest is Test {
         assertFalse(inventory.contains(TOKEN1, TOKEN_ID1));
     }
 
-    function test_GetAsset() public {
+    function test_GetAsset() public view {
         AssetLib.Asset memory asset = inventory.getAsset(TOKEN1, TOKEN_ID1);
         
         assertEq(asset.amount, 100);
@@ -121,7 +121,7 @@ contract InventoryLibTest is Test {
         inventory.getAsset(address(0x999), 999);
     }
 
-    function test_Contains() public {
+    function test_Contains() public view {
         assertTrue(inventory.contains(TOKEN1, TOKEN_ID1));
         assertFalse(inventory.contains(address(0x999), 999));
     }
