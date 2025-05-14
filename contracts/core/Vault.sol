@@ -280,7 +280,12 @@ contract Vault is
       );
     }
 
-    _cleanAssets();
+    if (totalSupply() == 0) {
+      length = inventory.assets.length;
+      for (; length > 0; length--) {
+        inventory.removeAsset(0);
+      }
+    }
 
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
@@ -601,20 +606,6 @@ contract Vault is
       assembly {
         let returnDataSize := mload(returnData)
         revert(add(32, returnData), returnDataSize)
-      }
-    }
-  }
-
-  function _cleanAssets() internal {
-    uint256 length = inventory.assets.length;
-    for (uint256 i; i < length;) {
-      if (inventory.assets[i].amount == 0) {
-        inventory.removeAsset(i);
-        length--;
-      } else {
-        unchecked {
-          i++;
-        }
       }
     }
   }
