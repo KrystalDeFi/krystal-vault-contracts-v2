@@ -13,7 +13,7 @@ import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LpValidator is ILpValidator, Ownable {
+contract LpValidator is Ownable, ILpValidator {
   IConfigManager public configManager;
   mapping(address => bool) public whitelistNfpms;
 
