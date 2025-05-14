@@ -190,8 +190,8 @@ contract VaultFuzzer is TestCommon {
         uint256 player1PTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
-        emit LogUint256("player1PTokenBefore: %s", player1PTokenBefore);
-        emit LogUint256("player1PTokenAfter:  %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
+        // emitLogUint256("player1PTokenBefore: %s", player1PTokenBefore);
+        // emitLogUint256("player1PTokenAfter:  %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
         assert (false);
 
         // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw

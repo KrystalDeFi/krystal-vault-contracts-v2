@@ -19,7 +19,7 @@ testMode: "assertion"
 
 # Directory to save corpus
 # Default: null
-corpusDir: ".corpus"
+# corpusDir: ".corpus"
 
 # Number of test sequences to run
 # Default: 50000
