@@ -98,15 +98,15 @@ async function deployContracts(existingContract: Record<string, any> | undefined
     merklStrategy: merklStrategy.merklStrategy,
   });
 
-  if (vaultFactory?.vaultFactory && configManager?.configManager) {
-    await vaultFactory.vaultFactory.initialize(
+  if (networkConfig.vaultFactory.enabled && networkConfig.configManager?.enabled) {
+    await vaultFactory?.vaultFactory?.initialize(
       commonConfig.admin,
       networkConfig.wrapToken || "",
       existingContract?.["configManager"] || contracts?.configManager?.target,
       existingContract?.["vault"] || contracts?.vault?.target,
     );
 
-    await configManager.configManager.initialize(
+    await configManager?.configManager?.initialize(
       commonConfig.admin,
       [
         existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
@@ -311,8 +311,12 @@ export const deployLpValidatorContract = async (
       existingContract?.["lpValidator"],
       "contracts/strategies/lpUniV3/LpValidator.sol:LpValidator",
       undefined,
-      ["address"],
-      [existingContract?.["configManager"] || contracts?.configManager?.target],
+      ["address", "address", "address[]"],
+      [
+        commonConfig.admin,
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+        networkConfig.nfpmAddresses,
+      ],
     )) as LpValidator;
   }
   return {

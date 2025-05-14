@@ -84,5 +84,10 @@ export const BscConfig: Record<string, IConfig> = {
       4, // XSOLVBTC
     ],
     swapRouters: ["0x051DC16b2ECB366984d1074dCC07c342a9463999"],
+    nfpmAddresses: [
+      "0x7b8A01B39D58278b5DE7e48c8449c9f4F5170613",
+      "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+      "0xF70c086618dcf2b1A461311275e00D6B722ef914",
+    ],
   },
 };
