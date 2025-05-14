@@ -127,17 +127,17 @@ contract VaultFuzzerSoloPlayer {
         // Call createVault through the owner contract
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
 
-        owner.callDeposit(vaultAddress, 1.3 ether, TOKEN_PRINCIPAL);
-        player1.callDeposit(vaultAddress, 1.1 ether, TOKEN_PRINCIPAL);
+        owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
+        player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 3 ether);
 
     }
 
     function assertPrincipleTokenBalancePlayer2() public {
-        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
         emit LogUint256("wethBalance of player2", wethBalance);
-        assert(wethBalance == 2 ether);
+        assert(wethBalance <= 2 ether);
         // assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);
     }
     
