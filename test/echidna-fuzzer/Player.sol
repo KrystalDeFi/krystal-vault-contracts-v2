@@ -51,7 +51,7 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address configManagerAddress, address strategyAddress) public {
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address strategyAddress) public {
             
         IVault vault = IVault(payable(vaultAddress));        
         

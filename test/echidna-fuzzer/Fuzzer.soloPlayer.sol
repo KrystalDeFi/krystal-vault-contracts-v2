@@ -129,7 +129,7 @@ contract VaultFuzzerSoloPlayer {
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));
+        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 3 ether);
 
     }
@@ -151,9 +151,19 @@ contract VaultFuzzerSoloPlayer {
     function player2_doDepositPrincipalToken(uint256 amount) public {
         player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
+
+    function player2_doDepositAnotherToken(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
+    }
+
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
+
+    function player2_doAllocate(uint256 amount) public {
+        player2.callAllocate(vaultAddress, amount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+    }
+
     function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
         player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
     }
