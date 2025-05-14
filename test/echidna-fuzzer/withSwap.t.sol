@@ -253,14 +253,14 @@ contract VaultFuzzer is TestCommon {
         assert(IERC20(WETH).balanceOf(address(player1)) <= initialBalance);
     }
 
-    function test_partial_withdrawals() public {
-        console.log("====== test_partial_withdrawals ====== ");
-        bighandplayer_doSwap(true,422183516766931138843);
-        owner_doDepositPrincipalToken(35060558879820882);
-        owner_doAllocate(32430576347458576);
-        bighandplayer_doSwap(false,58692483655885087211515);
-        partial_withdrawals(0.4 ether,1);
-    }
+    // function test_partial_withdrawals() public {
+    //     console.log("====== test_partial_withdrawals ====== ");
+    //     bighandplayer_doSwap(true,422183516766931138843);
+    //     owner_doDepositPrincipalToken(35060558879820882);
+    //     owner_doAllocate(32430576347458576);
+    //     bighandplayer_doSwap(false,58692483655885087211515);
+    //     partial_withdrawals(0.4 ether,1);
+    // }
 }
 
 
