@@ -70,7 +70,8 @@ contract VaultTest is TestCommon {
     );
     address[] memory whitelistNfpms = new address[](1);
     whitelistNfpms[0] = address(NFPM);
-    LpValidator validator = new LpValidator(address(this), address(configManager), whitelistNfpms);
+    LpValidator validator = new LpValidator();
+    validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
@@ -404,7 +405,8 @@ contract VaultTest is TestCommon {
     address[] memory whitelistNfpms = new address[](1);
     whitelistNfpms[0] = address(NFPM);
 
-    LpValidator validator = new LpValidator(address(this), address(configManager), whitelistNfpms);
+    LpValidator validator = new LpValidator();
+    validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     LpStrategy newLpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 

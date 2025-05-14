@@ -14,10 +14,10 @@ contract IConfigManager configManager
 mapping(address => bool) whitelistNfpms
 ```
 
-### constructor
+### initialize
 
 ```solidity
-constructor(address _owner, address _configManager, address[] _whitelistNfpms) public
+function initialize(address _owner, address _configManager, address[] _whitelistNfpms) public
 ```
 
 ### validateNfpm

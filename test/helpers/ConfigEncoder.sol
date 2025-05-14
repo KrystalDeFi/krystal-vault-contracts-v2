@@ -18,17 +18,36 @@ contract IntegrationTest is TestCommon {
 
     nativeConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 0, tickWidthTypedMin: 0 });
     // ~10% and 0.02% wide
-    nativeConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 2 });
+    nativeConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 0 });
     // ~50% and 1% wide
-    nativeConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 100 });
+    nativeConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 0 });
 
     nativeConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
-    nativeConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 5 ether });
-    nativeConfig.tvlConfigs[2] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 50 ether });
-    nativeConfig.tvlConfigs[3] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 500 ether });
+    nativeConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 4 ether });
+    nativeConfig.tvlConfigs[2] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 40 ether });
+    nativeConfig.tvlConfigs[3] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 400 ether });
 
     console.log("==== nativeConfig ====");
     console.logBytes(abi.encode(nativeConfig));
+
+    ILpValidator.LpStrategyConfig memory btcConfig = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](3),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](4)
+    });
+
+    btcConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 0, tickWidthTypedMin: 0 });
+    // ~10% and 0.02% wide
+    btcConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 0 });
+    // ~50% and 1% wide
+    btcConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 0 });
+
+    btcConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
+    btcConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 * 10 ** 8 });
+    btcConfig.tvlConfigs[2] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 1 * 10 ** 8 });
+    btcConfig.tvlConfigs[3] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 10 * 10 ** 8 });
+
+    console.log("==== btcConfig ====");
+    console.logBytes(abi.encode(btcConfig));
 
     ILpValidator.LpStrategyConfig memory stableConfigWith6Decimals = ILpValidator.LpStrategyConfig({
       rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](3),
@@ -39,10 +58,10 @@ contract IntegrationTest is TestCommon {
       ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 0, tickWidthTypedMin: 0 });
     // ~10% and 0.02% wide
     stableConfigWith6Decimals.rangeConfigs[1] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 2 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 0 });
     // ~50% and 1% wide
     stableConfigWith6Decimals.rangeConfigs[2] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 100 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 0 });
 
     stableConfigWith6Decimals.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
     stableConfigWith6Decimals.tvlConfigs[1] =
@@ -64,10 +83,10 @@ contract IntegrationTest is TestCommon {
       ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 0, tickWidthTypedMin: 0 });
     // ~10% and 0.02% wide
     stableConfigWith18Decimals.rangeConfigs[1] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 2 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 0 });
     // ~50% and 1% wide
     stableConfigWith18Decimals.rangeConfigs[2] =
-      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 100 });
+      ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 0 });
 
     stableConfigWith18Decimals.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
     stableConfigWith18Decimals.tvlConfigs[1] =

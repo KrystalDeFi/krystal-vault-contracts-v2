@@ -971,7 +971,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       0xEa2459145c82fc7707FD53BA0ed754f99F186702,
       0x8e6d632C56dCBbf0D00a5821e8F32A77F190ab00,
       0x1b7c5534190F74782D04142e3A27ECA05563498a,
-      0x038394D8fBBf56CB27028a6C595afc347450627F // from unit test
+      0x8D4889840a8f8A79E1Bcef8BB385F6327EAee1f6 // from unit test
     ];
     uint256 length = oldStrategies.length;
     for (uint256 i = 0; i < length; i++) {
