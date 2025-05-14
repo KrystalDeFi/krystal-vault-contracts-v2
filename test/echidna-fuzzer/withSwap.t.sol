@@ -171,7 +171,7 @@ contract VaultFuzzer is TestCommon {
         
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
-        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));        
+        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));        
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         assert(vaultAssets.length >= 2);
     }

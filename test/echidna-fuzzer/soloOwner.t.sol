@@ -126,34 +126,12 @@ contract FoundryTestSoloPlayer is TestCommon {
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 3 ether);
+        player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
+        owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
 
-        console.log("Finished setup!");
-
-    }
-
-    function assertPrincipleTokenBalancePlayer2() public view {
-        uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
-        assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);
-    }
-    
-    function owner_doWithdraw(uint256 shares) public {
-        owner.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player1_doWithdraw(uint256 shares) public {
-        player1.callWithdraw(vaultAddress, shares, 0);
-    }
-    function player2_doDepositPrincipalToken(uint256 amount) public {
-        player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
-    }
-    function player2_doWithdraw(uint256 shares) public {
-        player2.callWithdraw(vaultAddress, shares, 0);
-    }
-    function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
-    }
 
     function test_printTheState() public {
         console.log("vaultAddress: %s", vaultAddress);

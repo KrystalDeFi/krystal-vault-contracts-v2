@@ -1,23 +1,19 @@
-// This is a test file to develop the VaultFuzzer contract
+/*
+
+    In this fuzzer, the owner initializes the vault and the player1 & player 2 deposits. The bighand player swapped with an amount.
+    Later, the owner is trying to take almost all the balance of the vault.
+*/
 
 pragma solidity ^0.8.0;
 
-import "forge-std/console.sol";
-import { Test } from "forge-std/Test.sol";
-
 import "./Player.sol";
-import "./Config.sol";
+import "./IHevm.sol";
 import "../../contracts/core/VaultFactory.sol";
 import "../../contracts/core/Vault.sol";
 import "../../contracts/core/ConfigManager.sol";
-import "../../contracts/interfaces/ICommon.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import { TestCommon } from "../TestCommon.t.sol";
+
+import "./Config.sol";
+import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 
 address constant TOKEN_PRINCIPAL = WETH;
 address constant TOKEN_ANOTHER = VIRTUAL;
@@ -25,33 +21,40 @@ uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
 
-contract FoundryTestSoloPlayer is TestCommon {
+contract VaultFuzzerSoloOwner {
+    
+    event LogUint256(string, uint256);
+    event LogAddress(string, address);
+    event LogString(string);    
+
     Player public owner;
     Player public player1;
     Player public player2;
     Player public bighandplayer;
+    
     VaultFactory public vaultFactory;
     address public vaultAddress;
-    
     address public configManagerAddress;
-    
     LpStrategy public lpStrategy;
+    
+    IHevm hevm = IHevm(HEVM_ADDRESS);
 
-    function setUp() public {
+    constructor() payable {
         owner = new Player();                
         player1 = new Player();        
         player2 = new Player();
         bighandplayer = new Player();
-        
-        uint256 fork = vm.createFork(vm.envString("ECHIDNA_RPC_URL"), BLOCK_NUMBER);
-        vm.selectFork(fork);
+        hevm.roll(BLOCK_NUMBER);
+        hevm.warp(BLOCK_TIMESTAMP);
 
-        console.log("block.timestamp: %s", block.timestamp);
+        hevm.startPrank(BANK_ADDRESS);
+                
+        IERC20(TOKEN_PRINCIPAL).transfer(address(owner), PLAYER_INITIAL_PTOKEN_BALANCE);   // decimal of TOKEN_PRINCIPAL is 18
+        IERC20(TOKEN_PRINCIPAL).transfer(address(player1), PLAYER_INITIAL_PTOKEN_BALANCE);   // decimal of TOKEN_PRINCIPAL is 18        
+        IERC20(TOKEN_PRINCIPAL).transfer(address(player2), PLAYER_INITIAL_PTOKEN_BALANCE);   // decimal of TOKEN_PRINCIPAL is 18
+        IERC20(TOKEN_PRINCIPAL).transfer(address(bighandplayer), 1_000 ether);
 
-        setErc20Balance(TOKEN_PRINCIPAL, address(owner), PLAYER_INITIAL_PTOKEN_BALANCE);
-        setErc20Balance(TOKEN_PRINCIPAL, address(player1), PLAYER_INITIAL_PTOKEN_BALANCE);
-        setErc20Balance(TOKEN_PRINCIPAL, address(player2), PLAYER_INITIAL_PTOKEN_BALANCE);
-        setErc20Balance(TOKEN_PRINCIPAL, address(bighandplayer), 1_000 ether);
+        hevm.stopPrank();
 
         address[] memory whitelistAutomator = new address[](1);
         whitelistAutomator[0] = address(player1);
@@ -126,16 +129,16 @@ contract FoundryTestSoloPlayer is TestCommon {
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 3 ether);
-
-        console.log("Finished setup!");
+        player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
+        owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
 
     }
 
-    function assertPrincipleTokenBalancePlayer2() public view {
+    function assertPrincipleTokenBalanceOwner() public {
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
-        assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);
+        emit LogUint256("wethBalance of owner", wethBalance);
+        assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);        
     }
     
     function owner_doWithdraw(uint256 shares) public {
@@ -145,37 +148,27 @@ contract FoundryTestSoloPlayer is TestCommon {
     function player1_doWithdraw(uint256 shares) public {
         player1.callWithdraw(vaultAddress, shares, 0);
     }
-    function player2_doDepositPrincipalToken(uint256 amount) public {
-        player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
-    }
-    function player2_doWithdraw(uint256 shares) public {
-        player2.callWithdraw(vaultAddress, shares, 0);
-    }
-    function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+
+    function owner_doDepositPrincipalToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
-    function test_printTheState() public {
-        console.log("vaultAddress: %s", vaultAddress);
-        console.log("owner balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
-        console.log("player1 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
-        console.log("player2 balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2)));
-        console.log("bighandplayer balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(bighandplayer)));
-        console.log("player1 shares: %s", IERC20(vaultAddress).balanceOf(address(player1)));
-        console.log("player2 shares: %s", IERC20(vaultAddress).balanceOf(address(player2)));
-        console.log("bighandplayer shares: %s", IERC20(vaultAddress).balanceOf(address(bighandplayer)));
-        
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
-        for (uint256 i = 0; i < vaultAssets.length; i++) {
-            console.log("vaultAssets[%s] token: %s", i, vaultAssets[i].token);
-            console.log("vaultAssets[%s] tokenId: %s", i, vaultAssets[i].tokenId);
-            console.log("vaultAssets[%s] amount: %s", i, vaultAssets[i].amount);
-        }
+    function owner_doDepositAnotherToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
+    }    
 
-        
-        
+    function owner_doAllocate(uint256 amount) public {
+        owner.callAllocate(vaultAddress, amount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
     }
+
+    function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    }
+
+    // TODO
+    // * owner reallocates
+    // * owner reconfigs
+    // * owner harvest
+
 
 }
-
-

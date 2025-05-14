@@ -136,9 +136,8 @@ contract VaultFuzzerSoloPlayer {
 
     function assertPrincipleTokenBalancePlayer2() public {
         uint256 wethBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player2));
-        emit LogUint256("wethBalance of player2", wethBalance);
-        assert(wethBalance <= 2 ether);
-        // assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);
+        emit LogUint256("wethBalance of player2", wethBalance); 
+        assert(wethBalance <= PLAYER_INITIAL_PTOKEN_BALANCE);
     }
     
     function owner_doWithdraw(uint256 shares) public {
