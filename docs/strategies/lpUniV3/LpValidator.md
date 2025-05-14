@@ -17,7 +17,7 @@ mapping(address => bool) whitelistNfpms
 ### constructor
 
 ```solidity
-constructor(address _configManager, address[] _whitelistNfpms) public
+constructor(address _owner, address _configManager, address[] _whitelistNfpms) public
 ```
 
 ### validateNfpm
