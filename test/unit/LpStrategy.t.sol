@@ -73,7 +73,7 @@ contract LpStrategyTest is TestCommon {
     address[] memory whitelistNfpms = new address[](1);
     whitelistNfpms[0] = address(NFPM);
 
-    validator = new LpValidator(address(configManager), whitelistNfpms);
+    validator = new LpValidator(USER, address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     vaultConfig = ICommon.VaultConfig({

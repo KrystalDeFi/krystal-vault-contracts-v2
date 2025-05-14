@@ -17,7 +17,7 @@ contract LpValidator is ILpValidator, Ownable {
   IConfigManager public configManager;
   mapping(address => bool) public whitelistNfpms;
 
-  constructor(address _configManager, address[] memory _whitelistNfpms) Ownable(msg.sender) {
+  constructor(address _owner, address _configManager, address[] memory _whitelistNfpms) Ownable(_owner) {
     require(_configManager != address(0), ZeroAddress());
 
     configManager = IConfigManager(_configManager);

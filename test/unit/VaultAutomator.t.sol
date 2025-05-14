@@ -78,7 +78,7 @@ contract VaultAutomatorTest is TestCommon {
     address[] memory whitelistNfpms = new address[](1);
     whitelistNfpms[0] = address(NFPM);
 
-    LpValidator validator = new LpValidator(address(configManager), whitelistNfpms);
+    LpValidator validator = new LpValidator(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
