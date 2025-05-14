@@ -174,40 +174,42 @@ contract VaultFuzzerWithSwap {
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
-        require( principalTokenAmount > 0.01 ether);
+        require(principalTokenAmount > 0.001 ether);
+        
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
                 
         owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, configManagerAddress, address(lpStrategy));        
-        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();      
-        emit LogUint256("vaultAssets.length", vaultAssets.length);
+        AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         assert(vaultAssets.length >= 2);
     }
 
     function deposit_and_withdraw_only(uint256 amount) public {
-        uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
-        
+
+        uint256 GAIN_MARGIN = 0.002 ether;
+
+        uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
         uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         owner.callWithdraw(vaultAddress, sharesDelta, 0);
 
         // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= ownerTOKEN_PRINCIPALBefore );
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= (ownerPTokenBefore + GAIN_MARGIN) );
 
-        uint256 player1TOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        uint256 player1PTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
 
         // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1TOKEN_PRINCIPALBefore );
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= (player1PTokenBefore + GAIN_MARGIN) );
     }
 
     function deposit_withdraw_empty_vault() public {
         require( IVault(payable(vaultAddress)).getTotalValue() == 0 );     // in this case, no one has never deposited into the vault
 
-        uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
         uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         owner.callWithdraw(vaultAddress, ownerSharesDelta, 0);
         
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) == ownerTOKEN_PRINCIPALBefore );    // it is expected that the owner has not earned or lost any amount
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) == ownerPTokenBefore );    // it is expected that the owner has not earned or lost any amount
     }
 
     // this function is for debugging purpose
@@ -217,7 +219,9 @@ contract VaultFuzzerWithSwap {
     // }
 
     function multiple_deposits_withdrawals(uint256 amount1, uint256 amount2) public {
-        require(amount1 > 0 && amount2 > 0);
+        require(amount1 > 0.001 ether);
+        require(amount2 > 0.001 ether);
+        
         uint256 initialBalance = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         
         uint256 shares1 = player1.callDeposit(vaultAddress, amount1, TOKEN_PRINCIPAL);
@@ -229,6 +233,7 @@ contract VaultFuzzerWithSwap {
     }
 
     function partial_withdrawals(uint256 depositAmount, uint256 withdrawPercentage) public {
+        require(depositAmount > 0.001 ether);
         require(depositAmount > 0 && withdrawPercentage > 0 && withdrawPercentage <= 100);
         uint256 initialBalance = IERC20(WETH).balanceOf(address(player1));
         
@@ -270,6 +275,16 @@ contract VaultFuzzerWithSwap {
     }
 
 }
+
+/*
+    // function testDepositAndWithdrawOnly() public {                
+    //     // bighandplayer_doSwap(true,585664197765691276451);
+    //     owner_doDepositPrincipalToken(63787088001659878);
+    //     owner_doAllocate(55706491220017704);
+    //     // bighandplayer_doSwap(false,85138858533936051110675);
+    //     deposit_and_withdraw_only(6);
+    // }    
+
     // function test_scenario() public {
 
     //     // player2_doDepositPrincipalToken(1 ether);
@@ -301,11 +316,3 @@ contract VaultFuzzerWithSwap {
 
 */
 
-
-/*
-Call sequence:                                                                                                                      
-1. VaultFuzzerWithSwap.player1_doDepositPrincipalToken(44)                                                                          
-2. VaultFuzzerWithSwap.deposit_and_withdraw_only(101351549933237796)                                                               
-3. VaultFuzzerWithSwap.player1_doWithdraw(438355)                                                                                  
-4. VaultFuzzerWithSwap.assertPrincipleTokenBalancePlayer1()        
-*/

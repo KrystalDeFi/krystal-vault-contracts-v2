@@ -131,32 +131,39 @@ contract VaultFuzzer is TestCommon {
 
     }
 
-    function owner_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+    function owner_doDepositPrincipalToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function owner_doWithdraw(uint256 shares) public {
         owner.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player1_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+    function player1_doDepositPrincipalToken(uint256 amount) public {
+        player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function player1_doWithdraw(uint256 shares) public {
         player1.callWithdraw(vaultAddress, shares, 0);
     }
 
-    function player2_doDepositPrincipalToken(uint256 amount) public returns (uint256) {
-        return player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+    function player1_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    }
+
+    function player2_doDepositPrincipalToken(uint256 amount) public {
+        player2.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
     }
 
     function player2_doWithdraw(uint256 shares) public {
         player2.callWithdraw(vaultAddress, shares, 0);
-    }    
+    }
+    function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    }
 
-    function always_true(uint256 a) public pure {
-        assert( true );
+    function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
@@ -177,39 +184,98 @@ contract VaultFuzzer is TestCommon {
     }    
 
     function deposit_and_withdraw_only(uint256 amount) public {
-        uint256 ownerTOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
+        uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));        
         
         uint256 sharesDelta = owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         owner.callWithdraw(vaultAddress, sharesDelta, 0);
 
-        console.log(">>> (0c) weth balance of the owner: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+        console.log("owner TOKEN_PRINCIPAL (before)", ownerPTokenBefore);
+        console.log("owner Token principle  (after)", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+
 
         // it is expected than the owner cant earn more than the initial amount after the deposit and withdraw
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= ownerTOKEN_PRINCIPALBefore );
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)) <= ownerPTokenBefore );
 
-        uint256 player1TOKEN_PRINCIPALBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
+        uint256 player1PTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1));
         uint256 player1SharesDelta = player1.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
         player1.callWithdraw(vaultAddress, player1SharesDelta, 0);
 
         // it is expected than the player1 cant earn more than the initial amount after the deposit and withdraw
-        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1TOKEN_PRINCIPALBefore );
+        console.log(">>> (0c) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
+        console.log(">>> (0c) weth balance of the player1 before: %s", player1PTokenBefore);
+        console.log("assert (IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore): %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore);
+        assert( IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)) <= player1PTokenBefore );
+    }
+
+    function ownerCanWithdrawAll() public {
+        require(IERC20(vaultAddress).balanceOf(address(owner)) > 10 * 10_000, "Owner has (almost) no shares");
+        uint256 pTokenOwnerBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        try owner.callWithdraw(vaultAddress, IERC20(vaultAddress).balanceOf(address(owner)), 0) {} catch {
+            console.log("There is an error when owner tries to withdraw all shares");
+        }
+        uint256 pTokenOwnerAfter = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
+        assert(pTokenOwnerAfter > pTokenOwnerBefore);
     }
     
-    function test_scenario() public {
-
-        console.log(">>> (0a) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
-
-        player1_doDepositPrincipalToken(44);
-        console.log(">>> (1) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
-
-        deposit_and_withdraw_only(1013515499332377960);
-        console.log(">>> (2) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
-
-        player1_doWithdraw(438355);
-        console.log(">>> (3) player1 balance in the vault: %s", IERC20(vaultAddress).balanceOf(address(player1)));
-
-        console.log(">>> (0b) weth balance of the player1: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(player1)));
-    }
+    // function test_scenario2() public {
+    //     console.log("====== test_scenario2 ====== ");
+    //     bighandplayer_doSwap(true,710606880296704306061);
+        
+    //     bighandplayer_doSwap(false,10342869919687000738);
+        
+    //     owner_doDepositPrincipalToken(15769645103185095);
+        
+    //     owner_doAllocate(10139439508981706);
+        
+    //     bighandplayer_doSwap(false,193656859050591733150862);
+        
+    //     console.log("pToken balance of the owner: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+    //     console.log("owner is doing the withdrawAll");
+    //     ownerCanWithdrawAll();
+    //     console.log("pToken balance of the owner: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+    // }
     
+    // function test_DepositAndWithdrawOnly() public {
+    //     console.log("====== testDepositAndWithdrawOnly ====== ");
+    //     bighandplayer_doSwap(true,585664197765691276451);
+    //     owner_doDepositPrincipalToken(63787088001659878);
+    //     owner_doAllocate(55706491220017704);
+    //     bighandplayer_doSwap(false,85138858533936051110675);
+    //     deposit_and_withdraw_only(6000000000000000);
+    // }
 
+    function partial_withdrawals(uint256 depositAmount, uint256 withdrawPercentage) public {
+        require(depositAmount > 0 && withdrawPercentage > 0 && withdrawPercentage <= 100);
+        uint256 initialBalance = IERC20(WETH).balanceOf(address(player1));
+        console.log("p1 initialBalance: %s", initialBalance);
+
+        uint256 shares = player1.callDeposit(vaultAddress, depositAmount, WETH);
+        uint256 partialShares = (shares * withdrawPercentage) / 100;
+        console.log("p1 shares: %s", shares);
+        console.log("p1 partialShares: %s", partialShares);
+        player1.callWithdraw(vaultAddress, partialShares, 0);        
+        console.log("IERC20(WETH).balanceOf(address(player1)): %s", IERC20(WETH).balanceOf(address(player1)));
+        player1.callWithdraw(vaultAddress, partialShares, 0);        
+        console.log("IERC20(WETH).balanceOf(address(player1)): %s", IERC20(WETH).balanceOf(address(player1)));
+        player1.callWithdraw(vaultAddress, partialShares, 0);        
+        console.log("IERC20(WETH).balanceOf(address(player1)): %s", IERC20(WETH).balanceOf(address(player1)));
+        assert(IERC20(WETH).balanceOf(address(player1)) <= initialBalance);
+    }
+
+    function test_partial_withdrawals() public {
+        console.log("====== test_partial_withdrawals ====== ");
+        bighandplayer_doSwap(true,422183516766931138843);
+        owner_doDepositPrincipalToken(35060558879820882);
+        owner_doAllocate(32430576347458576);
+        bighandplayer_doSwap(false,58692483655885087211515);
+        partial_withdrawals(0.4 ether,1);
+    }
 }
+
+
+// Call sequence, shrinking 527/5000:
+//     VaultFuzzerWithSwap.bighandplayer_doSwap(true,422183516766931138843)
+//     VaultFuzzerWithSwap.owner_doDepositPrincipalToken(35060558879820882)
+//     VaultFuzzerWithSwap.owner_doAllocate(32430576347458576)
+//     VaultFuzzerWithSwap.bighandplayer_doSwap(false,58692483655885087211515)
+//     VaultFuzzerWithSwap.partial_withdrawals(4,1)
