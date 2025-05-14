@@ -155,3 +155,4 @@ abi/contracts/echidna-fuzzer/
 broadcast/
 .corpus/
 .DS_Store
+*.tmp
