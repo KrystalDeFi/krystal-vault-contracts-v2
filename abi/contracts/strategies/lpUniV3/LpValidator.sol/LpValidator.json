@@ -3,8 +3,18 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_configManager",
         "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistNfpms",
+        "type": "address[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -23,6 +33,11 @@
   {
     "inputs": [],
     "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNfpm",
     "type": "error"
   },
   {
@@ -76,6 +91,28 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "PriceSanityCheckFailed",
     "type": "error"
@@ -96,6 +133,25 @@
     "type": "error"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "configManager",
     "outputs": [
@@ -106,6 +162,57 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_whitelistNfpms",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWhitelist",
+        "type": "bool"
+      }
+    ],
+    "name": "setWhitelistNfpms",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -174,6 +281,19 @@
       }
     ],
     "name": "validateConfig",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "validateNfpm",
     "outputs": [],
     "stateMutability": "view",
     "type": "function"
@@ -276,6 +396,25 @@
     ],
     "name": "validateTickWidth",
     "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "whitelistNfpms",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
     "stateMutability": "view",
     "type": "function"
   }

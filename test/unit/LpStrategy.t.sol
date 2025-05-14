@@ -30,6 +30,7 @@ contract LpStrategyTest is TestCommon {
   ICommon.VaultConfig public vaultConfig;
   ICommon.FeeConfig public feeConfig;
   PoolOptimalSwapper public swapper;
+  LpValidator public validator;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
@@ -69,7 +70,10 @@ contract LpStrategyTest is TestCommon {
       new address[](0),
       new bytes[](0)
     );
-    LpValidator validator = new LpValidator(address(configManager));
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
+
+    validator = new LpValidator(USER, address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     vaultConfig = ICommon.VaultConfig({
@@ -594,5 +598,43 @@ contract LpStrategyTest is TestCommon {
         publicFeeConfig
       );
     }
+  }
+
+  function test_LpStrategyWhitelistNfpm() public {
+    console.log("==== test_LpStrategyWhitelistNfpm ====");
+    console.log("===== remove NFPM from whitelist =====");
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(NFPM);
+    validator.setWhitelistNfpms(nfpms, false);
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
+      strategy: address(0),
+      token: WETH,
+      tokenId: 0,
+      amount: 2 ether
+    });
+
+    console.log("==== swapAndMintPosition ====");
+    ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_220,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(mintParams)
+    });
+    transferAssets(assets, address(lpStrategy));
+    vaultConfig.allowDeposit = true;
+    vm.expectRevert(ILpValidator.InvalidNfpm.selector);
+    lpStrategy.convert(assets, vaultConfig, feeConfig, abi.encode(instruction));
   }
 }

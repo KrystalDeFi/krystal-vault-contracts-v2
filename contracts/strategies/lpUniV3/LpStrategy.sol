@@ -315,6 +315,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(params.token0 < params.token1, InvalidParams());
+    validator.validateNfpm(address(params.nfpm));
 
     AssetLib.Asset memory principalAsset = assets[0];
     require(principalAsset.token == vaultConfig.principalToken, InvalidAsset());
@@ -819,7 +820,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
-
     validator.validateConfig(INFPM(asset.token), fee, token0, token1, tickLower, tickUpper, config);
   }
 

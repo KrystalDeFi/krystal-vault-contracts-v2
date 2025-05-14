@@ -68,7 +68,9 @@ contract VaultTest is TestCommon {
       new address[](0),
       new bytes[](0)
     );
-    LpValidator validator = new LpValidator(address(configManager));
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
+    LpValidator validator = new LpValidator(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
@@ -398,7 +400,11 @@ contract VaultTest is TestCommon {
     vm.roll(blockNumber++);
     console.log("===== deploy new lpStrategy =====");
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    LpValidator validator = new LpValidator(address(configManager));
+
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
+
+    LpValidator validator = new LpValidator(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
     LpStrategy newLpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
 
