@@ -157,8 +157,8 @@ contract VaultFuzzerSoloOwner {
         owner.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
     }    
 
-    function owner_doAllocate(uint256 amount) public {
-        owner.callAllocate(vaultAddress, amount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+    function owner_doAllocate(uint256 amount, address token0, address token1) public {
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy));
     }
 
     function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
