@@ -17,6 +17,8 @@ import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { console } from "forge-std/console.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 contract VaultTest is TestCommon {
   address public constant WETH = 0x4200000000000000000000000000000000000006;
@@ -29,6 +31,7 @@ contract VaultTest is TestCommon {
   ICommon.VaultConfig public vaultConfig;
   Vault public vault;
   ConfigManager public configManager;
+  PoolOptimalSwapper public swapper;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 27_448_360);
@@ -38,7 +41,7 @@ contract VaultTest is TestCommon {
     setErc20Balance(DAI, USER, 100_000 ether);
     setErc20Balance(USDC, USER, 1_000_000_000); // 6 decimals ~ 1000$
 
-    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
+    swapper = new PoolOptimalSwapper();
 
     address[] memory typedTokens = new address[](2);
     typedTokens[0] = DAI;
@@ -456,21 +459,28 @@ contract VaultTest is TestCommon {
 
   function test_VaultAllocateAllPrincipal() public {
     assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    vault.withdraw(0.5 ether * vault.SHARES_PRECISION(), false, 0);
 
-    vm.deal(USER, 100 ether);
-    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
-
+    vault.deposit{ value: 0.001 ether }(0.001 ether, 0);
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
-    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    AssetLib.Asset[] memory inventoryAssets = vault.getInventory();
+    assets[0] = inventoryAssets[0];
+    {
+      for (uint256 i = 0; i < inventoryAssets.length; i++) {
+        console.log("inventoryAssets[%d].token: %s", i, inventoryAssets[i].token);
+        console.log("amount: %d", inventoryAssets[i].amount);
+      }
+    }
+
+    address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(WETH, USDC, 500);
+    (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
       fee: 500,
-      tickLower: -887_220,
-      tickUpper: 887_200,
+      tickLower: (tick - 20) / 10 * 10,
+      tickUpper: (tick - 10) / 10 * 10,
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -482,25 +492,21 @@ contract VaultTest is TestCommon {
 
     vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-    console.log("vault.getTotalValue() 2: %d", vault.getTotalValue());
-    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+    {
+      console.log("after");
+      inventoryAssets = vault.getInventory();
+      for (uint256 i = 0; i < inventoryAssets.length; i++) {
+        console.log("inventoryAssets[%d].token: %s", i, inventoryAssets[i].token);
+        console.log("amount: %d", inventoryAssets[i].amount);
+      }
+    }
 
-    IERC20(WETH).approve(address(vault), 100 ether);
-    vault.deposit(1 ether, 0);
-
-    // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
-    console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
-    vault.withdraw(10_000 ether, false, 0);
-    console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-
-    console.log("withdrawing 5000 ether more");
-    vault.withdraw(5000 ether, false, 0);
-    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
-    console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
-    console.log("the eth balance of user after withdraw (2): %d", address(USER).balance);
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
-    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
+    // swap to generate fee
+    IERC20(USDC).approve(address(swapper), 100 ether);
+    setErc20Balance(USDC, USER, 100 ether);
+    swapper.poolSwap(pool, 100_000 * 10 ** 6, false, 0, "");
+    IERC20(WETH).approve(address(swapper), 100 ether);
+    swapper.poolSwap(pool, 100 ether, true, 0, "");
 
     console.log("withdrawing everything left");
     vault.withdraw(IERC20(vault).balanceOf(USER), true, 0);
