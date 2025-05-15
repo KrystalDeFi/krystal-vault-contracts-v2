@@ -173,9 +173,17 @@ contract VaultFuzzerSoloOwner {
     }
 
     // TODO
-    // * owner reallocates
-    // * owner reconfigs
-    // * owner harvest
+    // [ ] owner reallocates
+    // [ ] owner reconfigs
+    // [ ] owner harvest
 
 
 }
+
+
+//     function assertme() public {
+//         // owner_doAllocate(0.1 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, -80_000, -10_000);
+//         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
+//         emit LogUint256("vaultAssets.length", vaultAssets.length);
+//         assert( vaultAssets.length == 2);
+//     }
