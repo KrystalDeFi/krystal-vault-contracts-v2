@@ -20,6 +20,8 @@ address constant TOKEN_ANOTHER = VIRTUAL;
 uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
+int24 constant TICK_LOWER_CONFIG = -71_000;
+int24 constant TICK_UPPER_CONFIG = -69_000;
 
 contract VaultFuzzerSoloPlayer {
     
@@ -128,8 +130,8 @@ contract VaultFuzzerSoloPlayer {
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);        
+        owner.callAllocate(vaultAddress, 1.2 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 3 ether);
 
     }
@@ -160,7 +162,7 @@ contract VaultFuzzerSoloPlayer {
     }
 
     function player2_doAllocate(uint256 amount) public {
-        player2.callAllocate(vaultAddress, amount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
+        player2.callAllocate(vaultAddress, amount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
     }
 
     function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        

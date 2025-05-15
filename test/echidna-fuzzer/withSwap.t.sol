@@ -23,7 +23,8 @@ address constant TOKEN_PRINCIPAL = WETH;
 address constant TOKEN_ANOTHER = VIRTUAL;
 uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
-
+int24 constant TICK_LOWER_CONFIG = -71_000;
+int24 constant TICK_UPPER_CONFIG = -69_000;
 
 contract VaultFuzzer is TestCommon {
     Player public owner;
@@ -170,8 +171,7 @@ contract VaultFuzzer is TestCommon {
         require(principalTokenAmount > 0.001 ether);
         
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
-                
-        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));        
+        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         assert(vaultAssets.length >= 2);
     }

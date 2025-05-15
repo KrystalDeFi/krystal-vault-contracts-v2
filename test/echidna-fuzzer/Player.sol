@@ -24,9 +24,7 @@ contract Player {
 
     // this config is for the WETH/VIRTUAL pool on ETH mainnet https://etherscan.io/address/0x95a45a87dd4d3a1803039072f37e075f37b23d75#readContract
     uint24 public fee = 10000;
-    int24 public tickLower = -71_000;
-    int24 public tickUpper = -69_000;
-
+    
     constructor() payable {
     }
 
@@ -51,8 +49,7 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address strategyAddress) public {
-            
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address strategyAddress, int24 tickLower, int24 tickUpper) public {
         IVault vault = IVault(payable(vaultAddress));        
         
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);

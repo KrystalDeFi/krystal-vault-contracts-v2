@@ -20,6 +20,8 @@ address constant TOKEN_ANOTHER = VIRTUAL;
 uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
+int24 constant TICK_LOWER_CONFIG = -71_000;
+int24 constant TICK_UPPER_CONFIG = -69_000;
 
 contract VaultFuzzerSoloOwner {
     
@@ -130,7 +132,7 @@ contract VaultFuzzerSoloOwner {
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
-        owner_doAllocate(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
+        owner_doAllocateFixedTickRange(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
 
@@ -158,14 +160,12 @@ contract VaultFuzzerSoloOwner {
         owner.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
     }    
 
-    function owner_doAllocate(uint256 amount, address token0, address token1, uint256 tickLower, uint256 tickUpper) public {
+    function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
         owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {
-        int24 tickLower = -71_000;
-        int24 tickUpper = -69_000;
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
     }
 
     function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        

@@ -24,6 +24,9 @@ address constant TOKEN_ANOTHER = VIRTUAL;
 uint256 constant BLOCK_NUMBER = 22365182;
 uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
+int24 constant TICK_LOWER_CONFIG = -71_000;
+int24 constant TICK_UPPER_CONFIG = -69_000;
+
 
 contract FoundryTestSoloOwner is TestCommon {
     Player public owner;
@@ -127,17 +130,20 @@ contract FoundryTestSoloOwner is TestCommon {
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);        
-        owner_doAllocate(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
+        owner_doAllocateFixedTickRange(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
         console.log("swapping done");
 
     }
 
-    function owner_doAllocate(uint256 amount, address token0, address token1) public {
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy));
+    function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
     }
 
+    function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {        
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
+    }
 
     function test_printTheState() public {
         console.log("vaultAddress: %s", vaultAddress);
