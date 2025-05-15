@@ -507,14 +507,6 @@ contract Vault is
     }
   }
 
-  /// @dev Transfers the asset to the recipient
-  /// @param asset AssetLib.Asset to transfer
-  /// @param to Recipient of the asset
-  function _transferAsset(AssetLib.Asset memory asset, address to) internal {
-    inventory.removeAsset(asset);
-    IERC20(asset.token).safeTransfer(to, asset.amount);
-  }
-
   /// @notice Returns the vault's inventory
   /// @return assets Array of assets in the vault
   function getInventory() external view returns (AssetLib.Asset[] memory assets) {
