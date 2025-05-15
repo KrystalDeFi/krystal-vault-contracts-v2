@@ -173,9 +173,10 @@ contract VaultFuzzerSoloOwner {
     }
 
     // TODO
-    // [ ] owner reallocates
+    // [x] owner reallocates
     // [ ] owner reconfigs
     // [ ] owner harvest
+    // [ ] owner change allowDeposit config
 
 
 }

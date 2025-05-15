@@ -11,7 +11,7 @@ testMode: "assertion"
 # allContracts: if true, all contracts in the codebase will be considered main contracts for testing
 # Default: false
 # guide: https://secure-contracts.com/program-analysis/echidna/advanced/using-all-contracts.html
-# allContracts: true
+allContracts: true
 
 # balanceContract: balance of deployed contract in wei
 # balanceContract: 99999999999999999999999
@@ -19,11 +19,10 @@ testMode: "assertion"
 
 # Directory to save corpus
 # Default: null
-# corpusDir: ".corpus"
+corpusDir: ".corpus"
 
 # Number of test sequences to run
 # Default: 50000
 testLimit: 999999999999999999  # unlimited
 
 deployer: "0x10000"
-
