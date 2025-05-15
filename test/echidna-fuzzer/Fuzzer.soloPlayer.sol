@@ -86,11 +86,14 @@ contract VaultFuzzerSoloPlayer {
             new address[](0),
             new bytes[](0)
         );        
-        configManagerAddress = address(configManager);        
+        configManagerAddress = address(configManager);
 
+        address[] memory whitelistNfpms = new address[](1);
+        whitelistNfpms[0] = address(NFPM_ON_ETH_MAINNET);
         // Initialize the LpStrategy
         PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-        LpValidator validator = new LpValidator(configManagerAddress);
+        LpValidator validator = new LpValidator();
+        validator.initialize(address(this), configManagerAddress, whitelistNfpms);
         LpFeeTaker feeTaker = new LpFeeTaker();
         lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));        
         
