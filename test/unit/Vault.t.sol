@@ -453,4 +453,62 @@ contract VaultTest is TestCommon {
     console.log("===== lpStrategy address: %s", address(lpStrategy));
     vault.allocate(assets, newLpStrategy, 0, abi.encode(instruction));
   }
+
+  function test_VaultAllocateAllPrincipal() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    console.log("vault.getTotalValue() 2: %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    IERC20(WETH).approve(address(vault), 100 ether);
+    vault.deposit(1 ether, 0);
+
+    // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
+    console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
+    vault.withdraw(10_000 ether, false, 0);
+    console.log("the shares of user after withdraw: %d", IERC20(vault).balanceOf(USER));
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+
+    console.log("withdrawing 5000 ether more");
+    vault.withdraw(5000 ether, false, 0);
+    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
+    console.log("the weth balance of user after withdraw (2): %d", IERC20(WETH).balanceOf(USER));
+    console.log("the eth balance of user after withdraw (2): %d", address(USER).balance);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    console.log("the shares of user after withdraw (2): %d", IERC20(vault).balanceOf(USER));
+
+    console.log("withdrawing everything left");
+    vault.withdraw(IERC20(vault).balanceOf(USER), true, 0);
+    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
+    console.log("the weth balance of user after withdraw (3): %d", IERC20(WETH).balanceOf(USER));
+    console.log("the eth balance of user after withdraw (3): %d", address(USER).balance);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
+    assertEq(IERC20(vault).balanceOf(USER), 0);
+  }
 }
