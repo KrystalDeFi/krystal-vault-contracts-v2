@@ -40,7 +40,7 @@ sed -i '' 's/out = '\''artifacts'\''/out = '\''out\/'\''/g' foundry.toml
 
 log_info "[+] Copy the echidna-fuzzer contract to the contracts directory"
 mkdir contracts/echidna-fuzzer/
-find test/echidna-fuzzer -type f -not -name "*.t.sol" -exec cp -v {} contracts/echidna-fuzzer/ \;
+find test/echidna-fuzzer -type f -not -name "ft.*.sol" -exec cp -v {} contracts/echidna-fuzzer/ \;
 
 log_info "[+] Comment out all console.log lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*console\.log/\/\/ console\.log/g' {} \;
