@@ -140,6 +140,23 @@ contract FoundryTestSoloOwner is TestCommon {
 
     }
 
+    function owner_doWithdraw(uint256 shares) public {
+        owner.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function player1_doWithdraw(uint256 shares) public {
+        player1.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function owner_doDepositPrincipalToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, TOKEN_PRINCIPAL);
+    }
+
+    function owner_doDepositAnotherToken(uint256 amount) public {
+        owner.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
+    }    
+
+
     function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
         owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
     }
@@ -158,12 +175,22 @@ contract FoundryTestSoloOwner is TestCommon {
         console.log("player2 shares: %s", IERC20(vaultAddress).balanceOf(address(player2)));
         console.log("bighandplayer shares: %s", IERC20(vaultAddress).balanceOf(address(bighandplayer)));
         
+        owner_doWithdraw(IERC20(vaultAddress).balanceOf(address(owner)) / 4);
+
+        vm.roll(BLOCK_NUMBER + 1000);
+        vm.warp(BLOCK_TIMESTAMP + 1000);
+        owner_doAllocate(0.4 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, TICK_LOWER_CONFIG - 1000, TICK_UPPER_CONFIG + 5000);
+
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         for (uint256 i = 0; i < vaultAssets.length; i++) {
             console.log("vaultAssets[%s] token: %s", i, vaultAssets[i].token);
             console.log("vaultAssets[%s] tokenId: %s", i, vaultAssets[i].tokenId);
             console.log("vaultAssets[%s] amount: %s", i, vaultAssets[i].amount);
         }
+
+        owner_doWithdraw(IERC20(vaultAddress).balanceOf(address(owner)));
+        console.log("owner balance: %s", IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner)));
+
 
         console.log("vault total value: %s", IVault(payable(vaultAddress)).getTotalValue());
 
