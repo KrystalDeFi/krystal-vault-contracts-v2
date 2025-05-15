@@ -11,13 +11,15 @@ import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswa
 import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract LpValidator is Ownable, ILpValidator {
+contract LpValidator is OwnableUpgradeable, ILpValidator {
   IConfigManager public configManager;
   mapping(address => bool) public whitelistNfpms;
 
-  constructor(address _owner, address _configManager, address[] memory _whitelistNfpms) Ownable(_owner) {
+  function initialize(address _owner, address _configManager, address[] memory _whitelistNfpms) public initializer {
+    __Ownable_init(_owner);
+
     require(_configManager != address(0), ZeroAddress());
 
     configManager = IConfigManager(_configManager);

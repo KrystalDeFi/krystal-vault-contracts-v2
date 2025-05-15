@@ -84,5 +84,10 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       3, // TBTC
     ],
     swapRouters: ["0x864F01c5E46b0712643B956BcA607bF883e0dbC5"],
+    nfpmAddresses: [
+      "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+      "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+      "0xF0cBce1942A68BEB3d1b73F0dd86C8DCc363eF49",
+    ],
   },
 };

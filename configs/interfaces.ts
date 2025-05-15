@@ -48,4 +48,5 @@ export interface IConfig {
   // 0 for stable, 1 for pegged,...
   typedTokensTypes?: number[];
   swapRouters: AddressLike[];
+  nfpmAddresses: AddressLike[];
 }

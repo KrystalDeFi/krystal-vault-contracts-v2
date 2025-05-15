@@ -76,5 +76,6 @@ export const PolygonConfig: Record<string, IConfig> = {
       4, // TELEBTC
     ],
     swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
+    nfpmAddresses: ["0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "0xb7402ee99F0A008e461098AC3A27F4957Df89a40"],
   },
 };

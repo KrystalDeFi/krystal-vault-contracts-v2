@@ -94,5 +94,10 @@ export const EthereumConfig: Record<string, IConfig> = {
       3, // LBTC
     ],
     swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
+    nfpmAddresses: [
+      "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+      "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+      "0x2214A42d8e2A1d20635c2cb0664422c528B6A432",
+    ],
   },
 };
