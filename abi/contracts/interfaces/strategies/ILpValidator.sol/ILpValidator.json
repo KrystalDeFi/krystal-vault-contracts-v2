@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidNfpm",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidObservation",
     "type": "error"
   },
@@ -150,6 +155,19 @@
       }
     ],
     "name": "validateConfig",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "validateNfpm",
     "outputs": [],
     "stateMutability": "view",
     "type": "function"

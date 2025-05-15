@@ -72,5 +72,10 @@ export const BaseConfig: Record<string, IConfig> = {
       3, // cbBTC
     ],
     swapRouters: ["0x6fD481970744F9Bc0044a81859FD92431a2Dd67D"],
+    nfpmAddresses: [
+      "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
+      "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+      "0x80C7DD17B01855a6D2347444a0FCC36136a314de",
+    ],
   },
 };

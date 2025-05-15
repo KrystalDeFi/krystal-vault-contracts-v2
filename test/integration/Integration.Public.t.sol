@@ -78,8 +78,11 @@ contract IntegrationTest is TestCommon {
       new bytes[](0)
     );
 
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
     PoolOptimalSwapper swapper = new PoolOptimalSwapper();
-    LpValidator validator = new LpValidator(address(configManager));
+    LpValidator validator = new LpValidator();
+    validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker feeTaker = new LpFeeTaker();
     lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
 

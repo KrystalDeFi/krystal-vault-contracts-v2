@@ -60,5 +60,6 @@ export const OptimismConfig: Record<string, IConfig> = {
       2, // wstETH
     ],
     swapRouters: ["0xf6f2dafa542FefAae22187632Ef30D2dAa252b4e"],
+    nfpmAddresses: ["0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "0x1af415a1EbA07a4986a52B6f2e7dE7003D82231e"],
   },
 };

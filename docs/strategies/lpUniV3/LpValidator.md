@@ -8,10 +8,22 @@
 contract IConfigManager configManager
 ```
 
-### constructor
+### whitelistNfpms
 
 ```solidity
-constructor(address _configManager) public
+mapping(address => bool) whitelistNfpms
+```
+
+### initialize
+
+```solidity
+function initialize(address _owner, address _configManager, address[] _whitelistNfpms) public
+```
+
+### validateNfpm
+
+```solidity
+function validateNfpm(address nfpm) external view
 ```
 
 ### validateConfig
@@ -92,4 +104,10 @@ _Checks if the pool is allowed_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | bool | allowed If the pool is allowed |
+
+### setWhitelistNfpms
+
+```solidity
+function setWhitelistNfpms(address[] _whitelistNfpms, bool isWhitelist) external
+```
 
