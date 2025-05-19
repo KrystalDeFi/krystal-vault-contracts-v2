@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientAmountOut",
     "type": "error"
   },

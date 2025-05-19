@@ -59,6 +59,12 @@ error ZeroAddress()
 error TransferFailed()
 ```
 
+### ExternalCallFailed
+
+```solidity
+error ExternalCallFailed()
+```
+
 ### InvalidVaultConfig
 
 ```solidity
