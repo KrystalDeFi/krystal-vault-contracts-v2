@@ -1,6 +1,6 @@
 {
   "arbitrum_mainnet": {
-    "vault": "0xa66a457442cb4ed38872bcb01d08418afa394c14",
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
     "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -12,7 +12,7 @@
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
   "base_mainnet": {
-    "vault": "0xa66a457442cb4ed38872bcb01d08418afa394c14",
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
     "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -24,7 +24,7 @@
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
   "bsc_mainnet": {
-    "vault": "0xa66a457442cb4ed38872bcb01d08418afa394c14",
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
     "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -36,7 +36,7 @@
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
   "polygon_mainnet": {
-    "vault": "0xa66a457442cb4ed38872bcb01d08418afa394c14",
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
     "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -48,7 +48,7 @@
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
   "eth_mainnet": {
-    "vault": "0xa66a457442cb4ed38872bcb01d08418afa394c14",
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
     "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",

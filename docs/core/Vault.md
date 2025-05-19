@@ -290,36 +290,6 @@ _Adds multiple assets to the vault_
 | ---- | ---- | ----------- |
 | newAssets | struct AssetLib.Asset[] | New assets to add |
 
-### _transferAssets
-
-```solidity
-function _transferAssets(struct AssetLib.Asset[] assets, address to) internal
-```
-
-_Transfers multiple assets to the recipient_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| assets | struct AssetLib.Asset[] | Assets to transfer |
-| to | address | Recipient of the assets |
-
-### _transferAsset
-
-```solidity
-function _transferAsset(struct AssetLib.Asset asset, address to) internal
-```
-
-_Transfers the asset to the recipient_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| asset | struct AssetLib.Asset | AssetLib.Asset to transfer |
-| to | address | Recipient of the asset |
-
 ### getInventory
 
 ```solidity
