@@ -24,6 +24,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
   
       - run: |
+          npm install -g yarn
           yarn install
 
       - run: |
