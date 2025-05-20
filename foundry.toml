@@ -1,6 +1,6 @@
 [profile.default]
 src = 'contracts'
-out = 'out/'
+out = 'artifacts'
 libs = ['node_modules', 'lib']
 test = 'test'
 cache_path  = 'cache_forge'
