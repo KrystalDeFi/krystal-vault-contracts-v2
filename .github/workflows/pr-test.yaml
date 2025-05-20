@@ -26,8 +26,8 @@ jobs:
       - run: |
           hostname
           lsb_release -a
-          apt update
-          apt install libc6
+          sudo apt update
+          sudo apt install libc6
           npm install -g yarn
           yarn install
 
