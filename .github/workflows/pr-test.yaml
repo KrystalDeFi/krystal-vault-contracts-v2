@@ -24,27 +24,6 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
   
       - run: |
-          hostname
-          lsb_release -a
-          sudo apt update
-          sudo apt install -y wget build-essential
-          
-          # Download and install newer GLIBC
-          wget https://ftp.gnu.org/gnu/glibc/glibc-2.34.tar.gz
-          tar -xzf glibc-2.34.tar.gz
-          cd glibc-2.34
-          mkdir build
-          cd build
-          ../configure --prefix=/opt/glibc-2.34
-          make -j$(nproc)
-          sudo make install
-          
-          # Update library path
-          echo "/opt/glibc-2.34/lib" | sudo tee /etc/ld.so.conf.d/glibc-2.34.conf
-          sudo ldconfig
-          
-          # Install other dependencies
-          # sudo apt install libc6
           npm install -g yarn
           yarn install
 
