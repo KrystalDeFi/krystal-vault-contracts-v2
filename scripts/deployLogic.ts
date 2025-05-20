@@ -15,6 +15,7 @@ import {
 import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
+import { KatanaLpFeeTaker, KatanaPoolOptimalSwapper } from "../typechain-types/contracts/strategies/roninKatanaV3";
 
 const { SALT } = process.env;
 
@@ -30,9 +31,9 @@ export interface Contracts {
   vault?: Vault;
   vaultAutomator?: VaultAutomator;
   configManager?: ConfigManager;
-  poolOptimalSwapper?: PoolOptimalSwapper;
+  poolOptimalSwapper?: PoolOptimalSwapper | KatanaPoolOptimalSwapper;
   lpValidator?: LpValidator;
-  lpFeeTaker?: LpFeeTaker;
+  lpFeeTaker?: LpFeeTaker | KatanaLpFeeTaker;
   lpStrategy?: LpStrategy;
   merklStrategy?: MerklStrategy;
   merklAutomator?: MerklAutomator;
@@ -60,16 +61,19 @@ export const deploy = async (existingContract: Record<string, any> | undefined =
 };
 
 async function deployContracts(existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> {
+  const isRonin = networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled;
+
   let step = 0;
 
   const vault = await deployVaultContract(++step, existingContract);
   const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract);
   const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract);
+  const katanaPoolOptimalSwapper = await deployKatanaPoolOptimalSwapperContract(++step, existingContract);
 
   const contracts: Contracts = {
     vault: vault.vault,
     vaultAutomator: vaultAutomator.vaultAutomator,
-    poolOptimalSwapper: poolOptimalSwapper.poolOptimalSwapper,
+    poolOptimalSwapper: isRonin ? katanaPoolOptimalSwapper.poolOptimalSwapper : poolOptimalSwapper.poolOptimalSwapper,
   };
 
   const configManager = await deployConfigManagerContract(++step, existingContract, undefined, contracts);
@@ -80,11 +84,12 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   const lpValidator = await deployLpValidatorContract(++step, existingContract, undefined, contracts);
   const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, undefined, contracts);
+  const katanaLpFeeTaker = await deployKatanaLpFeeTakerContract(++step, existingContract, undefined, contracts);
   const merklAutomator = await deployMerklAutomatorContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
-    lpFeeTaker: lpFeeTaker.lpFeeTaker,
+    lpFeeTaker: isRonin ? katanaLpFeeTaker.lpFeeTaker : lpFeeTaker.lpFeeTaker,
     merklAutomator: merklAutomator.merklAutomator,
   });
 
@@ -108,6 +113,47 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   }
 
   if (networkConfig.configManager?.enabled) {
+    let lpValidators;
+    let typedTokens;
+    let configs;
+
+    if (networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled) {
+      lpValidators = [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+      ];
+      typedTokens = [
+        networkConfig?.typedTokens?.[0] || "",
+        networkConfig?.typedTokens?.[1] || "",
+        networkConfig?.wrapToken || "",
+      ];
+      configs = [
+        commonConfig.nativeConfig,
+        commonConfig.stableConfigWith6Decimals,
+        "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fd700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000032d26d12e980b600000000000000000000000000000000000000000000000001fc3842bd1f071c00000000000000000000000000000000000000000000000013da329b6336471800000",
+      ];
+    } else {
+      lpValidators = [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+      ];
+      typedTokens = [
+        networkConfig?.wrapToken || "",
+        networkConfig?.typedTokens?.[0] || "",
+        networkConfig?.typedTokens?.[1] || "",
+        networkConfig?.typedTokens?.[2] || "",
+      ];
+      configs = [
+        commonConfig.nativeConfig,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith18Decimals,
+      ];
+    }
+
     await configManager?.configManager?.initialize(
       commonConfig.admin,
       [
@@ -126,24 +172,9 @@ async function deployContracts(existingContract: Record<string, any> | undefined
       commonConfig.platformFeeBasisPoint,
       commonConfig.privatePlatformFeeBasisPoint,
       commonConfig.feeCollector,
-      [
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-      ],
-      [
-        networkConfig?.wrapToken || "",
-        networkConfig?.typedTokens?.[0] || "",
-        networkConfig?.typedTokens?.[1] || "",
-        networkConfig?.typedTokens?.[2] || "",
-      ],
-      [
-        commonConfig.nativeConfig,
-        commonConfig.stableConfigWith6Decimals,
-        commonConfig.stableConfigWith6Decimals,
-        commonConfig.stableConfigWith18Decimals,
-      ],
+      lpValidators,
+      typedTokens,
+      configs,
     );
   }
 
@@ -245,7 +276,7 @@ export const deployConfigManagerContract = async (
   const config = { ...networkConfig, ...customNetworkConfig };
 
   let configManager;
-  
+
   if (config.configManager?.enabled) {
     configManager = (await deployContract(
       `${step} >>`,
@@ -255,7 +286,7 @@ export const deployConfigManagerContract = async (
       "contracts/core/ConfigManager.sol:ConfigManager",
     )) as ConfigManager;
   }
-  
+
   return {
     configManager,
   };
@@ -284,6 +315,32 @@ export const deployPoolOptimalSwapperContract = async (
   };
 };
 
+export const deployKatanaPoolOptimalSwapperContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let katanaPoolOptimalSwapper;
+  if (config.katanaPoolOptimalSwapper?.enabled) {
+    katanaPoolOptimalSwapper = (await deployContract(
+      `${step} >>`,
+      config.katanaPoolOptimalSwapper?.autoVerifyContract,
+      "KatanaPoolOptimalSwapper",
+      existingContract?.["katanaPoolOptimalSwapper"],
+      "contracts/strategies/roninKatanaV3/KatanaPoolOptimalSwapper.sol:KatanaPoolOptimalSwapper",
+      undefined,
+      ["address"],
+      [networkConfig?.katanaAggregateSwapRouter],
+    )) as KatanaPoolOptimalSwapper;
+  }
+  return {
+    poolOptimalSwapper: katanaPoolOptimalSwapper,
+  };
+};
+
 export const deployLpFeeTakerContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
@@ -304,6 +361,32 @@ export const deployLpFeeTakerContract = async (
   }
   return {
     lpFeeTaker,
+  };
+};
+
+export const deployKatanaLpFeeTakerContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let katanaLpFeeTaker;
+  if (config.katanaLpFeeTaker?.enabled) {
+    katanaLpFeeTaker = (await deployContract(
+      `${step} >>`,
+      config.katanaLpFeeTaker?.autoVerifyContract,
+      "KatanaLpFeeTaker",
+      existingContract?.["katanaLpFeeTaker"],
+      "contracts/strategies/roninKatanaV3/KatanaLpFeeTaker.sol:KatanaLpFeeTaker",
+      undefined,
+      ["address"],
+      [networkConfig?.katanaAggregateSwapRouter],
+    )) as KatanaLpFeeTaker;
+  }
+  return {
+    lpFeeTaker: katanaLpFeeTaker,
   };
 };
 
@@ -454,23 +537,26 @@ async function deployContract(
   }
 
   // Only verify new contract to save time or Try to verify no matter what
-  if (autoVerify && !contractAddress) {
+  if (autoVerify) {
     // if (autoVerify) {
     try {
       log(3, ">> sleep first, wait for contract data to be propagated");
       await sleep(networkConfig.sleepTime ?? 60000);
       log(3, ">> start verifying");
-      if (!!contractLocation) {
-        await run("verify:verify", {
-          address: contract.target,
-          constructorArguments: args,
-          contract: contractLocation,
-        });
+      if (networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled) {
       } else {
-        await run("verify:verify", {
-          address: contract.target,
-          constructorArguments: args,
-        });
+        if (!!contractLocation) {
+          await run("verify:verify", {
+            address: contract.target,
+            constructorArguments: args,
+            contract: contractLocation,
+          });
+        } else {
+          await run("verify:verify", {
+            address: contract.target,
+            constructorArguments: args,
+          });
+        }
       }
       log(3, ">> done verifying");
     } catch (e) {

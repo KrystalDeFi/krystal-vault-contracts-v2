@@ -35,6 +35,18 @@
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
+  "eth_mainnet": {
+    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
+    "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
+    "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
+    "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
+    "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
+    "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
+    "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
+    "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
+    "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
+    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+  },
   "polygon_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
     "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
@@ -47,16 +59,16 @@
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
   },
-  "eth_mainnet": {
-    "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
-    "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
-    "poolOptimalSwapper": "0x4c8b6a772617b153bc1800e0d1c700e2a83110b4",
-    "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
-    "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
-    "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
-    "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
-    "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+  "ronin_mainnet": {
+    "vault": "0xf1cfcd4f4e4216ab26e31f913210be70d6b600dc",
+    "vaultAutomator": "0xba214dd75833c442e5bf1ed2e89244d66ab95316",
+    "poolOptimalSwapper": "0x6642327e83c6fdc4dbf13b05d2ff6c0f72882387",
+    "configManager": "0x48a49b427dc38bc5451cdc119ba3d9d1a4018c71",
+    "lpValidator": "0xfcd361f6a7243f4642010bdefe1db9d12c60f908",
+    "lpFeeTaker": "0x2c1881d5c3232a56f5286712db90714655764d5b",
+    "merklAutomator": "0x829f3bfbb9fea6bda58c5e2d1b7ab567e815ccd1",
+    "lpStrategy": "0x7853d01637f2303997863d43841cf558d2c10402",
+    "vaultFactory": "0xfb7cccd099c69033e5be95f7cf83bee30e075219",
+    "merklStrategy": "0x55c9cdedb60a28087a56533a1d4c4e3ecc9b9b78"
   }
 }

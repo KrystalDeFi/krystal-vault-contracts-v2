@@ -19,6 +19,7 @@ const {
   POLYGONSCAN_APIKEY,
   OPTIMISM_APIKEY,
   BSCSCAN_APIKEY,
+  RONINSCAN_APIKEY,
 } = process.env;
 const customNetworkConfig = process.env.CHAIN && process.env.CHAIN ? `${process.env.CHAIN}_${process.env.NETWORK}` : "";
 
@@ -86,6 +87,7 @@ const config: HardhatUserConfig = {
       bsc: BSCSCAN_APIKEY || "",
       polygon: POLYGONSCAN_APIKEY || "",
       arbitrumOne: ARBISCAN_APIKEY || "",
+      ronin: RONINSCAN_APIKEY || "",
     },
     customChains: [
       {
@@ -96,7 +98,20 @@ const config: HardhatUserConfig = {
           browserURL: "https://api.basescan.org",
         },
       },
+      {
+        network: "ronin",
+        chainId: 2020,
+        urls: {
+          apiURL: "https://explorer.roninchain.com/api",
+          browserURL: "https://explorer.roninchain.com/",
+        },
+      },
     ],
+  },
+  sourcify: {
+    enabled: true,
+    // Optional: specify a different Sourcify server
+    apiUrl: "https://sourcify.roninchain.com/server",
   },
   typechain: {
     outDir: "typechain-types",
@@ -152,6 +167,13 @@ if (PRIVATE_KEY) {
     chainId: 42161,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.ronin_mainnet = {
+    url: `https://api.roninchain.com/rpc`,
+    chainId: 2020,
+    accounts: [PRIVATE_KEY],
+    timeout: 20000,
     hardfork: "cancun",
   };
 }
