@@ -67,7 +67,7 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     returns (uint256 valueInPrincipal)
   {
     IRewardVault rewardVault = IRewardVault(asset.token);
-    valueInPrincipal = rewardVault.rewards(address(this));
+    valueInPrincipal = rewardVault.earned(msg.sender);
 
     IKodiakIsland kodiakIsland = IKodiakIsland(rewardVault.stakeToken());
     (uint256 amount0, uint256 amount1) = kodiakIsland.getUnderlyingBalances();
@@ -86,11 +86,14 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, Q96);
 
     // Calculate value in terms of principal token
-    if (address(token0) == principalToken) valueInPrincipal = amount0 + FullMath.mulDiv(amount1, Q192, priceX96);
-    else if (address(token1) == principalToken) valueInPrincipal = amount1 + FullMath.mulDiv(amount0, priceX96, Q96);
-    else revert InvalidPrincipalToken();
-
-    return valueInPrincipal;
+    if (address(token0) == principalToken) {
+      priceX96 = Q192 / priceX96;
+      valueInPrincipal += amount0 + FullMath.mulDiv(amount1, priceX96, Q96);
+    } else if (address(token1) == principalToken) {
+      valueInPrincipal += amount1 + FullMath.mulDiv(amount0, priceX96, Q96);
+    } else {
+      revert InvalidPrincipalToken();
+    }
   }
 
   function convert(

@@ -47,7 +47,6 @@ contract IntegrationKodiakIslandTest is Test {
 
   // Common configurations
   ICommon.VaultConfig public vaultConfig;
-  ICommon.FeeConfig public feeConfig;
 
   function setUp() public {
     // Fork the network
@@ -92,10 +91,10 @@ contract IntegrationKodiakIslandTest is Test {
       new address[](0),
       typedTokens,
       typedTokenTypes,
-      0,
-      0,
-      0,
-      address(0),
+      100,
+      50,
+      50,
+      platformFeeRecipient,
       new address[](0),
       new address[](0),
       new bytes[](0)
@@ -107,20 +106,11 @@ contract IntegrationKodiakIslandTest is Test {
 
     // Setup common configurations
     vaultConfig = ICommon.VaultConfig({
-      allowDeposit: false,
+      allowDeposit: true,
       rangeStrategyType: 0,
       tvlStrategyType: 0,
       principalToken: WBERA,
       supportedAddresses: new address[](0)
-    });
-
-    feeConfig = ICommon.FeeConfig({
-      vaultOwnerFeeBasisPoint: 100, // 1%
-      vaultOwner: address(0),
-      platformFeeBasisPoint: 50, // 0.5%
-      platformFeeRecipient: platformFeeRecipient,
-      gasFeeX64: 184_467_440_737_095_520, // ~1% in Q64
-      gasFeeRecipient: gasFeeRecipient
     });
 
     // Deploy and setup Vault
@@ -230,39 +220,44 @@ contract IntegrationKodiakIslandTest is Test {
     assertEq(inventory[2].strategy, address(strategy), "LP token should be managed by the strategy");
 
     console2.log("Initial allocation completed");
-    blockNumber += 500_000;
-    vm.roll(blockNumber);
+
+    uint256 accumulatedBgtReward = 45_824_107_162_258_373; // After 10 days
+    uint256 vaultTotalValueBefore = vault.getTotalValue();
+    assertApproxEqRel(vaultTotalValueBefore, 10 ether, 0.01e18, "Vault value should be 10 ether");
+    vm.roll(blockNumber + 5000);
+    vm.warp(block.timestamp + 10 * 86_400);
+    uint256 vaultTotalValueAfter = vault.getTotalValue();
+    assertEq(vaultTotalValueAfter - vaultTotalValueBefore, accumulatedBgtReward, "Vault value should increase");
 
     // Now decrease liquidity
-    inventory = vault.getInventory();
-    for (uint256 i = 0; i < inventory.length; i++) {
-      console2.log("Token", i, ":", inventory[i].token);
-      console2.log("Amount", i, ":", inventory[i].amount);
-    }
-    uint256 lpAmount = inventory[2].amount;
-    console2.log("LP token amount:", lpAmount);
-
-    inputAssets[0] = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC20,
-      token: REWARD_VAULT,
-      strategy: address(strategy),
-      tokenId: 0,
-      amount: lpAmount
-    });
+    inputAssets[0] = inventory[2];
     console2.log("Created input assets for decrease liquidity");
 
     data = abi.encode(
       ICommon.Instruction({
         instructionType: uint8(IKodiakIslandStrategy.InstructionType.WithdrawAndSwap),
-        params: abi.encode(IKodiakIslandStrategy.WithdrawAndSwapParams({ minPrincipalAmount: lpAmount / 2 }))
+        params: abi.encode(IKodiakIslandStrategy.WithdrawAndSwapParams({ minPrincipalAmount: 0 }))
       })
     );
     console2.log("Encoded instruction data for DecreaseLiquidityAndSwap");
 
+    uint256 ownerBalanceBefore = wbera.balanceOf(owner);
+    uint256 platformBalanceBefore = wbera.balanceOf(platformFeeRecipient);
+    uint64 gasFeeX64 = 184_467_440_737_095_520; // ~1% in Q64
+
     // Execute allocation
     console2.log("Executing decrease liquidity allocation...");
-    vault.allocate(inputAssets, strategy, 0, data);
+    vault.allocate(inputAssets, strategy, gasFeeX64, data);
     console2.log("Decrease liquidity allocation completed");
+
+    uint256 ownerBalanceAfter = wbera.balanceOf(owner);
+    uint256 platformBalanceAfter = wbera.balanceOf(platformFeeRecipient);
+    assertEq(ownerBalanceAfter - ownerBalanceBefore, accumulatedBgtReward / 100, "Owner should receive 1% of rewards");
+    assertEq(
+      platformBalanceAfter - platformBalanceBefore,
+      accumulatedBgtReward / 200 + accumulatedBgtReward / 100,
+      "Platform fee recipient should receive 0.5% as platform fee and 1% as gas fee"
+    );
 
     // Verify results
     inventory = vault.getInventory();
@@ -271,6 +266,10 @@ contract IntegrationKodiakIslandTest is Test {
     console2.log("Amount 0:", inventory[0].amount);
     console2.log("Token 1:", inventory[1].token);
     console2.log("Amount 1:", inventory[1].amount);
+
+    assertApproxEqRel(
+      vault.getTotalValue(), 10 ether + accumulatedBgtReward * 975 / 1000, 0.01e18, "Vault value should be 10 ether"
+    );
 
     assertEq(inventory.length, 2, "Vault should have 2 assets after decreasing liquidity");
     assertEq(inventory[0].token, WBERA, "First asset should be WBERA");
