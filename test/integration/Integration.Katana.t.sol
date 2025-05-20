@@ -41,7 +41,7 @@ contract IntegrationTest is TestCommon {
   Vault public vaultInstance;
 
   function setUp() public {
-    uint256 fork = vm.createFork("https://rpc-node-lb.krystal.app/?chain_id=2020&caller=vault-enable-twap", 45_264_950);
+    uint256 fork = vm.createFork("https://ronin.drpc.org/", 45_264_950);
     vm.selectFork(fork);
 
     vm.startBroadcast(USER);
