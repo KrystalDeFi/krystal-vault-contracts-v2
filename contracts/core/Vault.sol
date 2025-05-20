@@ -225,15 +225,10 @@ contract Vault is
         currentAsset.strategy == address(0) && currentAsset.assetType == AssetLib.AssetType.ERC20
           && currentAsset.amount != 0
       ) {
-        uint256 proportionalAmount = FullMath.mulDiv(currentAsset.amount, deductedShares, currentTotalSupply);
-        if (currentAsset.token == principalToken) {
-          returnAmount += proportionalAmount;
-        } else {
-          _transferAsset(
-            AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), currentAsset.token, 0, proportionalAmount),
-            _msgSender()
-          );
-        }
+        currentAsset.amount = FullMath.mulDiv(currentAsset.amount, deductedShares, currentTotalSupply);
+        inventory.removeAsset(currentAsset);
+        if (currentAsset.token == principalToken) returnAmount += currentAsset.amount;
+        else IERC20(currentAsset.token).safeTransfer(_msgSender(), currentAsset.amount);
       }
       if (currentAsset.strategy != address(0) && currentAsset.amount != 0) {
         inventory.removeAsset(currentAsset);
@@ -249,14 +244,9 @@ contract Vault is
         // Decode the returned data
         assets = abi.decode(returnData, (AssetLib.Asset[]));
         for (uint256 k; k < assets.length;) {
-          if (assets[k].assetType != AssetLib.AssetType.ERC20) {
-            inventory.addAsset(assets[k]);
-          } else if (assets[k].token == principalToken) {
-            returnAmount += assets[k].amount;
-            inventory.addAsset(assets[k]);
-          } else if (assets[k].amount > 0) {
-            _transferAsset(assets[k], _msgSender());
-          }
+          if (assets[k].assetType != AssetLib.AssetType.ERC20) inventory.addAsset(assets[k]);
+          else if (assets[k].token == principalToken) returnAmount += assets[k].amount;
+          else if (assets[k].amount > 0) IERC20(assets[k].token).safeTransfer(_msgSender(), assets[k].amount);
           unchecked {
             k++;
           }
@@ -270,14 +260,11 @@ contract Vault is
     require(returnAmount >= minReturnAmount, InsufficientReturnAmount());
 
     if (unwrap && principalToken == WETH) {
-      inventory.removeAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, returnAmount));
       IWETH9(principalToken).withdraw(returnAmount);
       (bool sent,) = _msgSender().call{ value: returnAmount }("");
       require(sent, FailedToSendEther());
     } else {
-      _transferAsset(
-        AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, returnAmount), _msgSender()
-      );
+      IERC20(principalToken).safeTransfer(_msgSender(), returnAmount);
     }
 
     if (totalSupply() == 0) {
@@ -517,35 +504,6 @@ contract Vault is
       unchecked {
         i++;
       }
-    }
-  }
-
-  /// @dev Transfers multiple assets to the recipient
-  /// @param assets Assets to transfer
-  /// @param to Recipient of the assets
-  function _transferAssets(AssetLib.Asset[] memory assets, address to) internal {
-    uint256 length = assets.length;
-
-    for (uint256 i; i < length;) {
-      _transferAsset(assets[i], to);
-
-      unchecked {
-        i++;
-      }
-    }
-  }
-
-  /// @dev Transfers the asset to the recipient
-  /// @param asset AssetLib.Asset to transfer
-  /// @param to Recipient of the asset
-  function _transferAsset(AssetLib.Asset memory asset, address to) internal {
-    inventory.removeAsset(asset);
-    if (asset.assetType == AssetLib.AssetType.ERC20 && asset.amount != 0) {
-      IERC20(asset.token).safeTransfer(to, asset.amount);
-    } else if (asset.assetType == AssetLib.AssetType.ERC721) {
-      IERC721(asset.token).safeTransferFrom(address(this), to, asset.tokenId);
-    } else if (asset.assetType == AssetLib.AssetType.ERC1155 && asset.amount != 0) {
-      IERC1155(asset.token).safeTransferFrom(address(this), to, asset.tokenId, asset.amount, "");
     }
   }
 
