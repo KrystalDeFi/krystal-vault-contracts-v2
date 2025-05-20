@@ -24,6 +24,8 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
   
       - run: |
+          hostname
+          lsb_release -a
           npm install -g yarn
           yarn install
 
