@@ -35,6 +35,10 @@ jobs:
           RPC_URL=https://rpc.ankr.com/base/cfcd3502b78b91931fd183fa3776675644d39d88a0362652d55cad386b9f2216 yarn test
           # RPC_URL=https://base.merkle.io
           # RPC_URL=https://base.llamarpc.com
+        
+      - name: Re-enable the Katana test
+        run: |
+          mv test/integration/Integration.Katana.t.sol.disabled test/integration/Integration.Katana.t.sol
 
       - name: Create new branch and push the document
         env:
