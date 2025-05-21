@@ -28,7 +28,7 @@ jobs:
           yarn install
 
       - run: |
-          RPC_URL=https://rpc.ankr.com/base/cfcd3502b78b91931fd183fa3776675644d39d88a0362652d55cad386b9f2216 ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a yarn test          
+          RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a yarn test          
           # RPC_URL=https://base.merkle.io
           # RPC_URL=https://base.llamarpc.com
 
