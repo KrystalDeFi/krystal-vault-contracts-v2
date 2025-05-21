@@ -224,62 +224,6 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     return returnAssets;
   }
 
-  /// @dev some tokens require allowance == 0 to approve new amount
-  /// but some tokens does not allow approve amount = 0
-  /// we try to set allowance = 0 before approve new amount. if it revert means that
-  /// the token not allow to approve 0, which means the following line code will work properly
-  function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
-    if (_value == 0) return;
-
-    /// @dev omitted approve(0) result because it might fail and does not break the flow
-    address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
-
-    /// @dev value for approval after reset must greater than 0
-    _safeApprove(token, _spender, _value);
-  }
-
-  function _safeApprove(IERC20 token, address _spender, uint256 _value) internal {
-    (bool success, bytes memory returnData) =
-      address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, _value));
-    if (_value == 0) {
-      // some token does not allow approve(0) so we skip check for this case
-      return;
-    }
-    require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
-  }
-
-  function _takeFee(address token, uint256 amount, FeeConfig calldata feeConfig)
-    internal
-    returns (uint256 totalFeeAmount)
-  {
-    uint256 feeAmount;
-
-    if (feeConfig.vaultOwnerFeeBasisPoint > 0) {
-      feeAmount = amount * feeConfig.vaultOwnerFeeBasisPoint / 10_000;
-      if (feeAmount > 0) {
-        totalFeeAmount += feeAmount;
-        IERC20(token).safeTransfer(feeConfig.vaultOwner, feeAmount);
-        emit FeeCollected(address(this), FeeType.OWNER, feeConfig.vaultOwner, token, feeAmount);
-      }
-    }
-    if (feeConfig.platformFeeBasisPoint > 0) {
-      feeAmount = amount * feeConfig.platformFeeBasisPoint / 10_000;
-      if (feeAmount > 0) {
-        totalFeeAmount += feeAmount;
-        IERC20(token).safeTransfer(feeConfig.platformFeeRecipient, feeAmount);
-        emit FeeCollected(address(this), FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, feeAmount);
-      }
-    }
-    if (feeConfig.gasFeeX64 > 0) {
-      feeAmount = FullMath.mulDiv(amount, feeConfig.gasFeeX64, Q64);
-      if (feeAmount > 0) {
-        totalFeeAmount += feeAmount;
-        IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);
-        emit FeeCollected(address(this), FeeType.GAS, feeConfig.gasFeeRecipient, token, feeAmount);
-      }
-    }
-  }
-
   function harvest(AssetLib.Asset calldata asset, address, uint256, VaultConfig calldata, FeeConfig calldata feeConfig)
     external
     payable
@@ -288,7 +232,7 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     require(asset.strategy == thisAddress, InvalidAssetStrategy());
     IRewardVault rewardVault = IRewardVault(asset.token);
     uint256 redeemedBera = _harvestAndTakeFee(rewardVault, feeConfig);
-    returnAssets = new AssetLib.Asset[](1);
+    returnAssets = new AssetLib.Asset[](2);
     returnAssets[0] = asset;
     returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), address(wbera), 0, redeemedBera);
   }
@@ -365,6 +309,11 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
       AssetLib.Asset[] memory outputAssets = _withdrawAndSwap(inputAssets, config, feeConfig, "");
 
       returnAssets = new AssetLib.Asset[](outputAssets.length + 1);
+      unchecked {
+        for (uint256 i; i < outputAssets.length; i++) {
+          returnAssets[i] = outputAssets[i];
+        }
+      }
       existingAsset.amount -= inputAssets[0].amount;
       returnAssets[outputAssets.length] = existingAsset;
     }
@@ -384,6 +333,62 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     IBGT(rewardVault.rewardToken()).redeem(address(bgtRedeemer), rewardAmount);
     redeemedBera = IERC20(wbera).balanceOf(address(this)) - redeemedBera;
     redeemedBera -= _takeFee(wbera, redeemedBera, feeConfig);
+  }
+
+  /// @dev some tokens require allowance == 0 to approve new amount
+  /// but some tokens does not allow approve amount = 0
+  /// we try to set allowance = 0 before approve new amount. if it revert means that
+  /// the token not allow to approve 0, which means the following line code will work properly
+  function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
+    if (_value == 0) return;
+
+    /// @dev omitted approve(0) result because it might fail and does not break the flow
+    address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
+
+    /// @dev value for approval after reset must greater than 0
+    _safeApprove(token, _spender, _value);
+  }
+
+  function _safeApprove(IERC20 token, address _spender, uint256 _value) internal {
+    (bool success, bytes memory returnData) =
+      address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, _value));
+    if (_value == 0) {
+      // some token does not allow approve(0) so we skip check for this case
+      return;
+    }
+    require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
+  }
+
+  function _takeFee(address token, uint256 amount, FeeConfig calldata feeConfig)
+    internal
+    returns (uint256 totalFeeAmount)
+  {
+    uint256 feeAmount;
+
+    if (feeConfig.vaultOwnerFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.vaultOwnerFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.vaultOwner, feeAmount);
+        emit FeeCollected(address(this), FeeType.OWNER, feeConfig.vaultOwner, token, feeAmount);
+      }
+    }
+    if (feeConfig.platformFeeBasisPoint > 0) {
+      feeAmount = amount * feeConfig.platformFeeBasisPoint / 10_000;
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.platformFeeRecipient, feeAmount);
+        emit FeeCollected(address(this), FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, feeAmount);
+      }
+    }
+    if (feeConfig.gasFeeX64 > 0) {
+      feeAmount = FullMath.mulDiv(amount, feeConfig.gasFeeX64, Q64);
+      if (feeAmount > 0) {
+        totalFeeAmount += feeAmount;
+        IERC20(token).safeTransfer(feeConfig.gasFeeRecipient, feeAmount);
+        emit FeeCollected(address(this), FeeType.GAS, feeConfig.gasFeeRecipient, token, feeAmount);
+      }
+    }
   }
 
   // Add receive function for ETH
