@@ -1,10 +1,10 @@
 #!/bin/sh
 
-usage="yarn <deploy,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base>] [-n <mainnet,testnet>] -- to run test on specific chain and network
+usage="yarn <deploy,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base,berachain>] [-n <mainnet,testnet>] -- to run test on specific chain and network
 
 where:
     -h  show this help text
-    -c  which chain to run, supported <eth,bsc,polygon>
+    -c  which chain to run, supported <eth,bsc,polygon,arbitrum,optimism,base,berachain>
     -n  which network to run, supported <mainnet,testnet>
     -f  specific test to run if any"
 

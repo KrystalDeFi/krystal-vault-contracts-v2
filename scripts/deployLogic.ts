@@ -112,19 +112,61 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   }
 
   if (networkConfig.configManager?.enabled) {
-    const whitelistStrategy = [];
+    const whitelistStrategies = [];
     if (existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target != null) {
-      whitelistStrategy.push(existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target);
+      whitelistStrategies.push(existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target);
     }
     if (existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target != null) {
-      whitelistStrategy.push(existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target);
+      whitelistStrategies.push(existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target);
     }
     if (existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target != null) {
-      whitelistStrategy.push(existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target);
+      whitelistStrategies.push(existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target);
     }
+
+    let lpValidators;
+    let typedTokens;
+    let configs;
+
+    if (networkConfig?.kodiakIslandStrategy?.enabled) {
+      lpValidators = [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+      ];
+      typedTokens = [
+        networkConfig?.wrapToken || "",
+        networkConfig?.typedTokens?.[1] || "",
+        networkConfig?.typedTokens?.[2] || "",
+      ];
+      configs = [
+        "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fd70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b4aeaab10258f4000000000000000000000000000000000000000000000000070efc4d0e326fb4000000000000000000000000000000000000000000000000469604a4b21353340000",
+        commonConfig.stableConfigWith18Decimals,
+        commonConfig.stableConfigWith18Decimals,
+      ];
+    } else {
+      lpValidators = [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+      ];
+      typedTokens = [
+        networkConfig?.wrapToken || "",
+        networkConfig?.typedTokens?.[0] || "",
+        networkConfig?.typedTokens?.[1] || "",
+        networkConfig?.typedTokens?.[2] || "",
+      ];
+      configs = [
+        commonConfig.nativeConfig,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith6Decimals,
+        commonConfig.stableConfigWith18Decimals,
+      ];
+    }
+
     await configManager?.configManager?.initialize(
       commonConfig.admin,
-      whitelistStrategy,
+      whitelistStrategies,
       networkConfig.swapRouters,
       [
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
@@ -137,24 +179,9 @@ async function deployContracts(existingContract: Record<string, any> | undefined
       commonConfig.platformFeeBasisPoint,
       commonConfig.privatePlatformFeeBasisPoint,
       commonConfig.feeCollector,
-      [
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
-      ],
-      [
-        networkConfig?.wrapToken || "",
-        networkConfig?.typedTokens?.[0] || "",
-        networkConfig?.typedTokens?.[1] || "",
-        networkConfig?.typedTokens?.[2] || "",
-      ],
-      [
-        commonConfig.nativeConfig,
-        commonConfig.stableConfigWith6Decimals,
-        commonConfig.stableConfigWith6Decimals,
-        commonConfig.stableConfigWith18Decimals,
-      ],
+      lpValidators,
+      typedTokens,
+      configs,
     );
   }
 
@@ -497,7 +524,7 @@ async function deployContract(
   }
 
   // Only verify new contract to save time or Try to verify no matter what
-  if (autoVerify && !contractAddress) {
+  if (autoVerify) {
     // if (autoVerify) {
     try {
       log(3, ">> sleep first, wait for contract data to be propagated");

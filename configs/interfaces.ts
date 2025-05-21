@@ -43,7 +43,7 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  kodiakIslandStrategy: {
+  kodiakIslandStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
