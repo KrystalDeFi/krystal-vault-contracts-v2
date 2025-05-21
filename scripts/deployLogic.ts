@@ -12,6 +12,7 @@ import {
   LpValidator,
   VaultAutomator,
 } from "../typechain-types/contracts/strategies/lpUniV3";
+import { KodiakIslandStrategy } from "../typechain-types/contracts/strategies/kodiak";
 import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
@@ -37,6 +38,7 @@ export interface Contracts {
   merklStrategy?: MerklStrategy;
   merklAutomator?: MerklAutomator;
   vaultFactory?: VaultFactory;
+  kodiakIslandStrategy?: KodiakIslandStrategy;
 }
 
 export const deploy = async (existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> => {
@@ -91,11 +93,13 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, undefined, contracts);
   const merklStrategy = await deployMerklStrategyContract(++step, existingContract, undefined, contracts);
   const vaultFactory = await deployVaultFactoryContract(++step, existingContract, undefined, contracts);
+  const kodiakIslandStrategy = await deployKodiakIslandStrategyContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpStrategy: lpStrategy.lpStrategy,
     vaultFactory: vaultFactory.vaultFactory,
     merklStrategy: merklStrategy.merklStrategy,
+    kodiakIslandStrategy: kodiakIslandStrategy.kodiakIslandStrategy,
   });
 
   if (networkConfig.vaultFactory.enabled) {
@@ -108,12 +112,19 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   }
 
   if (networkConfig.configManager?.enabled) {
+    const whitelistStrategy = [];
+    if (existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target != null) {
+      whitelistStrategy.push(existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target);
+    }
+    if (existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target != null) {
+      whitelistStrategy.push(existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target);
+    }
+    if (existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target != null) {
+      whitelistStrategy.push(existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target);
+    }
     await configManager?.configManager?.initialize(
       commonConfig.admin,
-      [
-        existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
-        existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
-      ],
+      whitelistStrategy,
       networkConfig.swapRouters,
       [
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
@@ -245,7 +256,7 @@ export const deployConfigManagerContract = async (
   const config = { ...networkConfig, ...customNetworkConfig };
 
   let configManager;
-  
+
   if (config.configManager?.enabled) {
     configManager = (await deployContract(
       `${step} >>`,
@@ -255,7 +266,7 @@ export const deployConfigManagerContract = async (
       "contracts/core/ConfigManager.sol:ConfigManager",
     )) as ConfigManager;
   }
-  
+
   return {
     configManager,
   };
@@ -407,6 +418,38 @@ export const deployVaultFactoryContract = async (
   }
   return {
     vaultFactory,
+  };
+};
+
+export const deployKodiakIslandStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let kodiakIslandStrategy;
+  if (config.kodiakIslandStrategy?.enabled) {
+    kodiakIslandStrategy = (await deployContract(
+      `${step} >>`,
+      config.kodiakIslandStrategy?.autoVerifyContract,
+      "KodiakIslandStrategy",
+      existingContract?.["kodiakIslandStrategy"],
+      "contracts/strategies/kodiak/KodiakIslandStrategy.sol:KodiakIslandStrategy",
+      undefined,
+      ["address", "address", "address", "address", "address"],
+      [
+        existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+        networkConfig.rewardVaultFactory || "",
+        existingContract?.["lpFeeTaker"] || contracts?.lpFeeTaker?.target,
+        networkConfig.bgtToken || "",
+        networkConfig.wbera || "",
+      ],
+    )) as KodiakIslandStrategy;
+  }
+  return {
+    kodiakIslandStrategy,
   };
 };
 

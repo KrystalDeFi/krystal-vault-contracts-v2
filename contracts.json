@@ -58,5 +58,6 @@
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
-  }
+  },
+  "berachain_mainnet": {}
 }
