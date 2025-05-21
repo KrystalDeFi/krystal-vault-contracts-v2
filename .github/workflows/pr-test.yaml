@@ -8,7 +8,7 @@ on:
 jobs:
   pr-test:
     if: github.actor != 'Krystal-CICD'
-    runs-on: ubuntu-latest
+    runs-on: [arc-kyrd-runner, size-m]
     steps:
       # - uses: actions/checkout@v3
       - uses: actions/checkout@v2
@@ -24,6 +24,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
   
       - run: |
+          npm install -g yarn      
           yarn install
 
       - run: |
