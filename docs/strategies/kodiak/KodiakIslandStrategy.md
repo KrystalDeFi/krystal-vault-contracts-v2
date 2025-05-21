@@ -92,29 +92,6 @@ function _swapAndStake(struct AssetLib.Asset[] assets, struct ICommon.VaultConfi
 function _withdrawAndSwap(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig, bytes params) internal returns (struct AssetLib.Asset[])
 ```
 
-### _safeResetAndApprove
-
-```solidity
-function _safeResetAndApprove(contract IERC20 token, address _spender, uint256 _value) internal
-```
-
-_some tokens require allowance == 0 to approve new amount
-but some tokens does not allow approve amount = 0
-we try to set allowance = 0 before approve new amount. if it revert means that
-the token not allow to approve 0, which means the following line code will work properly_
-
-### _safeApprove
-
-```solidity
-function _safeApprove(contract IERC20 token, address _spender, uint256 _value) internal
-```
-
-### _takeFee
-
-```solidity
-function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
-```
-
 ### harvest
 
 ```solidity
@@ -143,6 +120,29 @@ function revalidate(struct AssetLib.Asset asset, struct ICommon.VaultConfig conf
 
 ```solidity
 function _harvestAndTakeFee(contract IRewardVault rewardVault, struct ICommon.FeeConfig feeConfig) internal returns (uint256 redeemedBera)
+```
+
+### _safeResetAndApprove
+
+```solidity
+function _safeResetAndApprove(contract IERC20 token, address _spender, uint256 _value) internal
+```
+
+_some tokens require allowance == 0 to approve new amount
+but some tokens does not allow approve amount = 0
+we try to set allowance = 0 before approve new amount. if it revert means that
+the token not allow to approve 0, which means the following line code will work properly_
+
+### _safeApprove
+
+```solidity
+function _safeApprove(contract IERC20 token, address _spender, uint256 _value) internal
+```
+
+### _takeFee
+
+```solidity
+function _takeFee(address token, uint256 amount, struct ICommon.FeeConfig feeConfig) internal returns (uint256 totalFeeAmount)
 ```
 
 ### receive
