@@ -78,6 +78,11 @@ const config: HardhatUserConfig = {
       },
       hardfork: "cancun",
     },
+    ronin: {
+      url: `https://api.roninchain.com/rpc`,
+      chainId: 2020,
+      accounts: [PRIVATE_KEY || ""],
+    },
   },
   etherscan: {
     apiKey: {
