@@ -2,7 +2,7 @@ import { IConfig } from "./interfaces";
 
 export const BerachainConfig: Record<string, IConfig> = {
   berachain_mainnet: {
-    sleepTime: 120000,
+    sleepTime: 20000,
     vault: {
       enabled: true,
       autoVerifyContract: true,
@@ -12,7 +12,7 @@ export const BerachainConfig: Record<string, IConfig> = {
       autoVerifyContract: true,
     },
     configManager: {
-      enabled: false,
+      enabled: true,
       autoVerifyContract: true,
     },
     poolOptimalSwapper: {

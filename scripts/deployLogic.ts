@@ -112,17 +112,6 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   }
 
   if (networkConfig.configManager?.enabled) {
-    const whitelistStrategies = [];
-    if (existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target != null) {
-      whitelistStrategies.push(existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target);
-    }
-    if (existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target != null) {
-      whitelistStrategies.push(existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target);
-    }
-    if (existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target != null) {
-      whitelistStrategies.push(existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target);
-    }
-
     let lpValidators;
     let typedTokens;
     let configs;
@@ -166,12 +155,16 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
     await configManager?.configManager?.initialize(
       commonConfig.admin,
-      whitelistStrategies,
+      [
+        existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
+        existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
+        existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target,
+      ]?.filter(Boolean),
       networkConfig.swapRouters,
       [
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
         existingContract?.["merklAutomator"] || contracts?.merklAutomator?.target,
-      ],
+      ]?.filter(Boolean),
       commonConfig.signers,
       networkConfig.typedTokens || [],
       networkConfig.typedTokensTypes || [],
