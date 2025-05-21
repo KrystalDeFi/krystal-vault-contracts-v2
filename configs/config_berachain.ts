@@ -50,8 +50,11 @@ export const BerachainConfig: Record<string, IConfig> = {
     wrapToken: "0x6969696969696969696969696969696969696969", // WBERA
     typedTokens: [
       "0x6969696969696969696969696969696969696969", // WBERA
+      "0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce", // HONEY
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", // USDe
+      "0x0555e30da8f98308edb960aa94c0db47230d2b9c", // WBTC
     ],
-    typedTokensTypes: [1],
+    typedTokensTypes: [2, 1, 1, 3],
     swapRouters: [],
     nfpmAddresses: ["0xFE5E8C83FFE4d9627A75EaA7Fee864768dB989bD"],
     rewardVaultFactory: "0x94Ad6Ac84f6C6FbA8b8CCbD71d9f4f101def52a8",
