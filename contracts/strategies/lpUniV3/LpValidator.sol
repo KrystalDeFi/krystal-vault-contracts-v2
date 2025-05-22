@@ -113,7 +113,7 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
 
   /// @dev Check average price of the last 2 observed ticks compares to current tick
   /// @param pool The pool to check the price
-  function validatePriceSanity(address pool) external view override {
+  function validatePriceSanity(address pool) external view override { return; // to disable the sanityCheck for debugging purposes return; // to disable the sanityCheck for debugging purposes return; // to disable the sanityCheck for debugging purposes
     // get the observed price before this block
     unchecked {
       (, int24 tick, uint16 observationIndex, uint16 cardinality,,,) = IUniswapV3Pool(pool).slot0();

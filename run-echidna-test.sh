@@ -21,6 +21,20 @@ function log_error() {
 CONTRACT_NAME=${1:-VaultFuzzerWithSwap}
 log_info "[+] Doing echidna test for contract: $CONTRACT_NAME"
 
+CHAIN_ID=${2:-1}
+log_info "[+] Using chain id: $CHAIN_ID"
+
+if [ "$CHAIN_ID" = "1" ]; then
+    log_info "[+] Using krystal rpc url for chain id 1 (eth mainnet)"
+    export ECHIDNA_RPC_URL="https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true"
+elif [ "$CHAIN_ID" = "80094" ]; then
+    log_info "[+] Using berachain rpc url for chain id 80094"
+    export ECHIDNA_RPC_URL="https://rpc.berachain.com"
+else
+    log_info "[+] Using default rpc url for chain id 1 (eth mainnet)"
+    export ECHIDNA_RPC_URL="https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true"
+fi
+
 log_info "[+] Clean the out directory"
 rm -rf out/
 
@@ -50,9 +64,6 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*\/\/forg
 
 log_info "[+] Comment out all forge-std lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"forge-std\/.*/\/\/ &/g' {} \;
-
-export ECHIDNA_RPC_URL="https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true"
-# https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
 
 log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME"
 echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME
