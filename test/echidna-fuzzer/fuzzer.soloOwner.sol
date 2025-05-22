@@ -132,12 +132,17 @@ contract VaultFuzzerSoloOwner {
         // Call createVault through the owner contract
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
 
+        // Initialize the TOKEN_ANOTHER balance of the vault
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 50 ether);
+
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         owner_doAllocateFixedTickRange(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
+        
+        // Generate some fee for the vault
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 1 ether);
 
     }
 
@@ -149,6 +154,10 @@ contract VaultFuzzerSoloOwner {
     
     function owner_doWithdraw(uint256 shares) public {
         owner.callWithdraw(vaultAddress, shares, 0);
+    }
+
+    function owner_doWithdrawAll() public {
+        owner.callWithdraw(vaultAddress, IERC20(vaultAddress).balanceOf(address(owner)), 0);
     }
 
     function player1_doWithdraw(uint256 shares) public {
@@ -175,12 +184,9 @@ contract VaultFuzzerSoloOwner {
         owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
     }
 
-    // TODO
-    // [x] owner reallocates
-    // [ ] owner reconfigs
-    // [ ] owner harvest
-    // [ ] owner change allowDeposit config
-
+    // function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
+    //     bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    // }
 
 }
 

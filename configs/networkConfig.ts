@@ -6,6 +6,7 @@ import { EthereumConfig } from "./config_eth";
 import { OptimismConfig } from "./config_optimism";
 import { PolygonConfig } from "./config_polygon";
 import { RoninConfig } from "./config_ronin";
+import { BerachainConfig } from "./config_berachain";
 
 const NetworkConfig: Record<string, IConfig> = {
   ...BaseConfig,
@@ -15,6 +16,7 @@ const NetworkConfig: Record<string, IConfig> = {
   ...OptimismConfig,
   ...PolygonConfig,
   ...RoninConfig,
+  ...BerachainConfig,
 };
 
 NetworkConfig.hardhat = {
@@ -26,6 +28,7 @@ NetworkConfig.hardhat = {
   ...NetworkConfig["optimism_mainnet"],
   ...NetworkConfig["polygon_mainnet"],
   ...NetworkConfig["ronin_mainnet"],
+  ...NetworkConfig["berachain_mainnet"],
   autoVerifyContract: false,
 };
 

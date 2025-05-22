@@ -51,6 +51,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  kodiakIslandStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   wrapToken?: string;
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
@@ -59,4 +63,7 @@ export interface IConfig {
   nfpmAddresses: AddressLike[];
 
   katanaAggregateSwapRouter?: AddressLike;
+  rewardVaultFactory?: string;
+  bgtToken?: string;
+  wbera?: string;
 }
