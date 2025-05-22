@@ -19,6 +19,8 @@ const {
   POLYGONSCAN_APIKEY,
   OPTIMISM_APIKEY,
   BSCSCAN_APIKEY,
+  BERASCAN_APIKEY,
+  ETHERSCAN_V2_APIKEY,
 } = process.env;
 const customNetworkConfig = process.env.CHAIN && process.env.CHAIN ? `${process.env.CHAIN}_${process.env.NETWORK}` : "";
 
@@ -86,6 +88,7 @@ const config: HardhatUserConfig = {
       bsc: BSCSCAN_APIKEY || "",
       polygon: POLYGONSCAN_APIKEY || "",
       arbitrumOne: ARBISCAN_APIKEY || "",
+      berachain: BERASCAN_APIKEY || "",
     },
     customChains: [
       {
@@ -93,7 +96,15 @@ const config: HardhatUserConfig = {
         chainId: 8453,
         urls: {
           apiURL: "https://api.basescan.org/api",
-          browserURL: "https://api.basescan.org",
+          browserURL: "https://basescan.org",
+        },
+      },
+      {
+        network: "berachain",
+        chainId: 80094,
+        urls: {
+          apiURL: "https://api.berascan.com/api",
+          browserURL: "https://berascan.com",
         },
       },
     ],
@@ -150,6 +161,13 @@ if (PRIVATE_KEY) {
   config.networks!.arbitrum_mainnet = {
     url: `https://arbitrum-one-rpc.publicnode.com`,
     chainId: 42161,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.berachain_mainnet = {
+    url: `https://berachain-rpc.publicnode.com`,
+    chainId: 80094,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
