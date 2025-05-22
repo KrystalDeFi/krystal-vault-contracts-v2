@@ -597,6 +597,11 @@ async function deployContract(
       await sleep(networkConfig.sleepTime ?? 60000);
       log(3, ">> start verifying");
       if (networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled) {
+        await run("verify:sourcify", {
+          address: contract.target,
+          constructorArguments: args,
+          contract: contractLocation,
+        });
       } else {
         if (!!contractLocation) {
           await run("verify:verify", {

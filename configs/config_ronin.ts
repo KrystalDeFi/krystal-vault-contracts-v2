@@ -2,7 +2,7 @@ import { IConfig } from "./interfaces";
 
 export const RoninConfig: Record<string, IConfig> = {
   ronin_mainnet: {
-    sleepTime: 10000,
+    sleepTime: 20000,
     vault: {
       enabled: true,
       autoVerifyContract: true,
