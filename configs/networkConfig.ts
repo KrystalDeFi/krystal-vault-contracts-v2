@@ -5,6 +5,7 @@ import { BscConfig } from "./config_bsc";
 import { EthereumConfig } from "./config_eth";
 import { OptimismConfig } from "./config_optimism";
 import { PolygonConfig } from "./config_polygon";
+import { RoninConfig } from "./config_ronin";
 import { BerachainConfig } from "./config_berachain";
 
 const NetworkConfig: Record<string, IConfig> = {
@@ -14,7 +15,21 @@ const NetworkConfig: Record<string, IConfig> = {
   ...EthereumConfig,
   ...OptimismConfig,
   ...PolygonConfig,
+  ...RoninConfig,
   ...BerachainConfig,
+};
+
+NetworkConfig.hardhat = {
+  // In case of testing, fork the config of the particular chain to hardhat
+  ...NetworkConfig["base_mainnet"],
+  ...NetworkConfig["arbitrum_mainnet"],
+  ...NetworkConfig["bsc_mainnet"],
+  ...NetworkConfig["eth_mainnet"],
+  ...NetworkConfig["optimism_mainnet"],
+  ...NetworkConfig["polygon_mainnet"],
+  ...NetworkConfig["ronin_mainnet"],
+  ...NetworkConfig["berachain_mainnet"],
+  autoVerifyContract: false,
 };
 
 export { NetworkConfig };

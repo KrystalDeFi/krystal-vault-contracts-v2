@@ -49,6 +49,8 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9", // USDT
       "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", // DAI
       "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1", // WETH
+      "0x7dff72693f6a4149b17e7c6314655f6a9f7c8b33", // GHO
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8", // USDC
       "0x6491c05A82219b8D1479057361ff1654749b876b", // USDS
       "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe
       "0xd3443ee1e91af28e5fb858fbd0d72a63ba8046e0", // GUSDC
@@ -69,6 +71,8 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       1, // USDT
       1, // DAI
       2, // WETH
+      1, // GHO
+      1, // USDC
       1, // USDS
       1, // USDe
       1, // GUSDC

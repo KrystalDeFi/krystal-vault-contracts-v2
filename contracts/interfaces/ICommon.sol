@@ -35,6 +35,8 @@ interface ICommon {
 
   error TransferFailed();
 
+  error ExternalCallFailed();
+
   error InvalidVaultConfig();
 
   error InvalidFeeConfig();

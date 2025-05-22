@@ -19,6 +19,7 @@ const {
   POLYGONSCAN_APIKEY,
   OPTIMISM_APIKEY,
   BSCSCAN_APIKEY,
+  RONINSCAN_APIKEY,
   BERASCAN_APIKEY,
   ETHERSCAN_V2_APIKEY,
 } = process.env;
@@ -79,6 +80,10 @@ const config: HardhatUserConfig = {
       },
       hardfork: "cancun",
     },
+    ronin: {
+      url: `https://api.roninchain.com/rpc`,
+      chainId: 2020,
+    },
   },
   etherscan: {
     apiKey: {
@@ -88,6 +93,7 @@ const config: HardhatUserConfig = {
       bsc: BSCSCAN_APIKEY || "",
       polygon: POLYGONSCAN_APIKEY || "",
       arbitrumOne: ARBISCAN_APIKEY || "",
+      ronin: RONINSCAN_APIKEY || "",
       berachain: BERASCAN_APIKEY || "",
     },
     customChains: [
@@ -107,7 +113,20 @@ const config: HardhatUserConfig = {
           browserURL: "https://berascan.com",
         },
       },
+      {
+        network: "ronin",
+        chainId: 2020,
+        urls: {
+          apiURL: "https://explorer.roninchain.com/api",
+          browserURL: "https://explorer.roninchain.com/",
+        },
+      },
     ],
+  },
+  sourcify: {
+    enabled: true,
+    // Optional: specify a different Sourcify server
+    apiUrl: "https://sourcify.roninchain.com/server",
   },
   typechain: {
     outDir: "typechain-types",
@@ -163,6 +182,13 @@ if (PRIVATE_KEY) {
     chainId: 42161,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.ronin_mainnet = {
+    url: `https://api.roninchain.com/rpc`,
+    chainId: 2020,
+    accounts: [PRIVATE_KEY],
+    timeout: 20000,
     hardfork: "cancun",
   };
   config.networks!.berachain_mainnet = {
