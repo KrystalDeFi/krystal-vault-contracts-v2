@@ -83,7 +83,6 @@ const config: HardhatUserConfig = {
     ronin: {
       url: `https://api.roninchain.com/rpc`,
       chainId: 2020,
-      accounts: [PRIVATE_KEY || ""],
     },
   },
   etherscan: {
