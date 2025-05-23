@@ -24,7 +24,6 @@ import "../interfaces/strategies/IStrategy.sol";
 import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
-import { IVaultFactory } from "../interfaces/core/IVaultFactory.sol";
 
 contract Vault is
   AccessControlUpgradeable,
