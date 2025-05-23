@@ -14,7 +14,7 @@ import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
 import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
-import { RewardVault } from "../../contracts/core/RewardVault.sol";
+import { RewardVault } from "../../contracts/core/FakedRewardVault.sol";
 // import { IRewardVault } from "../../contracts/interfaces/strategies/kodiak/IRewardVault.sol";
 
 import "forge-std/console.sol";
@@ -183,7 +183,7 @@ contract IntegrationKodiakIslandTest is Test {
     console2.log("=== Starting test_Allocate_SwapAndIncreaseLiquidity ===");
 
     // Setup initial deposit
-    uint256 depositAmount = 10 ether;
+    uint256 depositAmount = 100 ether;
     console2.log("Deposit amount:", depositAmount);
 
     vault.deposit{ value: depositAmount }(depositAmount, 0);
@@ -191,7 +191,7 @@ contract IntegrationKodiakIslandTest is Test {
 
     vm.stopBroadcast();
     vm.startBroadcast(user);
-    console2.log("user is depositing 10 ether to the vault");
+    console2.log("user is depositing 100 ether to the vault");
     vault.deposit{ value: depositAmount }(depositAmount, 0);
     vm.stopBroadcast();
     
@@ -204,7 +204,7 @@ contract IntegrationKodiakIslandTest is Test {
       token: WBERA,
       strategy: address(0),
       tokenId: 0,
-      amount: 19 ether
+      amount: 190 ether
     });
     console2.log("Created input assets for allocation");
 
