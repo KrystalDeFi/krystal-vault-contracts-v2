@@ -194,12 +194,14 @@ contract VaultFuzzerSoloOwner {
         bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
     }
 
+    // function assertme() public {
+    //     // owner_doAllocate(0.1 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, -80_000, -10_000);
+    //     AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
+    //     emit LogUint256("vaultAssets.length", vaultAssets.length);
+    //     bighandplayer_doSwap(true, 1 ether, 10_000);
+    //     assert( vaultAssets.length == 2);
+    // }
+
 }
 
 
-//     function assertme() public {
-//         // owner_doAllocate(0.1 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, -80_000, -10_000);
-//         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
-//         emit LogUint256("vaultAssets.length", vaultAssets.length);
-//         assert( vaultAssets.length == 2);
-//     }
