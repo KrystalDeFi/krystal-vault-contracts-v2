@@ -186,7 +186,7 @@ contract VaultFuzzerSoloOwner {
 
     function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {        
         require(fee == 10_000 || fee == 5_000 || fee == 3_000 || fee == 1_000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
-        owner.doSwap(token0AddressIsTokenPrincipal ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrincipal ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
+        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
     }
 
     function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {
