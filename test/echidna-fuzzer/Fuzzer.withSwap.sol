@@ -161,7 +161,7 @@ contract VaultFuzzerWithSwap {
     }
 
     function player1_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function player2_doDepositPrincipalToken(uint256 amount) public {
@@ -172,18 +172,18 @@ contract VaultFuzzerWithSwap {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
     function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
         require(principalTokenAmount > 0.001 ether);
         
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);        
-        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
+        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG, 10_000);
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         assert(vaultAssets.length >= 2);
     }
@@ -305,7 +305,7 @@ contract VaultFuzzerWithSwap {
     //     // console.log("player2 shares:    %s", player2Shares);
 
     //     bighandplayer_doSwap(true, 500 ether);
-    //     // bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 20 ether);
+    //     // bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 20 ether, 10_000);
 
     //     player2_doWithdraw(IERC20(vaultAddress).balanceOf(address(player2)));
 

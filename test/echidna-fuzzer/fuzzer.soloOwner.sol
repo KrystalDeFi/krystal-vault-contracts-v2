@@ -134,7 +134,7 @@ contract VaultFuzzerSoloOwner {
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
 
         // Initialize the TOKEN_ANOTHER balance of the vault
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 50 ether);
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 50 ether, 10_000);
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
@@ -143,7 +143,7 @@ contract VaultFuzzerSoloOwner {
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         
         // Generate some fee for the vault
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 1 ether);
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 1 ether, 10_000);
 
     }
 
@@ -177,20 +177,22 @@ contract VaultFuzzerSoloOwner {
         require(tickLower % TICK_SPACING_MULTIPLIER == 0, "Invalid tickLower");
         require(fee == 10000 || fee == 5000 || fee == 3000 || fee == 1000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
         int24 tickUpper = tickLower + (TICK_SPACING_MULTIPLIER * tickMultiplier);
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper, fee);
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {
         owner_doAllocate(amount, token0, token1, TICK_LOWER_CONFIG, 20, 10000);
     }
 
-    function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {        
+        require(fee == 10000 || fee == 5000 || fee == 3000 || fee == 1000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
+        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
     }
 
-    // function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-    //     bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
-    // }
+    function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {
+        require(fee == 10000 || fee == 5000 || fee == 3000 || fee == 1000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
+    }
 
 }
 
