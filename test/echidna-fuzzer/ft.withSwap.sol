@@ -152,7 +152,7 @@ contract VaultFuzzer is TestCommon {
     }
 
     function player1_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        player1.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function player2_doDepositPrincipalToken(uint256 amount) public {
@@ -163,18 +163,18 @@ contract VaultFuzzer is TestCommon {
         player2.callWithdraw(vaultAddress, shares, 0);
     }
     function player2_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        player2.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, 10_000);
     }
 
     function owner_doAllocate(uint256 principalTokenAmount) public {
         require(principalTokenAmount > 0.001 ether);
         
         require( IVault(payable(vaultAddress)).getTotalValue() > 0.011 ether);
-        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
+        owner.callAllocate(vaultAddress, principalTokenAmount, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG, 10_000);
         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
         assert(vaultAssets.length >= 2);
     }

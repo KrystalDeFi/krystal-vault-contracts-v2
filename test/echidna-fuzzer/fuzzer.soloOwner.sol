@@ -22,6 +22,7 @@ uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
 int24 constant TICK_LOWER_CONFIG = -71_000;
 int24 constant TICK_UPPER_CONFIG = -69_000;
+int24 constant TICK_SPACING_MULTIPLIER = 200;
 
 contract VaultFuzzerSoloOwner {
     
@@ -133,7 +134,7 @@ contract VaultFuzzerSoloOwner {
         vaultAddress = owner.callCreateVault(address(vaultFactory), params);
 
         // Initialize the TOKEN_ANOTHER balance of the vault
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 50 ether);
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 50 ether, 10_000);
 
         owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
         player1.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);
@@ -142,7 +143,7 @@ contract VaultFuzzerSoloOwner {
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
         
         // Generate some fee for the vault
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 1 ether);
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 1 ether, 10_000);
 
     }
 
@@ -172,28 +173,35 @@ contract VaultFuzzerSoloOwner {
         owner.callDeposit(vaultAddress, amount, TOKEN_ANOTHER);
     }    
 
-    function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
+    function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickMultiplier, uint24 fee) public {
+        require(tickLower % TICK_SPACING_MULTIPLIER == 0, "Invalid tickLower");
+        require(fee == 10000 || fee == 5000 || fee == 3000 || fee == 1000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
+        int24 tickUpper = tickLower + (TICK_SPACING_MULTIPLIER * tickMultiplier);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper, fee);
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
+        owner_doAllocate(amount, token0, token1, TICK_LOWER_CONFIG, 20, 10_000);
     }
 
-    function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {        
+        require(fee == 10_000 || fee == 5_000 || fee == 3_000 || fee == 1_000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
+        owner.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
     }
 
-    // function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount) public {        
-    //     bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount);
+    function bighandplayer_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {
+        require(fee == 10_000 || fee == 5_000 || fee == 3_000 || fee == 1_000 || fee == 500 || fee == 300 || fee == 100 || fee == 50 || fee == 10, "Invalid fee");
+        bighandplayer.doSwap(token0AddressIsTokenPrinciple ? TOKEN_PRINCIPAL : TOKEN_ANOTHER, token0AddressIsTokenPrinciple ? TOKEN_ANOTHER : TOKEN_PRINCIPAL, token0Amount, fee);
+    }
+
+    // function assertme() public {
+    //     // owner_doAllocate(0.1 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, -80_000, -10_000);
+    //     AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
+    //     emit LogUint256("vaultAssets.length", vaultAssets.length);
+    //     bighandplayer_doSwap(true, 1 ether, 10_000);
+    //     assert( vaultAssets.length == 2);
     // }
 
 }
 
 
-//     function assertme() public {
-//         // owner_doAllocate(0.1 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, -80_000, -10_000);
-//         AssetLib.Asset[] memory vaultAssets = IVault(payable(vaultAddress)).getInventory();              
-//         emit LogUint256("vaultAssets.length", vaultAssets.length);
-//         assert( vaultAssets.length == 2);
-//     }

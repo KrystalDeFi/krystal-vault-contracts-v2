@@ -23,7 +23,7 @@ import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol
 contract Player {
 
     // this config is for the WETH/VIRTUAL pool on ETH mainnet https://etherscan.io/address/0x95a45a87dd4d3a1803039072f37e075f37b23d75#readContract
-    uint24 public fee = 10000;
+    // uint24 public fee = 10000;
     
     constructor() payable {
     }
@@ -49,7 +49,7 @@ contract Player {
         return IVaultFactory(vaultFactory).createVault(params);
     }    
 
-    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address strategyAddress, int24 tickLower, int24 tickUpper) public {
+    function callAllocate(address vaultAddress, uint256 principalTokenAmount, address tokenPrincipalAddress, address tokenAnotherAddress, address strategyAddress, int24 tickLower, int24 tickUpper, uint24 fee) public {
         IVault vault = IVault(payable(vaultAddress));        
         
         AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
@@ -87,7 +87,7 @@ contract Player {
 
     }
 
-    function doSwap(address token0Address, address token1Address, uint256 token0Amount) public {
+    function doSwap(address token0Address, address token1Address, uint256 token0Amount, uint24 fee) public {
         address pool = IUniswapV3Factory(INFPM(NFPM_ON_ETH_MAINNET).factory()).getPool(token0Address, token1Address, fee);
         
         PoolOptimalSwapper swapper = new PoolOptimalSwapper();

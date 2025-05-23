@@ -135,7 +135,7 @@ contract FoundryTestSoloOwner is TestCommon {
         player2.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);        
         owner_doAllocateFixedTickRange(1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER);
         // owner.callAllocate(vaultAddress, 1.5 ether, TOKEN_PRINCIPAL, TOKEN_ANOTHER, address(lpStrategy));
-        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether);
+        bighandplayer.doSwap(TOKEN_PRINCIPAL, TOKEN_ANOTHER, 30 ether, 10_000);
         console.log("swapping done");
 
     }
@@ -158,11 +158,11 @@ contract FoundryTestSoloOwner is TestCommon {
 
 
     function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper, 10_000);
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {        
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG, 10_000);
     }
 
     function test_printTheState() public {
