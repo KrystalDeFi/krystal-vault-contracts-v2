@@ -158,11 +158,11 @@ contract FoundryTestSoloOwner is TestCommon {
 
 
     function owner_doAllocate(uint256 amount, address token0, address token1, int24 tickLower, int24 tickUpper) public {
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper, 10000);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), tickLower, tickUpper, 10_000);
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {        
-        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG, 10000);
+        owner.callAllocate(vaultAddress, amount, token0, token1, address(lpStrategy), TICK_LOWER_CONFIG, TICK_UPPER_CONFIG, 10_000);
     }
 
     function test_printTheState() public {

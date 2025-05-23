@@ -181,7 +181,7 @@ contract VaultFuzzerSoloOwner {
     }
 
     function owner_doAllocateFixedTickRange(uint256 amount, address token0, address token1) public {
-        owner_doAllocate(amount, token0, token1, TICK_LOWER_CONFIG, 20, 10000);
+        owner_doAllocate(amount, token0, token1, TICK_LOWER_CONFIG, 20, 10_000);
     }
 
     function owner_doSwap(bool token0AddressIsTokenPrinciple, uint256 token0Amount, uint24 fee) public {        
