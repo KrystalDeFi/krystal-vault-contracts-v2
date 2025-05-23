@@ -22,7 +22,7 @@ uint256 constant BLOCK_TIMESTAMP = 1745814599;
 uint256 constant PLAYER_INITIAL_PTOKEN_BALANCE = 2 ether;
 int24 constant TICK_LOWER_CONFIG = -71_000;
 int24 constant TICK_UPPER_CONFIG = -69_000;
-int24 constant TICK_SPACING_MULTIPLIER = 100;
+int24 constant TICK_SPACING_MULTIPLIER = 300;
 
 contract VaultFuzzerSoloOwner {
     
