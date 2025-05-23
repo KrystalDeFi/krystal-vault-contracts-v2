@@ -18,6 +18,8 @@ import { IBGT } from "../../interfaces/strategies/kodiak/IBGT.sol";
 import { IWETH9 } from "../../interfaces/IWETH9.sol";
 import { BgtRedeemer } from "./BgtRedeemer.sol";
 
+import "forge-std/console.sol";
+
 contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
   using SafeERC20 for IERC20;
 
@@ -67,6 +69,7 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     returns (uint256 valueInPrincipal)
   {
     IRewardVault rewardVault = IRewardVault(asset.token);
+    console.log("---------------------------- asset.token: ", asset.token);
     valueInPrincipal = rewardVault.earned(msg.sender);
 
     IKodiakIsland kodiakIsland = IKodiakIsland(rewardVault.stakeToken());
