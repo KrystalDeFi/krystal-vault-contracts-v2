@@ -109,7 +109,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   if (networkConfig.vaultFactory.enabled) {
     await vaultFactory?.vaultFactory?.initialize(
-      commonConfig.admin,
+      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
       networkConfig.wrapToken || "",
       existingContract?.["configManager"] || contracts?.configManager?.target,
       existingContract?.["vault"] || contracts?.vault?.target,
@@ -175,7 +175,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
     }
 
     await configManager?.configManager?.initialize(
-      commonConfig.admin,
+      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
       [
         existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
         existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
@@ -201,7 +201,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   if (networkConfig.lpValidator?.enabled) {
     await lpValidator?.lpValidator?.initialize(
-      commonConfig.admin,
+      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
       existingContract?.["configManager"] || contracts?.configManager?.target,
       networkConfig.nfpmAddresses,
     );
@@ -241,6 +241,8 @@ export const deployVaultAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
+  const isRonin = config?.katanaLpFeeTaker?.enabled || config?.katanaPoolOptimalSwapper?.enabled;
+
   let vaultAutomator;
 
   if (config.vaultAutomator?.enabled) {
@@ -252,7 +254,7 @@ export const deployVaultAutomatorContract = async (
       "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
       undefined,
       ["address", "address[]"],
-      [commonConfig.admin, commonConfig.automationOperators],
+      [isRonin ? commonConfig.roninAdmin : commonConfig.admin, commonConfig.automationOperators],
     )) as LpUniV3VaultAutomator;
   }
 
@@ -269,6 +271,8 @@ export const deployMerklAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
+  const isRonin = config?.katanaLpFeeTaker?.enabled || config?.katanaPoolOptimalSwapper?.enabled;
+
   let merklAutomator;
 
   if (config.merklAutomator?.enabled) {
@@ -280,7 +284,10 @@ export const deployMerklAutomatorContract = async (
       "contracts/strategies/merkl/MerklAutomator.sol:MerklAutomator",
       undefined,
       ["address", "address"],
-      [commonConfig.admin, existingContract?.["configManager"] || contracts?.configManager?.target],
+      [
+        isRonin ? commonConfig.roninAdmin : commonConfig.admin,
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+      ],
     )) as MerklAutomator;
   }
   return {
