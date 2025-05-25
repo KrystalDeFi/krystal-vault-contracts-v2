@@ -6,11 +6,11 @@ import { IStrategy } from "../IStrategy.sol";
 interface IKodiakIslandStrategy is IStrategy {
   // Custom errors
   error InvalidAssetStrategy();
-  error InvalidIslandFactory();
   error InvalidPrincipalToken();
+  error InvalidRewardVault();
 
   struct SwapAndStakeParams {
-    address bgtRewardVault;
+    address kodiakIslandLpAddress;
   }
 
   struct WithdrawAndSwapParams {

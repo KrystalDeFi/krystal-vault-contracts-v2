@@ -17,6 +17,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IBGT } from "../../interfaces/strategies/kodiak/IBGT.sol";
 import { IWETH9 } from "../../interfaces/IWETH9.sol";
 import { BgtRedeemer } from "./BgtRedeemer.sol";
+import { IRewardVaultFactory } from "../../interfaces/strategies/kodiak/IRewardVaultFactory.sol";
 
 contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
   using SafeERC20 for IERC20;
@@ -125,9 +126,10 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     require(assets[0].token == config.principalToken, InvalidAsset());
 
     SwapAndStakeParams memory swapParams = abi.decode(params, (SwapAndStakeParams));
-    IRewardVault rewardVault = IRewardVault(swapParams.bgtRewardVault);
-    IKodiakIsland kodiakIsland = IKodiakIsland(rewardVault.stakeToken());
-    require(rewardVault.factory() == whitelistRewardVaultFactory, InvalidIslandFactory());
+    IKodiakIsland kodiakIsland = IKodiakIsland(swapParams.kodiakIslandLpAddress);
+    IRewardVault rewardVault =
+      IRewardVault(IRewardVaultFactory(whitelistRewardVaultFactory).getVault(address(kodiakIsland)));
+    require(address(rewardVault) != address(0), InvalidRewardVault());
 
     // Get token addresses
     IERC20 token0 = kodiakIsland.token0();
