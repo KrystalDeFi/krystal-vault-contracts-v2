@@ -8,23 +8,23 @@
 error InvalidAssetStrategy()
 ```
 
-### InvalidIslandFactory
-
-```solidity
-error InvalidIslandFactory()
-```
-
 ### InvalidPrincipalToken
 
 ```solidity
 error InvalidPrincipalToken()
 ```
 
+### InvalidRewardVault
+
+```solidity
+error InvalidRewardVault()
+```
+
 ### SwapAndStakeParams
 
 ```solidity
 struct SwapAndStakeParams {
-  address bgtRewardVault;
+  address kodiakIslandLpAddress;
 }
 ```
 
