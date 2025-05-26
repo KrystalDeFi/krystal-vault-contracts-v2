@@ -2,6 +2,12 @@
 
 ## IKodiakIslandStrategy
 
+### BgtRewardClaim
+
+```solidity
+event BgtRewardClaim(uint256 amount)
+```
+
 ### InvalidAssetStrategy
 
 ```solidity
