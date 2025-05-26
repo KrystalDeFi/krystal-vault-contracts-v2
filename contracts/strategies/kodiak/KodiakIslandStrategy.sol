@@ -7,15 +7,13 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IRewardVault } from "../../interfaces/strategies/kodiak/IRewardVault.sol";
 import { IKodiakIslandStrategy } from "../../interfaces/strategies/kodiak/IKodiakIslandStrategy.sol";
-import { IKodiakIsland, IUniswapV3Pool } from "../../interfaces/strategies/kodiak/IKodiakIsland.sol";
+import { IKodiakIsland } from "../../interfaces/strategies/kodiak/IKodiakIsland.sol";
 import { AssetLib } from "../../libraries/AssetLib.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
-import { ILpValidator } from "../../interfaces/strategies/ILpValidator.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IBGT } from "../../interfaces/strategies/kodiak/IBGT.sol";
-import { IWETH9 } from "../../interfaces/IWETH9.sol";
 import { BgtRedeemer } from "./BgtRedeemer.sol";
 import { IRewardVaultFactory } from "../../interfaces/strategies/kodiak/IRewardVaultFactory.sol";
 
