@@ -130,6 +130,7 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     IRewardVault rewardVault =
       IRewardVault(IRewardVaultFactory(whitelistRewardVaultFactory).getVault(address(kodiakIsland)));
     require(address(rewardVault) != address(0), InvalidRewardVault());
+    require(rewardVault.rewardToken() == address(bgtToken), InvalidRewardVault());
 
     // Get token addresses
     IERC20 token0 = kodiakIsland.token0();
@@ -332,9 +333,11 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     uint256 rewardAmount = rewardVault.getReward(address(this), address(this));
     bgtRedeemer.setReceiver(address(this));
     redeemedBera = IERC20(wbera).balanceOf(address(this));
-    IBGT(rewardVault.rewardToken()).redeem(address(bgtRedeemer), rewardAmount);
+    bgtToken.redeem(address(bgtRedeemer), rewardAmount);
     redeemedBera = IERC20(wbera).balanceOf(address(this)) - redeemedBera;
     redeemedBera -= _takeFee(wbera, redeemedBera, feeConfig);
+
+    emit BgtRewardClaim(redeemedBera);
   }
 
   /// @dev some tokens require allowance == 0 to approve new amount

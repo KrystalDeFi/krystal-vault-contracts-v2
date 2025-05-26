@@ -4,7 +4,9 @@ pragma solidity ^0.8.28;
 import { IStrategy } from "../IStrategy.sol";
 
 interface IKodiakIslandStrategy is IStrategy {
+  event BgtRewardClaim(uint256 amount);
   // Custom errors
+
   error InvalidAssetStrategy();
   error InvalidPrincipalToken();
   error InvalidRewardVault();
