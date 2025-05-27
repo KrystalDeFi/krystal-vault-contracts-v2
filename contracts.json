@@ -68,7 +68,7 @@
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "lpStrategy": "0x75954a29a2b26dea3358d59c037edf0dc4d1c4a9",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "kodiakIslandStrategy": "0x9a125f231e90d4f51dd6ce1fad9ce8bff7c5f7dd"
+    "kodiakIslandStrategy": "0x9c0fc30b1e9c609e824d3bc7611832f84b79ce1b"
   },
   "ronin_mainnet": {
     "vault": "0xf36c5a983e1c8ea94a148549eacd5850a247fc88",
@@ -76,9 +76,9 @@
     "poolOptimalSwapper": "0x28f00a74abc34160be1268e4b32a88b1d6b5c535",
     "configManager": "0x3775e4b7737c9e8c12e5ea742298d054cd2beb9c",
     "lpValidator": "0xc79006f85360010790903f00bec264b0b782e85c",
-    "lpFeeTaker": "0x2f92f55e97936faa6c62d224ef495e50d65a0962",
+    "lpFeeTaker": "0xa795d9d4Aa65B3DdC577Ad2c907Dc7b62de725a8",
     "merklAutomator": "0x74894d2c2ee68883b464ee855c39418a16e5d3b5",
-    "lpStrategy": "0x94a1ea067d9a02ed6a35f2508b84dd28bc397e7a",
+    "lpStrategy": "0x860fbe511f217371069c72da3d10f063aa53b3b1",
     "vaultFactory": "0x3f06f7d2ab15f42b92f3e8b266f79d4e831e702b",
     "merklStrategy": "0x52976cd34445bfb939da12303a1f37d5911d1181"
   }

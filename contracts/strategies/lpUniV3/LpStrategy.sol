@@ -537,6 +537,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
+    
+    address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
 
     returnAssets = _decreaseLiquidity(
       lpAsset,
@@ -551,7 +553,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amountOut;
     uint256 amountInUsed;
     {
-      address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
       _safeResetAndApprove(IERC20(otherAsset.token), address(optimalSwapper), otherAsset.amount);
 
       bytes memory swapData = params.swapData;
