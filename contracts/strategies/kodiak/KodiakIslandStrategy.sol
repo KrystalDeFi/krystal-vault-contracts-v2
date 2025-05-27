@@ -7,16 +7,15 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IRewardVault } from "../../interfaces/strategies/kodiak/IRewardVault.sol";
 import { IKodiakIslandStrategy } from "../../interfaces/strategies/kodiak/IKodiakIslandStrategy.sol";
-import { IKodiakIsland, IUniswapV3Pool } from "../../interfaces/strategies/kodiak/IKodiakIsland.sol";
+import { IKodiakIsland } from "../../interfaces/strategies/kodiak/IKodiakIsland.sol";
 import { AssetLib } from "../../libraries/AssetLib.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
-import { ILpValidator } from "../../interfaces/strategies/ILpValidator.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IBGT } from "../../interfaces/strategies/kodiak/IBGT.sol";
-import { IWETH9 } from "../../interfaces/IWETH9.sol";
 import { BgtRedeemer } from "./BgtRedeemer.sol";
+import { IRewardVaultFactory } from "../../interfaces/strategies/kodiak/IRewardVaultFactory.sol";
 
 contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
   using SafeERC20 for IERC20;
@@ -115,33 +114,27 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     }
   }
 
-  event LogUint256(string, uint256);
-  event LogAddress(string, address);
-
   function _swapAndStake(
     AssetLib.Asset[] calldata assets,
     VaultConfig calldata config,
     FeeConfig calldata,
     bytes memory params
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
-
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0102 ", block.number);
-
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].token == config.principalToken, InvalidAsset());
 
     SwapAndStakeParams memory swapParams = abi.decode(params, (SwapAndStakeParams));
-    IRewardVault rewardVault = IRewardVault(swapParams.bgtRewardVault);
-    IKodiakIsland kodiakIsland = IKodiakIsland(rewardVault.stakeToken());
-    require(rewardVault.factory() == whitelistRewardVaultFactory, InvalidIslandFactory());
+    IKodiakIsland kodiakIsland = IKodiakIsland(swapParams.kodiakIslandLpAddress);
+    IRewardVault rewardVault =
+      IRewardVault(IRewardVaultFactory(whitelistRewardVaultFactory).getVault(address(kodiakIsland)));
+    require(address(rewardVault) != address(0), InvalidRewardVault());
+    require(rewardVault.rewardToken() == address(bgtToken), InvalidRewardVault());
 
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0103 ", block.number);
     // Get token addresses
     IERC20 token0 = kodiakIsland.token0();
     IERC20 token1 = kodiakIsland.token1();
     require(address(token0) == wbera || address(token1) == wbera, InvalidPrincipalToken());
 
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0104 ", block.number);
     // Perform optimal swap
     uint256 principalAmount = assets[0].amount;
     _safeResetAndApprove(IERC20(config.principalToken), address(optimalSwapper), principalAmount);
@@ -156,7 +149,6 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
       })
     );
 
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0105 ", block.number);
     // Approve tokens for Kodiak Island
     _safeResetAndApprove(IERC20(token0), address(kodiakIsland), amount0);
     _safeResetAndApprove(IERC20(token1), address(kodiakIsland), amount1);
@@ -164,30 +156,14 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     (,, uint256 mintAmount) = kodiakIsland.getMintAmounts(amount0, amount1);
     // Mint Kodiak Island LP tokens
     uint256 lpTokenAmount = kodiakIsland.balanceOf(address(this));
-    emit LogUint256("----------------------------------- I'm in _swapAndStake 0105a. lpTokenAmount (before mint)", lpTokenAmount);
-    (uint256 amount0Used, uint256 amount1Used,) = kodiakIsland.mint(mintAmount, address(this));    
+    (uint256 amount0Used, uint256 amount1Used,) = kodiakIsland.mint(mintAmount, address(this));
     lpTokenAmount = kodiakIsland.balanceOf(address(this)) - lpTokenAmount;
-    emit LogAddress("----------------------------------------- I'm in _swapAndStake 0105a. token0", address(token0));
-    emit LogAddress("----------------------------------------- I'm in _swapAndStake 0105a. token1", address(token1));
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0105a. mintAmount", mintAmount);
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0105a. amount0Used", amount0Used);
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0105a. amount1Used", amount1Used);
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0105a. lpTokenAmount", lpTokenAmount);
-
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0106 ", block.number);
 
     _safeResetAndApprove(IERC20(address(kodiakIsland)), address(rewardVault), lpTokenAmount);
     uint256 stakeTokenAmount = IERC20(address(rewardVault)).balanceOf(address(this));
-
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0107a. lpTokenAmount", lpTokenAmount);
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0107a. stakeTokenAmount", stakeTokenAmount);
-    emit LogAddress("----------------------------------------- I'm in _swapAndStake 0107a. rewardVault", address(rewardVault));
     rewardVault.stake(lpTokenAmount);
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0107b", block.number);
-
     stakeTokenAmount = IERC20(address(rewardVault)).balanceOf(address(this)) - stakeTokenAmount;
 
-    emit LogUint256("----------------------------------------- I'm in _swapAndStake 0107 ", block.number);
     // Prepare return assets
     returnAssets = new AssetLib.Asset[](3);
     returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), address(token0), 0, amount0 - amount0Used);
@@ -355,9 +331,11 @@ contract KodiakIslandStrategy is IKodiakIslandStrategy, ReentrancyGuard {
     uint256 rewardAmount = rewardVault.getReward(address(this), address(this));
     bgtRedeemer.setReceiver(address(this));
     redeemedBera = IERC20(wbera).balanceOf(address(this));
-    IBGT(rewardVault.rewardToken()).redeem(address(bgtRedeemer), rewardAmount);
+    bgtToken.redeem(address(bgtRedeemer), rewardAmount);
     redeemedBera = IERC20(wbera).balanceOf(address(this)) - redeemedBera;
     redeemedBera -= _takeFee(wbera, redeemedBera, feeConfig);
+
+    emit BgtRewardClaim(redeemedBera);
   }
 
   /// @dev some tokens require allowance == 0 to approve new amount

@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FailedToSendEther",
     "type": "error"
   },

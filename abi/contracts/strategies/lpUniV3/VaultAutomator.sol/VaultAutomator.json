@@ -80,6 +80,11 @@
   },
   {
     "inputs": [],
+    "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidFeeConfig",
     "type": "error"
   },

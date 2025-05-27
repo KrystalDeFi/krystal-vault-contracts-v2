@@ -2,16 +2,16 @@
 
 ## IKodiakIslandStrategy
 
+### BgtRewardClaim
+
+```solidity
+event BgtRewardClaim(uint256 amount)
+```
+
 ### InvalidAssetStrategy
 
 ```solidity
 error InvalidAssetStrategy()
-```
-
-### InvalidIslandFactory
-
-```solidity
-error InvalidIslandFactory()
 ```
 
 ### InvalidPrincipalToken
@@ -20,11 +20,17 @@ error InvalidIslandFactory()
 error InvalidPrincipalToken()
 ```
 
+### InvalidRewardVault
+
+```solidity
+error InvalidRewardVault()
+```
+
 ### SwapAndStakeParams
 
 ```solidity
 struct SwapAndStakeParams {
-  address bgtRewardVault;
+  address kodiakIslandLpAddress;
 }
 ```
 
@@ -44,4 +50,3 @@ enum InstructionType {
   WithdrawAndSwap
 }
 ```
-

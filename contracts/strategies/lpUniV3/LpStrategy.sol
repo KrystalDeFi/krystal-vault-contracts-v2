@@ -56,7 +56,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
 
     address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
-    (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
+    uint160 sqrtPriceX96;
+    (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
+    require(success, ExternalCallFailed());
+    assembly {
+      sqrtPriceX96 := mload(add(returnedData, 0x20))
+    }
     uint256 priceX96 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, Q96);
     if (token0 == principalToken) {
       priceX96 = Q192 / priceX96;
@@ -532,6 +537,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
+    
+    address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
 
     returnAssets = _decreaseLiquidity(
       lpAsset,
@@ -546,7 +553,6 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amountOut;
     uint256 amountInUsed;
     {
-      address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
       _safeResetAndApprove(IERC20(otherAsset.token), address(optimalSwapper), otherAsset.amount);
 
       bytes memory swapData = params.swapData;
@@ -841,7 +847,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   function _getAmountsForPosition(INFPM nfpm, uint256 tokenId) internal view returns (uint256 amount0, uint256 amount1) {
     (,,,,, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = nfpm.positions(tokenId);
     IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
-    (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
+    uint160 sqrtPriceX96;
+    (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
+    require(success, ExternalCallFailed());
+    assembly {
+      sqrtPriceX96 := mload(add(returnedData, 0x20))
+    }
     uint160 sqrtPriceX96Lower = TickMath.getSqrtRatioAtTick(tickLower);
     uint160 sqrtPriceX96Upper = TickMath.getSqrtRatioAtTick(tickUpper);
     (amount0, amount1) =
@@ -862,7 +873,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,,,,, tickLower, tickUpper, liquidity, feeGrowthInside0LastX128, feeGrowthInside1LastX128, fee0, fee1) =
       nfpm.positions(tokenId);
     IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
-    (, int24 tick,,,,,) = pool.slot0();
+    int24 tick;
+    (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
+    require(success, ExternalCallFailed());
+    assembly {
+      tick := mload(add(returnedData, 0x40)) // skip the first 32 bytes which is the sqrtPriceX96
+    }
 
     (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(pool, tickLower, tickUpper, tick);
 

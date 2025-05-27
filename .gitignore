@@ -156,3 +156,4 @@ broadcast/
 .corpus/
 .DS_Store
 *.tmp
+soljson-latest.js

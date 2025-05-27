@@ -23,11 +23,19 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  katanaPoolOptimalSwapper?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   lpValidator?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
   lpFeeTaker?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  katanaLpFeeTaker?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
@@ -43,7 +51,7 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  kodiakIslandStrategy: {
+  kodiakIslandStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
@@ -53,6 +61,7 @@ export interface IConfig {
   typedTokensTypes?: number[];
   swapRouters: AddressLike[];
   nfpmAddresses: AddressLike[];
+  katanaAggregateSwapRouter?: AddressLike;
   rewardVaultFactory?: string;
   bgtToken?: string;
   wbera?: string;

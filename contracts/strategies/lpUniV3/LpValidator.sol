@@ -107,7 +107,12 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
 
   function validateObservationCardinality(INFPM nfpm, uint24 fee, address token0, address token1) external view {
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
-    (,,, uint16 observationCardinality,,,) = IUniswapV3Pool(pool).slot0();
+    uint16 observationCardinality;
+    (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
+    require(success, ExternalCallFailed());
+    assembly {
+      observationCardinality := mload(add(returnedData, 0x80))
+    }
     require(observationCardinality >= 2, InvalidObservationCardinality());
   }
 
@@ -116,7 +121,17 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
   function validatePriceSanity(address pool) external view override { return; // to disable the sanityCheck for debugging purposes return; // to disable the sanityCheck for debugging purposes return; // to disable the sanityCheck for debugging purposes
     // get the observed price before this block
     unchecked {
-      (, int24 tick, uint16 observationIndex, uint16 cardinality,,,) = IUniswapV3Pool(pool).slot0();
+      int24 tick;
+      uint16 observationIndex;
+      uint16 cardinality;
+      (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
+      require(success, ExternalCallFailed());
+      assembly {
+        tick := mload(add(returnedData, 0x40))
+        observationIndex := mload(add(returnedData, 0x60))
+        cardinality := mload(add(returnedData, 0x80))
+      }
+
       require(cardinality > 0, InvalidObservationCardinality());
       uint32 lastTimestamp;
       int56 lastTickCummulative;

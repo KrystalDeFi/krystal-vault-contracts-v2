@@ -1,5 +1,6 @@
 export const commonConfig = {
   admin: "0x9A99252A76f7B40Cbf2002a8dB2977C85fA306DF",
+  roninAdmin: "0xBe49AB0ad78D6823A2F4Bd6BbAA3dff9B95F018a",
   automationOperators: [
     "0x9729585607568Dcbf1f5f3802AfBf5B221702932",
     "0x4b82847C82087ea19418beD079966810f64f39f4",

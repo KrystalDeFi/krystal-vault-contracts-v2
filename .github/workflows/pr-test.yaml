@@ -27,10 +27,18 @@ jobs:
           npm install -g yarn      
           yarn install
 
+      - name: Ignore the Katana test because no Ronin archive node is available. Requested by sir HoangLong
+        run: |
+          mv test/integration/Integration.Katana.t.sol test/integration/Integration.Katana.t.sol.disabled
+
       - run: |
           RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a yarn test          
           # RPC_URL=https://base.merkle.io
           # RPC_URL=https://base.llamarpc.com
+        
+      - name: Re-enable the Katana test
+        run: |
+          mv test/integration/Integration.Katana.t.sol.disabled test/integration/Integration.Katana.t.sol
 
       - name: Create new branch and push the document
         env:
