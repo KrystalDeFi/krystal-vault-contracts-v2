@@ -166,6 +166,16 @@ Validate that an asset can be used with this strategy
 function _claimAndSwap(struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig, bytes data) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
+Claim and swap rewards to principal if needed
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| config | struct ICommon.VaultConfig | The vault configuration |
+| feeConfig | struct ICommon.FeeConfig | The fee configuration |
+| data | bytes | ClaimAndSwapParams |
+
 ### _claim
 
 ```solidity
