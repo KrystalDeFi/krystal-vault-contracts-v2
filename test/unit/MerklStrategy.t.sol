@@ -16,6 +16,7 @@ contract MockMerklDistributor {
   {
     // Just transfer the tokens to simulate a successful claim
     for (uint256 i = 0; i < users.length; i++) {
+      MockERC20(tokens[i]).mint(address(this), amounts[i]);
       MockERC20(tokens[i]).transfer(users[i], amounts[i]);
     }
   }
@@ -35,6 +36,7 @@ contract MockSwapRouter {
   using SafeERC20 for IERC20;
 
   function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) external {
+    require(tokenIn != tokenOut);
     // Transfer tokens to simulate a swap
     IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
     IERC20(tokenOut).safeTransfer(msg.sender, amountOut);
@@ -659,5 +661,80 @@ contract MerklStrategyTest is TestCommon {
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
     vm.expectRevert(ICommon.SignatureExpired.selector);
     strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+  }
+
+  function testClaimWithoutSwap() public {
+    // Create vault config with principal token same as reward token
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: true,
+      rangeStrategyType: 0,
+      tvlStrategyType: 0,
+      principalToken: address(principalToken),
+      supportedAddresses: new address[](0)
+    });
+
+    // Create fee config
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+
+    // Prepare claim parameters
+    uint256 rewardAmount = 1000 * 10 ** 18;
+    bytes32[] memory proofs = new bytes32[](0);
+    uint32 deadline = uint32(block.timestamp + 1 hours);
+
+    // Create message hash for signing - note we don't include swap parameters since we're not swapping
+    bytes32 messageHash = keccak256(
+      abi.encodePacked(
+        address(distributor),
+        address(principalToken), // Using principal token as reward token
+        rewardAmount,
+        proofs,
+        address(0), // No swap router needed
+        bytes(""), // No swap data needed
+        uint256(0), // No minimum amount out needed
+        deadline
+      )
+    );
+
+    // Sign the message
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(whitelistedSignerPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Encode claim and swap parameters
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = IMerklStrategy.ClaimAndSwapParams({
+      distributor: address(distributor),
+      token: address(principalToken), // Using principal token as reward token
+      amount: rewardAmount,
+      proof: proofs,
+      swapRouter: address(0), // No swap router needed
+      swapData: bytes(""), // No swap data needed
+      amountOutMin: 0, // No minimum amount out needed
+      deadline: deadline,
+      signature: signature
+    });
+
+    // Encode instruction
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      params: abi.encode(claimParams)
+    });
+
+    // Encode the full data
+    bytes memory data = abi.encode(instruction);
+
+    // Call convert
+    AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](0);
+    AssetLib.Asset[] memory outputAssets = strategy.convert(inputAssets, vaultConfig, feeConfig, data);
+
+    // Verify results
+    assertEq(outputAssets.length, 1, "Should return 1 asset");
+    assertEq(address(outputAssets[0].token), address(principalToken), "Output token should be principal token");
+    assertEq(outputAssets[0].amount, rewardAmount, "Output amount should match reward amount");
   }
 }

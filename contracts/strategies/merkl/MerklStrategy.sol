@@ -133,6 +133,10 @@ contract MerklStrategy is IMerklStrategy {
    */
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view override { }
 
+  /// @notice Claim and swap rewards to principal if needed
+  /// @param config The vault configuration
+  /// @param feeConfig The fee configuration
+  /// @param data ClaimAndSwapParams
   function _claimAndSwap(VaultConfig calldata config, FeeConfig calldata feeConfig, bytes memory data)
     internal
     returns (AssetLib.Asset[] memory returnAssets)
@@ -158,25 +162,40 @@ contract MerklStrategy is IMerklStrategy {
 
     address tokenIn = claimParams.token;
     address tokenOut = config.principalToken;
-    uint256 amountInBefore = IERC20(tokenIn).balanceOf(address(this));
-    uint256 amountOutBefore = IERC20(tokenOut).balanceOf(address(this));
+    uint256 amountClaimed;
+    uint256 amountOut;
+    if (tokenIn == tokenOut) {
+      uint256 amountBefore = IERC20(tokenIn).balanceOf(address(this));
+      _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
+      amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountBefore;
+      require(amountClaimed >= claimParams.amountOutMin, NotEnoughAmountOut());
 
-    _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
-    uint256 amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
+      amountOut = amountClaimed;
+      if (amountOut > 0) amountOut -= _takeFee(tokenIn, amountOut, feeConfig);
 
-    _swap(tokenIn, amountClaimed, claimParams.swapRouter, claimParams.swapData);
+      returnAssets = new AssetLib.Asset[](1);
+      returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountOut);
+    } else {
+      uint256 amountInBefore = IERC20(tokenIn).balanceOf(address(this));
+      uint256 amountOutBefore = IERC20(tokenOut).balanceOf(address(this));
 
-    uint256 amountIn = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
-    uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - amountOutBefore;
+      _claim(claimParams.distributor, tokenIn, claimParams.amount, claimParams.proof);
+      amountClaimed = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
 
-    require(amountOut >= claimParams.amountOutMin, NotEnoughAmountOut());
-    if (amountIn > 0) amountIn -= _takeFee(tokenIn, amountIn, feeConfig);
-    if (amountOut > 0) amountOut -= _takeFee(tokenOut, amountOut, feeConfig);
+      _swap(tokenIn, amountClaimed, claimParams.swapRouter, claimParams.swapData);
 
-    returnAssets = new AssetLib.Asset[](2);
-    returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountIn);
-    returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOut);
-    emit MerklRewardsClaimed(tokenIn, amountClaimed, tokenOut, returnAssets[1].amount);
+      uint256 amountIn = IERC20(tokenIn).balanceOf(address(this)) - amountInBefore;
+      amountOut = IERC20(tokenOut).balanceOf(address(this)) - amountOutBefore;
+
+      require(amountOut >= claimParams.amountOutMin, NotEnoughAmountOut());
+      if (amountIn > 0) amountIn -= _takeFee(tokenIn, amountIn, feeConfig);
+      if (amountOut > 0) amountOut -= _takeFee(tokenOut, amountOut, feeConfig);
+
+      returnAssets = new AssetLib.Asset[](2);
+      returnAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenIn, 0, amountIn);
+      returnAssets[1] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), tokenOut, 0, amountOut);
+    }
+    emit MerklRewardsClaimed(tokenIn, amountClaimed, tokenOut, amountOut);
   }
 
   function _claim(address distributor, address token, uint256 amount, bytes32[] memory proofs) internal {
