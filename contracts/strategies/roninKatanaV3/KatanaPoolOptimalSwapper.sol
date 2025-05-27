@@ -69,7 +69,7 @@ contract KatanaPoolOptimalSwapper is IOptimalSwapper {
       router.execute(
         hex"00", // V3_SWAP_EXACT_IN = 0x00
         inputs,
-        block.timestamp // deadline = 5 mins
+        block.timestamp
       );
 
       uint256 amountInAfter = tokenIn.balanceOf(address(this));

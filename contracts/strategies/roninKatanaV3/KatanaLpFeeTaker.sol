@@ -200,13 +200,13 @@ contract KatanaLpFeeTaker is ILpFeeTaker {
         uint256(amountIn), // amountIn
         0, // amountOutMinimum
         path, // path data
-        true // payerIsUser
+        false // payerIsUser
       );
 
       router.execute(
         hex"00", // V3_SWAP_EXACT_IN = 0x00
         inputs,
-        block.timestamp + 300 // deadline = 5 mins
+        block.timestamp
       );
 
       uint256 amountInAfter = tokenIn.balanceOf(address(this));

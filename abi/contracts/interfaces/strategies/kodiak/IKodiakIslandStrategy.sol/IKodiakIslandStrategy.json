@@ -36,11 +36,6 @@
   },
   {
     "inputs": [],
-    "name": "InvalidIslandFactory",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidNumberOfAssets",
     "type": "error"
   },
@@ -52,6 +47,11 @@
   {
     "inputs": [],
     "name": "InvalidPrincipalToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRewardVault",
     "type": "error"
   },
   {
@@ -88,6 +88,19 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "BgtRewardClaim",
+    "type": "event"
   },
   {
     "anonymous": false,

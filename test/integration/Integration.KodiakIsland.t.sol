@@ -23,6 +23,7 @@ contract IntegrationKodiakIslandTest is Test {
 
   // Contract addresses
   address constant REWARD_VAULT = 0x3Be1bE98eFAcA8c1Eb786Cbf38234c84B5052EeB;
+  address constant KODIAK_ISLAND_LP_ADDRESS = 0x564f011D557aAd1cA09BFC956Eb8a17C35d490e0;
   address constant WBERA = 0x6969696969696969696969696969696969696969;
   address constant BGT = 0x656b95E550C07a9ffe548bd4085c72418Ceb1dba;
   address constant OTHER_TOKEN = 0xac03CABA51e17c86c921E1f6CBFBdC91F8BB2E6b;
@@ -195,7 +196,7 @@ contract IntegrationKodiakIslandTest is Test {
     bytes memory data = abi.encode(
       ICommon.Instruction({
         instructionType: uint8(IKodiakIslandStrategy.InstructionType.SwapAndStake),
-        params: abi.encode(IKodiakIslandStrategy.SwapAndStakeParams({ bgtRewardVault: REWARD_VAULT }))
+        params: abi.encode(IKodiakIslandStrategy.SwapAndStakeParams({ kodiakIslandLpAddress: KODIAK_ISLAND_LP_ADDRESS }))
       })
     );
     console2.log("Encoded instruction data for SwapAndStake");
