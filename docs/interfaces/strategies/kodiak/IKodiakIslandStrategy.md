@@ -50,4 +50,3 @@ enum InstructionType {
   WithdrawAndSwap
 }
 ```
-

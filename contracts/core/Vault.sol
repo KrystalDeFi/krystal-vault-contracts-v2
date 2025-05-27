@@ -275,6 +275,8 @@ contract Vault is
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
+  event LogUint256(string, uint256);
+
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
@@ -302,13 +304,20 @@ contract Vault is
       }
     }
 
+    emit LogUint256("----------- block.number", block.number);    
+
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
 
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
+
+    emit LogUint256("---------------- I'm in Bbbbbb 0102 ", block.number);
     bytes memory returnData = _delegateCallToStrategy(address(strategy), cData);
+
+
+    emit LogUint256("------------------- I'm in AAAA1 ", block.number);
 
     // Decode the returned data
     AssetLib.Asset[] memory newAssets = abi.decode(returnData, (AssetLib.Asset[]));
@@ -319,6 +328,8 @@ contract Vault is
     length = inventory.assets.length;
     AssetLib.Asset memory currentAsset;
 
+    emit LogUint256("------------------- I'm in A-1.5 ", block.number);
+    
     for (uint256 i; i < length;) {
       currentAsset = inventory.assets[i];
 
@@ -332,6 +343,8 @@ contract Vault is
         i++;
       }
     }
+
+    emit LogUint256("I'm in A-2 ", block.number);
 
     require(strategyCount < configManager.maxPositions(), MaxPositionsReached());
 

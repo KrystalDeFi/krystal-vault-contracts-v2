@@ -61,7 +61,6 @@ export interface IConfig {
   typedTokensTypes?: number[];
   swapRouters: AddressLike[];
   nfpmAddresses: AddressLike[];
-
   katanaAggregateSwapRouter?: AddressLike;
   rewardVaultFactory?: string;
   bgtToken?: string;
