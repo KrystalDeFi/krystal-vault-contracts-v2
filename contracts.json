@@ -78,7 +78,7 @@
     "lpValidator": "0xc79006f85360010790903f00bec264b0b782e85c",
     "lpFeeTaker": "0xa795d9d4Aa65B3DdC577Ad2c907Dc7b62de725a8",
     "merklAutomator": "0x74894d2c2ee68883b464ee855c39418a16e5d3b5",
-    "lpStrategy": "0x1a86db3d44e7ca9cbe5febb2756992ad1a70395b",
+    "lpStrategy": "0x860fbe511f217371069c72da3d10f063aa53b3b1",
     "vaultFactory": "0x3f06f7d2ab15f42b92f3e8b266f79d4e831e702b",
     "merklStrategy": "0x52976cd34445bfb939da12303a1f37d5911d1181"
   }

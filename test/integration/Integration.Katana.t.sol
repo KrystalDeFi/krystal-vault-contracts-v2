@@ -576,6 +576,54 @@ contract IntegrationTest is TestCommon {
       vm.roll(++currentBlock);
       vm.expectRevert(ILpValidator.InvalidPool.selector);
       vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
+      anotherParams3 = ILpStrategy.SwapAndMintPositionParams({
+        nfpm: INFPM(NFPM),
+        token0: USDC,
+        token1: RON,
+        fee: 3000,
+        tickLower: -887_220,
+        tickUpper: 887_220,
+        amount0Min: 0,
+        amount1Min: 0,
+        swapData: ""
+      });
+      anotherInstruction3 = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+        params: abi.encode(anotherParams3)
+      });
+      vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
+    }
+
+    {
+      vaultAssets = vaultInstance.getInventory();
+      // User can decrease all liquidity from a LP position to principal
+      (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      AssetLib.Asset[] memory decAssets = new AssetLib.Asset[](1);
+      decAssets[0] = vaultAssets[1];
+      ILpStrategy.DecreaseLiquidityAndSwapParams memory decParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
+        liquidity: liquidity,
+        amount0Min: 0,
+        amount1Min: 0,
+        principalAmountOutMin: 0,
+        swapData: ""
+      });
+      ICommon.Instruction memory decInstruction = ICommon.Instruction({
+        instructionType: uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+        params: abi.encode(decParams)
+      });
+      vm.roll(++currentBlock);
+      vaultInstance.allocate(decAssets, lpStrategy, 0, abi.encode(decInstruction));
+      vaultAssets = vaultInstance.getInventory();
+      assertEq(vaultAssets.length, 1);
+    }
+
+    {
+      // User can withdraw all principal tokens
+      vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);
+      vaultAssets = vaultInstance.getInventory();
+      assertEq(IERC20(vaultInstance).balanceOf(USER), 0);
+      assertEq(IERC20(RON).balanceOf(address(vaultInstance)), 0);
+      assertEq(vaultAssets.length, 0);
     }
   }
 }
