@@ -9,7 +9,7 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "base_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
@@ -21,7 +21,7 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "bsc_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
@@ -33,7 +33,7 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "eth_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
@@ -45,7 +45,7 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "polygon_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
@@ -57,7 +57,7 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x5e2dc0ead1cfab10608e62d6fdebfeeb4fe3ea44",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
-    "merklStrategy": "0x7bf791d81cf03d045c5e0e646c13758b9315a131"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "berachain_mainnet": {
     "vault": "0xe421ba6688045984396971c0d8a413b8fdbc9925",
@@ -80,6 +80,6 @@
     "merklAutomator": "0x74894d2c2ee68883b464ee855c39418a16e5d3b5",
     "lpStrategy": "0x860fbe511f217371069c72da3d10f063aa53b3b1",
     "vaultFactory": "0x3f06f7d2ab15f42b92f3e8b266f79d4e831e702b",
-    "merklStrategy": "0x52976cd34445bfb939da12303a1f37d5911d1181"
+    "merklStrategy": "0x9f6fd6f112f09e0b1a96cdaf6b62bb07659ce3ef"
   }
 }
