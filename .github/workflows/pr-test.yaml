@@ -22,17 +22,23 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-  
-      - run: |
-          npm install -g yarn      
-          yarn install
+
+        
+      - name: Install Devbox
+        uses: jetpack-io/devbox-install-action@v0.12.0
+        with:
+          enable-cache: 'true'        
+
+      # - run: |
+      #     npm install -g yarn
+      #     yarn install
 
       - name: Ignore the Katana test because no Ronin archive node is available. Requested by sir HoangLong
         run: |
           mv test/integration/Integration.Katana.t.sol test/integration/Integration.Katana.t.sol.disabled
 
       - run: |
-          RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a yarn test          
+          RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a ECHIDNA_RPC_URL=https://rpc.ankr.com/eth/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a yarn test
           # RPC_URL=https://base.merkle.io
           # RPC_URL=https://base.llamarpc.com
         
