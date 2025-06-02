@@ -52,8 +52,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
     uint256 principalAmount = params.principalTokenAmount;
 
     if (msg.value > 0) {
-      require(principalToken == WETH, InvalidPrincipalToken());
-      principalAmount = msg.value;
+      require(principalToken == WETH && principalAmount == msg.value, InvalidPrincipalToken());
       IWETH9(WETH).deposit{ value: msg.value }();
       IERC20(WETH).safeTransfer(vault, msg.value);
     } else if (principalAmount > 0) {
