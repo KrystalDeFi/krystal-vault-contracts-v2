@@ -45,7 +45,9 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
   function createVault(VaultCreateParams memory params) external payable override whenNotPaused returns (address vault) {
-    vault = Clones.clone(vaultImplementation);
+    vault = Clones.cloneDeterministic(
+      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender()))
+    );
 
     address sender = _msgSender();
     address principalToken = params.config.principalToken;

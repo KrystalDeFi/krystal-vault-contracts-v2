@@ -537,7 +537,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
-    
+
     address pool = address(_getPoolForPosition(INFPM(lpAsset.token), lpAsset.tokenId));
 
     returnAssets = _decreaseLiquidity(
