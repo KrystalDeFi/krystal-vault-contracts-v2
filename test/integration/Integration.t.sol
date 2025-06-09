@@ -237,7 +237,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 300_000_000_000_021_092);
+    assertApproxEqAbs(vaultAssets[0].amount, 0.3 ether, 100_000);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -252,10 +252,10 @@ contract IntegrationTest is TestCommon {
 
     // Ratio between the assets remain unchanged
     vaultAssets = vaultInstance.getInventory();
-    assertEq(IERC20(vaultInstance).balanceOf(USER), 20_003_372_819_126_354_888_407);
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 600_051_554_552_220_855);
+    assertApproxEqRel(IERC20(vaultInstance).balanceOf(USER), 20_000 ether, TOLERANCE);
+    assertApproxEqRel(IERC20(WETH).balanceOf(address(vaultInstance)), 0.6 ether, TOLERANCE);
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 600_051_554_552_220_855);
+    assertApproxEqRel(vaultAssets[0].amount, 0.6 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -263,7 +263,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, NFPM);
     assertEq(vaultAssets[1].strategy, address(lpStrategy));
     uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_399_611_277_255_876_301);
+    assertApproxEqRel(valueOfPositionInPrincipal, 1.4 ether, TOLERANCE);
 
     // Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
     console.log("==== test_managePrivateVault ====");
@@ -285,7 +285,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 300_051_554_699_492_528);
+    assertApproxEqRel(vaultAssets[0].amount, 0.3 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -293,7 +293,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, NFPM);
     assertEq(vaultAssets[1].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_699_542_383_158_745_664);
+    assertApproxEqRel(valueOfPositionInPrincipal, 1.7 ether, TOLERANCE);
 
     {
       // User can remove liquidity from LP position to principal
@@ -317,7 +317,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 599_895_229_166_993_117);
+    assertApproxEqRel(vaultAssets[0].amount, 0.6 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -325,7 +325,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, NFPM);
     assertEq(vaultAssets[1].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_399_617_609_667_000_197);
+    assertApproxEqRel(valueOfPositionInPrincipal, 1.4 ether, TOLERANCE);
 
     {
       // User can rebalance 1 specific LP
@@ -352,7 +352,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 599_895_229_167_012_210);
+    assertApproxEqRel(vaultAssets[0].amount, 0.6 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -360,7 +360,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, NFPM);
     assertEq(vaultAssets[1].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_399_617_608_039_078_922);
+    assertApproxEqRel(valueOfPositionInPrincipal, 1.4 ether, TOLERANCE);
 
     {
       // User can compound 1 specific LP

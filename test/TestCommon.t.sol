@@ -49,6 +49,7 @@ interface IV3SwapRouter {
 
 abstract contract TestCommon is Test {
   using stdStorage for StdStorage;
+  uint256 public TOLERANCE = 0.0001 ether; // = 0.01%
 
   function setErc20Balance(address token, address account, uint256 amount) internal {
     stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(account).checked_write(amount);

@@ -37,7 +37,7 @@ contract Vault is
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
-  uint16 public constant WITHDRAWAL_FEE = 10; // 0.1%
+  uint16 public constant WITHDRAWAL_FEE = 0; // 0.1%
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   IConfigManager public configManager;
 
@@ -173,7 +173,11 @@ contract Vault is
 
     uint256 totalSupply = totalSupply();
     // update total value after distributing the principal amount to the strategies
-    totalValue = getTotalValue() - principalAmount;
+    uint256 newTotalValue = getTotalValue();
+    if (newTotalValue - totalValue > principalAmount) {
+      // The deposit of principalAmount make totalValue increases more than principalAmount
+      totalValue = newTotalValue - principalAmount;
+    }
 
     shares =
       totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
