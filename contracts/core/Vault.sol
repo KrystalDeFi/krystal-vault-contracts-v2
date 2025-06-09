@@ -173,10 +173,15 @@ contract Vault is
 
     uint256 totalSupply = totalSupply();
     // update total value after distributing the principal amount to the strategies
-    totalValue = getTotalValue() - principalAmount;
+    uint256 newTotalValue = getTotalValue();
+    uint256 principalValue = principalAmount;
+    if (newTotalValue - totalValue > principalAmount) {
+      // The deposit of principalAmount make totalValue increases more than principalAmount
+      totalValue = newTotalValue - principalAmount;
+    }
 
     shares =
-      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalValue, totalSupply, totalValue);
 
     require(shares >= minShares, InsufficientShares());
     _mint(_msgSender(), shares);
@@ -196,8 +201,10 @@ contract Vault is
 
     _burn(_msgSender(), shares);
 
-    uint256 deductedShares =
-      shares == currentTotalSupply ? shares : FullMath.mulDiv(shares, 10_000 - WITHDRAWAL_FEE, 10_000);
+    uint256 deductedShares = shares;
+    if (shares != currentTotalSupply && vaultConfig.allowDeposit) {
+      deductedShares = FullMath.mulDiv(shares, 10_000 - WITHDRAWAL_FEE, 10_000);
+    }
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;

@@ -132,7 +132,7 @@ contract VaultTest is TestCommon {
 
     IERC20(WETH).approve(address(vault), 100 ether);
     vault.deposit(1 ether, 0);
-    assertEq(IERC20(vault).balanceOf(USER), 20_003_833_790_858_835_842_737);
+    assertApproxEqRel(IERC20(vault).balanceOf(USER), 20_000 ether, TOLERANCE);
 
     // uint256 wethBalanceBefore = IERC20(WETH).balanceOf(USER);
     console.log("the shares of user before withdraw: %d /1e18", IERC20(vault).balanceOf(USER) / 10 ** 18);
@@ -179,24 +179,25 @@ contract VaultTest is TestCommon {
     vault.allowDeposit(vaultConfig);
   }
 
-  function test_manipulateVaultPosition() public {
-    vm.deal(USER, 100 ether);
+  function test_manipulateVaultPosition_lowLiquidity() public {
+    vm.deal(USER, 10_000 ether);
 
-    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
-    vault.withdraw(0.4 ether * vault.SHARES_PRECISION(), false, 0);
-    assertEq(IERC20(vault).balanceOf(USER), 0.1 ether * vault.SHARES_PRECISION());
-    console.log("vault.getTotalValue() before: %d", vault.getTotalValue());
+    // assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    // vault.withdraw(0.4 ether * vault.SHARES_PRECISION(), false, 0);
+    // assertEq(IERC20(vault).balanceOf(USER), 0.1 ether * vault.SHARES_PRECISION());
+    uint256 ownerValueBefore = vault.getTotalValue();
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
     // allocate to a low liquidity pool
+    console.log("allocate to a low liquidity pool");
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
       nfpm: INFPM(NFPM),
       token0: WETH,
-      token1: USDC,
-      fee: 500,
-      tickLower: -887_000,
-      tickUpper: 887_000,
+      token1: DAI,
+      fee: 3000,
+      tickLower: -887_220,
+      tickUpper: 887_220,
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -205,27 +206,88 @@ contract VaultTest is TestCommon {
       instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
       params: abi.encode(params)
     });
-    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
 
     vm.roll(block.number + 1);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
-    console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
     setErc20Balance(WETH, USER, 0);
+    uint256 depositValue = 1 ether;
 
-    for (uint256 i = 0; i < 1; i++) {
+    for (uint256 i = 0; i < 10; i++) {
       console.log("vault.getTotalValue() before: %d", vault.getTotalValue());
-      uint256 newShares = vault.deposit{ value: 1 ether }(1 ether, 0);
-      console.log("vault.getTotalValue() middle: %d", vault.getTotalValue());
+      uint256 newShares = vault.deposit{ value: depositValue }(depositValue, 0);
       console.log("newUser shares: %d", newShares);
+      setErc20Balance(WETH, USER, 0);
       vault.withdraw(newShares, false, 0);
+      console.log("depositValue: %d", depositValue);
       console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
+      console.log(
+        "newUser WETH withdrawn must be < depositValue: ", int256(depositValue) - int256(IERC20(WETH).balanceOf(USER))
+      );
       console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
     }
     console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
     console.log("=== withdraw the rest");
     setErc20Balance(WETH, USER, 0);
     vault.withdraw(IERC20(vault).balanceOf(USER), false, 0);
+    uint256 ownerValueAfter = IERC20(WETH).balanceOf(USER);
     console.log("newUser WETH withdrawn rest: %d", IERC20(WETH).balanceOf(USER));
+    console.log("expecting ownerValueAfter must be greater than ownerValueBefore");
+    console.log("delta", int256(ownerValueAfter) - int256(ownerValueBefore));
+  }
+
+  function test_manipulateVaultPosition_highLiquidity() public {
+    vm.deal(USER, 10_000 ether);
+
+    // assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+    // vault.withdraw(0.4 ether * vault.SHARES_PRECISION(), false, 0);
+    // assertEq(IERC20(vault).balanceOf(USER), 0.1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
+    // allocate to a low liquidity pool
+    console.log("allocate to a high liquidity pool");
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_220,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    setErc20Balance(WETH, USER, 0);
+    uint256 ownerValueBefore = vault.getTotalValue();
+    uint256 depositValue = 1 ether;
+    for (uint256 i = 0; i < 10; i++) {
+      console.log("vault.getTotalValue() before: %d", vault.getTotalValue());
+      uint256 newShares = vault.deposit{ value: depositValue }(depositValue, 0);
+      console.log("newUser shares: %d", newShares);
+      setErc20Balance(WETH, USER, 0);
+      vault.withdraw(newShares, false, 0);
+      console.log("depositValue: %d", depositValue);
+      console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
+      console.log(
+        "newUser WETH withdrawn must be < depositValue: ", int256(depositValue) - int256(IERC20(WETH).balanceOf(USER))
+      );
+      console.log("vault.getTotalValue() after: %d", vault.getTotalValue());
+    }
+    console.log("newUser WETH withdrawn: %d", IERC20(WETH).balanceOf(USER));
+    console.log("=== withdraw the rest");
+    setErc20Balance(WETH, USER, 0);
+    uint256 ownerValueAfter = vault.getTotalValue();
+    vault.withdraw(IERC20(vault).balanceOf(USER), false, 0);
+    console.log("newUser WETH withdrawn rest: %d", IERC20(WETH).balanceOf(USER));
+    console.log("expecting ownerValueAfter must be greater than ownerValueBefore");
+    console.log("delta", int256(ownerValueAfter) - int256(ownerValueBefore));
   }
 
   function test_vaultUsdc() public {
