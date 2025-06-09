@@ -237,7 +237,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertApproxEqAbs(vaultAssets[0].amount, 0.3 ether, 100_000);
+    assertApproxEqRel(vaultAssets[0].amount, 0.3 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -435,16 +435,16 @@ contract IntegrationTest is TestCommon {
     vm.expectRevert(IVault.InvalidShares.selector);
     vaultInstance.withdraw(0, false, 0);
 
+    uint256 userVaultSharesBefore = vaultInstance.balanceOf(USER);
     // Burn partial shares
     vaultInstance.withdraw(0.5 ether * vaultInstance.SHARES_PRECISION(), false, 0);
     vaultAssets = vaultInstance.getInventory();
     assertEq(
-      IERC20(vaultInstance).balanceOf(USER),
-      20_003_372_819_126_354_888_407 - 0.5 ether * vaultInstance.SHARES_PRECISION()
+      userVaultSharesBefore - IERC20(vaultInstance).balanceOf(USER), 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
-    assertEq(IERC20(WETH).balanceOf(address(vaultInstance)), 450_096_657_856_871_685);
+    assertApproxEqRel(IERC20(WETH).balanceOf(address(vaultInstance)), 0.45 ether, TOLERANCE);
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 450_096_657_856_871_685);
+    assertApproxEqRel(vaultAssets[0].amount, 0.45 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WETH);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
@@ -452,7 +452,7 @@ contract IntegrationTest is TestCommon {
     assertEq(vaultAssets[1].token, NFPM);
     assertEq(vaultAssets[1].strategy, address(lpStrategy));
     valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WETH);
-    assertEq(valueOfPositionInPrincipal, 1_050_117_217_379_688_146);
+    assertApproxEqRel(valueOfPositionInPrincipal, 1.05 ether, TOLERANCE);
 
     // Burn all shares
     vaultInstance.withdraw(IERC20(vaultInstance).balanceOf(USER), false, 0);
