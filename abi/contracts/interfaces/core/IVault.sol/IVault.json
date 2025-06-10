@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "DepositAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DepositNotAllowed",
     "type": "error"
   },
@@ -368,6 +373,37 @@
         "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "principalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      }
+    ],
+    "name": "VaultDepositPrincipal",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "enum AssetLib.AssetType",
@@ -416,6 +452,31 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "principalHarvestedAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "VaultHarvestPrivate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "account",
         "type": "address"
       },
@@ -433,6 +494,31 @@
       }
     ],
     "name": "VaultWithdraw",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "principalAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "VaultWithdrawPrincipal",
     "type": "event"
   },
   {
@@ -662,6 +748,101 @@
       }
     ],
     "name": "grantAdminRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum AssetLib.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct AssetLib.Asset",
+        "name": "asset",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountTokenOutMin",
+        "type": "uint256"
+      }
+    ],
+    "name": "harvest",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum AssetLib.AssetType",
+            "name": "assetType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct AssetLib.Asset[]",
+        "name": "asset",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "unwrap",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountTokenOutMin",
+        "type": "uint256"
+      }
+    ],
+    "name": "harvestPrivate",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -61,6 +61,11 @@ contract Vault is
     _;
   }
 
+  modifier onlyPrivateVault() {
+    require(!vaultConfig.allowDeposit, DepositAllowed());
+    _;
+  }
+
   modifier whenNotPaused() {
     require(!configManager.isVaultPaused(), VaultPaused());
     _;
@@ -174,21 +179,54 @@ contract Vault is
     uint256 totalSupply = totalSupply();
     // update total value after distributing the principal amount to the strategies
     uint256 newTotalValue = getTotalValue();
-    uint256 principalValue = principalAmount;
     if (newTotalValue - totalValue > principalAmount) {
       // The deposit of principalAmount make totalValue increases more than principalAmount
       totalValue = newTotalValue - principalAmount;
     }
 
     shares =
-      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalValue, totalSupply, totalValue);
+      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
 
     require(shares >= minShares, InsufficientShares());
     _mint(_msgSender(), shares);
 
     emit VaultDeposit(vaultFactory, _msgSender(), principalAmount, shares);
+  }
 
-    return shares;
+  /// @notice Deposits principal tokens for private vaults
+  /// @param principalAmount Amount of principal tokens to deposit
+  /// @return shares Amount of shares minted
+  function depositPrincipal(uint256 principalAmount)
+    external
+    payable
+    nonReentrant
+    onlyAdminOrAutomator
+    onlyPrivateVault
+    returns (uint256 shares)
+  {
+    require(principalAmount != 0, InvalidAssetAmount());
+
+    address principalToken = vaultConfig.principalToken;
+    uint256 totalValue = getTotalValue();
+
+    if (msg.value > 0) {
+      require(principalToken == WETH, InvalidAssetToken());
+      require(principalAmount == msg.value, InvalidAssetAmount());
+      IWETH9(principalToken).deposit{ value: msg.value }();
+    } else {
+      IERC20(principalToken).safeTransferFrom(_msgSender(), address(this), principalAmount);
+    }
+
+    inventory.addAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, principalAmount));
+
+    uint256 totalSupply = totalSupply();
+
+    shares =
+      totalSupply == 0 ? principalAmount * SHARES_PRECISION : FullMath.mulDiv(principalAmount, totalSupply, totalValue);
+
+    _mint(_msgSender(), shares);
+
+    emit VaultDepositPrincipal(vaultFactory, vaultOwner, principalAmount, shares);
   }
 
   /// @notice Withdraws the asset as principal token from the vault
@@ -282,6 +320,26 @@ contract Vault is
     emit VaultWithdraw(vaultFactory, _msgSender(), returnAmount, shares);
   }
 
+  /// @notice Withdraws principal tokens (not from strategies) for private vaults
+  /// @param amount Amount of principal tokens to withdraw
+  /// @param unwrap Unwrap WETH to ETH
+  /// @dev No need to burn shares as private vault
+  function withdrawPrincipal(uint256 amount, bool unwrap) external nonReentrant onlyAdminOrAutomator onlyPrivateVault {
+    require(amount != 0, InvalidAssetAmount());
+
+    inventory.removeAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, amount));
+
+    if (unwrap && vaultConfig.principalToken == WETH) {
+      IWETH9(vaultConfig.principalToken).withdraw(amount);
+      (bool sent,) = vaultOwner.call{ value: amount }("");
+      require(sent, FailedToSendEther());
+    } else {
+      IERC20(vaultConfig.principalToken).safeTransfer(vaultOwner, amount);
+    }
+
+    emit VaultWithdrawPrincipal(vaultFactory, vaultOwner, amount);
+  }
+
   /// @notice Allocates un-used assets to the strategy
   /// @param inputAssets Input assets to allocate
   /// @param strategy Strategy to allocate to
@@ -357,6 +415,59 @@ contract Vault is
 
     AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
+  }
+
+  /// @notice Harvests rewards from a strategy asset and sends to vaultOwner (private vault only)
+  /// @param assets Assets to harvest
+  /// @param unwrap Unwrap WETH to ETH
+  /// @param amountTokenOutMin Minimum amount out by tokenOut
+  function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint256 amountTokenOutMin)
+    external
+    nonReentrant
+    onlyAdminOrAutomator
+    onlyPrivateVault
+  {
+    address principalToken = vaultConfig.principalToken;
+    uint256 principalHarvestedAmount;
+
+    for (uint256 i; i < assets.length;) {
+      AssetLib.Asset memory asset = assets[i];
+      require(asset.strategy != address(0), InvalidAssetStrategy());
+
+      // Harvest the asset
+      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
+
+      // Process the harvested assets
+      for (uint256 j; j < harvestedAssets.length;) {
+        AssetLib.Asset memory ha = harvestedAssets[j];
+        if (ha.assetType == AssetLib.AssetType.ERC20 && ha.amount > 0) {
+          if (principalToken == WETH && ha.token == principalToken) principalHarvestedAmount += ha.amount;
+          else IERC20(ha.token).safeTransfer(vaultOwner, ha.amount);
+          // Remove the asset because _harvest already added it to the inventory
+          inventory.removeAsset(ha);
+        }
+        // If ETH is ever supported, add logic here
+        unchecked {
+          j++;
+        }
+      }
+
+      unchecked {
+        i++;
+      }
+    }
+
+    if (principalHarvestedAmount > 0) {
+      if (unwrap && principalToken == WETH) {
+        IWETH9(principalToken).withdraw(principalHarvestedAmount);
+        (bool sent,) = _msgSender().call{ value: principalHarvestedAmount }("");
+        require(sent, FailedToSendEther());
+      } else {
+        IERC20(principalToken).safeTransfer(vaultOwner, principalHarvestedAmount);
+      }
+    }
+
+    emit VaultHarvestPrivate(vaultFactory, vaultOwner, principalHarvestedAmount);
   }
 
   /// @dev Harvests the assets from the strategy

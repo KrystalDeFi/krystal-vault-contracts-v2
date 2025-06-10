@@ -7,13 +7,21 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event VaultDeposit(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
+  event VaultDepositPrincipal(
+    address indexed vaultFactory, address indexed owner, uint256 principalAmount, uint256 shares
+  );
+
   event VaultWithdraw(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
+
+  event VaultWithdrawPrincipal(address indexed vaultFactory, address indexed owner, uint256 principalAmount);
 
   event VaultAllocate(
     address indexed vaultFactory, AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets
   );
 
   event VaultHarvest(address indexed vaultFactory, AssetLib.Asset[] harvestedAssets);
+
+  event VaultHarvestPrivate(address indexed vaultFactory, address indexed owner, uint256 principalHarvestedAmount);
 
   event SweepToken(address[] tokens);
 
@@ -30,6 +38,7 @@ interface IVault is ICommon {
   error InvalidAssetStrategy();
   error InvalidAssetTokenId();
   error InvalidAssetType();
+  error DepositAllowed();
   error DepositNotAllowed();
   error MaxPositionsReached();
   error InvalidShares();
@@ -57,6 +66,10 @@ interface IVault is ICommon {
     uint64 gasFeeBasisPoint,
     bytes calldata data
   ) external;
+
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external;
+
+  function harvestPrivate(AssetLib.Asset[] calldata asset, bool unwrap, uint256 amountTokenOutMin) external;
 
   function getTotalValue() external returns (uint256);
 

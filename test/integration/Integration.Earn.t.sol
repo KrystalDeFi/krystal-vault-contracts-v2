@@ -245,8 +245,8 @@ contract IntegrationTest is TestCommon {
     assert(IERC20(WETH).balanceOf(USER) > IERC20(WETH).balanceOf(PLAYER_1));
 
     // the WETH balance of players shouldn't be too much different with the initial balance
-    assertApproxEqAbs(IERC20(WETH).balanceOf(USER), 1 ether, 0.01 ether); 
-    assertApproxEqAbs(IERC20(WETH).balanceOf(PLAYER_1), 1 ether, 0.01 ether); 
+    assertApproxEqAbs(IERC20(WETH).balanceOf(USER), 1 ether, 0.01 ether);
+    assertApproxEqAbs(IERC20(WETH).balanceOf(PLAYER_1), 1 ether, 0.01 ether);
 
     console.log(">>> Summary of case: swapping %d USDC -> wETH <<<", swap_amount / (10 ** 6));
     console.log(">>> weth loss of the player 1:", p1_old_weth_balance - IERC20(WETH).balanceOf(PLAYER_1));

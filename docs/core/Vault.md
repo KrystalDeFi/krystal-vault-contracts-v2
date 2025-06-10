@@ -62,6 +62,12 @@ modifier onlyAutomator()
 modifier onlyAdminOrAutomator()
 ```
 
+### onlyPrivateVault
+
+```solidity
+modifier onlyPrivateVault()
+```
+
 ### whenNotPaused
 
 ```solidity
@@ -106,6 +112,26 @@ Deposits the asset to the vault
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares minted |
 
+### depositPrincipal
+
+```solidity
+function depositPrincipal(uint256 principalAmount) external payable returns (uint256 shares)
+```
+
+Deposits principal tokens for private vaults
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| principalAmount | uint256 | Amount of principal tokens to deposit |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 | Amount of shares minted |
+
 ### withdraw
 
 ```solidity
@@ -121,6 +147,23 @@ Withdraws the asset as principal token from the vault
 | shares | uint256 | Amount of shares to be burned |
 | unwrap | bool | Unwrap WETH to ETH |
 | minReturnAmount | uint256 | Minimum amount of principal token to return |
+
+### withdrawPrincipal
+
+```solidity
+function withdrawPrincipal(uint256 amount, bool unwrap) external
+```
+
+Withdraws principal tokens (not from strategies) for private vaults
+
+_No need to burn shares as private vault_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount | uint256 | Amount of principal tokens to withdraw |
+| unwrap | bool | Unwrap WETH to ETH |
 
 ### allocate
 
@@ -153,6 +196,22 @@ Harvests the assets from the strategy
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
+
+### harvestPrivate
+
+```solidity
+function harvestPrivate(struct AssetLib.Asset[] assets, bool unwrap, uint256 amountTokenOutMin) external
+```
+
+Harvests rewards from a strategy asset and sends to vaultOwner (private vault only)
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| assets | struct AssetLib.Asset[] | Assets to harvest |
+| unwrap | bool | Unwrap WETH to ETH |
+| amountTokenOutMin | uint256 | Minimum amount out by tokenOut |
 
 ### _harvest
 
