@@ -626,6 +626,18 @@ contract VaultTest is TestCommon {
     assertEq(IERC20(WETH).balanceOf(address(v)), 2 ether);
     assertEq(shares, 1 ether * v.SHARES_PRECISION());
     assertEq(IERC20(v).balanceOf(USER), 2 ether * v.SHARES_PRECISION());
+    // withdrawPrincipal 2 ether
+    uint256 balBefore = IERC20(WETH).balanceOf(USER);
+    v.withdrawPrincipal(2 ether, false);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
+    assertEq(IERC20(WETH).balanceOf(USER), balBefore + 2 ether);
+    // redeposit principal 1 ether
+    IERC20(WETH).approve(address(v), 1 ether);
+    shares = v.depositPrincipal(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), shares);
   }
 
   function test_depositPrincipal_happy_ETH1() public {
@@ -717,6 +729,7 @@ contract VaultTest is TestCommon {
     uint256 balBefore = IERC20(WETH).balanceOf(USER);
     v.withdrawPrincipal(1 ether, false);
     assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
     assertEq(IERC20(WETH).balanceOf(USER), balBefore + 1 ether);
   }
 
@@ -731,6 +744,8 @@ contract VaultTest is TestCommon {
     uint256 balBefore = USER.balance;
     v.withdrawPrincipal(1 ether, true);
     assertEq(address(v).balance, 0);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
     assertEq(USER.balance, balBefore + 1 ether);
   }
 
@@ -745,6 +760,7 @@ contract VaultTest is TestCommon {
     uint256 balBefore = IERC20(WETH).balanceOf(USER);
     v.withdrawPrincipal(1 ether, false);
     assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(IERC20(v).balanceOf(USER), 1 ether * v.SHARES_PRECISION());
     assertEq(IERC20(WETH).balanceOf(USER), balBefore + 1 ether);
   }
 
@@ -758,6 +774,8 @@ contract VaultTest is TestCommon {
     v.getInventory(); // Initialize inventory
     uint256 balBefore = USER.balance;
     v.withdrawPrincipal(1 ether, true);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(IERC20(v).balanceOf(USER), 1 ether * v.SHARES_PRECISION());
     assertEq(address(v).balance, 0);
     assertEq(USER.balance, balBefore + 1 ether);
   }

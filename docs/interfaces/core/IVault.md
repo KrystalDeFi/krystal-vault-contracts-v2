@@ -8,22 +8,10 @@
 event VaultDeposit(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
 ```
 
-### VaultDepositPrincipal
-
-```solidity
-event VaultDepositPrincipal(address vaultFactory, address owner, uint256 principalAmount, uint256 shares)
-```
-
 ### VaultWithdraw
 
 ```solidity
 event VaultWithdraw(address vaultFactory, address account, uint256 principalAmount, uint256 shares)
-```
-
-### VaultWithdrawPrincipal
-
-```solidity
-event VaultWithdrawPrincipal(address vaultFactory, address owner, uint256 principalAmount)
 ```
 
 ### VaultAllocate

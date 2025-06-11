@@ -156,8 +156,6 @@ function withdrawPrincipal(uint256 amount, bool unwrap) external
 
 Withdraws principal tokens (not from strategies) for private vaults
 
-_No need to burn shares as private vault_
-
 #### Parameters
 
 | Name | Type | Description |

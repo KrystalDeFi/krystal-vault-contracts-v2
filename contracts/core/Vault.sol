@@ -226,7 +226,7 @@ contract Vault is
 
     _mint(_msgSender(), shares);
 
-    emit VaultDepositPrincipal(vaultFactory, vaultOwner, principalAmount, shares);
+    emit VaultDeposit(vaultFactory, _msgSender(), principalAmount, shares);
   }
 
   /// @notice Withdraws the asset as principal token from the vault
@@ -234,8 +234,8 @@ contract Vault is
   /// @param unwrap Unwrap WETH to ETH
   /// @param minReturnAmount Minimum amount of principal token to return
   function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external nonReentrant {
-    require(shares != 0, InvalidShares());
     uint256 currentTotalSupply = totalSupply();
+    require(shares != 0 && shares <= currentTotalSupply, InvalidShares());
 
     _burn(_msgSender(), shares);
 
@@ -323,9 +323,15 @@ contract Vault is
   /// @notice Withdraws principal tokens (not from strategies) for private vaults
   /// @param amount Amount of principal tokens to withdraw
   /// @param unwrap Unwrap WETH to ETH
-  /// @dev No need to burn shares as private vault
   function withdrawPrincipal(uint256 amount, bool unwrap) external nonReentrant onlyAdminOrAutomator onlyPrivateVault {
     require(amount != 0, InvalidAssetAmount());
+
+    // calculate shares to burn
+    uint256 totalValue = getTotalValue();
+    uint256 currentTotalSupply = totalSupply();
+    uint256 shares = FullMath.mulDiv(currentTotalSupply, amount, totalValue);
+
+    _burn(vaultOwner, shares);
 
     inventory.removeAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, amount));
 
@@ -337,7 +343,7 @@ contract Vault is
       IERC20(vaultConfig.principalToken).safeTransfer(vaultOwner, amount);
     }
 
-    emit VaultWithdrawPrincipal(vaultFactory, vaultOwner, amount);
+    emit VaultWithdraw(vaultFactory, vaultOwner, amount, shares);
   }
 
   /// @notice Allocates un-used assets to the strategy

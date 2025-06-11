@@ -7,13 +7,7 @@ import "../strategies/IStrategy.sol";
 interface IVault is ICommon {
   event VaultDeposit(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
 
-  event VaultDepositPrincipal(
-    address indexed vaultFactory, address indexed owner, uint256 principalAmount, uint256 shares
-  );
-
   event VaultWithdraw(address indexed vaultFactory, address indexed account, uint256 principalAmount, uint256 shares);
-
-  event VaultWithdrawPrincipal(address indexed vaultFactory, address indexed owner, uint256 principalAmount);
 
   event VaultAllocate(
     address indexed vaultFactory, AssetLib.Asset[] inputAssets, IStrategy strategy, AssetLib.Asset[] newAssets
