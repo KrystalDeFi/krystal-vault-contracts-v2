@@ -26,6 +26,12 @@ event VaultAllocate(address vaultFactory, struct AssetLib.Asset[] inputAssets, c
 event VaultHarvest(address vaultFactory, struct AssetLib.Asset[] harvestedAssets)
 ```
 
+### VaultHarvestPrivate
+
+```solidity
+event VaultHarvestPrivate(address vaultFactory, address owner, uint256 principalHarvestedAmount)
+```
+
 ### SweepToken
 
 ```solidity
@@ -90,6 +96,12 @@ error InvalidAssetTokenId()
 
 ```solidity
 error InvalidAssetType()
+```
+
+### DepositAllowed
+
+```solidity
+error DepositAllowed()
 ```
 
 ### DepositNotAllowed
@@ -180,6 +192,18 @@ function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
 
 ```solidity
 function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeBasisPoint, bytes data) external
+```
+
+### harvest
+
+```solidity
+function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external
+```
+
+### harvestPrivate
+
+```solidity
+function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint256 amountTokenOutMin) external
 ```
 
 ### getTotalValue

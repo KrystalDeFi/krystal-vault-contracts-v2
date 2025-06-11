@@ -465,7 +465,6 @@ contract VaultTest is TestCommon {
 
     vm.roll(blockNumber++);
     console.log("===== deploy new lpStrategy =====");
-    PoolOptimalSwapper swapper = new PoolOptimalSwapper();
 
     address[] memory whitelistNfpms = new address[](1);
     whitelistNfpms[0] = address(NFPM);
@@ -541,8 +540,8 @@ contract VaultTest is TestCommon {
       token0: WETH,
       token1: USDC,
       fee: 500,
-      tickLower: (tick - 20) / 10 * 10,
-      tickUpper: (tick - 10) / 10 * 10,
+      tickLower: ((tick - 20) / 10) * 10,
+      tickUpper: ((tick - 10) / 10) * 10,
       amount0Min: 0,
       amount1Min: 0,
       swapData: ""
@@ -578,5 +577,299 @@ contract VaultTest is TestCommon {
     console.log("vault.getTotalValue(): %d", vault.getTotalValue());
     console.log("the shares of user after withdraw (3): %d", IERC20(vault).balanceOf(USER));
     assertEq(IERC20(vault).balanceOf(USER), 0);
+  }
+
+  // =====================
+  // depositPrincipal tests
+  // =====================
+  function test_depositPrincipal_happy_ERC20() public {
+    // Only admin/automator, private vault, amount > 0
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    deal(WETH, USER, 1 ether);
+    IERC20(WETH).approve(address(v), 1 ether);
+    uint256 shares = v.depositPrincipal(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), shares);
+  }
+
+  function test_depositPrincipal_happy_ETH() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.deal(USER, 1 ether);
+    uint256 startBal = USER.balance;
+    uint256 shares = v.depositPrincipal{ value: 1 ether }(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), shares);
+    assertEq(USER.balance, startBal - 1 ether);
+  }
+
+  function test_depositPrincipal_happy_ERC201() public {
+    // Only admin/automator, private vault, amount > 0
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 1 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    deal(WETH, USER, 1 ether);
+    IERC20(WETH).approve(address(v), 1 ether);
+    uint256 shares = v.depositPrincipal(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 2 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), 2 ether * v.SHARES_PRECISION());
+    // withdrawPrincipal 2 ether
+    uint256 balBefore = IERC20(WETH).balanceOf(USER);
+    v.withdrawPrincipal(2 ether, false);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
+    assertEq(IERC20(WETH).balanceOf(USER), balBefore + 2 ether);
+    // redeposit principal 1 ether
+    IERC20(WETH).approve(address(v), 1 ether);
+    shares = v.depositPrincipal(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), shares);
+  }
+
+  function test_depositPrincipal_happy_ETH1() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 1 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.deal(USER, 1 ether);
+    uint256 startBal = USER.balance;
+    uint256 shares = v.depositPrincipal{ value: 1 ether }(1 ether);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 2 ether);
+    assertEq(shares, 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(v).balanceOf(USER), 2 ether * v.SHARES_PRECISION());
+    assertEq(USER.balance, startBal - 1 ether);
+  }
+
+  function test_depositPrincipal_fail_notAdmin() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.stopBroadcast();
+    vm.startBroadcast(address(this));
+    vm.expectRevert(IVault.Unauthorized.selector);
+    v.depositPrincipal(1 ether);
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
+
+  function test_depositPrincipal_fail_notPrivateVault() public {
+    vaultConfig.allowDeposit = true;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.expectRevert(IVault.DepositAllowed.selector);
+    v.depositPrincipal(1 ether);
+  }
+
+  function test_depositPrincipal_fail_zeroAmount() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.expectRevert(IVault.InvalidAssetAmount.selector);
+    v.depositPrincipal(0);
+  }
+
+  function test_depositPrincipal_fail_wrongETHtoken() public {
+    // principalToken != WETH, but ETH sent
+    vaultConfig.allowDeposit = false;
+    vaultConfig.principalToken = USDC;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.deal(USER, 2 ether);
+    vm.expectRevert(IVault.InvalidAssetToken.selector);
+    v.depositPrincipal{ value: 1 ether }(1 ether);
+  }
+
+  function test_depositPrincipal_fail_wrongETHamount() public {
+    // ETH sent != principalAmount
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.deal(USER, 2 ether);
+    vm.expectRevert(IVault.InvalidAssetAmount.selector);
+    v.depositPrincipal{ value: 2 ether }(1 ether);
+  }
+
+  // =====================
+  // withdrawPrincipal tests
+  // =====================
+  function test_withdrawPrincipal_happy_ERC20() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 1 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    v.getInventory(); // Initialize inventory
+    uint256 balBefore = IERC20(WETH).balanceOf(USER);
+    v.withdrawPrincipal(1 ether, false);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
+    assertEq(IERC20(WETH).balanceOf(USER), balBefore + 1 ether);
+  }
+
+  function test_withdrawPrincipal_happy_unwrapWETH() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 1 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    v.getInventory(); // Initialize inventory
+    uint256 balBefore = USER.balance;
+    v.withdrawPrincipal(1 ether, true);
+    assertEq(address(v).balance, 0);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 0);
+    assertEq(IERC20(v).balanceOf(USER), 0);
+    assertEq(USER.balance, balBefore + 1 ether);
+  }
+
+  function test_withdrawPrincipal_happy_ERC202() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 2 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    v.getInventory(); // Initialize inventory
+    uint256 balBefore = IERC20(WETH).balanceOf(USER);
+    v.withdrawPrincipal(1 ether, false);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(IERC20(v).balanceOf(USER), 1 ether * v.SHARES_PRECISION());
+    assertEq(IERC20(WETH).balanceOf(USER), balBefore + 1 ether);
+  }
+
+  function test_withdrawPrincipal_happy_unwrapWETH2() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
+    Vault v = new Vault();
+    IERC20(WETH).transfer(address(v), 2 ether);
+    v.initialize(params, USER, address(configManager), WETH);
+    v.getInventory(); // Initialize inventory
+    uint256 balBefore = USER.balance;
+    v.withdrawPrincipal(1 ether, true);
+    assertEq(IERC20(WETH).balanceOf(address(v)), 1 ether);
+    assertEq(IERC20(v).balanceOf(USER), 1 ether * v.SHARES_PRECISION());
+    assertEq(address(v).balance, 0);
+    assertEq(USER.balance, balBefore + 1 ether);
+  }
+
+  function test_withdrawPrincipal_fail_notAdmin() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.stopBroadcast();
+    vm.startBroadcast(address(this));
+    vm.expectRevert(IVault.Unauthorized.selector);
+    v.withdrawPrincipal(1 ether, false);
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
+
+  function test_withdrawPrincipal_fail_notPrivateVault() public {
+    vaultConfig.allowDeposit = true;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.expectRevert(IVault.DepositAllowed.selector);
+    v.withdrawPrincipal(1 ether, false);
+  }
+
+  function test_withdrawPrincipal_fail_zeroAmount() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.expectRevert(IVault.InvalidAssetAmount.selector);
+    v.withdrawPrincipal(0, false);
+  }
+
+  function test_withdrawPrincipal_fail_insufficientBalance() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0.5 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    vm.expectRevert(); // Should revert due to insufficient asset
+    v.withdrawPrincipal(1 ether, false);
+  }
+
+  // =====================
+  // harvestPrivate tests
+  // =====================
+  function test_harvestPrivate_fail_notAdmin() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    // Allocate to strategy
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    vm.stopBroadcast();
+    vm.startBroadcast(address(this));
+    vm.expectRevert(IVault.Unauthorized.selector);
+    v.harvestPrivate(assets, false, 0);
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
+
+  function test_harvestPrivate_fail_notPrivateVault() public {
+    vaultConfig.allowDeposit = true;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    vm.expectRevert(IVault.DepositAllowed.selector);
+    v.harvestPrivate(assets, false, 0);
+  }
+
+  function test_harvestPrivate_fail_noStrategy() public {
+    vaultConfig.allowDeposit = false;
+    ICommon.VaultCreateParams memory params =
+      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    Vault v = new Vault();
+    v.initialize(params, USER, address(configManager), WETH);
+    // Asset with no strategy
+    AssetLib.Asset[] memory toHarvest = new AssetLib.Asset[](1);
+    toHarvest[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
+    vm.expectRevert(IVault.InvalidAssetStrategy.selector);
+    v.harvestPrivate(toHarvest, false, 0);
   }
 }

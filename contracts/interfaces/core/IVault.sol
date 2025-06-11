@@ -15,6 +15,8 @@ interface IVault is ICommon {
 
   event VaultHarvest(address indexed vaultFactory, AssetLib.Asset[] harvestedAssets);
 
+  event VaultHarvestPrivate(address indexed vaultFactory, address indexed owner, uint256 principalHarvestedAmount);
+
   event SweepToken(address[] tokens);
 
   event SweepERC721(address[] _tokens, uint256[] _tokenIds);
@@ -30,6 +32,7 @@ interface IVault is ICommon {
   error InvalidAssetStrategy();
   error InvalidAssetTokenId();
   error InvalidAssetType();
+  error DepositAllowed();
   error DepositNotAllowed();
   error MaxPositionsReached();
   error InvalidShares();
@@ -57,6 +60,10 @@ interface IVault is ICommon {
     uint64 gasFeeBasisPoint,
     bytes calldata data
   ) external;
+
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external;
+
+  function harvestPrivate(AssetLib.Asset[] calldata asset, bool unwrap, uint256 amountTokenOutMin) external;
 
   function getTotalValue() external returns (uint256);
 
