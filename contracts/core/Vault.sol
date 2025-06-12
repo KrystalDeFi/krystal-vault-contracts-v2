@@ -37,7 +37,7 @@ contract Vault is
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
-  uint16 public constant WITHDRAWAL_FEE = 10; // 0.1%
+  uint16 public constant WITHDRAWAL_FEE = 1; // 0.01%
   bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   IConfigManager public configManager;
 
