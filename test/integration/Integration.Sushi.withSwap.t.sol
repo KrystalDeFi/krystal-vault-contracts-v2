@@ -240,7 +240,8 @@ contract IntegrationTest is TestCommon {
     assertEq(IERC20(USDC).balanceOf(address(vaultInstance)), 0, "USDC balance of vault should be 0");
 
     assertEq(vaultInstance.getTotalValue(), 0, "Total value of the vault should be 0");
-    // assertGt(IERC20(WETH).balanceOf(USER), IERC20(WETH).balanceOf(PLAYER_1), "User balance should > player_1 balance");
+    // assertGt(IERC20(WETH).balanceOf(USER), IERC20(WETH).balanceOf(PLAYER_1), "User balance should > player_1
+    // balance");
 
     // the WETH balance of players shouldn't be too much different with the initial balance
     assert(0.99 ether < IERC20(WETH).balanceOf(USER));

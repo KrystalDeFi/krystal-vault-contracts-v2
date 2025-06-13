@@ -182,10 +182,22 @@ function initialize(struct ICommon.VaultCreateParams params, address _owner, add
 function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares)
 ```
 
+### depositPrincipal
+
+```solidity
+function depositPrincipal(uint256 principalAmount) external payable returns (uint256 shares)
+```
+
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
+function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external returns (uint256 returnAmount)
+```
+
+### withdrawPrincipal
+
+```solidity
+function withdrawPrincipal(uint256 amount, bool unwrap) external returns (uint256 returnAmount)
 ```
 
 ### allocate
@@ -197,7 +209,7 @@ function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strate
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external
+function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### harvestPrivate
@@ -209,7 +221,7 @@ function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint256 amou
 ### getTotalValue
 
 ```solidity
-function getTotalValue() external returns (uint256)
+function getTotalValue() external view returns (uint256)
 ```
 
 ### grantAdminRole

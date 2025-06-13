@@ -94,4 +94,13 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
     vaultImplementation = _vaultImplementation;
     emit VaultImplementationSet(_vaultImplementation);
   }
+
+  /// @notice Check if a vault created by this factory
+  /// @param vault Address of the vault to check
+  function isVault(address vault) external view override returns (bool) {
+    for (uint256 i = 0; i < allVaults.length; i++) {
+      if (allVaults[i] == vault) return true;
+    }
+    return false;
+  }
 }

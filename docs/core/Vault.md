@@ -135,7 +135,7 @@ Deposits principal tokens for private vaults
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
+function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external returns (uint256 returnAmount)
 ```
 
 Withdraws the asset as principal token from the vault
@@ -148,10 +148,16 @@ Withdraws the asset as principal token from the vault
 | unwrap | bool | Unwrap WETH to ETH |
 | minReturnAmount | uint256 | Minimum amount of principal token to return |
 
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAmount | uint256 | Amount of principal token returned |
+
 ### withdrawPrincipal
 
 ```solidity
-function withdrawPrincipal(uint256 amount, bool unwrap) external
+function withdrawPrincipal(uint256 amount, bool unwrap) external returns (uint256)
 ```
 
 Withdraws principal tokens (not from strategies) for private vaults
@@ -183,7 +189,7 @@ Allocates un-used assets to the strategy
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external
+function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 Harvests the assets from the strategy
@@ -194,6 +200,12 @@ Harvests the assets from the strategy
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| harvestedAssets | struct AssetLib.Asset[] | Harvested assets |
 
 ### harvestPrivate
 
