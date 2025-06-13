@@ -102,3 +102,17 @@ Set the Vault implementation
 | ---- | ---- | ----------- |
 | _vaultImplementation | address | Address of the new vault implementation |
 
+### isVault
+
+```solidity
+function isVault(address vault) external view returns (bool)
+```
+
+Check if a vault created by this factory
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the vault to check |
+

@@ -50,3 +50,9 @@ function setVaultImplementation(address _vaultImplementation) external
 function WETH() external view returns (address)
 ```
 
+### isVault
+
+```solidity
+function isVault(address vault) external view returns (bool)
+```
+
