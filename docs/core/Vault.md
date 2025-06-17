@@ -32,6 +32,12 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
+### operator
+
+```solidity
+address operator
+```
+
 ### WETH
 
 ```solidity
@@ -50,10 +56,10 @@ address vaultFactory
 uint256 lastAllocateBlockNumber
 ```
 
-### onlyAutomator
+### onlyOperator
 
 ```solidity
-modifier onlyAutomator()
+modifier onlyOperator()
 ```
 
 ### onlyAdminOrAutomator
@@ -77,7 +83,7 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _weth) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _operator, address _configManager, address _weth) public
 ```
 
 Initializes the vault
@@ -88,6 +94,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
+| _operator | address | Address of the operator |
 | _configManager | address | Address of the whitelist manager |
 | _weth | address | Address of the WETH token |
 

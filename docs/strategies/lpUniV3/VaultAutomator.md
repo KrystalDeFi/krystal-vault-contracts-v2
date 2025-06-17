@@ -185,3 +185,9 @@ Unpause the contract
 receive() external payable
 ```
 
+### supportsInterface
+
+```solidity
+function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
+```
+

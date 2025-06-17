@@ -173,7 +173,7 @@ function WETH() external view returns (address)
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _weth) external
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _operator, address _configManager, address _weth) external
 ```
 
 ### deposit
