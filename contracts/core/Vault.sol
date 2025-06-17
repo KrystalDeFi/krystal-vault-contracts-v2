@@ -42,6 +42,7 @@ contract Vault is
   IConfigManager public configManager;
 
   address public override vaultOwner;
+  address public operator;
   address public override WETH;
   address public vaultFactory;
   VaultConfig private vaultConfig;
@@ -49,8 +50,8 @@ contract Vault is
   InventoryLib.Inventory private inventory;
   uint256 lastAllocateBlockNumber;
 
-  modifier onlyAutomator() {
-    require(configManager.isWhitelistedAutomator(_msgSender()), Unauthorized());
+  modifier onlyOperator() {
+    require(_msgSender() == operator, Unauthorized());
     _;
   }
 
@@ -74,12 +75,16 @@ contract Vault is
   /// @notice Initializes the vault
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
+  /// @param _operator Address of the operator
   /// @param _configManager Address of the whitelist manager
   /// @param _weth Address of the WETH token
-  function initialize(VaultCreateParams calldata params, address _owner, address _configManager, address _weth)
-    public
-    initializer
-  {
+  function initialize(
+    VaultCreateParams calldata params,
+    address _owner,
+    address _operator,
+    address _configManager,
+    address _weth
+  ) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
 
@@ -95,6 +100,7 @@ contract Vault is
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
+    operator = _operator;
     vaultFactory = _msgSender();
     WETH = _weth;
     vaultConfig = params.config;
@@ -522,13 +528,19 @@ contract Vault is
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
-  function sweepToken(address[] calldata tokens) external nonReentrant onlyAutomator {
+  function sweepToken(address[] calldata tokens) external nonReentrant onlyOperator {
     uint256 length = tokens.length;
 
     for (uint256 i; i < length;) {
-      require(!inventory.contains(tokens[i], 0), InvalidSweepAsset());
       IERC20 token = IERC20(tokens[i]);
-      token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
+      uint256 amount;
+      if (inventory.contains(tokens[i], 0)) {
+        AssetLib.Asset memory asset = inventory.getAsset(tokens[i], 0);
+        amount = token.balanceOf(address(this)) - asset.amount;
+      } else {
+        amount = token.balanceOf(address(this));
+      }
+      token.safeTransfer(_msgSender(), amount);
 
       unchecked {
         i++;
@@ -541,7 +553,7 @@ contract Vault is
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyAutomator {
+  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
@@ -564,14 +576,20 @@ contract Vault is
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
     external
     nonReentrant
-    onlyAutomator
+    onlyOperator
   {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
-      require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
       IERC1155 token = IERC1155(_tokens[i]);
-      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], _amounts[i], "");
+      uint256 amount = _amounts[i];
+      if (inventory.contains(_tokens[i], _tokenIds[i])) {
+        AssetLib.Asset memory asset = inventory.getAsset(_tokens[i], _tokenIds[i]);
+        amount = token.balanceOf(address(this), _tokenIds[i]) - asset.amount;
+      } else {
+        amount = token.balanceOf(address(this), _tokenIds[i]);
+      }
+      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], amount, "");
 
       unchecked {
         i++;

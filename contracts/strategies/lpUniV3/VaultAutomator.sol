@@ -3,6 +3,12 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "./CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
@@ -12,7 +18,9 @@ import "../../interfaces/strategies/ILpStrategy.sol";
  * @title VaultAutomator
  * @notice Contract that automates vault operations for liquidity provision and management
  */
-contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomator {
+contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, ERC1155Holder, IVaultAutomator {
+  using SafeERC20 for IERC20;
+
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
@@ -57,6 +65,17 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   /// @param tokens Tokens to sweep
   function executeSweepToken(IVault vault, address[] memory tokens) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepToken(tokens);
+
+    uint256 length = tokens.length;
+
+    for (uint256 i; i < length;) {
+      IERC20 token = IERC20(tokens[i]);
+      token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @notice Execute sweep NFT token ERC721
@@ -69,6 +88,17 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     onlyRole(OPERATOR_ROLE_HASH)
   {
     vault.sweepERC721(tokens, tokenIds);
+
+    uint256 length = tokens.length;
+
+    for (uint256 i; i < length;) {
+      IERC721 token = IERC721(tokens[i]);
+      token.safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @notice Execute sweep NFT token ERC1155
@@ -83,6 +113,17 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
     uint256[] memory amounts
   ) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepERC1155(tokens, tokenIds, amounts);
+
+    uint256 length = tokens.length;
+
+    for (uint256 i; i < length;) {
+      IERC1155 token = IERC1155(tokens[i]);
+      token.safeTransferFrom(address(this), _msgSender(), tokenIds[i], token.balanceOf(address(this), tokenIds[i]), "");
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @dev Validate the order
@@ -134,4 +175,14 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, IVaultAutomato
   }
 
   receive() external payable { }
+
+  function supportsInterface(bytes4 interfaceId)
+    public
+    view
+    virtual
+    override(AccessControl, ERC1155Holder)
+    returns (bool)
+  {
+    return super.supportsInterface(interfaceId);
+  }
 }

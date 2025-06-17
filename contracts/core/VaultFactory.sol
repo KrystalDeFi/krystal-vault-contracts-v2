@@ -61,7 +61,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
       IERC20(principalToken).safeTransferFrom(sender, vault, principalAmount);
     }
 
-    IVault(vault).initialize(params, sender, configManager, WETH);
+    IVault(vault).initialize(params, sender, owner(), configManager, WETH);
 
     vaultsByAddress[sender].push(vault);
     allVaults.push(vault);

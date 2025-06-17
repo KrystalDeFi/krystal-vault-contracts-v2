@@ -27,6 +27,11 @@
   },
   {
     "inputs": [],
+    "name": "AssetNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DepositAllowed",
     "type": "error"
   },
@@ -1482,6 +1487,11 @@
       },
       {
         "internalType": "address",
+        "name": "_operator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_configManager",
         "type": "address"
       },
@@ -1638,6 +1648,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "operator",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

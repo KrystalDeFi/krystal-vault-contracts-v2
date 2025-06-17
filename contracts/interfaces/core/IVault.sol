@@ -47,8 +47,13 @@ interface IVault is ICommon {
 
   function WETH() external view returns (address);
 
-  function initialize(VaultCreateParams calldata params, address _owner, address _configManager, address _weth)
-    external;
+  function initialize(
+    VaultCreateParams calldata params,
+    address _owner,
+    address _operator,
+    address _configManager,
+    address _weth
+  ) external;
 
   function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
 

@@ -854,6 +854,11 @@
       },
       {
         "internalType": "address",
+        "name": "_operator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_configManager",
         "type": "address"
       },
