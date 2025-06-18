@@ -21,7 +21,7 @@ interface IVault is ICommon {
 
   event SweepERC721(address[] _tokens, uint256[] _tokenIds);
 
-  event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts);
+  event SweepERC1155(address[] _tokens, uint256[] _tokenIds);
 
   event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
 
@@ -30,8 +30,6 @@ interface IVault is ICommon {
   error InvalidAssetAmount();
   error InvalidSweepAsset();
   error InvalidAssetStrategy();
-  error InvalidAssetTokenId();
-  error InvalidAssetType();
   error DepositAllowed();
   error DepositNotAllowed();
   error MaxPositionsReached();
@@ -80,7 +78,7 @@ interface IVault is ICommon {
 
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts) external;
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
   function allowDeposit(VaultConfig calldata _config) external;
 

@@ -428,11 +428,6 @@
         "internalType": "uint256[]",
         "name": "tokenIds",
         "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "amounts",
-        "type": "uint256[]"
       }
     ],
     "name": "executeSweepERC1155",

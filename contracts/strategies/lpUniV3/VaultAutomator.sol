@@ -105,14 +105,12 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  /// @param amounts Amounts to sweep
-  function executeSweepERC1155(
-    IVault vault,
-    address[] memory tokens,
-    uint256[] memory tokenIds,
-    uint256[] memory amounts
-  ) external override onlyRole(OPERATOR_ROLE_HASH) {
-    vault.sweepERC1155(tokens, tokenIds, amounts);
+  function executeSweepERC1155(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
+    external
+    override
+    onlyRole(OPERATOR_ROLE_HASH)
+  {
+    vault.sweepERC1155(tokens, tokenIds);
 
     uint256 length = tokens.length;
 

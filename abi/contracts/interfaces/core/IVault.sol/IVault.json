@@ -56,16 +56,6 @@
   },
   {
     "inputs": [],
-    "name": "InvalidAssetTokenId",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAssetType",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidFeeConfig",
     "type": "error"
   },
@@ -203,12 +193,6 @@
         "indexed": false,
         "internalType": "uint256[]",
         "name": "_tokenIds",
-        "type": "uint256[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[]",
-        "name": "_amounts",
         "type": "uint256[]"
       }
     ],
@@ -896,11 +880,6 @@
       {
         "internalType": "uint256[]",
         "name": "_tokenIds",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_amounts",
         "type": "uint256[]"
       }
     ],

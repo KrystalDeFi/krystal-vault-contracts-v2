@@ -285,7 +285,7 @@ Sweeps the non-fungible tokens ERC721 to the caller
 ### sweepERC1155
 
 ```solidity
-function sweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts) external
+function sweepERC1155(address[] _tokens, uint256[] _tokenIds) external
 ```
 
 Sweep ERC1155 tokens to the caller
@@ -296,7 +296,6 @@ Sweep ERC1155 tokens to the caller
 | ---- | ---- | ----------- |
 | _tokens | address[] | Tokens to sweep |
 | _tokenIds | uint256[] | Token IDs to sweep |
-| _amounts | uint256[] | Amounts to sweep |
 
 ### grantAdminRole
 

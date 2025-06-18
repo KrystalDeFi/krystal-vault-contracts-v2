@@ -47,7 +47,7 @@ event SweepERC721(address[] _tokens, uint256[] _tokenIds)
 ### SweepERC1155
 
 ```solidity
-event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts)
+event SweepERC1155(address[] _tokens, uint256[] _tokenIds)
 ```
 
 ### SetVaultConfig
@@ -84,18 +84,6 @@ error InvalidSweepAsset()
 
 ```solidity
 error InvalidAssetStrategy()
-```
-
-### InvalidAssetTokenId
-
-```solidity
-error InvalidAssetTokenId()
-```
-
-### InvalidAssetType
-
-```solidity
-error InvalidAssetType()
 ```
 
 ### DepositAllowed
@@ -239,7 +227,7 @@ function sweepERC721(address[] _tokens, uint256[] _tokenIds) external
 ### sweepERC1155
 
 ```solidity
-function sweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts) external
+function sweepERC1155(address[] _tokens, uint256[] _tokenIds) external
 ```
 
 ### allowDeposit

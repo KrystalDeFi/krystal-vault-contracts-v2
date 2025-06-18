@@ -533,12 +533,10 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       IERC20 token = IERC20(tokens[i]);
-      uint256 amount;
+      uint256 amount = token.balanceOf(address(this));
       if (inventory.contains(tokens[i], 0)) {
         AssetLib.Asset memory asset = inventory.getAsset(tokens[i], 0);
-        amount = token.balanceOf(address(this)) - asset.amount;
-      } else {
-        amount = token.balanceOf(address(this));
+        amount -= asset.amount;
       }
       token.safeTransfer(_msgSender(), amount);
 
@@ -572,22 +570,15 @@ contract Vault is
   /// @notice Sweep ERC1155 tokens to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  /// @param _amounts Amounts to sweep
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
-    external
-    nonReentrant
-    onlyOperator
-  {
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
       IERC1155 token = IERC1155(_tokens[i]);
-      uint256 amount = _amounts[i];
+      uint256 amount = token.balanceOf(address(this), _tokenIds[i]);
       if (inventory.contains(_tokens[i], _tokenIds[i])) {
         AssetLib.Asset memory asset = inventory.getAsset(_tokens[i], _tokenIds[i]);
-        amount = token.balanceOf(address(this), _tokenIds[i]) - asset.amount;
-      } else {
-        amount = token.balanceOf(address(this), _tokenIds[i]);
+        amount -= asset.amount;
       }
       token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], amount, "");
 
@@ -596,7 +587,7 @@ contract Vault is
       }
     }
 
-    emit SweepERC1155(_tokens, _tokenIds, _amounts);
+    emit SweepERC1155(_tokens, _tokenIds);
   }
 
   /// @notice grant admin role to the address

@@ -70,7 +70,7 @@ Execute sweep NFT token ERC721
 ### executeSweepERC1155
 
 ```solidity
-function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds, uint256[] amounts) external
+function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
 Execute sweep NFT token ERC1155
@@ -82,7 +82,6 @@ Execute sweep NFT token ERC1155
 | vault | contract IVault | Vault address |
 | tokens | address[] | Tokens to sweep |
 | tokenIds | uint256[] | Token IDs to sweep |
-| amounts | uint256[] | Amounts to sweep |
 
 ### _validateOrder
 
