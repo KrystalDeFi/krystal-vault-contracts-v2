@@ -128,6 +128,7 @@ contract Vault is
   function deposit(uint256 principalAmount, uint256 minShares)
     external
     payable
+    override
     nonReentrant
     whenNotPaused
     returns (uint256 shares)
@@ -243,6 +244,7 @@ contract Vault is
   /// @return returnAmount Amount of principal token returned
   function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount)
     external
+    override
     nonReentrant
     returns (uint256 returnAmount)
   {
