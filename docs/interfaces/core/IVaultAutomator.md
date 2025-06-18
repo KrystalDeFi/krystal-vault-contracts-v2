@@ -47,7 +47,7 @@ function executeSweepERC721(contract IVault vault, address[] tokens, uint256[] t
 ### executeSweepERC1155
 
 ```solidity
-function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds, uint256[] amounts) external
+function executeSweepERC1155(contract IVault vault, address[] tokens, uint256[] tokenIds) external
 ```
 
 ### cancelOrder

@@ -242,7 +242,8 @@ contract IntegrationTest is TestCommon {
 
     console.log("==== user   weth balance", IERC20(WETH).balanceOf(USER));
     console.log("==== player weth balance", IERC20(WETH).balanceOf(PLAYER_1));
-    // assertGt(IERC20(WETH).balanceOf(USER), IERC20(WETH).balanceOf(PLAYER_1), "user balance should > player_1 balance");
+    // assertGt(IERC20(WETH).balanceOf(USER), IERC20(WETH).balanceOf(PLAYER_1), "user balance should > player_1
+    // balance");
 
     // the WETH balance of players shouldn't be too much different with the initial balance
     assertApproxEqAbs(IERC20(WETH).balanceOf(USER), 1 ether, 0.01 ether);

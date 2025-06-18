@@ -96,7 +96,7 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0.5 ether,
       config: vaultConfig
     });
-    vault.initialize(params, USER, address(configManager), WETH);
+    vault.initialize(params, USER, USER, address(configManager), WETH);
   }
 
   function test_Vault() public {
@@ -312,7 +312,7 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1000 * 1e6,
       config: vaultConfig
     });
-    vault.initialize(createVaultParams, USER, address(configManager), WETH);
+    vault.initialize(createVaultParams, USER, USER, address(configManager), WETH);
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), USDC, 0, 500 * 1e6);
@@ -588,7 +588,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     deal(WETH, USER, 1 ether);
     IERC20(WETH).approve(address(v), 1 ether);
     uint256 shares = v.depositPrincipal(1 ether);
@@ -602,7 +602,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 1 ether);
     uint256 startBal = USER.balance;
     uint256 shares = v.depositPrincipal{ value: 1 ether }(1 ether);
@@ -619,7 +619,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     deal(WETH, USER, 1 ether);
     IERC20(WETH).approve(address(v), 1 ether);
     uint256 shares = v.depositPrincipal(1 ether);
@@ -646,7 +646,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 1 ether);
     uint256 startBal = USER.balance;
     uint256 shares = v.depositPrincipal{ value: 1 ether }(1 ether);
@@ -661,7 +661,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
     vm.expectRevert(IVault.Unauthorized.selector);
@@ -675,7 +675,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
     v.depositPrincipal(1 ether);
   }
@@ -685,7 +685,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.InvalidAssetAmount.selector);
     v.depositPrincipal(0);
   }
@@ -697,7 +697,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
     vm.expectRevert(IVault.InvalidAssetToken.selector);
     v.depositPrincipal{ value: 1 ether }(1 ether);
@@ -709,7 +709,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
     vm.expectRevert(IVault.InvalidAssetAmount.selector);
     v.depositPrincipal{ value: 2 ether }(1 ether);
@@ -724,7 +724,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
     uint256 balBefore = IERC20(WETH).balanceOf(USER);
     v.withdrawPrincipal(1 ether, false);
@@ -739,7 +739,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
     uint256 balBefore = USER.balance;
     v.withdrawPrincipal(1 ether, true);
@@ -755,7 +755,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 2 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
     uint256 balBefore = IERC20(WETH).balanceOf(USER);
     v.withdrawPrincipal(1 ether, false);
@@ -770,7 +770,7 @@ contract VaultTest is TestCommon {
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 2 ether);
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
     uint256 balBefore = USER.balance;
     v.withdrawPrincipal(1 ether, true);
@@ -785,7 +785,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
     vm.expectRevert(IVault.Unauthorized.selector);
@@ -799,7 +799,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
     v.withdrawPrincipal(1 ether, false);
   }
@@ -809,7 +809,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.InvalidAssetAmount.selector);
     v.withdrawPrincipal(0, false);
   }
@@ -823,7 +823,7 @@ contract VaultTest is TestCommon {
       config: vaultConfig
     });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(); // Should revert due to insufficient asset
     v.withdrawPrincipal(1 ether, false);
   }
@@ -836,7 +836,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     // Allocate to strategy
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
@@ -853,7 +853,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
     vm.expectRevert(IVault.DepositAllowed.selector);
@@ -865,7 +865,7 @@ contract VaultTest is TestCommon {
     ICommon.VaultCreateParams memory params =
       ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
     Vault v = new Vault();
-    v.initialize(params, USER, address(configManager), WETH);
+    v.initialize(params, USER, USER, address(configManager), WETH);
     // Asset with no strategy
     AssetLib.Asset[] memory toHarvest = new AssetLib.Asset[](1);
     toHarvest[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);

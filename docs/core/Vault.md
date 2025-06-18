@@ -32,6 +32,12 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
+### operator
+
+```solidity
+address operator
+```
+
 ### WETH
 
 ```solidity
@@ -50,10 +56,10 @@ address vaultFactory
 uint256 lastAllocateBlockNumber
 ```
 
-### onlyAutomator
+### onlyOperator
 
 ```solidity
-modifier onlyAutomator()
+modifier onlyOperator()
 ```
 
 ### onlyAdminOrAutomator
@@ -77,7 +83,7 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(struct ICommon.VaultCreateParams params, address _owner, address _configManager, address _weth) public
+function initialize(struct ICommon.VaultCreateParams params, address _owner, address _operator, address _configManager, address _weth) public
 ```
 
 Initializes the vault
@@ -88,6 +94,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | params | struct ICommon.VaultCreateParams | Vault creation parameters |
 | _owner | address | Owner of the vault |
+| _operator | address | Address of the operator |
 | _configManager | address | Address of the whitelist manager |
 | _weth | address | Address of the WETH token |
 
@@ -135,7 +142,7 @@ Deposits principal tokens for private vaults
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external
+function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external returns (uint256 returnAmount)
 ```
 
 Withdraws the asset as principal token from the vault
@@ -148,10 +155,16 @@ Withdraws the asset as principal token from the vault
 | unwrap | bool | Unwrap WETH to ETH |
 | minReturnAmount | uint256 | Minimum amount of principal token to return |
 
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| returnAmount | uint256 | Amount of principal token returned |
+
 ### withdrawPrincipal
 
 ```solidity
-function withdrawPrincipal(uint256 amount, bool unwrap) external
+function withdrawPrincipal(uint256 amount, bool unwrap) external returns (uint256)
 ```
 
 Withdraws principal tokens (not from strategies) for private vaults
@@ -162,6 +175,12 @@ Withdraws principal tokens (not from strategies) for private vaults
 | ---- | ---- | ----------- |
 | amount | uint256 | Amount of principal tokens to withdraw |
 | unwrap | bool | Unwrap WETH to ETH |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| [0] | uint256 | returnAmount Amount of principal tokens returned |
 
 ### allocate
 
@@ -183,7 +202,7 @@ Allocates un-used assets to the strategy
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external
+function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 Harvests the assets from the strategy
@@ -194,6 +213,12 @@ Harvests the assets from the strategy
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| harvestedAssets | struct AssetLib.Asset[] | Harvested assets |
 
 ### harvestPrivate
 
@@ -278,7 +303,7 @@ Sweeps the non-fungible tokens ERC721 to the caller
 ### sweepERC1155
 
 ```solidity
-function sweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts) external
+function sweepERC1155(address[] _tokens, uint256[] _tokenIds) external
 ```
 
 Sweep ERC1155 tokens to the caller
@@ -289,7 +314,6 @@ Sweep ERC1155 tokens to the caller
 | ---- | ---- | ----------- |
 | _tokens | address[] | Tokens to sweep |
 | _tokenIds | uint256[] | Token IDs to sweep |
-| _amounts | uint256[] | Amounts to sweep |
 
 ### grantAdminRole
 

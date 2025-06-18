@@ -42,6 +42,7 @@ contract Vault is
   IConfigManager public configManager;
 
   address public override vaultOwner;
+  address public operator;
   address public override WETH;
   address public vaultFactory;
   VaultConfig private vaultConfig;
@@ -49,8 +50,8 @@ contract Vault is
   InventoryLib.Inventory private inventory;
   uint256 lastAllocateBlockNumber;
 
-  modifier onlyAutomator() {
-    require(configManager.isWhitelistedAutomator(_msgSender()), Unauthorized());
+  modifier onlyOperator() {
+    require(_msgSender() == operator, Unauthorized());
     _;
   }
 
@@ -74,12 +75,16 @@ contract Vault is
   /// @notice Initializes the vault
   /// @param params Vault creation parameters
   /// @param _owner Owner of the vault
+  /// @param _operator Address of the operator
   /// @param _configManager Address of the whitelist manager
   /// @param _weth Address of the WETH token
-  function initialize(VaultCreateParams calldata params, address _owner, address _configManager, address _weth)
-    public
-    initializer
-  {
+  function initialize(
+    VaultCreateParams calldata params,
+    address _owner,
+    address _operator,
+    address _configManager,
+    address _weth
+  ) public initializer {
     require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
 
@@ -95,6 +100,7 @@ contract Vault is
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
+    operator = _operator;
     vaultFactory = _msgSender();
     WETH = _weth;
     vaultConfig = params.config;
@@ -122,6 +128,7 @@ contract Vault is
   function deposit(uint256 principalAmount, uint256 minShares)
     external
     payable
+    override
     nonReentrant
     whenNotPaused
     returns (uint256 shares)
@@ -199,6 +206,7 @@ contract Vault is
   function depositPrincipal(uint256 principalAmount)
     external
     payable
+    override
     nonReentrant
     onlyAdminOrAutomator
     onlyPrivateVault
@@ -233,7 +241,13 @@ contract Vault is
   /// @param shares Amount of shares to be burned
   /// @param unwrap Unwrap WETH to ETH
   /// @param minReturnAmount Minimum amount of principal token to return
-  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external nonReentrant {
+  /// @return returnAmount Amount of principal token returned
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount)
+    external
+    override
+    nonReentrant
+    returns (uint256 returnAmount)
+  {
     uint256 currentTotalSupply = totalSupply();
     require(shares != 0 && shares <= currentTotalSupply, InvalidShares());
 
@@ -247,7 +261,6 @@ contract Vault is
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
 
-    uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
     uint256 length = inventory.assets.length;
 
@@ -323,7 +336,15 @@ contract Vault is
   /// @notice Withdraws principal tokens (not from strategies) for private vaults
   /// @param amount Amount of principal tokens to withdraw
   /// @param unwrap Unwrap WETH to ETH
-  function withdrawPrincipal(uint256 amount, bool unwrap) external nonReentrant onlyAdminOrAutomator onlyPrivateVault {
+  /// @return returnAmount Amount of principal tokens returned
+  function withdrawPrincipal(uint256 amount, bool unwrap)
+    external
+    override
+    nonReentrant
+    onlyAdminOrAutomator
+    onlyPrivateVault
+    returns (uint256)
+  {
     require(amount != 0, InvalidAssetAmount());
 
     // calculate shares to burn
@@ -344,6 +365,8 @@ contract Vault is
     }
 
     emit VaultWithdraw(vaultFactory, vaultOwner, amount, shares);
+
+    return amount;
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -412,14 +435,18 @@ contract Vault is
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
+  /// @return harvestedAssets Harvested assets
   function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
     external
+    override
     onlyAdminOrAutomator
     whenNotPaused
+    nonReentrant
+    returns (AssetLib.Asset[] memory harvestedAssets)
   {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
+    harvestedAssets = _harvest(asset, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
@@ -429,6 +456,7 @@ contract Vault is
   /// @param amountTokenOutMin Minimum amount out by tokenOut
   function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint256 amountTokenOutMin)
     external
+    override
     nonReentrant
     onlyAdminOrAutomator
     onlyPrivateVault
@@ -522,13 +550,17 @@ contract Vault is
 
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
-  function sweepToken(address[] calldata tokens) external nonReentrant onlyAutomator {
+  function sweepToken(address[] calldata tokens) external nonReentrant onlyOperator {
     uint256 length = tokens.length;
 
     for (uint256 i; i < length;) {
-      require(!inventory.contains(tokens[i], 0), InvalidSweepAsset());
       IERC20 token = IERC20(tokens[i]);
-      token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
+      uint256 amount = token.balanceOf(address(this));
+      if (inventory.contains(tokens[i], 0)) {
+        AssetLib.Asset memory asset = inventory.getAsset(tokens[i], 0);
+        amount -= asset.amount;
+      }
+      token.safeTransfer(_msgSender(), amount);
 
       unchecked {
         i++;
@@ -541,7 +573,7 @@ contract Vault is
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyAutomator {
+  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
@@ -560,25 +592,24 @@ contract Vault is
   /// @notice Sweep ERC1155 tokens to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  /// @param _amounts Amounts to sweep
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
-    external
-    nonReentrant
-    onlyAutomator
-  {
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
     uint256 length = _tokens.length;
 
     for (uint256 i; i < length;) {
-      require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
       IERC1155 token = IERC1155(_tokens[i]);
-      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], _amounts[i], "");
+      uint256 amount = token.balanceOf(address(this), _tokenIds[i]);
+      if (inventory.contains(_tokens[i], _tokenIds[i])) {
+        AssetLib.Asset memory asset = inventory.getAsset(_tokens[i], _tokenIds[i]);
+        amount -= asset.amount;
+      }
+      token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i], amount, "");
 
       unchecked {
         i++;
       }
     }
 
-    emit SweepERC1155(_tokens, _tokenIds, _amounts);
+    emit SweepERC1155(_tokens, _tokenIds);
   }
 
   /// @notice grant admin role to the address

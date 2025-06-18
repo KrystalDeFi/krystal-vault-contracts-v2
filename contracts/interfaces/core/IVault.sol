@@ -21,7 +21,7 @@ interface IVault is ICommon {
 
   event SweepERC721(address[] _tokens, uint256[] _tokenIds);
 
-  event SweepERC1155(address[] _tokens, uint256[] _tokenIds, uint256[] _amounts);
+  event SweepERC1155(address[] _tokens, uint256[] _tokenIds);
 
   event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
 
@@ -30,8 +30,6 @@ interface IVault is ICommon {
   error InvalidAssetAmount();
   error InvalidSweepAsset();
   error InvalidAssetStrategy();
-  error InvalidAssetTokenId();
-  error InvalidAssetType();
   error DepositAllowed();
   error DepositNotAllowed();
   error MaxPositionsReached();
@@ -47,12 +45,21 @@ interface IVault is ICommon {
 
   function WETH() external view returns (address);
 
-  function initialize(VaultCreateParams calldata params, address _owner, address _configManager, address _weth)
-    external;
+  function initialize(
+    VaultCreateParams calldata params,
+    address _owner,
+    address _operator,
+    address _configManager,
+    address _weth
+  ) external;
 
   function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
 
-  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external;
+  function depositPrincipal(uint256 principalAmount) external payable returns (uint256 shares);
+
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external returns (uint256 returnAmount);
+
+  function withdrawPrincipal(uint256 amount, bool unwrap) external returns (uint256 returnAmount);
 
   function allocate(
     AssetLib.Asset[] calldata inputAssets,
@@ -61,11 +68,13 @@ interface IVault is ICommon {
     bytes calldata data
   ) external;
 
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external;
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+    external
+    returns (AssetLib.Asset[] memory harvestedAssets);
 
   function harvestPrivate(AssetLib.Asset[] calldata asset, bool unwrap, uint256 amountTokenOutMin) external;
 
-  function getTotalValue() external returns (uint256);
+  function getTotalValue() external view returns (uint256);
 
   function grantAdminRole(address _address) external;
 
@@ -75,7 +84,7 @@ interface IVault is ICommon {
 
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts) external;
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
   function allowDeposit(VaultConfig calldata _config) external;
 

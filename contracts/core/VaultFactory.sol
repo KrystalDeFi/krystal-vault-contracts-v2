@@ -61,7 +61,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
       IERC20(principalToken).safeTransferFrom(sender, vault, principalAmount);
     }
 
-    IVault(vault).initialize(params, sender, configManager, WETH);
+    IVault(vault).initialize(params, sender, owner(), configManager, WETH);
 
     vaultsByAddress[sender].push(vault);
     allVaults.push(vault);
@@ -93,5 +93,14 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
     require(_vaultImplementation != address(0), ZeroAddress());
     vaultImplementation = _vaultImplementation;
     emit VaultImplementationSet(_vaultImplementation);
+  }
+
+  /// @notice Check if a vault created by this factory
+  /// @param vault Address of the vault to check
+  function isVault(address vault) external view override returns (bool) {
+    for (uint256 i = 0; i < allVaults.length; i++) {
+      if (allVaults[i] == vault) return true;
+    }
+    return false;
   }
 }
