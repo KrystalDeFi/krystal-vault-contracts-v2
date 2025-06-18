@@ -205,6 +205,7 @@ contract Vault is
   function depositPrincipal(uint256 principalAmount)
     external
     payable
+    override
     nonReentrant
     onlyAdminOrAutomator
     onlyPrivateVault
@@ -239,7 +240,12 @@ contract Vault is
   /// @param shares Amount of shares to be burned
   /// @param unwrap Unwrap WETH to ETH
   /// @param minReturnAmount Minimum amount of principal token to return
-  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external nonReentrant {
+  /// @return returnAmount Amount of principal token returned
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount)
+    external
+    nonReentrant
+    returns (uint256 returnAmount)
+  {
     uint256 currentTotalSupply = totalSupply();
     require(shares != 0 && shares <= currentTotalSupply, InvalidShares());
 
@@ -253,7 +259,6 @@ contract Vault is
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
 
-    uint256 returnAmount;
     address principalToken = vaultConfig.principalToken;
     uint256 length = inventory.assets.length;
 
@@ -329,7 +334,15 @@ contract Vault is
   /// @notice Withdraws principal tokens (not from strategies) for private vaults
   /// @param amount Amount of principal tokens to withdraw
   /// @param unwrap Unwrap WETH to ETH
-  function withdrawPrincipal(uint256 amount, bool unwrap) external nonReentrant onlyAdminOrAutomator onlyPrivateVault {
+  /// @return returnAmount Amount of principal tokens returned
+  function withdrawPrincipal(uint256 amount, bool unwrap)
+    external
+    override
+    nonReentrant
+    onlyAdminOrAutomator
+    onlyPrivateVault
+    returns (uint256)
+  {
     require(amount != 0, InvalidAssetAmount());
 
     // calculate shares to burn
@@ -350,6 +363,8 @@ contract Vault is
     }
 
     emit VaultWithdraw(vaultFactory, vaultOwner, amount, shares);
+
+    return amount;
   }
 
   /// @notice Allocates un-used assets to the strategy
@@ -418,14 +433,18 @@ contract Vault is
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
+  /// @return harvestedAssets Harvested assets
   function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
     external
+    override
     onlyAdminOrAutomator
     whenNotPaused
+    nonReentrant
+    returns (AssetLib.Asset[] memory harvestedAssets)
   {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
+    harvestedAssets = _harvest(asset, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
@@ -435,6 +454,7 @@ contract Vault is
   /// @param amountTokenOutMin Minimum amount out by tokenOut
   function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint256 amountTokenOutMin)
     external
+    override
     nonReentrant
     onlyAdminOrAutomator
     onlyPrivateVault

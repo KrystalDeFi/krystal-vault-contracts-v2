@@ -55,7 +55,11 @@ interface IVault is ICommon {
 
   function deposit(uint256 principalAmount, uint256 minShares) external payable returns (uint256 returnShares);
 
-  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external;
+  function depositPrincipal(uint256 principalAmount) external payable returns (uint256 shares);
+
+  function withdraw(uint256 shares, bool unwrap, uint256 minReturnAmount) external returns (uint256 returnAmount);
+
+  function withdrawPrincipal(uint256 amount, bool unwrap) external returns (uint256 returnAmount);
 
   function allocate(
     AssetLib.Asset[] calldata inputAssets,
@@ -64,11 +68,13 @@ interface IVault is ICommon {
     bytes calldata data
   ) external;
 
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin) external;
+  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+    external
+    returns (AssetLib.Asset[] memory harvestedAssets);
 
   function harvestPrivate(AssetLib.Asset[] calldata asset, bool unwrap, uint256 amountTokenOutMin) external;
 
-  function getTotalValue() external returns (uint256);
+  function getTotalValue() external view returns (uint256);
 
   function grantAdminRole(address _address) external;
 

@@ -19,4 +19,6 @@ interface IVaultFactory is ICommon {
   function setVaultImplementation(address _vaultImplementation) external;
 
   function WETH() external view returns (address);
+
+  function isVault(address vault) external view returns (bool);
 }
