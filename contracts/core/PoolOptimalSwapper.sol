@@ -81,8 +81,8 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
     IERC20 token0 = IERC20(IUniswapV3Pool(params.pool).token0());
     IERC20 token1 = IERC20(IUniswapV3Pool(params.pool).token1());
 
-    token0.safeTransferFrom(msg.sender, address(this), params.amount0Desired);
-    token1.safeTransferFrom(msg.sender, address(this), params.amount1Desired);
+    if (params.amount0Desired > 0) token0.safeTransferFrom(msg.sender, address(this), params.amount0Desired);
+    if (params.amount1Desired > 0) token1.safeTransferFrom(msg.sender, address(this), params.amount1Desired);
 
     (uint256 amountIn,, bool zeroForOne,) = OptimalSwap.getOptimalSwap(
       V3PoolCallee.wrap(params.pool), params.tickLower, params.tickUpper, params.amount0Desired, params.amount1Desired
@@ -100,8 +100,8 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
       amount1 = params.amount1Desired - amountInUsed;
     }
 
-    token0.safeTransfer(msg.sender, amount0);
-    token1.safeTransfer(msg.sender, amount1);
+    if (amount0 > 0) token0.safeTransfer(msg.sender, amount0);
+    if (amount1 > 0) token1.safeTransfer(msg.sender, amount1);
   }
 
   /// @notice Get the optimal swap amounts for a given pool
@@ -152,12 +152,12 @@ contract PoolOptimalSwapper is IOptimalSwapper, IUniswapV3SwapCallback, IPancake
     IERC20 inputToken = zeroForOne ? token0 : token1;
     IERC20 outputToken = zeroForOne ? token1 : token0;
 
-    inputToken.safeTransferFrom(msg.sender, address(this), amountIn);
+    if (amountIn > 0) inputToken.safeTransferFrom(msg.sender, address(this), amountIn);
 
     (amountOut, amountInUsed) = _poolSwap(pool, amountIn, zeroForOne);
     require(amountOut >= amountOutMin, "Insufficient output amount");
 
-    outputToken.safeTransfer(msg.sender, amountOut);
+    if (amountOut > 0) outputToken.safeTransfer(msg.sender, amountOut);
     if (amountIn > amountInUsed) inputToken.safeTransfer(msg.sender, amountIn - amountInUsed);
   }
 }
