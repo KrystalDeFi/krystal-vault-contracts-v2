@@ -52,7 +52,7 @@ contract KatanaPoolOptimalSwapper is IOptimalSwapper {
       uint256 amountInBefore = tokenIn.balanceOf(address(this));
       uint256 amountOutBefore = tokenOut.balanceOf(address(this));
 
-      tokenIn.safeTransfer(address(router), amountIn);
+      if (amountIn > 0) tokenIn.safeTransfer(address(router), amountIn);
 
       bytes[] memory inputs = new bytes[](1);
 
@@ -107,8 +107,8 @@ contract KatanaPoolOptimalSwapper is IOptimalSwapper {
       amount1 = params.amount1Desired - amountInUsed;
     }
 
-    token0.safeTransfer(msg.sender, amount0);
-    token1.safeTransfer(msg.sender, amount1);
+    if (amount0 > 0) token0.safeTransfer(msg.sender, amount0);
+    if (amount1 > 0) token1.safeTransfer(msg.sender, amount1);
   }
 
   /// @notice Get the optimal swap amounts for a given pool
@@ -159,12 +159,12 @@ contract KatanaPoolOptimalSwapper is IOptimalSwapper {
     IERC20 inputToken = zeroForOne ? token0 : token1;
     IERC20 outputToken = zeroForOne ? token1 : token0;
 
-    inputToken.safeTransferFrom(msg.sender, address(this), amountIn);
+    if (amountIn > 0) inputToken.safeTransferFrom(msg.sender, address(this), amountIn);
 
     (amountOut, amountInUsed) = _poolSwap(pool, amountIn, zeroForOne);
     require(amountOut >= amountOutMin, "Insufficient output amount");
 
-    outputToken.safeTransfer(msg.sender, amountOut);
+    if (amountOut > 0) outputToken.safeTransfer(msg.sender, amountOut);
     if (amountIn > amountInUsed) inputToken.safeTransfer(msg.sender, amountIn - amountInUsed);
   }
 }
