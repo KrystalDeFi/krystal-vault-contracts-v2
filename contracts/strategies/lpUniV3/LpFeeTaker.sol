@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@pancakeswap/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
 
-import { PoolOptimalSwapper } from "../../core/PoolOptimalSwapper.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { ILpValidator } from "../../interfaces/strategies/ILpValidator.sol";

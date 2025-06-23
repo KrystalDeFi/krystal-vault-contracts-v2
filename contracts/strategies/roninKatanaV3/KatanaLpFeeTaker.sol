@@ -7,8 +7,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import { PoolOptimalSwapper } from "../../core/PoolOptimalSwapper.sol";
-
 import { OptimalSwap, V3PoolCallee } from "../../libraries/OptimalSwap.sol";
 
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
