@@ -172,7 +172,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amountOutMin: 0,
           swapData: ""
         }),
-        vaultConfig.allowDeposit
+        true
       );
     }
 
@@ -224,7 +224,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         tickUpper: tickUpper,
         swapData: ""
       }),
-      vaultConfig.allowDeposit
+      true
     );
     AssetLib.Asset[] memory inputAssets = new AssetLib.Asset[](3);
     inputAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), token0, 0, amount0);
@@ -273,7 +273,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amountOutMin: 0,
           swapData: ""
         }),
-        config.allowDeposit
+        true
       );
       returnAssets[indexOfPrincipalAsset].amount += amountOut;
       returnAssets[indexOfOtherToken].amount -= amountInUsed;
@@ -344,7 +344,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         tickUpper: params.tickUpper,
         swapData: params.swapData
       }),
-      vaultConfig.allowDeposit
+      true
     );
 
     AssetLib.Asset[] memory mintAssets = new AssetLib.Asset[](2);
@@ -471,7 +471,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           tickUpper: tickUpper,
           swapData: swapData
         }),
-        vaultConfig.allowDeposit
+        true
       );
     }
 
