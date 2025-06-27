@@ -75,4 +75,5 @@ forge test -vvv ./test/helpers/ConfigEncoder.sol
 
 ## High Level Design
 
-![Screenshot 2025-03-19 at 14 40 52](https://github.com/user-attachments/assets/66023d25-b095-47af-800c-35f87262093d)
+![image](https://github.com/user-attachments/assets/0e919367-0789-4bd1-ba6e-dd3e28a61c55)
+
