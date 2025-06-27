@@ -24,7 +24,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
   
       - run: |
-          npm install -g yarn      
+          npm install -g yarn
           yarn install
 
       - name: Ignore the Katana test because no Ronin archive node is available. Requested by sir HoangLong

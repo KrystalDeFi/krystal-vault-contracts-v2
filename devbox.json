@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
+  "packages": [
+    "git@latest",
+    "foundry@latest",
+    "echidna@latest",
+    "yarn@latest",
+    "slither-analyzer@latest",
+    "solc-select@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to devbox!' > /dev/null"
+    ],
+    "scripts": {
+      "test": [
+        "yarn test"
+      ]
+    }
+  }
+}
