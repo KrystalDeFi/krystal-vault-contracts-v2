@@ -295,7 +295,7 @@ Decreases the liquidity of the position and swaps the other token to the princip
 ### _decreaseLiquidity
 
 ```solidity
-function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params, struct ICommon.FeeConfig feeConfig, address principalToken) internal returns (struct AssetLib.Asset[] returnAssets)
+function _decreaseLiquidity(struct AssetLib.Asset lpAsset, struct ILpStrategy.DecreaseLiquidityParams params, struct ICommon.FeeConfig feeConfig, address principalToken, bool allowDeposit) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Decreases the liquidity of the position
@@ -308,6 +308,7 @@ Decreases the liquidity of the position
 | params | struct ILpStrategy.DecreaseLiquidityParams | The parameters for decreasing the liquidity |
 | feeConfig | struct ICommon.FeeConfig | The fee configuration |
 | principalToken | address |  |
+| allowDeposit | bool |  |
 
 #### Return Values
 
@@ -512,7 +513,7 @@ _Gets the fee growth inside the position_
 ### _takeFees
 
 ```solidity
-function _takeFees(address token0, uint256 amount0, address token1, uint256 amount1, struct ICommon.FeeConfig feeConfig, address principalToken, address pool) internal returns (uint256, uint256)
+function _takeFees(address token0, uint256 amount0, address token1, uint256 amount1, struct ICommon.FeeConfig feeConfig, address principalToken, address pool, bool validatePriceSanity) internal returns (uint256, uint256)
 ```
 
 ### _safeResetAndApprove

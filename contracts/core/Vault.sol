@@ -212,8 +212,6 @@ contract Vault is
     onlyPrivateVault
     returns (uint256 shares)
   {
-    require(principalAmount != 0, InvalidAssetAmount());
-
     address principalToken = vaultConfig.principalToken;
     uint256 totalValue = getTotalValue();
 
@@ -345,8 +343,6 @@ contract Vault is
     onlyPrivateVault
     returns (uint256)
   {
-    require(amount != 0, InvalidAssetAmount());
-
     // calculate shares to burn
     uint256 totalValue = getTotalValue();
     uint256 currentTotalSupply = totalSupply();
@@ -469,18 +465,17 @@ contract Vault is
       require(asset.strategy != address(0), InvalidAssetStrategy());
 
       // Harvest the asset
-      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, amountTokenOutMin);
+      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, 0);
 
       // Process the harvested assets
       for (uint256 j; j < harvestedAssets.length;) {
         AssetLib.Asset memory ha = harvestedAssets[j];
         if (ha.assetType == AssetLib.AssetType.ERC20 && ha.amount > 0) {
-          if (principalToken == WETH && ha.token == principalToken) principalHarvestedAmount += ha.amount;
+          if (ha.token == principalToken) principalHarvestedAmount += ha.amount;
           else IERC20(ha.token).safeTransfer(vaultOwner, ha.amount);
           // Remove the asset because _harvest already added it to the inventory
           inventory.removeAsset(ha);
         }
-        // If ETH is ever supported, add logic here
         unchecked {
           j++;
         }
@@ -490,6 +485,8 @@ contract Vault is
         i++;
       }
     }
+
+    require(principalHarvestedAmount >= amountTokenOutMin, InsufficientReturnAmount());
 
     if (principalHarvestedAmount > 0) {
       if (unwrap && principalToken == WETH) {

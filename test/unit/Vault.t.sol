@@ -680,15 +680,15 @@ contract VaultTest is TestCommon {
     v.depositPrincipal(1 ether);
   }
 
-  function test_depositPrincipal_fail_zeroAmount() public {
-    vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
-    Vault v = new Vault();
-    v.initialize(params, USER, USER, address(configManager), WETH);
-    vm.expectRevert(IVault.InvalidAssetAmount.selector);
-    v.depositPrincipal(0);
-  }
+  // function test_depositPrincipal_fail_zeroAmount() public {
+  //   vaultConfig.allowDeposit = false;
+  //   ICommon.VaultCreateParams memory params =
+  //     ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+  //   Vault v = new Vault();
+  //   v.initialize(params, USER, USER, address(configManager), WETH);
+  //   vm.expectRevert(IVault.InvalidAssetAmount.selector);
+  //   v.depositPrincipal(0);
+  // }
 
   function test_depositPrincipal_fail_wrongETHtoken() public {
     // principalToken != WETH, but ETH sent
@@ -804,15 +804,15 @@ contract VaultTest is TestCommon {
     v.withdrawPrincipal(1 ether, false);
   }
 
-  function test_withdrawPrincipal_fail_zeroAmount() public {
-    vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
-    Vault v = new Vault();
-    v.initialize(params, USER, USER, address(configManager), WETH);
-    vm.expectRevert(IVault.InvalidAssetAmount.selector);
-    v.withdrawPrincipal(0, false);
-  }
+  // function test_withdrawPrincipal_fail_zeroAmount() public {
+  //   vaultConfig.allowDeposit = false;
+  //   ICommon.VaultCreateParams memory params =
+  //     ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+  //   Vault v = new Vault();
+  //   v.initialize(params, USER, USER, address(configManager), WETH);
+  //   vm.expectRevert(IVault.InvalidAssetAmount.selector);
+  //   v.withdrawPrincipal(0, false);
+  // }
 
   function test_withdrawPrincipal_fail_insufficientBalance() public {
     vaultConfig.allowDeposit = false;

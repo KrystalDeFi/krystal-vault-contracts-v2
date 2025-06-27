@@ -192,7 +192,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         returnAssets[1].amount,
         feeConfig,
         vaultConfig.principalToken,
-        pool
+        pool,
+        vaultConfig.allowDeposit
       );
       returnAssets[0].amount -= fee0;
       returnAssets[1].amount -= fee1;
@@ -256,8 +257,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 
     liquidity = uint128(FullMath.mulDiv(shares, liquidity, totalSupply));
-    returnAssets =
-      _decreaseLiquidity(existingAsset, DecreaseLiquidityParams(liquidity, 0, 0), feeConfig, config.principalToken);
+    returnAssets = _decreaseLiquidity(
+      existingAsset, DecreaseLiquidityParams(liquidity, 0, 0), feeConfig, config.principalToken, config.allowDeposit
+    );
 
     (uint256 indexOfPrincipalAsset, uint256 indexOfOtherToken) =
       returnAssets[0].token == config.principalToken ? (0, 1) : (1, 0);
@@ -544,7 +546,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       lpAsset,
       DecreaseLiquidityParams(params.liquidity, params.amount0Min, params.amount1Min),
       feeConfig,
-      principalToken
+      principalToken,
+      vaultConfig.allowDeposit
     );
 
     (AssetLib.Asset memory principalAsset, AssetLib.Asset memory otherAsset) =
@@ -578,7 +581,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     AssetLib.Asset memory lpAsset,
     DecreaseLiquidityParams memory params,
     FeeConfig calldata feeConfig,
-    address principalToken
+    address principalToken,
+    bool allowDeposit
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
     INFPM nfpm = INFPM(lpAsset.token);
@@ -592,7 +596,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     {
       (uint256 fee0, uint256 fee1) =
-        _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool);
+        _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool, allowDeposit);
       amount0Collected -= fee0;
       amount1Collected -= fee1;
     }
@@ -661,7 +665,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           amount1Min: decreasedAmount1Min
         }),
         feeConfig,
-        vaultConfig.principalToken
+        vaultConfig.principalToken,
+        vaultConfig.allowDeposit
       );
     }
 
@@ -745,8 +750,16 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     );
     address pool = IUniswapV3Factory(INFPM(asset0.token).factory()).getPool(token0, token1, fee);
     {
-      (uint256 fee0, uint256 fee1) =
-        _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, vaultConfig.principalToken, pool);
+      (uint256 fee0, uint256 fee1) = _takeFees(
+        token0,
+        amount0Collected,
+        token1,
+        amount1Collected,
+        feeConfig,
+        vaultConfig.principalToken,
+        pool,
+        vaultConfig.allowDeposit
+      );
       amount0Collected -= fee0;
       amount1Collected -= fee1;
     }
@@ -940,11 +953,21 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amount1,
     FeeConfig memory feeConfig,
     address principalToken,
-    address pool
+    address pool,
+    bool validatePriceSanity
   ) internal returns (uint256, uint256) {
     _safeResetAndApprove(IERC20(token0), address(lpFeeTaker), amount0);
     _safeResetAndApprove(IERC20(token1), address(lpFeeTaker), amount1);
-    return lpFeeTaker.takeFees(token0, amount0, token1, amount1, feeConfig, principalToken, pool, address(validator));
+    return lpFeeTaker.takeFees(
+      token0,
+      amount0,
+      token1,
+      amount1,
+      feeConfig,
+      principalToken,
+      pool,
+      validatePriceSanity ? address(validator) : address(0)
+    );
   }
 
   /// @dev some tokens require allowance == 0 to approve new amount

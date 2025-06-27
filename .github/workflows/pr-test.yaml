@@ -8,7 +8,7 @@ on:
 jobs:
   pr-test:
     if: github.actor != 'Krystal-CICD'
-    runs-on: [arc-kyrd-runner, size-m]
+    runs-on: [ubuntu-latest]
     steps:
       # - uses: actions/checkout@v3
       - uses: actions/checkout@v2
