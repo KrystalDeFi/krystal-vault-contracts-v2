@@ -32,24 +32,6 @@ event VaultHarvest(address vaultFactory, struct AssetLib.Asset[] harvestedAssets
 event VaultHarvestPrivate(address vaultFactory, address owner, uint256 principalHarvestedAmount)
 ```
 
-### SweepToken
-
-```solidity
-event SweepToken(address[] tokens)
-```
-
-### SweepERC721
-
-```solidity
-event SweepERC721(address[] _tokens, uint256[] _tokenIds)
-```
-
-### SweepERC1155
-
-```solidity
-event SweepERC1155(address[] _tokens, uint256[] _tokenIds)
-```
-
 ### SetVaultConfig
 
 ```solidity
