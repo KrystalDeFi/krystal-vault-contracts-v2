@@ -104,6 +104,7 @@ contract IntegrationTest is TestCommon {
 
     // User can create a Vault without any assets
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 0,
@@ -133,7 +134,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: DAI,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
   }
 
@@ -148,7 +150,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
 
     // User can turn ON allow_deposit ONLY ONCE
@@ -160,7 +163,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
 
     // User cannot Turn off allow_deposit once it's on
@@ -172,7 +176,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
   }
 
@@ -452,7 +457,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: newSupportedAddresses
-      })
+      }),
+      0
     );
 
     // User can Allow Deposit with proper Vault Config
@@ -468,7 +474,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: supportedAddresses
-      })
+      }),
+      0
     );
 
     console.log("==== test_withdraw ====");

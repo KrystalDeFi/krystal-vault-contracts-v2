@@ -42,6 +42,7 @@ contract Vault is
   IConfigManager public configManager;
 
   address public override vaultOwner;
+  uint16 public vaultOwnerFeeBasisPoint;
   address public operator;
   address public override WETH;
   address public vaultFactory;
@@ -85,7 +86,6 @@ contract Vault is
     address _configManager,
     address _weth
   ) public initializer {
-    require(params.config.principalToken != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
 
     // Initialize ERC20 and Access Control
@@ -100,6 +100,7 @@ contract Vault is
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
+    vaultOwnerFeeBasisPoint = params.vaultOwnerFeeBasisPoint;
     operator = _operator;
     vaultFactory = _msgSender();
     WETH = _weth;
@@ -258,6 +259,7 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
+    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
 
     address principalToken = vaultConfig.principalToken;
     uint256 length = inventory.assets.length;
@@ -395,6 +397,7 @@ contract Vault is
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
+    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
 
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
@@ -513,6 +516,7 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
+    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
 
     // Encode the function call parameters
     bytes memory data = abi.encodeWithSelector(
@@ -563,8 +567,6 @@ contract Vault is
         i++;
       }
     }
-
-    emit SweepToken(tokens);
   }
 
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
@@ -582,8 +584,6 @@ contract Vault is
         i++;
       }
     }
-
-    emit SweepERC721(_tokens, _tokenIds);
   }
 
   /// @notice Sweep ERC1155 tokens to the caller
@@ -605,8 +605,6 @@ contract Vault is
         i++;
       }
     }
-
-    emit SweepERC1155(_tokens, _tokenIds);
   }
 
   /// @notice grant admin role to the address
@@ -623,7 +621,13 @@ contract Vault is
 
   /// @notice Turn on allow deposit
   /// @param _config New vault config
-  function allowDeposit(VaultConfig calldata _config) external override onlyRole(DEFAULT_ADMIN_ROLE) whenNotPaused {
+  /// @param _vaultOwnerFeeBasisPoint Vault owner fee basis point
+  function allowDeposit(VaultConfig calldata _config, uint16 _vaultOwnerFeeBasisPoint)
+    external
+    override
+    onlyRole(DEFAULT_ADMIN_ROLE)
+    whenNotPaused
+  {
     require(!vaultConfig.allowDeposit && _config.allowDeposit, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
@@ -639,8 +643,9 @@ contract Vault is
     }
 
     vaultConfig = _config;
+    vaultOwnerFeeBasisPoint = _vaultOwnerFeeBasisPoint;
 
-    emit SetVaultConfig(vaultFactory, _config);
+    emit SetVaultConfig(vaultFactory, _config, _vaultOwnerFeeBasisPoint);
   }
 
   /// @dev Adds multiple assets to the vault
@@ -669,6 +674,7 @@ contract Vault is
   /// @return tvlStrategyType TVL strategy type
   /// @return principalToken Principal token address
   /// @return supportedAddresses Supported addresses
+  /// @return _vaultOwnerFeeBasisPoint Vault owner fee basis point
   function getVaultConfig()
     external
     view
@@ -678,7 +684,8 @@ contract Vault is
       uint8 rangeStrategyType,
       uint8 tvlStrategyType,
       address principalToken,
-      address[] memory supportedAddresses
+      address[] memory supportedAddresses,
+      uint16 _vaultOwnerFeeBasisPoint
     )
   {
     isAllowDeposit = vaultConfig.allowDeposit;
@@ -686,6 +693,7 @@ contract Vault is
     tvlStrategyType = vaultConfig.tvlStrategyType;
     principalToken = vaultConfig.principalToken;
     supportedAddresses = vaultConfig.supportedAddresses;
+    _vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
   }
 
   function supportsInterface(bytes4 interfaceId)

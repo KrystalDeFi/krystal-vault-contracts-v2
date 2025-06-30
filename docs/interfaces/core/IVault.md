@@ -53,7 +53,7 @@ event SweepERC1155(address[] _tokens, uint256[] _tokenIds)
 ### SetVaultConfig
 
 ```solidity
-event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config)
+event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config, uint16 vaultOwnerFeeBasisPoint)
 ```
 
 ### VaultPaused
@@ -245,7 +245,7 @@ function sweepERC1155(address[] _tokens, uint256[] _tokenIds) external
 ### allowDeposit
 
 ```solidity
-function allowDeposit(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config, uint16 _vaultOwnerFeeBasisPoint) external
 ```
 
 ### getInventory
@@ -257,6 +257,6 @@ function getInventory() external view returns (struct AssetLib.Asset[] assets)
 ### getVaultConfig
 
 ```solidity
-function getVaultConfig() external view returns (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
+function getVaultConfig() external view returns (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses, uint16 vaultOwnerFeeBasisPoint)
 ```
 

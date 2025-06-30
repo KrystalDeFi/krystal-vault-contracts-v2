@@ -115,6 +115,7 @@ contract IntegrationTest is TestCommon {
     console.log("vaultFactory: ", address(vaultFactory));
     // Owner can create a Vault without any assets
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Public Vault",
       symbol: "TV",
       principalTokenAmount: 0,
@@ -150,7 +151,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: DAI,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
   }
 
@@ -166,7 +168,8 @@ contract IntegrationTest is TestCommon {
         tvlStrategyType: 0,
         principalToken: WETH,
         supportedAddresses: new address[](0)
-      })
+      }),
+      0
     );
   }
 

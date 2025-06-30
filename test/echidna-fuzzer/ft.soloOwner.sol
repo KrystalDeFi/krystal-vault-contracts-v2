@@ -114,6 +114,7 @@ contract FoundryTestSoloOwner is TestCommon {
     vaultFactory = new VaultFactory();
     vaultFactory.initialize(address(owner), TOKEN_PRINCIPAL, configManagerAddress, address(vaultImplementation));
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Public Vault",
       symbol: "TV",
       principalTokenAmount: 0,
