@@ -107,10 +107,11 @@ contract Vault is
     vaultConfig = params.config;
 
     uint256 principalAmount = params.principalTokenAmount;
-    address principalToken = params.config.principalToken;
 
     // Initialize first asset in inventory
-    inventory.addAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, principalAmount));
+    inventory.addAsset(
+      AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), params.config.principalToken, 0, principalAmount)
+    );
 
     // Mint shares only if principalAmount > 0 to save gas on unnecessary operations
     if (principalAmount > 0) {
@@ -259,7 +260,9 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
-    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
+    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
+      ? 10_000 - feeConfig.platformFeeBasisPoint
+      : vaultOwnerFeeBasisPoint;
 
     address principalToken = vaultConfig.principalToken;
     uint256 length = inventory.assets.length;
@@ -397,7 +400,9 @@ contract Vault is
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwner = vaultOwner;
-    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
+    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
+      ? 10_000 - feeConfig.platformFeeBasisPoint
+      : vaultOwnerFeeBasisPoint;
 
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
@@ -516,7 +521,9 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
-    feeConfig.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
+    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
+      ? 10_000 - feeConfig.platformFeeBasisPoint
+      : vaultOwnerFeeBasisPoint;
 
     // Encode the function call parameters
     bytes memory data = abi.encodeWithSelector(
