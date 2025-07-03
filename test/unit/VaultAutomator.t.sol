@@ -97,6 +97,7 @@ contract VaultAutomatorTest is TestCommon {
     console.log("==== createVault ====");
 
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 1 ether,

@@ -91,6 +91,7 @@ contract VaultTest is TestCommon {
     vault = new Vault();
     IERC20(WETH).transfer(address(vault), 0.5 ether);
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "TestVault",
       symbol: "TV",
       principalTokenAmount: 0.5 ether,
@@ -165,8 +166,8 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     console.log("vaultConfig.principalToken: %s", vaultConfig.principalToken);
-    vault.allowDeposit(vaultConfig);
-    (bool allowDeposit,,,,) = vault.getVaultConfig();
+    vault.allowDeposit(vaultConfig, 0);
+    (bool allowDeposit,,,,,) = vault.getVaultConfig();
     assertEq(allowDeposit, true);
     console.log("The vault is public now");
 
@@ -176,7 +177,7 @@ contract VaultTest is TestCommon {
     console.log("vaultConfig.allowDeposit: %s", vaultConfig.allowDeposit);
     console.log("vaultConfig.supportedAddresses: %s", vaultConfig.supportedAddresses.length);
     vm.expectRevert(ICommon.InvalidVaultConfig.selector);
-    vault.allowDeposit(vaultConfig);
+    vault.allowDeposit(vaultConfig, 0);
   }
 
   function test_manipulateVaultPosition_lowLiquidity() public {
@@ -307,6 +308,7 @@ contract VaultTest is TestCommon {
     vault = new Vault();
     IERC20(USDC).transfer(address(vault), 1000 * 1e6);
     ICommon.VaultCreateParams memory createVaultParams = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "TestVault",
       symbol: "TV",
       principalTokenAmount: 1000 * 1e6,
@@ -585,8 +587,13 @@ contract VaultTest is TestCommon {
   function test_depositPrincipal_happy_ERC20() public {
     // Only admin/automator, private vault, amount > 0
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     deal(WETH, USER, 1 ether);
@@ -599,8 +606,13 @@ contract VaultTest is TestCommon {
 
   function test_depositPrincipal_happy_ETH() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 1 ether);
@@ -615,8 +627,13 @@ contract VaultTest is TestCommon {
   function test_depositPrincipal_happy_ERC201() public {
     // Only admin/automator, private vault, amount > 0
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -642,8 +659,13 @@ contract VaultTest is TestCommon {
 
   function test_depositPrincipal_happy_ETH1() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -658,8 +680,13 @@ contract VaultTest is TestCommon {
 
   function test_depositPrincipal_fail_notAdmin() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
@@ -672,8 +699,13 @@ contract VaultTest is TestCommon {
 
   function test_depositPrincipal_fail_notPrivateVault() public {
     vaultConfig.allowDeposit = true;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
@@ -683,7 +715,8 @@ contract VaultTest is TestCommon {
   // function test_depositPrincipal_fail_zeroAmount() public {
   //   vaultConfig.allowDeposit = false;
   //   ICommon.VaultCreateParams memory params =
-  //     ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+  //     ICommon.VaultCreateParams({
+  // vaultOwnerFeeBasisPoint: 0, name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
   //   Vault v = new Vault();
   //   v.initialize(params, USER, USER, address(configManager), WETH);
   //   vm.expectRevert(IVault.InvalidAssetAmount.selector);
@@ -694,8 +727,13 @@ contract VaultTest is TestCommon {
     // principalToken != WETH, but ETH sent
     vaultConfig.allowDeposit = false;
     vaultConfig.principalToken = USDC;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
@@ -706,8 +744,13 @@ contract VaultTest is TestCommon {
   function test_depositPrincipal_fail_wrongETHamount() public {
     // ETH sent != principalAmount
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 0, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 0,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
@@ -720,8 +763,13 @@ contract VaultTest is TestCommon {
   // =====================
   function test_withdrawPrincipal_happy_ERC20() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -735,8 +783,13 @@ contract VaultTest is TestCommon {
 
   function test_withdrawPrincipal_happy_unwrapWETH() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -751,8 +804,13 @@ contract VaultTest is TestCommon {
 
   function test_withdrawPrincipal_happy_ERC202() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 2 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 2 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -766,8 +824,13 @@ contract VaultTest is TestCommon {
 
   function test_withdrawPrincipal_happy_unwrapWETH2() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 2 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 2 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     IERC20(WETH).transfer(address(v), 2 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
@@ -782,8 +845,13 @@ contract VaultTest is TestCommon {
 
   function test_withdrawPrincipal_fail_notAdmin() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
@@ -796,8 +864,13 @@ contract VaultTest is TestCommon {
 
   function test_withdrawPrincipal_fail_notPrivateVault() public {
     vaultConfig.allowDeposit = true;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
@@ -807,7 +880,9 @@ contract VaultTest is TestCommon {
   // function test_withdrawPrincipal_fail_zeroAmount() public {
   //   vaultConfig.allowDeposit = false;
   //   ICommon.VaultCreateParams memory params =
-  //     ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+  //     ICommon.VaultCreateParams({
+  // vaultOwnerFeeBasisPoint: 0, name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig
+  // });
   //   Vault v = new Vault();
   //   v.initialize(params, USER, USER, address(configManager), WETH);
   //   vm.expectRevert(IVault.InvalidAssetAmount.selector);
@@ -817,6 +892,7 @@ contract VaultTest is TestCommon {
   function test_withdrawPrincipal_fail_insufficientBalance() public {
     vaultConfig.allowDeposit = false;
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "TestVault",
       symbol: "TV",
       principalTokenAmount: 0.5 ether,
@@ -833,8 +909,13 @@ contract VaultTest is TestCommon {
   // =====================
   function test_harvestPrivate_fail_notAdmin() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     // Allocate to strategy
@@ -850,8 +931,13 @@ contract VaultTest is TestCommon {
 
   function test_harvestPrivate_fail_notPrivateVault() public {
     vaultConfig.allowDeposit = true;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
@@ -862,8 +948,13 @@ contract VaultTest is TestCommon {
 
   function test_harvestPrivate_fail_noStrategy() public {
     vaultConfig.allowDeposit = false;
-    ICommon.VaultCreateParams memory params =
-      ICommon.VaultCreateParams({ name: "TestVault", symbol: "TV", principalTokenAmount: 1 ether, config: vaultConfig });
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     // Asset with no strategy

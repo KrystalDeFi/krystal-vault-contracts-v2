@@ -52,9 +52,9 @@ contract VaultFuzzerSoloPlayer {
 
     IERC20(TOKEN_PRINCIPAL).transfer(address(owner), PLAYER_INITIAL_PTOKEN_BALANCE); // decimal of TOKEN_PRINCIPAL is 18
     IERC20(TOKEN_PRINCIPAL).transfer(address(player1), PLAYER_INITIAL_PTOKEN_BALANCE); // decimal of TOKEN_PRINCIPAL is
-      // 18
+    // 18
     IERC20(TOKEN_PRINCIPAL).transfer(address(player2), PLAYER_INITIAL_PTOKEN_BALANCE); // decimal of TOKEN_PRINCIPAL is
-      // 18
+    // 18
     IERC20(TOKEN_PRINCIPAL).transfer(address(bighandplayer), 1000 ether);
 
     hevm.stopPrank();
@@ -117,6 +117,7 @@ contract VaultFuzzerSoloPlayer {
     vaultFactory = new VaultFactory();
     vaultFactory.initialize(address(owner), TOKEN_PRINCIPAL, configManagerAddress, address(vaultImplementation));
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Public Vault",
       symbol: "TV",
       principalTokenAmount: 0,

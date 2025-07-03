@@ -109,6 +109,7 @@ contract VaultFuzzerWithSwap {
     vaultFactory = new VaultFactory();
     vaultFactory.initialize(address(owner), TOKEN_PRINCIPAL, configManagerAddress, address(vaultImplementation));
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Public Vault",
       symbol: "TV",
       principalTokenAmount: 0,
@@ -225,7 +226,7 @@ contract VaultFuzzerWithSwap {
 
   function deposit_withdraw_empty_vault() public {
     require(IVault(payable(vaultAddress)).getTotalValue() == 0); // in this case, no one has never deposited into the
-      // vault
+    // vault
 
     uint256 ownerPTokenBefore = IERC20(TOKEN_PRINCIPAL).balanceOf(address(owner));
     uint256 ownerSharesDelta = owner.callDeposit(vaultAddress, 1 ether, TOKEN_PRINCIPAL);

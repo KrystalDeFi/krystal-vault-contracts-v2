@@ -121,6 +121,7 @@ contract IntegrationKodiakIslandTest is Test {
 
     // Create vault
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 100,
       name: "Kodiak Island Vault",
       symbol: "KIV",
       principalTokenAmount: 0,
@@ -158,7 +159,8 @@ contract IntegrationKodiakIslandTest is Test {
       uint8 rangeStrategyType,
       uint8 tvlStrategyType,
       address principalToken,
-      address[] memory supportedAddresses
+      address[] memory supportedAddresses,
+      uint16 vaultOwnerFeeBasisPoint
     ) = vault.getVaultConfig();
     assertEq(allowDeposit, vaultConfig.allowDeposit, "Vault deposit allowance should match config");
     assertEq(rangeStrategyType, vaultConfig.rangeStrategyType, "Vault range strategy type should match config");
@@ -169,6 +171,7 @@ contract IntegrationKodiakIslandTest is Test {
       vaultConfig.supportedAddresses.length,
       "Vault supported addresses length should match config"
     );
+    assertEq(vaultOwnerFeeBasisPoint, 100, "Vault owner fee basis point should be set to 100 (1%)");
   }
 
   function test_Allocate_SwapAndIncreaseLiquidity() public {
@@ -269,7 +272,7 @@ contract IntegrationKodiakIslandTest is Test {
     console2.log("Amount 1:", inventory[1].amount);
 
     assertApproxEqRel(
-      vault.getTotalValue(), 10 ether + accumulatedBgtReward * 975 / 1000, 0.01e18, "Vault value should be 10 ether"
+      vault.getTotalValue(), 10 ether + (accumulatedBgtReward * 975) / 1000, 0.01e18, "Vault value should be 10 ether"
     );
 
     assertEq(inventory.length, 2, "Vault should have 2 assets after decreasing liquidity");

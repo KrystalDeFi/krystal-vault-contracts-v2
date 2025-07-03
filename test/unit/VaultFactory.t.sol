@@ -77,6 +77,7 @@ contract VaultFactoryTest is TestCommon {
     vaultFactory.pause();
 
     ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
       name: "Test Vault",
       symbol: "TV",
       principalTokenAmount: 1 ether,
@@ -116,7 +117,7 @@ contract VaultFactoryTest is TestCommon {
 
     address vaultOwner = vaultInstance.vaultOwner();
     address vaultConfigManager = address(vaultInstance.configManager());
-    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,) =
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,,) =
       vaultInstance.getVaultConfig();
     ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
       allowDeposit: allowDeposit,

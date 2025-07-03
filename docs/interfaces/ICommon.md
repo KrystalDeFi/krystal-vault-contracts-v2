@@ -21,6 +21,7 @@ struct VaultCreateParams {
   string name;
   string symbol;
   uint256 principalTokenAmount;
+  uint16 vaultOwnerFeeBasisPoint;
   struct ICommon.VaultConfig config;
 }
 ```

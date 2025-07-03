@@ -32,6 +32,12 @@ contract IConfigManager configManager
 address vaultOwner
 ```
 
+### vaultOwnerFeeBasisPoint
+
+```solidity
+uint16 vaultOwnerFeeBasisPoint
+```
+
 ### operator
 
 ```solidity
@@ -346,7 +352,7 @@ revoke admin role from the address
 ### allowDeposit
 
 ```solidity
-function allowDeposit(struct ICommon.VaultConfig _config) external
+function allowDeposit(struct ICommon.VaultConfig _config, uint16 _vaultOwnerFeeBasisPoint) external
 ```
 
 Turn on allow deposit
@@ -356,6 +362,7 @@ Turn on allow deposit
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _config | struct ICommon.VaultConfig | New vault config |
+| _vaultOwnerFeeBasisPoint | uint16 | Vault owner fee basis point |
 
 ### _addAssets
 
@@ -388,7 +395,7 @@ Returns the vault's inventory
 ### getVaultConfig
 
 ```solidity
-function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses)
+function getVaultConfig() external view returns (bool isAllowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken, address[] supportedAddresses, uint16 _vaultOwnerFeeBasisPoint)
 ```
 
 Returns the vault's config
@@ -402,6 +409,7 @@ Returns the vault's config
 | tvlStrategyType | uint8 | TVL strategy type |
 | principalToken | address | Principal token address |
 | supportedAddresses | address[] | Supported addresses |
+| _vaultOwnerFeeBasisPoint | uint16 | Vault owner fee basis point |
 
 ### supportsInterface
 

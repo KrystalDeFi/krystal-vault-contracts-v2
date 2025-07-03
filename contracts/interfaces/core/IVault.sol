@@ -17,13 +17,7 @@ interface IVault is ICommon {
 
   event VaultHarvestPrivate(address indexed vaultFactory, address indexed owner, uint256 principalHarvestedAmount);
 
-  event SweepToken(address[] tokens);
-
-  event SweepERC721(address[] _tokens, uint256[] _tokenIds);
-
-  event SweepERC1155(address[] _tokens, uint256[] _tokenIds);
-
-  event SetVaultConfig(address indexed vaultFactory, VaultConfig config);
+  event SetVaultConfig(address indexed vaultFactory, VaultConfig config, uint16 vaultOwnerFeeBasisPoint);
 
   error VaultPaused();
   error InvalidAssetToken();
@@ -86,7 +80,7 @@ interface IVault is ICommon {
 
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
-  function allowDeposit(VaultConfig calldata _config) external;
+  function allowDeposit(VaultConfig calldata _config, uint16 _vaultOwnerFeeBasisPoint) external;
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets);
 
@@ -98,6 +92,7 @@ interface IVault is ICommon {
       uint8 rangeStrategyType,
       uint8 tvlStrategyType,
       address principalToken,
-      address[] memory supportedAddresses
+      address[] memory supportedAddresses,
+      uint16 vaultOwnerFeeBasisPoint
     );
 }

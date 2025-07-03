@@ -242,6 +242,11 @@
             "type": "uint256"
           },
           {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          },
+          {
             "components": [
               {
                 "internalType": "bool",
@@ -359,6 +364,11 @@
             "internalType": "uint256",
             "name": "principalTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
           },
           {
             "components": [

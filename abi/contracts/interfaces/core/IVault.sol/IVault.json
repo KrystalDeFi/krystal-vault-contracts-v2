@@ -175,60 +175,15 @@
         "internalType": "struct ICommon.VaultConfig",
         "name": "config",
         "type": "tuple"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       }
     ],
     "name": "SetVaultConfig",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "_tokens",
-        "type": "address[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[]",
-        "name": "_tokenIds",
-        "type": "uint256[]"
-      }
-    ],
-    "name": "SweepERC1155",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "_tokens",
-        "type": "address[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[]",
-        "name": "_tokenIds",
-        "type": "uint256[]"
-      }
-    ],
-    "name": "SweepERC721",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "tokens",
-        "type": "address[]"
-      }
-    ],
-    "name": "SweepToken",
     "type": "event"
   },
   {
@@ -550,6 +505,11 @@
         "internalType": "struct ICommon.VaultConfig",
         "name": "_config",
         "type": "tuple"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       }
     ],
     "name": "allowDeposit",
@@ -681,6 +641,11 @@
         "internalType": "address[]",
         "name": "supportedAddresses",
         "type": "address[]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       }
     ],
     "stateMutability": "view",
@@ -845,6 +810,11 @@
             "internalType": "uint256",
             "name": "principalTokenAmount",
             "type": "uint256"
+          },
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
           },
           {
             "components": [
