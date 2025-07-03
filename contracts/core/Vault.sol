@@ -142,7 +142,7 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0, 0);
 
       unchecked {
         i++;
@@ -270,7 +270,7 @@ contract Vault is
     AssetLib.Asset[] memory assets;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0, 0);
       unchecked {
         i++;
       }
@@ -438,9 +438,10 @@ contract Vault is
 
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
+  /// @param gasFeeX64 Gas fee with X64 precision
   /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @return harvestedAssets Harvested assets
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+  function harvest(AssetLib.Asset calldata asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
     onlyAdminOrAutomator
@@ -450,7 +451,7 @@ contract Vault is
   {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    harvestedAssets = _harvest(asset, amountTokenOutMin);
+    harvestedAssets = _harvest(asset, gasFeeX64, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
@@ -458,7 +459,7 @@ contract Vault is
   /// @param assets Assets to harvest
   /// @param unwrap Unwrap WETH to ETH
   /// @param amountTokenOutMin Minimum amount out by tokenOut
-  function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint256 amountTokenOutMin)
+  function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
     nonReentrant
@@ -473,7 +474,7 @@ contract Vault is
       require(asset.strategy != address(0), InvalidAssetStrategy());
 
       // Harvest the asset
-      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, 0);
+      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, gasFeeX64, 0);
 
       // Process the harvested assets
       for (uint256 j; j < harvestedAssets.length;) {
@@ -513,7 +514,7 @@ contract Vault is
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @return harvestedAssets Harvested assets
-  function _harvest(AssetLib.Asset memory asset, uint256 amountTokenOutMin)
+  function _harvest(AssetLib.Asset memory asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     internal
     returns (AssetLib.Asset[] memory harvestedAssets)
   {
@@ -521,6 +522,7 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
+    feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
       ? 10_000 - feeConfig.platformFeeBasisPoint
       : vaultOwnerFeeBasisPoint;

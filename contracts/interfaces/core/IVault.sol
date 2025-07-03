@@ -62,11 +62,16 @@ interface IVault is ICommon {
     bytes calldata data
   ) external;
 
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+  function harvest(AssetLib.Asset calldata asset, uint64 gasFeeBasisPoint, uint256 amountTokenOutMin)
     external
     returns (AssetLib.Asset[] memory harvestedAssets);
 
-  function harvestPrivate(AssetLib.Asset[] calldata asset, bool unwrap, uint256 amountTokenOutMin) external;
+  function harvestPrivate(
+    AssetLib.Asset[] calldata asset,
+    bool unwrap,
+    uint64 gasFeeBasisPoint,
+    uint256 amountTokenOutMin
+  ) external;
 
   function getTotalValue() external view returns (uint256);
 
