@@ -179,13 +179,13 @@ function allocate(struct AssetLib.Asset[] inputAssets, contract IStrategy strate
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
+function harvest(struct AssetLib.Asset asset, uint64 gasFeeBasisPoint, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 ### harvestPrivate
 
 ```solidity
-function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint256 amountTokenOutMin) external
+function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint64 gasFeeBasisPoint, uint256 amountTokenOutMin) external
 ```
 
 ### getTotalValue

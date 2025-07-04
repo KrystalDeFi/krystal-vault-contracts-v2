@@ -142,7 +142,7 @@ contract Vault is
 
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0, 0);
 
       unchecked {
         i++;
@@ -270,7 +270,7 @@ contract Vault is
     AssetLib.Asset[] memory assets;
     for (uint256 i; i < length;) {
       AssetLib.Asset memory currentAsset = inventory.assets[i];
-      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0);
+      if (currentAsset.strategy != address(0) && currentAsset.amount != 0) _harvest(currentAsset, 0, 0);
       unchecked {
         i++;
       }
@@ -355,14 +355,16 @@ contract Vault is
 
     _burn(vaultOwner, shares);
 
-    inventory.removeAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), vaultConfig.principalToken, 0, amount));
+    address principalToken = vaultConfig.principalToken;
 
-    if (unwrap && vaultConfig.principalToken == WETH) {
-      IWETH9(vaultConfig.principalToken).withdraw(amount);
+    inventory.removeAsset(AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), principalToken, 0, amount));
+
+    if (unwrap && principalToken == WETH) {
+      IWETH9(principalToken).withdraw(amount);
       (bool sent,) = vaultOwner.call{ value: amount }("");
       require(sent, FailedToSendEther());
     } else {
-      IERC20(vaultConfig.principalToken).safeTransfer(vaultOwner, amount);
+      IERC20(principalToken).safeTransfer(vaultOwner, amount);
     }
 
     emit VaultWithdraw(vaultFactory, vaultOwner, amount, shares);
@@ -385,8 +387,7 @@ contract Vault is
     lastAllocateBlockNumber = block.number;
 
     AssetLib.Asset memory inputAsset;
-    uint256 length = inputAssets.length;
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < inputAssets.length;) {
       inputAsset = inputAssets[i];
       require(inputAsset.amount != 0, InvalidAssetAmount());
 
@@ -414,17 +415,20 @@ contract Vault is
 
     // validate if number of assets that have strategy != address(0) < configManager.maxPositions
     uint8 strategyCount;
-    length = inventory.assets.length;
     AssetLib.Asset memory currentAsset;
 
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < inventory.assets.length;) {
       currentAsset = inventory.assets[i];
 
       if (
         currentAsset.strategy != address(0)
           && IStrategy(currentAsset.strategy).valueOf(currentAsset, vaultConfig.principalToken) != 0
           && currentAsset.amount != 0
-      ) strategyCount++;
+      ) {
+        unchecked {
+          strategyCount++;
+        }
+      }
 
       unchecked {
         i++;
@@ -438,9 +442,10 @@ contract Vault is
 
   /// @notice Harvests the assets from the strategy
   /// @param asset Asset to harvest
+  /// @param gasFeeX64 Gas fee with X64 precision
   /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @return harvestedAssets Harvested assets
-  function harvest(AssetLib.Asset calldata asset, uint256 amountTokenOutMin)
+  function harvest(AssetLib.Asset calldata asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
     onlyAdminOrAutomator
@@ -450,7 +455,7 @@ contract Vault is
   {
     require(asset.strategy != address(0), InvalidAssetStrategy());
 
-    harvestedAssets = _harvest(asset, amountTokenOutMin);
+    harvestedAssets = _harvest(asset, gasFeeX64, amountTokenOutMin);
     emit VaultHarvest(vaultFactory, harvestedAssets);
   }
 
@@ -458,7 +463,7 @@ contract Vault is
   /// @param assets Assets to harvest
   /// @param unwrap Unwrap WETH to ETH
   /// @param amountTokenOutMin Minimum amount out by tokenOut
-  function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint256 amountTokenOutMin)
+  function harvestPrivate(AssetLib.Asset[] calldata assets, bool unwrap, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
     nonReentrant
@@ -473,7 +478,7 @@ contract Vault is
       require(asset.strategy != address(0), InvalidAssetStrategy());
 
       // Harvest the asset
-      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, 0);
+      AssetLib.Asset[] memory harvestedAssets = _harvest(asset, gasFeeX64, 0);
 
       // Process the harvested assets
       for (uint256 j; j < harvestedAssets.length;) {
@@ -513,7 +518,7 @@ contract Vault is
   /// @param asset Asset to harvest
   /// @param amountTokenOutMin The minimum amount out by tokenOut
   /// @return harvestedAssets Harvested assets
-  function _harvest(AssetLib.Asset memory asset, uint256 amountTokenOutMin)
+  function _harvest(AssetLib.Asset memory asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     internal
     returns (AssetLib.Asset[] memory harvestedAssets)
   {
@@ -521,6 +526,7 @@ contract Vault is
 
     FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
     feeConfig.vaultOwner = vaultOwner;
+    feeConfig.gasFeeX64 = gasFeeX64;
     feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
       ? 10_000 - feeConfig.platformFeeBasisPoint
       : vaultOwnerFeeBasisPoint;
@@ -559,9 +565,7 @@ contract Vault is
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
   function sweepToken(address[] calldata tokens) external nonReentrant onlyOperator {
-    uint256 length = tokens.length;
-
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < tokens.length;) {
       IERC20 token = IERC20(tokens[i]);
       uint256 amount = token.balanceOf(address(this));
       if (inventory.contains(tokens[i], 0)) {
@@ -580,9 +584,7 @@ contract Vault is
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
-    uint256 length = _tokens.length;
-
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < _tokens.length;) {
       require(!inventory.contains(_tokens[i], _tokenIds[i]), InvalidSweepAsset());
       IERC721 token = IERC721(_tokens[i]);
       token.safeTransferFrom(address(this), _msgSender(), _tokenIds[i]);
@@ -597,9 +599,7 @@ contract Vault is
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external nonReentrant onlyOperator {
-    uint256 length = _tokens.length;
-
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < _tokens.length;) {
       IERC1155 token = IERC1155(_tokens[i]);
       uint256 amount = token.balanceOf(address(this), _tokenIds[i]);
       if (inventory.contains(_tokens[i], _tokenIds[i])) {
@@ -635,12 +635,11 @@ contract Vault is
     onlyRole(DEFAULT_ADMIN_ROLE)
     whenNotPaused
   {
-    require(!vaultConfig.allowDeposit && _config.allowDeposit, InvalidVaultConfig());
+    require(!vaultConfig.allowDeposit, InvalidVaultConfig());
+    require(_config.allowDeposit, InvalidVaultConfig());
     require(vaultConfig.principalToken == _config.principalToken, InvalidVaultConfig());
 
-    uint256 length = inventory.assets.length;
-
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < inventory.assets.length;) {
       AssetLib.Asset memory asset = inventory.assets[i];
       if (asset.strategy != address(0) && asset.amount != 0) IStrategy(asset.strategy).revalidate(asset, _config);
 

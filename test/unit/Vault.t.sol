@@ -924,7 +924,7 @@ contract VaultTest is TestCommon {
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
     vm.expectRevert(IVault.Unauthorized.selector);
-    v.harvestPrivate(assets, false, 0);
+    v.harvestPrivate(assets, false, 0, 0);
     vm.stopBroadcast();
     vm.startBroadcast(USER);
   }
@@ -943,7 +943,7 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
     vm.expectRevert(IVault.DepositAllowed.selector);
-    v.harvestPrivate(assets, false, 0);
+    v.harvestPrivate(assets, false, 0, 0);
   }
 
   function test_harvestPrivate_fail_noStrategy() public {
@@ -961,6 +961,6 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory toHarvest = new AssetLib.Asset[](1);
     toHarvest[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
     vm.expectRevert(IVault.InvalidAssetStrategy.selector);
-    v.harvestPrivate(toHarvest, false, 0);
+    v.harvestPrivate(toHarvest, false, 0, 0);
   }
 }

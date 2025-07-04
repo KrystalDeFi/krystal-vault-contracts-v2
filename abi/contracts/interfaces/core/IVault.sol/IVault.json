@@ -699,6 +699,11 @@
         "type": "tuple"
       },
       {
+        "internalType": "uint64",
+        "name": "gasFeeBasisPoint",
+        "type": "uint64"
+      },
+      {
         "internalType": "uint256",
         "name": "amountTokenOutMin",
         "type": "uint256"
@@ -780,6 +785,11 @@
         "internalType": "bool",
         "name": "unwrap",
         "type": "bool"
+      },
+      {
+        "internalType": "uint64",
+        "name": "gasFeeBasisPoint",
+        "type": "uint64"
       },
       {
         "internalType": "uint256",
