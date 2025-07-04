@@ -36,6 +36,45 @@ Execute an allocate on a Vault
 | abiEncodedUserOrder | bytes | ABI encoded user order |
 | orderSignature | bytes | Signature of the order |
 
+### executeHarvest
+
+```solidity
+function executeHarvest(contract IVault vault, struct AssetLib.Asset asset, uint64 gasFeeX64, uint256 amountTokenOutMin, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
+Execute an harvest on a Vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | contract IVault | Vault |
+| asset | struct AssetLib.Asset | Asset to harvest |
+| gasFeeX64 | uint64 | Gas fee in x64 format |
+| amountTokenOutMin | uint256 | Minimum amount of token out |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
+
+### executeHarvestPrivate
+
+```solidity
+function executeHarvestPrivate(contract IVault vault, struct AssetLib.Asset[] assets, bool unwrap, uint64 gasFeeX64, uint256 amountTokenOutMin, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
+Execute an harvest on a private vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | contract IVault | Vault |
+| assets | struct AssetLib.Asset[] | Assets to harvest |
+| unwrap | bool | Whether to unwrap the assets |
+| gasFeeX64 | uint64 | Gas fee in x64 format |
+| amountTokenOutMin | uint256 | Minimum amount of token out |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
+
 ### executeSweepToken
 
 ```solidity
