@@ -389,7 +389,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     _safeResetAndApprove(IERC20(token0.token), address(params.nfpm), token0.amount);
     _safeResetAndApprove(IERC20(token1.token), address(params.nfpm), token1.amount);
 
-    if (vaultConfig.allowDeposit) {
+    if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
       validator.validateObservationCardinality(params.nfpm, params.fee, token0.token, token1.token);
     }
 
