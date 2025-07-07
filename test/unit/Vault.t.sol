@@ -76,7 +76,7 @@ contract VaultTest is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
@@ -474,7 +474,8 @@ contract VaultTest is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    LpStrategy newLpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    LpStrategy newLpStrategy =
+      new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
 
     console.log("===== remove lpStrategy from whitelist =====");
     address[] memory strategies = new address[](1);

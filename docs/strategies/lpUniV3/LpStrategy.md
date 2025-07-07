@@ -26,6 +26,12 @@ uint256 Q128
 uint256 Q192
 ```
 
+### configManager
+
+```solidity
+contract IConfigManager configManager
+```
+
 ### optimalSwapper
 
 ```solidity
@@ -41,7 +47,7 @@ contract ILpValidator validator
 ### constructor
 
 ```solidity
-constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) public
+constructor(address _configManager, address _optimalSwapper, address _validator, address _lpFeeTaker) public
 ```
 
 ### valueOf

@@ -93,7 +93,7 @@ contract FoundryTestSoloOwner is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), configManagerAddress, whitelistNfpms);
     LpFeeTaker feeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(feeTaker));
+    lpStrategy = new LpStrategy(configManagerAddress, address(swapper), address(validator), address(feeTaker));
 
     // Whitelist the LpStrategy for the configManager
     address[] memory strategies = new address[](1);
