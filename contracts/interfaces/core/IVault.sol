@@ -34,6 +34,7 @@ interface IVault is ICommon {
   error InvalidWETH();
   error InsufficientReturnAmount();
   error ExceedMaxAllocatePerBlock();
+  error StrategyDelegateCallFailed();
 
   function vaultOwner() external view returns (address);
 

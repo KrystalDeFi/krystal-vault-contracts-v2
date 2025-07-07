@@ -237,6 +237,15 @@ contract Vault is
     emit VaultDeposit(vaultFactory, _msgSender(), principalAmount, shares);
   }
 
+  function getFeeConfig(uint64 gasFeeX64) internal view returns (FeeConfig memory feeConfig) {
+    feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
+    feeConfig.vaultOwner = vaultOwner;
+    feeConfig.gasFeeX64 = gasFeeX64;
+    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
+      ? 10_000 - feeConfig.platformFeeBasisPoint
+      : vaultOwnerFeeBasisPoint;
+  }
+
   /// @notice Withdraws the asset as principal token from the vault
   /// @param shares Amount of shares to be burned
   /// @param unwrap Unwrap WETH to ETH
@@ -258,11 +267,7 @@ contract Vault is
       deductedShares = FullMath.mulDiv(shares, 10_000 - WITHDRAWAL_FEE, 10_000);
     }
 
-    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.vaultOwner = vaultOwner;
-    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
-      ? 10_000 - feeConfig.platformFeeBasisPoint
-      : vaultOwnerFeeBasisPoint;
+    FeeConfig memory feeConfig = getFeeConfig(0);
 
     address principalToken = vaultConfig.principalToken;
     uint256 length = inventory.assets.length;
@@ -398,12 +403,7 @@ contract Vault is
       }
     }
 
-    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.gasFeeX64 = gasFeeX64;
-    feeConfig.vaultOwner = vaultOwner;
-    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
-      ? 10_000 - feeConfig.platformFeeBasisPoint
-      : vaultOwnerFeeBasisPoint;
+    FeeConfig memory feeConfig = getFeeConfig(gasFeeX64);
 
     // Encode the function call parameters
     bytes memory cData = abi.encodeWithSelector(IStrategy.convert.selector, inputAssets, vaultConfig, feeConfig, data);
@@ -524,12 +524,7 @@ contract Vault is
   {
     inventory.removeAsset(asset);
 
-    FeeConfig memory feeConfig = configManager.getFeeConfig(vaultConfig.allowDeposit);
-    feeConfig.vaultOwner = vaultOwner;
-    feeConfig.gasFeeX64 = gasFeeX64;
-    feeConfig.vaultOwnerFeeBasisPoint = feeConfig.platformFeeBasisPoint + vaultOwnerFeeBasisPoint > 10_000
-      ? 10_000 - feeConfig.platformFeeBasisPoint
-      : vaultOwnerFeeBasisPoint;
+    FeeConfig memory feeConfig = getFeeConfig(gasFeeX64);
 
     // Encode the function call parameters
     bytes memory data = abi.encodeWithSelector(
@@ -724,7 +719,7 @@ contract Vault is
     bool success;
     (success, returnData) = strategy.delegatecall(cData);
     if (!success) {
-      if (returnData.length == 0) revert("Strategy delegatecall failed");
+      if (returnData.length == 0) revert StrategyDelegateCallFailed();
       assembly {
         let returnDataSize := mload(returnData)
         revert(add(32, returnData), returnDataSize)
