@@ -128,6 +128,12 @@ error InsufficientReturnAmount()
 error ExceedMaxAllocatePerBlock()
 ```
 
+### StrategyDelegateCallFailed
+
+```solidity
+error StrategyDelegateCallFailed()
+```
+
 ### vaultOwner
 
 ```solidity

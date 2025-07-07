@@ -145,6 +145,12 @@ Deposits principal tokens for private vaults
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares minted |
 
+### getFeeConfig
+
+```solidity
+function getFeeConfig(uint64 gasFeeX64) internal view returns (struct ICommon.FeeConfig feeConfig)
+```
+
 ### withdraw
 
 ```solidity

@@ -116,6 +116,11 @@
   },
   {
     "inputs": [],
+    "name": "StrategyDelegateCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },
