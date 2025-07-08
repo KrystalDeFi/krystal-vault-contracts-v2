@@ -50,8 +50,8 @@ contract LpStrategyTest is TestCommon {
     typedTokenTypes[0] = uint256(1);
     typedTokenTypes[1] = uint256(1);
 
-    address[] memory whitelistAutomator = new address[](1);
-    whitelistAutomator[0] = USER;
+    address[] memory whitelistAutomator = new address[](0);
+    // whitelistAutomator[0] = USER;
 
     ConfigManager configManager = new ConfigManager();
     configManager.initialize(
@@ -76,7 +76,7 @@ contract LpStrategyTest is TestCommon {
     validator = new LpValidator();
     validator.initialize(USER, address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
     vaultConfig = ICommon.VaultConfig({
       principalToken: WETH,
       allowDeposit: false,

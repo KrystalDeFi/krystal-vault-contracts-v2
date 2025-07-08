@@ -16,6 +16,7 @@ import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
 import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
+import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/strategies/ILpValidator.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
@@ -28,14 +29,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   uint256 internal constant Q128 = 0x100000000000000000000000000000000;
   uint256 internal constant Q192 = 0x1000000000000000000000000000000000000000000000000;
 
+  IConfigManager public configManager;
   IOptimalSwapper public immutable optimalSwapper;
   ILpValidator public immutable validator;
   ILpFeeTaker private immutable lpFeeTaker;
   address private immutable thisAddress;
 
-  constructor(address _optimalSwapper, address _validator, address _lpFeeTaker) {
+  constructor(address _configManager, address _optimalSwapper, address _validator, address _lpFeeTaker) {
+    require(_configManager != address(0), ZeroAddress());
     require(_optimalSwapper != address(0), ZeroAddress());
     require(_validator != address(0), ZeroAddress());
+
+    configManager = IConfigManager(_configManager);
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
     validator = ILpValidator(_validator);
     lpFeeTaker = ILpFeeTaker(_lpFeeTaker);
@@ -384,7 +389,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     _safeResetAndApprove(IERC20(token0.token), address(params.nfpm), token0.amount);
     _safeResetAndApprove(IERC20(token1.token), address(params.nfpm), token1.amount);
 
-    if (vaultConfig.allowDeposit) {
+    if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
       validator.validateObservationCardinality(params.nfpm, params.fee, token0.token, token1.token);
     }
 
@@ -800,7 +805,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     internal
     returns (uint256 amount0, uint256 amount1)
   {
-    if (checkPriceSanity) validator.validatePriceSanity(params.pool);
+    if (checkPriceSanity && !configManager.isWhitelistedAutomator(msg.sender)) {
+      validator.validatePriceSanity(params.pool);
+    }
 
     (amount0, amount1) = params.principalToken < params.otherToken
       ? (params.principalTokenAmount, 0)
@@ -823,7 +830,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     require(params.token != params.principalToken, InvalidAsset());
 
-    if (checkPriceSanity) validator.validatePriceSanity(params.pool);
+    if (checkPriceSanity && !configManager.isWhitelistedAutomator(msg.sender)) {
+      validator.validatePriceSanity(params.pool);
+    }
 
     IERC20(params.token).approve(address(optimalSwapper), params.amount);
     (amountOut, amountInUsed) = optimalSwapper.poolSwap(
@@ -997,7 +1006,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @dev check old lp strategy for backward compatibility
   /// This was implemented as a migration method since old lp strategies have a bug
   function _checkAssetStrategy(address strategy) internal view {
-    address[13] memory oldStrategies = [
+    address[14] memory oldStrategies = [
       thisAddress,
       0x2AD2B6fAed8020354608381e29cF301921Cf8028,
       0x6ABE19d89396893fE8d051d982A75971ff1272FE,
@@ -1010,6 +1019,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       0xEa2459145c82fc7707FD53BA0ed754f99F186702,
       0x8e6d632C56dCBbf0D00a5821e8F32A77F190ab00,
       0x1b7c5534190F74782D04142e3A27ECA05563498a,
+      0xc38ceD05b5ECbc0C78aa1Fa6Dc2B3AB48F7DD086,
       0x8D4889840a8f8A79E1Bcef8BB385F6327EAee1f6 // from unit test
     ];
     uint256 length = oldStrategies.length;

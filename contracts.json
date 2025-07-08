@@ -12,15 +12,15 @@
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "base_mainnet": {
-    "vault": "0x776b7480652993524bae2af958d5ca4dd4292184",
-    "vaultAutomator": "0xe49eb906f6a4374902321b497f205edcebe91c42",
+    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vaultAutomator": "0x3b9cdf72c7ca278d2a9bd73da058acd203fe4641",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0xc38ced05b5ecbc0c78aa1fa6dc2b3ab48f7dd086",
-    "vaultFactory": "0xdf2deefe9e905db881d06b063d3e96c27bcfda7a",
+    "lpStrategy": "0xb236740ff130bfc38dadf7f2e9073c9c8f2574ce",
+    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "bsc_mainnet": {

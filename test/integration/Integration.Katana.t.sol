@@ -86,7 +86,7 @@ contract IntegrationTest is TestCommon {
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     // AggregateRouter
     KatanaLpFeeTaker lpFeeTaker = new KatanaLpFeeTaker(0x5F0aCDD3eC767514fF1BF7e79949640bf94576BD);
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
