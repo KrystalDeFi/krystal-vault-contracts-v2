@@ -1,7 +1,7 @@
 import { IConfig } from "./interfaces";
 
 export const BaseConfig: Record<string, IConfig> = {
-  base_mainnet: {
+  hyperevm_mainnet: {
     sleepTime: 20000,
     vault: {
       enabled: true,
