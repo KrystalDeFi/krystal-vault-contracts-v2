@@ -84,6 +84,10 @@ const config: HardhatUserConfig = {
       url: `https://api.roninchain.com/rpc`,
       chainId: 2020,
     },
+    hyperevm: {
+      url: `https://rpc.hyperliquid.xyz/evm`,
+      chainId: 999,
+    },
   },
   etherscan: {
     apiKey: {
@@ -95,6 +99,7 @@ const config: HardhatUserConfig = {
       arbitrumOne: ARBISCAN_APIKEY || "",
       ronin: RONINSCAN_APIKEY || "",
       berachain: BERASCAN_APIKEY || "",
+      hyperevm: ETHERSCAN_V2_APIKEY || "",
     },
     customChains: [
       {
@@ -119,6 +124,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://explorer.roninchain.com/api",
           browserURL: "https://explorer.roninchain.com/",
+        },
+      },
+      {
+        network: "hyperevm",
+        chainId: 999,
+        urls: {
+          apiURL: "https://hyperevmscan.io/api",
+          browserURL: "https://hyperevmscan.io/",
         },
       },
     ],
@@ -194,6 +207,13 @@ if (PRIVATE_KEY) {
   config.networks!.berachain_mainnet = {
     url: `https://berachain-rpc.publicnode.com`,
     chainId: 80094,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.hyperevm_mainnet = {
+    url: `https://rpc.hyperliquid.xyz/evm`,
+    chainId: 999,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
