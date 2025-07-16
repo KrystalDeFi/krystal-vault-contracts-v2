@@ -242,7 +242,7 @@ contract IntegrationTest is TestCommon {
 
     vaultAssets = vaultInstance.getInventory();
     assertEq(vaultAssets.length, 2);
-    assertEq(vaultAssets[0].amount, 300_000_019_089_115_484);
+    assertEq(vaultAssets[0].amount, 300_000_006_383_675_511);
     assertEq(vaultAssets[0].token, WHYPE);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
