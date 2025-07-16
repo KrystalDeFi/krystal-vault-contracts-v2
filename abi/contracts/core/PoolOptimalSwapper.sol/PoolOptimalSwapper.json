@@ -67,6 +67,29 @@
   {
     "inputs": [
       {
+        "internalType": "int256",
+        "name": "amount0Delta",
+        "type": "int256"
+      },
+      {
+        "internalType": "int256",
+        "name": "amount1Delta",
+        "type": "int256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "name": "hyperswapV3SwapCallback",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "address",
