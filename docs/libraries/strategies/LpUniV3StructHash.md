@@ -215,10 +215,11 @@ struct RebalanceAction {
   int256 maxGasProportionX64;
   int256 swapSlippageX64;
   int256 liquiditySlippageX64;
-  string _type;
+  string gteType;
   struct StructHash.TickOffsetAction tickOffsetGteAction;
   struct StructHash.PriceOffsetAction priceOffsetGteAction;
   struct StructHash.TokenRatioAction tokenRatioGteAction;
+  string lteType;
   struct StructHash.TickOffsetAction tickOffsetLteAction;
   struct StructHash.PriceOffsetAction priceOffsetLteAction;
   struct StructHash.TokenRatioAction tokenRatioLteAction;
@@ -478,6 +479,7 @@ bytes32 AutoHarvestConfig_TYPEHASH
 
 ```solidity
 struct AutoHarvestConfig {
+  string _type;
   struct StructHash.AutoCompoundCondition condition;
   struct StructHash.AutoExitAction action;
 }
