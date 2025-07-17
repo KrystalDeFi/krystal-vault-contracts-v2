@@ -13,7 +13,7 @@
   },
   "base_mainnet": {
     "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
-    "vaultAutomator": "0x3b9cdf72c7ca278d2a9bd73da058acd203fe4641",
+    "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
@@ -72,7 +72,7 @@
   },
   "ronin_mainnet": {
     "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
-    "vaultAutomator": "0x3b9cdf72c7ca278d2a9bd73da058acd203fe4641",
+    "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x85ac4167b2190bb4ad3b86d39c30846779258742",
     "configManager": "0x3775e4b7737c9e8c12e5ea742298d054cd2beb9c",
     "lpValidator": "0xc79006f85360010790903f00bec264b0b782e85c",

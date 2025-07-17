@@ -52,10 +52,11 @@ RebalanceAction = []apitypes.Type{
 	{Name: "maxGasProportionX64", Type: "int256"},
 	{Name: "swapSlippageX64", Type: "int256"},
 	{Name: "liquiditySlippageX64", Type: "int256"},
-	{Name: "type", Type: "string"},
+	{Name: "gteType", Type: "string"},
 	{Name: "tickOffsetGteAction", Type: "TickOffsetAction"},
 	{Name: "priceOffsetGteAction", Type: "PriceOffsetAction"},
 	{Name: "tokenRatioGteAction", Type: "TokenRatioAction"},
+	{Name: "lteType", Type: "string"},
 	{Name: "tickOffsetLteAction", Type: "TickOffsetAction"},
 	{Name: "priceOffsetLteAction", Type: "PriceOffsetAction"},
 	{Name: "tokenRatioLteAction", Type: "TokenRatioAction"},
@@ -123,6 +124,7 @@ AutoExitAction = []apitypes.Type{
 }
 
 AutoHarvestConfig = []apitypes.Type{
+	{Name: "type", Type: "string"},
 	{Name: "condition", Type: "AutoCompoundCondition"},
 	{Name: "action", Type: "AutoExitAction"},
 }

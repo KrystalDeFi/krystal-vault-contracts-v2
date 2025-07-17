@@ -166,22 +166,23 @@ library StructHash {
 
   // keccak256(
   //     "RebalanceAction(int256 maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,string
-  // type,TickOffsetAction tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction
-  // tokenRatioGteAction,TickOffsetAction tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
-  // tokenRatioLteAction)PriceOffsetAction(uint32 baseToken,int160 lowerOffsetSqrtPriceX96,int160
-  // upperOffsetSqrtPriceX96)TickOffsetAction(uint32 tickLowerOffset,uint32 tickUpperOffset)TokenRatioAction(uint32
-  // tickWidth,int256 token0RatioX64)"
+  // gteType,TickOffsetAction tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction
+  // tokenRatioGteAction,string lteType,TickOffsetAction tickOffsetLteAction,PriceOffsetAction
+  // priceOffsetLteAction,TokenRatioAction tokenRatioLteAction)PriceOffsetAction(uint32 baseToken,int160
+  // lowerOffsetSqrtPriceX96,int160 upperOffsetSqrtPriceX96)TickOffsetAction(uint32 tickLowerOffset,uint32
+  // tickUpperOffset)TokenRatioAction(uint32 tickWidth,int256 token0RatioX64)"
   // );
-  bytes32 constant RebalanceAction_TYPEHASH = 0xe9ff64569b5e792cdf7049cb516b58af5ccb93ef1d54b1982361f6a664613312;
+  bytes32 constant RebalanceAction_TYPEHASH = 0xebc88669d89a68bc83eee542c09a3d91d8ce9c0af1c90d0ac3f8ff8ade2b9c50;
 
   struct RebalanceAction {
     int256 maxGasProportionX64;
     int256 swapSlippageX64;
     int256 liquiditySlippageX64;
-    string _type;
+    string gteType;
     TickOffsetAction tickOffsetGteAction;
     PriceOffsetAction priceOffsetGteAction;
     TokenRatioAction tokenRatioGteAction;
+    string lteType;
     TickOffsetAction tickOffsetLteAction;
     PriceOffsetAction priceOffsetLteAction;
     TokenRatioAction tokenRatioLteAction;
@@ -194,10 +195,11 @@ library StructHash {
         obj.maxGasProportionX64,
         obj.swapSlippageX64,
         obj.liquiditySlippageX64,
-        keccak256(bytes(obj._type)),
+        keccak256(bytes(obj.gteType)),
         _hash(obj.tickOffsetGteAction),
         _hash(obj.priceOffsetGteAction),
         _hash(obj.tokenRatioGteAction),
+        keccak256(bytes(obj.lteType)),
         _hash(obj.tickOffsetLteAction),
         _hash(obj.priceOffsetLteAction),
         _hash(obj.tokenRatioLteAction)
@@ -212,15 +214,15 @@ library StructHash {
   // tokenRatioCondition)PriceOffsetAction(uint32 baseToken,int160 lowerOffsetSqrtPriceX96,int160
   // upperOffsetSqrtPriceX96)PriceOffsetCondition(uint32 baseToken,uint256 gteOffsetSqrtPriceX96,uint256
   // lteOffsetSqrtPriceX96)RebalanceAction(int256 maxGasProportionX64,int256 swapSlippageX64,int256
-  // liquiditySlippageX64,string type,TickOffsetAction tickOffsetGteAction,PriceOffsetAction
-  // priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,TickOffsetAction tickOffsetLteAction,PriceOffsetAction
-  // priceOffsetLteAction,TokenRatioAction tokenRatioLteAction)RebalanceAutoCompound(RebalanceAutoCompoundAction
-  // action)RebalanceAutoCompoundAction(int256 maxGasProportionX64,int256
-  // feeToPrincipalRatioThresholdX64)TickOffsetAction(uint32 tickLowerOffset,uint32
+  // liquiditySlippageX64,string gteType,TickOffsetAction tickOffsetGteAction,PriceOffsetAction
+  // priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,string lteType,TickOffsetAction
+  // tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
+  // tokenRatioLteAction)RebalanceAutoCompound(RebalanceAutoCompoundAction action)RebalanceAutoCompoundAction(int256
+  // maxGasProportionX64,int256 feeToPrincipalRatioThresholdX64)TickOffsetAction(uint32 tickLowerOffset,uint32
   // tickUpperOffset)TickOffsetCondition(uint32 gteTickOffset,uint32 lteTickOffset)TokenRatioAction(uint32
   // tickWidth,int256 token0RatioX64)TokenRatioCondition(int256 lteToken0RatioX64,int256 gteToken0RatioX64)"
   // );
-  bytes32 constant RebalanceConfig_TYPEHASH = 0xb8b7be81eb6fe0e8be04d841247a77c527bb9a64c7c2aecd7c764aa5a0f2c9ea;
+  bytes32 constant RebalanceConfig_TYPEHASH = 0x5f178dbce6f823ba62e942b9f8ac91282fdf80cd2ad6ada0ee71a16dd42f3b12;
 
   struct RebalanceConfig {
     Condition rebalanceCondition;
@@ -423,20 +425,24 @@ library StructHash {
   }
 
   // keccak256(
-  //     "AutoHarvestConfig(AutoCompoundCondition condition,AutoExitAction action)AutoCompoundCondition(string
-  // type,FeeBasedCondition feeBasedCondition,TimeBasedCondition timeBasedCondition)AutoExitAction(int256
-  // maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,address
-  // tokenOutAddress)FeeBasedCondition(int256 minFeeEarnedUsdX64)TimeBasedCondition(int256 intervalInSecond)"
+  //     "AutoHarvestConfig(string type,AutoCompoundCondition condition,AutoExitAction
+  // action)AutoCompoundCondition(string type,FeeBasedCondition feeBasedCondition,TimeBasedCondition
+  // timeBasedCondition)AutoExitAction(int256 maxGasProportionX64,int256 swapSlippageX64,int256
+  // liquiditySlippageX64,address tokenOutAddress)FeeBasedCondition(int256 minFeeEarnedUsdX64)TimeBasedCondition(int256
+  // intervalInSecond)"
   // );
-  bytes32 constant AutoHarvestConfig_TYPEHASH = 0xf5080f5922a982d6cb413047ecb8d44739a938fe20067ca93ef92e2111f991ba;
+  bytes32 constant AutoHarvestConfig_TYPEHASH = 0x078cb4adf5687c5d8012b6cf5f2db36f84c7460eeb9ab0150aa07a1d38e72939;
 
   struct AutoHarvestConfig {
+    string _type;
     AutoCompoundCondition condition;
     AutoExitAction action;
   }
 
   function _hash(AutoHarvestConfig memory obj) internal pure returns (bytes32) {
-    return keccak256(abi.encode(AutoHarvestConfig_TYPEHASH, _hash(obj.condition), _hash(obj.action)));
+    return keccak256(
+      abi.encode(AutoHarvestConfig_TYPEHASH, keccak256(bytes(obj._type)), _hash(obj.condition), _hash(obj.action))
+    );
   }
 
   // keccak256(
@@ -446,17 +452,17 @@ library StructHash {
   // type,FeeBasedCondition feeBasedCondition,TimeBasedCondition
   // timeBasedCondition)AutoCompoundConfig(AutoCompoundCondition condition,AutoCompoundAction
   // action)AutoExitAction(int256 maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,address
-  // tokenOutAddress)AutoExitConfig(Condition condition,AutoExitAction action)AutoHarvestConfig(AutoCompoundCondition
-  // condition,AutoExitAction action)Condition(string type,int160 sqrtPriceX96,int64 timeBuffer,TickOffsetCondition
-  // tickOffsetCondition,PriceOffsetCondition priceOffsetCondition,TokenRatioCondition
+  // tokenOutAddress)AutoExitConfig(Condition condition,AutoExitAction action)AutoHarvestConfig(string
+  // type,AutoCompoundCondition condition,AutoExitAction action)Condition(string type,int160 sqrtPriceX96,int64
+  // timeBuffer,TickOffsetCondition tickOffsetCondition,PriceOffsetCondition priceOffsetCondition,TokenRatioCondition
   // tokenRatioCondition)FeeBasedCondition(int256 minFeeEarnedUsdX64)PriceOffsetAction(uint32 baseToken,int160
   // lowerOffsetSqrtPriceX96,int160 upperOffsetSqrtPriceX96)PriceOffsetCondition(uint32 baseToken,uint256
   // gteOffsetSqrtPriceX96,uint256 lteOffsetSqrtPriceX96)RangeOrderAction(int256 maxGasProportionX64,int256
   // swapSlippageX64,int256 withdrawSlippageX64)RangeOrderCondition(bool zeroToOne,int32 gteTickAbsolute,int32
   // lteTickAbsolute)RangeOrderConfig(RangeOrderCondition condition,RangeOrderAction action)RebalanceAction(int256
-  // maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,string type,TickOffsetAction
-  // tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,TickOffsetAction
-  // tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
+  // maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,string gteType,TickOffsetAction
+  // tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,string
+  // lteType,TickOffsetAction tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
   // tokenRatioLteAction)RebalanceAutoCompound(RebalanceAutoCompoundAction action)RebalanceAutoCompoundAction(int256
   // maxGasProportionX64,int256 feeToPrincipalRatioThresholdX64)RebalanceConfig(Condition
   // rebalanceCondition,RebalanceAction rebalanceAction,RebalanceAutoCompound autoCompound,bool
@@ -464,7 +470,7 @@ library StructHash {
   // gteTickOffset,uint32 lteTickOffset)TimeBasedCondition(int256 intervalInSecond)TokenRatioAction(uint32
   // tickWidth,int256 token0RatioX64)TokenRatioCondition(int256 lteToken0RatioX64,int256 gteToken0RatioX64)"
   // );
-  bytes32 constant OrderConfig_TYPEHASH = 0x757c5c331bd300a7a620885d8357711826cd754a772722df24ae5d399faa78ef;
+  bytes32 constant OrderConfig_TYPEHASH = 0x5322f0e7ebcd51c97ec5a90f6f72372d960ae06fa718a29977e0970c6cba70aa;
 
   struct OrderConfig {
     RebalanceConfig rebalanceConfig;
@@ -493,9 +499,9 @@ library StructHash {
   // swapSlippageX64)AutoCompoundCondition(string type,FeeBasedCondition feeBasedCondition,TimeBasedCondition
   // timeBasedCondition)AutoCompoundConfig(AutoCompoundCondition condition,AutoCompoundAction
   // action)AutoExitAction(int256 maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,address
-  // tokenOutAddress)AutoExitConfig(Condition condition,AutoExitAction action)AutoHarvestConfig(AutoCompoundCondition
-  // condition,AutoExitAction action)Condition(string type,int160 sqrtPriceX96,int64 timeBuffer,TickOffsetCondition
-  // tickOffsetCondition,PriceOffsetCondition priceOffsetCondition,TokenRatioCondition
+  // tokenOutAddress)AutoExitConfig(Condition condition,AutoExitAction action)AutoHarvestConfig(string
+  // type,AutoCompoundCondition condition,AutoExitAction action)Condition(string type,int160 sqrtPriceX96,int64
+  // timeBuffer,TickOffsetCondition tickOffsetCondition,PriceOffsetCondition priceOffsetCondition,TokenRatioCondition
   // tokenRatioCondition)FeeBasedCondition(int256 minFeeEarnedUsdX64)OrderConfig(RebalanceConfig
   // rebalanceConfig,RangeOrderConfig rangeOrderConfig,AutoCompoundConfig autoCompoundConfig,AutoExitConfig
   // autoExitConfig,AutoHarvestConfig autoHarvestConfig)PriceOffsetAction(uint32 baseToken,int160
@@ -503,9 +509,9 @@ library StructHash {
   // gteOffsetSqrtPriceX96,uint256 lteOffsetSqrtPriceX96)RangeOrderAction(int256 maxGasProportionX64,int256
   // swapSlippageX64,int256 withdrawSlippageX64)RangeOrderCondition(bool zeroToOne,int32 gteTickAbsolute,int32
   // lteTickAbsolute)RangeOrderConfig(RangeOrderCondition condition,RangeOrderAction action)RebalanceAction(int256
-  // maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,string type,TickOffsetAction
-  // tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,TickOffsetAction
-  // tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
+  // maxGasProportionX64,int256 swapSlippageX64,int256 liquiditySlippageX64,string gteType,TickOffsetAction
+  // tickOffsetGteAction,PriceOffsetAction priceOffsetGteAction,TokenRatioAction tokenRatioGteAction,string
+  // lteType,TickOffsetAction tickOffsetLteAction,PriceOffsetAction priceOffsetLteAction,TokenRatioAction
   // tokenRatioLteAction)RebalanceAutoCompound(RebalanceAutoCompoundAction action)RebalanceAutoCompoundAction(int256
   // maxGasProportionX64,int256 feeToPrincipalRatioThresholdX64)RebalanceConfig(Condition
   // rebalanceCondition,RebalanceAction rebalanceAction,RebalanceAutoCompound autoCompound,bool
@@ -513,7 +519,7 @@ library StructHash {
   // gteTickOffset,uint32 lteTickOffset)TimeBasedCondition(int256 intervalInSecond)TokenRatioAction(uint32
   // tickWidth,int256 token0RatioX64)TokenRatioCondition(int256 lteToken0RatioX64,int256 gteToken0RatioX64)"
   // );
-  bytes32 constant Order_TYPEHASH = 0xf266539e35b8cb8f36c34007c42178df2593de3fa45b24a1cac6bb1ce87343d3;
+  bytes32 constant Order_TYPEHASH = 0xc656dbf48bfae7cacbfe27eb73a9a0e9d54fb5d4a0e0a56c9302f5216de62109;
 
   struct Order {
     int64 chainId;
