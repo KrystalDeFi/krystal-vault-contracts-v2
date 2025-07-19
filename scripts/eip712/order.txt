@@ -1,0 +1,147 @@
+RebalanceAutoCompound = []apitypes.Type{
+	{Name: "action", Type: "RebalanceAutoCompoundAction"},
+}
+
+RebalanceAutoCompoundAction = []apitypes.Type{
+	{Name: "maxGasProportionX64", Type: "int256"},
+	{Name: "feeToPrincipalRatioThresholdX64", Type: "int256"},
+}
+
+TickOffsetCondition = []apitypes.Type{
+	{Name: "gteTickOffset", Type: "uint32"},
+	{Name: "lteTickOffset", Type: "uint32"},
+}
+
+PriceOffsetCondition = []apitypes.Type{
+	{Name: "baseToken", Type: "uint32"},
+	{Name: "gteOffsetSqrtPriceX96", Type: "uint256"},
+	{Name: "lteOffsetSqrtPriceX96", Type: "uint256"},
+}
+
+TokenRatioCondition = []apitypes.Type{
+	{Name: "lteToken0RatioX64", Type: "int256"},
+	{Name: "gteToken0RatioX64", Type: "int256"},
+}
+
+Condition = []apitypes.Type{
+	{Name: "type", Type: "string"},
+	{Name: "sqrtPriceX96", Type: "int160"},
+	{Name: "timeBuffer", Type: "int64"},
+	{Name: "tickOffsetCondition", Type: "TickOffsetCondition"},
+	{Name: "priceOffsetCondition", Type: "PriceOffsetCondition"},
+	{Name: "tokenRatioCondition", Type: "TokenRatioCondition"},
+}
+
+TickOffsetAction = []apitypes.Type{
+	{Name: "tickLowerOffset", Type: "uint32"},
+	{Name: "tickUpperOffset", Type: "uint32"},
+}
+
+PriceOffsetAction = []apitypes.Type{
+	{Name: "baseToken", Type: "uint32"},
+	{Name: "lowerOffsetSqrtPriceX96", Type: "int160"},
+	{Name: "upperOffsetSqrtPriceX96", Type: "int160"},
+}
+
+TokenRatioAction = []apitypes.Type{
+	{Name: "tickWidth", Type: "uint32"},
+	{Name: "token0RatioX64", Type: "int256"},
+}
+
+RebalanceAction = []apitypes.Type{
+	{Name: "maxGasProportionX64", Type: "int256"},
+	{Name: "swapSlippageX64", Type: "int256"},
+	{Name: "liquiditySlippageX64", Type: "int256"},
+	{Name: "gteType", Type: "string"},
+	{Name: "tickOffsetGteAction", Type: "TickOffsetAction"},
+	{Name: "priceOffsetGteAction", Type: "PriceOffsetAction"},
+	{Name: "tokenRatioGteAction", Type: "TokenRatioAction"},
+	{Name: "lteType", Type: "string"},
+	{Name: "tickOffsetLteAction", Type: "TickOffsetAction"},
+	{Name: "priceOffsetLteAction", Type: "PriceOffsetAction"},
+	{Name: "tokenRatioLteAction", Type: "TokenRatioAction"},
+}
+
+RebalanceConfig = []apitypes.Type{
+	{Name: "rebalanceCondition", Type: "Condition"},
+	{Name: "rebalanceAction", Type: "RebalanceAction"},
+	{Name: "autoCompound", Type: "RebalanceAutoCompound"},
+	{Name: "recurring", Type: "bool"},
+}
+
+RangeOrderCondition = []apitypes.Type{
+	{Name: "zeroToOne", Type: "bool"},
+	{Name: "gteTickAbsolute", Type: "int32"},
+	{Name: "lteTickAbsolute", Type: "int32"},
+}
+
+RangeOrderAction = []apitypes.Type{
+	{Name: "maxGasProportionX64", Type: "int256"},
+	{Name: "swapSlippageX64", Type: "int256"},
+	{Name: "withdrawSlippageX64", Type: "int256"},
+}
+
+RangeOrderConfig = []apitypes.Type{
+	{Name: "condition", Type: "RangeOrderCondition"},
+	{Name: "action", Type: "RangeOrderAction"},
+}
+
+FeeBasedCondition = []apitypes.Type{
+	{Name: "minFeeEarnedUsdX64", Type: "int256"},
+}
+
+TimeBasedCondition = []apitypes.Type{
+	{Name: "intervalInSecond", Type: "int256"},
+}
+
+AutoCompoundCondition = []apitypes.Type{
+	{Name: "type", Type: "string"},
+	{Name: "feeBasedCondition", Type: "FeeBasedCondition"},
+	{Name: "timeBasedCondition", Type: "TimeBasedCondition"},
+}
+
+AutoCompoundAction = []apitypes.Type{
+	{Name: "maxGasProportionX64", Type: "int256"},
+	{Name: "poolSlippageX64", Type: "int256"},
+	{Name: "swapSlippageX64", Type: "int256"},
+}
+
+AutoCompoundConfig = []apitypes.Type{
+	{Name: "condition", Type: "AutoCompoundCondition"},
+	{Name: "action", Type: "AutoCompoundAction"},
+}
+
+AutoExitConfig = []apitypes.Type{
+	{Name: "condition", Type: "Condition"},
+	{Name: "action", Type: "AutoExitAction"},
+}
+
+AutoExitAction = []apitypes.Type{
+	{Name: "maxGasProportionX64", Type: "int256"},
+	{Name: "swapSlippageX64", Type: "int256"},
+	{Name: "liquiditySlippageX64", Type: "int256"},
+	{Name: "tokenOutAddress", Type: "address"},
+}
+
+AutoHarvestConfig = []apitypes.Type{
+	{Name: "type", Type: "string"},
+	{Name: "condition", Type: "AutoCompoundCondition"},
+	{Name: "action", Type: "AutoExitAction"},
+}
+
+OrderConfig = []apitypes.Type{
+	{Name: "rebalanceConfig", Type: "RebalanceConfig"},
+	{Name: "rangeOrderConfig", Type: "RangeOrderConfig"},
+	{Name: "autoCompoundConfig", Type: "AutoCompoundConfig"},
+	{Name: "autoExitConfig", Type: "AutoExitConfig"},
+	{Name: "autoHarvestConfig", Type: "AutoHarvestConfig"},
+}
+
+Order = []apitypes.Type{
+	{Name: "chainId", Type: "int64"},
+	{Name: "nfpmAddress", Type: "address"},
+	{Name: "tokenId", Type: "uint256"},
+	{Name: "orderType", Type: "string"},
+	{Name: "config", Type: "OrderConfig"},
+	{Name: "signatureTime", Type: "int64"},
+}

@@ -23,6 +23,25 @@ interface IVaultAutomator is ICommon {
     bytes calldata orderSignature
   ) external;
 
+  function executeHarvest(
+    IVault vault,
+    AssetLib.Asset memory asset,
+    uint64 gasFeeX64,
+    uint256 amountTokenOutMin,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external;
+
+  function executeHarvestPrivate(
+    IVault vault,
+    AssetLib.Asset[] memory assets,
+    bool unwrap,
+    uint64 gasFeeX64,
+    uint256 amountTokenOutMin,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external;
+
   function executeSweepToken(IVault vault, address[] memory tokens) external;
 
   function executeSweepERC721(IVault vault, address[] memory tokens, uint256[] memory tokenIds) external;

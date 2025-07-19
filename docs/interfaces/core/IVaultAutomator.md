@@ -32,6 +32,18 @@ event CancelOrder(address user, bytes order, bytes signature)
 function executeAllocate(contract IVault vault, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, uint64 gasFeeX64, bytes allocateCalldata, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
+### executeHarvest
+
+```solidity
+function executeHarvest(contract IVault vault, struct AssetLib.Asset asset, uint64 gasFeeX64, uint256 amountTokenOutMin, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
+### executeHarvestPrivate
+
+```solidity
+function executeHarvestPrivate(contract IVault vault, struct AssetLib.Asset[] assets, bool unwrap, uint64 gasFeeX64, uint256 amountTokenOutMin, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
 ### executeSweepToken
 
 ```solidity

@@ -2,8 +2,10 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import "@pancakeswap/v3-core/contracts/interfaces/callback/IPancakeV3SwapCallback.sol";
+import "../../interfaces/strategies/hyperswap/IHyperswapV3SwapCallback.sol";
 
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
@@ -12,7 +14,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { OptimalSwap, V3PoolCallee } from "../../libraries/OptimalSwap.sol";
 
-contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallback {
+contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallback, IHyperswapV3SwapCallback {
   using SafeERC20 for IERC20;
 
   uint256 internal constant Q64 = 0x10000000000000000;
@@ -40,6 +42,19 @@ contract LpFeeTaker is ILpFeeTaker, IUniswapV3SwapCallback, IPancakeV3SwapCallba
   /// @param amount0Delta The change in token0 balance
   /// @param amount1Delta The change in token1 balance
   function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external override {
+    require(msg.sender == currentPool, "Incorrect pool");
+
+    IERC20 token0 = IERC20(IUniswapV3Pool(currentPool).token0());
+    IERC20 token1 = IERC20(IUniswapV3Pool(currentPool).token1());
+
+    if (amount0Delta > 0) token0.safeTransfer(msg.sender, uint256(amount0Delta));
+    else if (amount1Delta > 0) token1.safeTransfer(msg.sender, uint256(amount1Delta));
+  }
+
+  /// @notice Callback function required by Hyperswap V3 to finalize swaps
+  /// @param amount0Delta The change in token0 balance
+  /// @param amount1Delta The change in token1 balance
+  function hyperswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external override {
     require(msg.sender == currentPool, "Incorrect pool");
 
     IERC20 token0 = IERC20(IUniswapV3Pool(currentPool).token0());

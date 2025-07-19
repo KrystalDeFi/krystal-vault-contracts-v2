@@ -87,7 +87,7 @@ contract IntegrationTest is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
 
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);

@@ -215,10 +215,14 @@ struct RebalanceAction {
   int256 maxGasProportionX64;
   int256 swapSlippageX64;
   int256 liquiditySlippageX64;
-  string _type;
-  struct StructHash.TickOffsetAction tickOffsetAction;
-  struct StructHash.PriceOffsetAction priceOffsetAction;
-  struct StructHash.TokenRatioAction tokenRatioAction;
+  string gteType;
+  struct StructHash.TickOffsetAction tickOffsetGteAction;
+  struct StructHash.PriceOffsetAction priceOffsetGteAction;
+  struct StructHash.TokenRatioAction tokenRatioGteAction;
+  string lteType;
+  struct StructHash.TickOffsetAction tickOffsetLteAction;
+  struct StructHash.PriceOffsetAction priceOffsetLteAction;
+  struct StructHash.TokenRatioAction tokenRatioLteAction;
 }
 ```
 
@@ -465,6 +469,28 @@ struct AutoExitAction {
 function _hash(struct StructHash.AutoExitAction obj) internal pure returns (bytes32)
 ```
 
+### AutoHarvestConfig_TYPEHASH
+
+```solidity
+bytes32 AutoHarvestConfig_TYPEHASH
+```
+
+### AutoHarvestConfig
+
+```solidity
+struct AutoHarvestConfig {
+  string _type;
+  struct StructHash.AutoCompoundCondition condition;
+  struct StructHash.AutoExitAction action;
+}
+```
+
+### _hash
+
+```solidity
+function _hash(struct StructHash.AutoHarvestConfig obj) internal pure returns (bytes32)
+```
+
 ### OrderConfig_TYPEHASH
 
 ```solidity
@@ -479,6 +505,7 @@ struct OrderConfig {
   struct StructHash.RangeOrderConfig rangeOrderConfig;
   struct StructHash.AutoCompoundConfig autoCompoundConfig;
   struct StructHash.AutoExitConfig autoExitConfig;
+  struct StructHash.AutoHarvestConfig autoHarvestConfig;
 }
 ```
 

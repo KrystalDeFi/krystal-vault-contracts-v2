@@ -46,6 +46,22 @@ Callback function required by Pancake V3 to finalize swaps
 | amount1Delta | int256 | The change in token1 balance |
 |  | bytes |  |
 
+### hyperswapV3SwapCallback
+
+```solidity
+function hyperswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes) external
+```
+
+Callback function required by Hyperswap V3 to finalize swaps
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0Delta | int256 | The change in token0 balance |
+| amount1Delta | int256 | The change in token1 balance |
+|  | bytes |  |
+
 ### _poolSwap
 
 ```solidity
