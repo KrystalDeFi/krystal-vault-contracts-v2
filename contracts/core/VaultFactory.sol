@@ -69,6 +69,47 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
     emit VaultCreated(sender, vault, params);
   }
 
+  /// @notice Create a new vault and allocate
+  /// @param params Vault creation parameters
+  /// @param inputAssets Assets to allocate
+  /// @param strategy Strategy to use for allocation
+  /// @param data Additional data for allocation
+  /// @return vault Address of the new vault
+  function createVaultAndAllocate(
+    VaultCreateParams memory params,
+    AssetLib.Asset[] calldata inputAssets,
+    IStrategy strategy,
+    bytes calldata data
+  ) external payable override whenNotPaused returns (address vault) {
+    vault = Clones.cloneDeterministic(
+      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "2.0"))
+    );
+
+    address sender = _msgSender();
+    address principalToken = params.config.principalToken;
+    uint256 principalAmount = params.principalTokenAmount;
+
+    if (msg.value > 0) {
+      require(principalToken == WETH && principalAmount == msg.value, InvalidPrincipalToken());
+      IWETH9(WETH).deposit{ value: msg.value }();
+      IERC20(WETH).safeTransfer(vault, msg.value);
+    } else if (principalAmount > 0) {
+      IERC20(principalToken).safeTransferFrom(sender, vault, principalAmount);
+    }
+
+    IVault(vault).initialize(params, address(this), owner(), configManager, WETH);
+
+    vaultsByAddress[sender].push(vault);
+    allVaults.push(vault);
+
+    emit VaultCreated(sender, vault, params);
+
+    IVault(vault).allocate(inputAssets, strategy, 0, data);
+    IVault(vault).transferOwnership(sender);
+
+    if (params.principalTokenAmount > 0) IERC20(vault).safeTransfer(sender, IERC20(vault).balanceOf(address(this)));
+  }
+
   /// @notice Pause the contract
   function pause() external onlyOwner {
     _pause();

@@ -135,8 +135,7 @@ contract Vault is
     whenNotPaused
     returns (uint256 shares)
   {
-    require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
-    require(principalAmount != 0, InvalidAssetAmount());
+    require(_msgSender() == vaultOwner || vaultConfig.allowDeposit || principalAmount != 0, DepositNotAllowed());
 
     uint256 length = inventory.assets.length;
 
@@ -649,18 +648,22 @@ contract Vault is
     emit SetVaultConfig(vaultFactory, _config, _vaultOwnerFeeBasisPoint);
   }
 
-  /// @dev Adds multiple assets to the vault
-  /// @param newAssets New assets to add
-  function _addAssets(AssetLib.Asset[] memory newAssets) internal {
-    uint256 length = newAssets.length;
+  /// @notice Transfer ownership of the vault to a new owner
+  /// @param newOwner New owner address
+  function transferOwnership(address newOwner) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(newOwner != address(0), ZeroAddress());
 
-    for (uint256 i; i < length;) {
-      inventory.addAsset(newAssets[i]);
+    emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
 
-      unchecked {
-        i++;
-      }
-    }
+    // Grant admin role to the new owner
+    _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
+    _grantRole(ADMIN_ROLE_HASH, newOwner);
+
+    // Revoke admin role from the current owner
+    _revokeRole(DEFAULT_ADMIN_ROLE, vaultOwner);
+    _revokeRole(ADMIN_ROLE_HASH, vaultOwner);
+
+    vaultOwner = newOwner;
   }
 
   /// @notice Returns the vault's inventory
@@ -707,12 +710,22 @@ contract Vault is
     return super.supportsInterface(interfaceId);
   }
 
-  receive() external payable {
-    require(msg.sender == WETH, InvalidWETH());
-  }
-
   function decimals() public view override returns (uint8) {
     return IERC20Metadata(vaultConfig.principalToken).decimals() + 4;
+  }
+
+  /// @dev Adds multiple assets to the vault
+  /// @param newAssets New assets to add
+  function _addAssets(AssetLib.Asset[] memory newAssets) internal {
+    uint256 length = newAssets.length;
+
+    for (uint256 i; i < length;) {
+      inventory.addAsset(newAssets[i]);
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   function _delegateCallToStrategy(address strategy, bytes memory cData) internal returns (bytes memory returnData) {
@@ -725,5 +738,9 @@ contract Vault is
         revert(add(32, returnData), returnDataSize)
       }
     }
+  }
+
+  receive() external payable {
+    require(msg.sender == WETH, InvalidWETH());
   }
 }
