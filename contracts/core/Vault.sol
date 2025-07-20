@@ -135,7 +135,7 @@ contract Vault is
     whenNotPaused
     returns (uint256 shares)
   {
-    require(_msgSender() == vaultOwner || vaultConfig.allowDeposit || principalAmount != 0, DepositNotAllowed());
+    require((_msgSender() == vaultOwner || vaultConfig.allowDeposit) && principalAmount != 0, DepositNotAllowed());
 
     uint256 length = inventory.assets.length;
 
