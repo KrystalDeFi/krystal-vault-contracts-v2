@@ -964,4 +964,43 @@ contract VaultTest is TestCommon {
     vm.expectRevert(IVault.InvalidAssetStrategy.selector);
     v.harvestPrivate(toHarvest, false, 0, 0);
   }
+
+  function test_transferOwnership() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+
+    address newOwner = address(0xBEEF);
+    // Transfer ownership to newOwner
+    v.transferOwnership(newOwner);
+
+    // Check vaultOwner variable
+    assertEq(v.vaultOwner(), newOwner);
+    // Check roles for newOwner
+    assertTrue(v.hasRole(v.DEFAULT_ADMIN_ROLE(), newOwner));
+    assertTrue(v.hasRole(v.ADMIN_ROLE_HASH(), newOwner));
+    // Check roles for previous owner
+    assertFalse(v.hasRole(v.DEFAULT_ADMIN_ROLE(), USER));
+    assertFalse(v.hasRole(v.ADMIN_ROLE_HASH(), USER));
+  }
+
+  function test_transferOwnership_fail_zeroAddress() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+    vm.expectRevert(ICommon.ZeroAddress.selector);
+    v.transferOwnership(address(0));
+  }
 }

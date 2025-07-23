@@ -32,6 +32,12 @@ error InvalidPrincipalToken()
 function createVault(struct ICommon.VaultCreateParams params) external payable returns (address vault)
 ```
 
+### createVaultAndAllocate
+
+```solidity
+function createVaultAndAllocate(struct ICommon.VaultCreateParams params, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, bytes data) external payable returns (address vault)
+```
+
 ### setConfigManager
 
 ```solidity

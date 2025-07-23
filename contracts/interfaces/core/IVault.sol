@@ -19,6 +19,8 @@ interface IVault is ICommon {
 
   event SetVaultConfig(address indexed vaultFactory, VaultConfig config, uint16 vaultOwnerFeeBasisPoint);
 
+  event VaultOwnerChanged(address indexed vaultFactory, address indexed oldOwner, address indexed newOwner);
+
   error VaultPaused();
   error InvalidAssetToken();
   error InvalidAssetAmount();
@@ -87,6 +89,8 @@ interface IVault is ICommon {
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
   function allowDeposit(VaultConfig calldata _config, uint16 _vaultOwnerFeeBasisPoint) external;
+
+  function transferOwnership(address _newOwner) external;
 
   function getInventory() external view returns (AssetLib.Asset[] memory assets);
 

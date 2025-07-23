@@ -373,19 +373,19 @@ Turn on allow deposit
 | _config | struct ICommon.VaultConfig | New vault config |
 | _vaultOwnerFeeBasisPoint | uint16 | Vault owner fee basis point |
 
-### _addAssets
+### transferOwnership
 
 ```solidity
-function _addAssets(struct AssetLib.Asset[] newAssets) internal
+function transferOwnership(address newOwner) external
 ```
 
-_Adds multiple assets to the vault_
+Transfer ownership of the vault to a new owner
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| newAssets | struct AssetLib.Asset[] | New assets to add |
+| newOwner | address | New owner address |
 
 ### getInventory
 
@@ -426,12 +426,6 @@ Returns the vault's config
 function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
 ```
 
-### receive
-
-```solidity
-receive() external payable
-```
-
 ### decimals
 
 ```solidity
@@ -450,9 +444,29 @@ NOTE: This information is only used for _display_ purposes: it in
 no way affects any of the arithmetic of the contract, including
 {IERC20-balanceOf} and {IERC20-transfer}._
 
+### _addAssets
+
+```solidity
+function _addAssets(struct AssetLib.Asset[] newAssets) internal
+```
+
+_Adds multiple assets to the vault_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| newAssets | struct AssetLib.Asset[] | New assets to add |
+
 ### _delegateCallToStrategy
 
 ```solidity
 function _delegateCallToStrategy(address strategy, bytes cData) internal returns (bytes returnData)
+```
+
+### receive
+
+```solidity
+receive() external payable
 ```
 

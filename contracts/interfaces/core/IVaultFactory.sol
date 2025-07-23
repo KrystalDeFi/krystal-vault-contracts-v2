@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import "../strategies/IStrategy.sol";
 import "../ICommon.sol";
 
 interface IVaultFactory is ICommon {
@@ -13,6 +14,13 @@ interface IVaultFactory is ICommon {
   error InvalidPrincipalToken();
 
   function createVault(VaultCreateParams memory params) external payable returns (address vault);
+
+  function createVaultAndAllocate(
+    VaultCreateParams memory params,
+    AssetLib.Asset[] calldata inputAssets,
+    IStrategy strategy,
+    bytes calldata data
+  ) external payable returns (address vault);
 
   function setConfigManager(address _configManager) external;
 

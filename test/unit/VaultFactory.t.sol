@@ -6,21 +6,30 @@ import { console } from "forge-std/console.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { TestCommon, USER, WETH, DAI, USDC } from "../TestCommon.t.sol";
+import { TestCommon, USER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
 import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+
+import { INonfungiblePositionManager as INFPM } from
+  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
 import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
 import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
 import { Vault } from "../../contracts/core/Vault.sol";
+import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
+import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
 import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
 import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
 
 contract VaultFactoryTest is TestCommon {
   ConfigManager public configManager;
   Vault public vault;
+  LpStrategy public lpStrategy;
+  PoolOptimalSwapper public swapper;
 
   VaultFactory public vaultFactory;
 
@@ -61,6 +70,16 @@ contract VaultFactoryTest is TestCommon {
       new address[](0),
       new bytes[](0)
     );
+    swapper = new PoolOptimalSwapper();
+    address[] memory whitelistNfpms = new address[](1);
+    whitelistNfpms[0] = address(NFPM);
+    LpValidator validator = new LpValidator();
+    validator.initialize(address(this), address(configManager), whitelistNfpms);
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(lpStrategy);
+    configManager.whitelistStrategy(strategies, true);
 
     vault = new Vault();
 
@@ -170,5 +189,96 @@ contract VaultFactoryTest is TestCommon {
 
     assertEq(updatedConfigManager, newConfigManager);
     assertEq(updatedVaultImplementation, newVaultImplementation);
+  }
+
+  function test_createVaultAndAllocate() public {
+    console.log("==== test_createVaultAndAllocate ====");
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    // Prepare VaultCreateParams
+    ICommon.VaultCreateParams memory vaultCreateParams = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "Allocated Vault",
+      symbol: "AV",
+      principalTokenAmount: 1 ether,
+      config: ICommon.VaultConfig({
+        allowDeposit: false,
+        rangeStrategyType: 0,
+        tvlStrategyType: 0,
+        principalToken: WETH,
+        supportedAddresses: new address[](0)
+      })
+    });
+
+    // Approve WETH for transfer
+    IERC20(WETH).approve(address(vaultFactory), 1 ether);
+
+    // Call createVaultAndAllocate
+    address vaultAddress =
+      vaultFactory.createVaultAndAllocate(vaultCreateParams, assets, lpStrategy, abi.encode(instruction));
+
+    // Check vault is created and allocated
+    address[] memory vaultByUser = new address[](1);
+    vaultByUser[0] = vaultFactory.vaultsByAddress(USER, 0);
+    address[] memory allVaults = new address[](1);
+    allVaults[0] = vaultFactory.allVaults(0);
+    assertEq(vaultByUser[0], vaultAddress);
+    assertEq(allVaults[0], vaultAddress);
+
+    Vault vaultInstance = Vault(payable(vaultAddress));
+    address vaultOwner = vaultInstance.vaultOwner();
+    address vaultConfigManager = address(vaultInstance.configManager());
+    (bool allowDeposit, uint8 rangeStrategyType, uint8 tvlStrategyType, address principalToken,,) =
+      vaultInstance.getVaultConfig();
+    ICommon.VaultConfig memory vaultConfig = ICommon.VaultConfig({
+      allowDeposit: allowDeposit,
+      rangeStrategyType: rangeStrategyType,
+      tvlStrategyType: tvlStrategyType,
+      principalToken: principalToken,
+      supportedAddresses: new address[](0)
+    });
+    AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
+    uint256 SHARES_PRECISION = vaultInstance.SHARES_PRECISION();
+
+    // Check ownership and config
+    assertEq(vaultOwner, USER);
+    assertEq(vaultConfigManager, address(configManager));
+    assertEq(vaultConfig.allowDeposit, false);
+    assertEq(vaultConfig.rangeStrategyType, 0);
+    assertEq(vaultConfig.tvlStrategyType, 0);
+    assertEq(vaultConfig.principalToken, WETH);
+    assertEq(vaultInstance.balanceOf(USER), 1 ether * SHARES_PRECISION);
+    assertEq(vaultAssets.length, 2);
+    assertTrue(vaultAssets[0].assetType == AssetLib.AssetType.ERC20);
+    assertEq(vaultAssets[0].token, WETH);
+    assertApproxEqRel(vaultAssets[0].amount, 0.2 ether, TOLERANCE);
+    assertEq(vaultAssets[0].strategy, address(0));
+    assertEq(vaultAssets[0].tokenId, 0);
+    // Check allocation
+    assertTrue(vaultAssets[1].assetType == AssetLib.AssetType.ERC721);
+    assertEq(vaultAssets[1].token, address(NFPM));
+    assertEq(vaultAssets[1].amount, 1);
+    assertEq(vaultAssets[1].strategy, address(lpStrategy));
+
+    uint256 allocatedValue = lpStrategy.valueOf(vaultAssets[1], principalToken);
+    assertApproxEqRel(allocatedValue, 0.8 ether, TOLERANCE);
   }
 }
