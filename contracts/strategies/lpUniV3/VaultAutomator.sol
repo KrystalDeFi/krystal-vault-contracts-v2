@@ -25,7 +25,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
 
   mapping(bytes32 => bool) private _cancelledOrder;
 
-  constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "4.0") {
+  constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "5.0") {
     _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     _grantRole(OPERATOR_ROLE_HASH, _owner);
     for (uint256 i = 0; i < _operators.length; i++) {
@@ -58,6 +58,46 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
       InvalidInstructionType()
     );
     vault.allocate(inputAssets, strategy, gasFeeX64, allocateData);
+  }
+
+  /// @notice Execute an harvest on a Vault
+  /// @param vault Vault
+  /// @param asset Asset to harvest
+  /// @param gasFeeX64 Gas fee in x64 format
+  /// @param amountTokenOutMin Minimum amount of token out
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
+  function executeHarvest(
+    IVault vault,
+    AssetLib.Asset memory asset,
+    uint64 gasFeeX64,
+    uint256 amountTokenOutMin,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    vault.harvest(asset, gasFeeX64, amountTokenOutMin);
+  }
+
+  /// @notice Execute an harvest on a private vault
+  /// @param vault Vault
+  /// @param assets Assets to harvest
+  /// @param unwrap Whether to unwrap the assets
+  /// @param gasFeeX64 Gas fee in x64 format
+  /// @param amountTokenOutMin Minimum amount of token out
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
+  function executeHarvestPrivate(
+    IVault vault,
+    AssetLib.Asset[] memory assets,
+    bool unwrap,
+    uint64 gasFeeX64,
+    uint256 amountTokenOutMin,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    vault.harvestPrivate(assets, unwrap, gasFeeX64, amountTokenOutMin);
   }
 
   /// @notice Execute sweep token

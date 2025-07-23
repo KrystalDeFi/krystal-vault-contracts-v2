@@ -157,3 +157,6 @@ broadcast/
 .DS_Store
 *.tmp
 soljson-latest.js
+
+.generator/
+scripts/eip712/order.ts

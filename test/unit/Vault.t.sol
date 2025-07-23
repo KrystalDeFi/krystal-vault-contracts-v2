@@ -76,7 +76,7 @@ contract VaultTest is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    lpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    lpStrategy = new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
     address[] memory strategies = new address[](1);
     strategies[0] = address(lpStrategy);
     configManager.whitelistStrategy(strategies, true);
@@ -474,7 +474,8 @@ contract VaultTest is TestCommon {
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
-    LpStrategy newLpStrategy = new LpStrategy(address(swapper), address(validator), address(lpFeeTaker));
+    LpStrategy newLpStrategy =
+      new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
 
     console.log("===== remove lpStrategy from whitelist =====");
     address[] memory strategies = new address[](1);
@@ -924,7 +925,7 @@ contract VaultTest is TestCommon {
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
     vm.expectRevert(IVault.Unauthorized.selector);
-    v.harvestPrivate(assets, false, 0);
+    v.harvestPrivate(assets, false, 0, 0);
     vm.stopBroadcast();
     vm.startBroadcast(USER);
   }
@@ -943,7 +944,7 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
     vm.expectRevert(IVault.DepositAllowed.selector);
-    v.harvestPrivate(assets, false, 0);
+    v.harvestPrivate(assets, false, 0, 0);
   }
 
   function test_harvestPrivate_fail_noStrategy() public {
@@ -961,6 +962,6 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory toHarvest = new AssetLib.Asset[](1);
     toHarvest[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
     vm.expectRevert(IVault.InvalidAssetStrategy.selector);
-    v.harvestPrivate(toHarvest, false, 0);
+    v.harvestPrivate(toHarvest, false, 0, 0);
   }
 }

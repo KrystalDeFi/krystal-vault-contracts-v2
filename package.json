@@ -13,7 +13,8 @@
     "docgen": "rm -rf ./docs && hardhat docgen",
     "prettier:check": "prettier --check \"**/*.{json,md,yml}\"",
     "prettier:write": "forge fmt && prettier --write \"**/*.{json,yml}\"",
-    "lint:sol": "solhint \"{script,src,test}/**/*.sol\""
+    "lint:sol": "solhint \"{script,src,test}/**/*.sol\"",
+    "generate:order": "ts-node scripts/eip712/gen-order.ts && ts-node scripts/eip712/gen-sol.ts"
   },
   "dependencies": {
     "@aperture_finance/uni-v3-lib": "^3.0.3",
@@ -69,7 +70,9 @@
     "ts-generator": "^0.1.1",
     "ts-node": ">=8.0.0",
     "typechain": "^8.3.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "@ethersproject/keccak256": "^5.7.0",
+    "viem": "^2.9.26"
   },
   "engines": {
     "node": ">=18.0.0"

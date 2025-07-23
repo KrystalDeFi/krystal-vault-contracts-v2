@@ -460,8 +460,9 @@ export const deployLpStrategyContract = async (
       existingContract?.["lpStrategy"],
       "contracts/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
       undefined,
-      ["address", "address", "address"],
+      ["address", "address", "address", "address"],
       [
+        existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
         existingContract?.["lpFeeTaker"] || contracts?.lpFeeTaker?.target,

@@ -145,6 +145,12 @@ Deposits principal tokens for private vaults
 | ---- | ---- | ----------- |
 | shares | uint256 | Amount of shares minted |
 
+### getFeeConfig
+
+```solidity
+function getFeeConfig(uint64 gasFeeX64) internal view returns (struct ICommon.FeeConfig feeConfig)
+```
+
 ### withdraw
 
 ```solidity
@@ -208,7 +214,7 @@ Allocates un-used assets to the strategy
 ### harvest
 
 ```solidity
-function harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
+function harvest(struct AssetLib.Asset asset, uint64 gasFeeX64, uint256 amountTokenOutMin) external returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 Harvests the assets from the strategy
@@ -218,6 +224,7 @@ Harvests the assets from the strategy
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
+| gasFeeX64 | uint64 | Gas fee with X64 precision |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 
 #### Return Values
@@ -229,7 +236,7 @@ Harvests the assets from the strategy
 ### harvestPrivate
 
 ```solidity
-function harvestPrivate(struct AssetLib.Asset[] assets, bool unwrap, uint256 amountTokenOutMin) external
+function harvestPrivate(struct AssetLib.Asset[] assets, bool unwrap, uint64 gasFeeX64, uint256 amountTokenOutMin) external
 ```
 
 Harvests rewards from a strategy asset and sends to vaultOwner (private vault only)
@@ -240,12 +247,13 @@ Harvests rewards from a strategy asset and sends to vaultOwner (private vault on
 | ---- | ---- | ----------- |
 | assets | struct AssetLib.Asset[] | Assets to harvest |
 | unwrap | bool | Unwrap WETH to ETH |
+| gasFeeX64 | uint64 |  |
 | amountTokenOutMin | uint256 | Minimum amount out by tokenOut |
 
 ### _harvest
 
 ```solidity
-function _harvest(struct AssetLib.Asset asset, uint256 amountTokenOutMin) internal returns (struct AssetLib.Asset[] harvestedAssets)
+function _harvest(struct AssetLib.Asset asset, uint64 gasFeeX64, uint256 amountTokenOutMin) internal returns (struct AssetLib.Asset[] harvestedAssets)
 ```
 
 _Harvests the assets from the strategy_
@@ -255,6 +263,7 @@ _Harvests the assets from the strategy_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | asset | struct AssetLib.Asset | Asset to harvest |
+| gasFeeX64 | uint64 |  |
 | amountTokenOutMin | uint256 | The minimum amount out by tokenOut |
 
 #### Return Values
