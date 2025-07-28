@@ -94,12 +94,12 @@ contract Vault is
     __AccessControl_init();
 
     // Grant roles to owner
-    _grantRole(DEFAULT_ADMIN_ROLE, _owner);
-    _grantRole(ADMIN_ROLE_HASH, _owner);
+    _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+    _grantRole(ADMIN_ROLE_HASH, _msgSender());
 
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
-    vaultOwner = _owner;
+    vaultOwner = _msgSender();
     vaultOwnerFeeBasisPoint = params.vaultOwnerFeeBasisPoint;
     operator = _operator;
     vaultFactory = _msgSender();

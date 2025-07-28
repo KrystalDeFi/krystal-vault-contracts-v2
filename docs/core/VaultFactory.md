@@ -81,6 +81,12 @@ Create a new vault and allocate
 | ---- | ---- | ----------- |
 | vault | address | Address of the new vault |
 
+### _createVault
+
+```solidity
+function _createVault(struct ICommon.VaultCreateParams params) internal returns (address vault)
+```
+
 ### pause
 
 ```solidity
