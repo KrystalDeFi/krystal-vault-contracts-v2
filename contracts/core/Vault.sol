@@ -660,8 +660,8 @@ contract Vault is
     _grantRole(ADMIN_ROLE_HASH, newOwner);
 
     // Revoke admin role from the current owner
-    _revokeRole(DEFAULT_ADMIN_ROLE, vaultOwner);
-    _revokeRole(ADMIN_ROLE_HASH, vaultOwner);
+    _revokeRole(DEFAULT_ADMIN_ROLE, _msgSender());
+    _revokeRole(ADMIN_ROLE_HASH, _msgSender());
 
     vaultOwner = newOwner;
   }
