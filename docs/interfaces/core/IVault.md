@@ -206,18 +206,6 @@ function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint64 gasFe
 function getTotalValue() external view returns (uint256)
 ```
 
-### grantAdminRole
-
-```solidity
-function grantAdminRole(address _address) external
-```
-
-### revokeAdminRole
-
-```solidity
-function revokeAdminRole(address _address) external
-```
-
 ### sweepToken
 
 ```solidity

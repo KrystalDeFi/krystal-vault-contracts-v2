@@ -330,34 +330,6 @@ Sweep ERC1155 tokens to the caller
 | _tokens | address[] | Tokens to sweep |
 | _tokenIds | uint256[] | Token IDs to sweep |
 
-### grantAdminRole
-
-```solidity
-function grantAdminRole(address _address) external
-```
-
-grant admin role to the address
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _address | address | The address to which the admin role is granted |
-
-### revokeAdminRole
-
-```solidity
-function revokeAdminRole(address _address) external
-```
-
-revoke admin role from the address
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _address | address | The address from which the admin role is revoked |
-
 ### allowDeposit
 
 ```solidity
