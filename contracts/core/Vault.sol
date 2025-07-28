@@ -608,18 +608,6 @@ contract Vault is
     }
   }
 
-  /// @notice grant admin role to the address
-  /// @param _address The address to which the admin role is granted
-  function grantAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    grantRole(ADMIN_ROLE_HASH, _address);
-  }
-
-  /// @notice revoke admin role from the address
-  /// @param _address The address from which the admin role is revoked
-  function revokeAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    revokeRole(ADMIN_ROLE_HASH, _address);
-  }
-
   /// @notice Turn on allow deposit
   /// @param _config New vault config
   /// @param _vaultOwnerFeeBasisPoint Vault owner fee basis point

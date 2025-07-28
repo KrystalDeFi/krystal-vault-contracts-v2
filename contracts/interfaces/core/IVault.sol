@@ -78,10 +78,6 @@ interface IVault is ICommon {
 
   function getTotalValue() external view returns (uint256);
 
-  function grantAdminRole(address _address) external;
-
-  function revokeAdminRole(address _address) external;
-
   function sweepToken(address[] calldata tokens) external;
 
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
