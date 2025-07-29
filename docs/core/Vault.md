@@ -371,6 +371,15 @@ Transfer ownership of the vault to a new owner
 function setManagers(address[] _managers, bool[] isManagers) external
 ```
 
+Sets the managers of the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _managers | address[] | Array of manager addresses |
+| isManagers | bool[] | Array of booleans indicating if the address is a manager |
+
 ### getInventory
 
 ```solidity
