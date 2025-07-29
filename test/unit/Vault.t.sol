@@ -982,12 +982,6 @@ contract VaultTest is TestCommon {
 
     // Check vaultOwner variable
     assertEq(v.vaultOwner(), newOwner);
-    // Check roles for newOwner
-    assertTrue(v.hasRole(v.DEFAULT_ADMIN_ROLE(), newOwner));
-    assertTrue(v.hasRole(v.ADMIN_ROLE_HASH(), newOwner));
-    // Check roles for previous owner
-    assertFalse(v.hasRole(v.DEFAULT_ADMIN_ROLE(), USER));
-    assertFalse(v.hasRole(v.ADMIN_ROLE_HASH(), USER));
   }
 
   function test_transferOwnership_fail_zeroAddress() public {

@@ -25,20 +25,12 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
 
-contract Vault is
-  AccessControlUpgradeable,
-  ERC20PermitUpgradeable,
-  ReentrancyGuard,
-  ERC721Holder,
-  ERC1155Holder,
-  IVault
-{
+contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IVault {
   using SafeERC20 for IERC20;
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
   uint16 public constant WITHDRAWAL_FEE = 1; // 0.01%
-  bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
   IConfigManager public configManager;
 
   address public override vaultOwner;
@@ -46,6 +38,8 @@ contract Vault is
   address public operator;
   address public override WETH;
   address public vaultFactory;
+  mapping(address => bool) public managers;
+
   VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
@@ -56,9 +50,15 @@ contract Vault is
     _;
   }
 
-  modifier onlyAdminOrAutomator() {
+  modifier onlyOwner() {
+    require(_msgSender() == vaultOwner, Unauthorized());
+    _;
+  }
+
+  modifier onlyOwnerOrManagerOrAutomator() {
     require(
-      hasRole(ADMIN_ROLE_HASH, _msgSender()) || configManager.isWhitelistedAutomator(_msgSender()), Unauthorized()
+      _msgSender() == vaultOwner || managers[_msgSender()] || configManager.isWhitelistedAutomator(_msgSender()),
+      Unauthorized()
     );
     _;
   }
@@ -91,11 +91,6 @@ contract Vault is
     // Initialize ERC20 and Access Control
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
-    __AccessControl_init();
-
-    // Grant roles to owner
-    _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-    _grantRole(ADMIN_ROLE_HASH, _msgSender());
 
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
@@ -209,7 +204,7 @@ contract Vault is
     payable
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyOwnerOrManagerOrAutomator
     onlyPrivateVault
     returns (uint256 shares)
   {
@@ -348,7 +343,7 @@ contract Vault is
     external
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyOwnerOrManagerOrAutomator
     onlyPrivateVault
     returns (uint256)
   {
@@ -383,7 +378,7 @@ contract Vault is
   /// @param data Data for the strategy
   function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint64 gasFeeX64, bytes calldata data)
     external
-    onlyAdminOrAutomator
+    onlyOwnerOrManagerOrAutomator
     whenNotPaused
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
@@ -447,7 +442,7 @@ contract Vault is
   function harvest(AssetLib.Asset calldata asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
-    onlyAdminOrAutomator
+    onlyOwnerOrManagerOrAutomator
     whenNotPaused
     nonReentrant
     returns (AssetLib.Asset[] memory harvestedAssets)
@@ -466,7 +461,7 @@ contract Vault is
     external
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyOwnerOrManagerOrAutomator
     onlyPrivateVault
   {
     address principalToken = vaultConfig.principalToken;
@@ -614,7 +609,7 @@ contract Vault is
   function allowDeposit(VaultConfig calldata _config, uint16 _vaultOwnerFeeBasisPoint)
     external
     override
-    onlyRole(DEFAULT_ADMIN_ROLE)
+    onlyOwner
     whenNotPaused
   {
     require(!vaultConfig.allowDeposit, InvalidVaultConfig());
@@ -638,20 +633,19 @@ contract Vault is
 
   /// @notice Transfer ownership of the vault to a new owner
   /// @param newOwner New owner address
-  function transferOwnership(address newOwner) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+  function transferOwnership(address newOwner) external override onlyOwner {
     require(newOwner != address(0) && newOwner != _msgSender());
-
-    emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
-
-    // Grant admin role to the new owner
-    _grantRole(DEFAULT_ADMIN_ROLE, newOwner);
-    _grantRole(ADMIN_ROLE_HASH, newOwner);
-
-    // Revoke admin role from the current owner
-    _revokeRole(DEFAULT_ADMIN_ROLE, _msgSender());
-    _revokeRole(ADMIN_ROLE_HASH, _msgSender());
-
     vaultOwner = newOwner;
+    emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
+  }
+
+  function setManagers(address[] calldata _managers, bool[] calldata isManagers) external onlyOwner {
+    for (uint256 i; i < _managers.length;) {
+      managers[_managers[i]] = isManagers[i];
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @notice Returns the vault's inventory
@@ -688,13 +682,7 @@ contract Vault is
     _vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
   }
 
-  function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    virtual
-    override(AccessControlUpgradeable, ERC1155Holder)
-    returns (bool)
-  {
+  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155Holder) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 
