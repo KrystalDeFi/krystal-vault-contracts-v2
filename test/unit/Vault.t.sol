@@ -997,4 +997,103 @@ contract VaultTest is TestCommon {
     vm.expectRevert();
     v.transferOwnership(address(0));
   }
+
+  function test_setManagers() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+    address manager = address(0x1234);
+    address[] memory managersArr = new address[](1);
+    bool[] memory isManagersArr = new bool[](1);
+    managersArr[0] = manager;
+    isManagersArr[0] = true;
+    v.setManagers(managersArr, isManagersArr);
+    assertTrue(v.managers(manager));
+    // Remove manager
+    isManagersArr[0] = false;
+    v.setManagers(managersArr, isManagersArr);
+    assertTrue(!v.managers(manager));
+  }
+
+  function test_allocate_fail_notManager() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    address notManager = address(0xDEAD);
+    vm.stopBroadcast();
+    vm.startBroadcast(notManager);
+    vm.expectRevert(IVault.Unauthorized.selector);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
+
+  function test_allocate_success_manager() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    address manager = address(0x1234);
+    address[] memory managersArr = new address[](1);
+    bool[] memory isManagersArr = new bool[](1);
+    managersArr[0] = manager;
+    isManagersArr[0] = true;
+    vault.setManagers(managersArr, isManagersArr);
+    vm.stopBroadcast();
+    vm.startBroadcast(manager);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
 }
