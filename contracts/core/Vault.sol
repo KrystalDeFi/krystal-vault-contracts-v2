@@ -644,6 +644,9 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     vaultOwner = newOwner;
   }
 
+  /// @notice Sets the managers of the vault
+  /// @param _managers Array of manager addresses
+  /// @param isManagers Array of booleans indicating if the address is a manager
   function setManagers(address[] calldata _managers, bool[] calldata isManagers) external onlyOwner {
     for (uint256 i; i < _managers.length;) {
       managers[_managers[i]] = isManagers[i];
