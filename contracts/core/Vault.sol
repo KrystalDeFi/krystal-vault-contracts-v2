@@ -31,6 +31,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
 
   uint256 public constant SHARES_PRECISION = 1e4;
   uint16 public constant WITHDRAWAL_FEE = 1; // 0.01%
+  
   IConfigManager public configManager;
 
   address public override vaultOwner;
@@ -38,6 +39,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   address public operator;
   address public override WETH;
   address public vaultFactory;
+
   mapping(address => bool) public managers;
 
   VaultConfig private vaultConfig;
@@ -55,7 +57,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     _;
   }
 
-  modifier onlyOwnerOrManagerOrAutomator() {
+  modifier onlyAuthorized() {
     require(
       _msgSender() == vaultOwner || managers[_msgSender()] || configManager.isWhitelistedAutomator(_msgSender()),
       Unauthorized()
@@ -130,7 +132,8 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     whenNotPaused
     returns (uint256 shares)
   {
-    require((_msgSender() == vaultOwner || vaultConfig.allowDeposit) && principalAmount != 0, DepositNotAllowed());
+    require(_msgSender() == vaultOwner || vaultConfig.allowDeposit, DepositNotAllowed());
+    require(principalAmount != 0, InvalidAssetAmount());
 
     uint256 length = inventory.assets.length;
 
@@ -204,7 +207,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     payable
     override
     nonReentrant
-    onlyOwnerOrManagerOrAutomator
+    onlyAuthorized
     onlyPrivateVault
     returns (uint256 shares)
   {
@@ -343,7 +346,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     external
     override
     nonReentrant
-    onlyOwnerOrManagerOrAutomator
+    onlyAuthorized
     onlyPrivateVault
     returns (uint256)
   {
@@ -378,7 +381,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   /// @param data Data for the strategy
   function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint64 gasFeeX64, bytes calldata data)
     external
-    onlyOwnerOrManagerOrAutomator
+    onlyAuthorized
     whenNotPaused
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
@@ -442,7 +445,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   function harvest(AssetLib.Asset calldata asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
-    onlyOwnerOrManagerOrAutomator
+    onlyAuthorized
     whenNotPaused
     nonReentrant
     returns (AssetLib.Asset[] memory harvestedAssets)
@@ -461,7 +464,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     external
     override
     nonReentrant
-    onlyOwnerOrManagerOrAutomator
+    onlyAuthorized
     onlyPrivateVault
   {
     address principalToken = vaultConfig.principalToken;
@@ -634,14 +637,17 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   /// @notice Transfer ownership of the vault to a new owner
   /// @param newOwner New owner address
   function transferOwnership(address newOwner) external override onlyOwner {
-    require(newOwner != address(0) && newOwner != _msgSender());
+    require(newOwner != address(0), ZeroAddress());
+
     vaultOwner = newOwner;
+
     emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
   }
 
   function setManagers(address[] calldata _managers, bool[] calldata isManagers) external onlyOwner {
     for (uint256 i; i < _managers.length;) {
       managers[_managers[i]] = isManagers[i];
+
       unchecked {
         i++;
       }
@@ -682,7 +688,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     _vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
   }
 
-  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155Holder) returns (bool) {
+  function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 
@@ -717,6 +723,6 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   }
 
   receive() external payable {
-    require(msg.sender == WETH, InvalidWETH());
+    require(_msgSender() == WETH, InvalidWETH());
   }
 }

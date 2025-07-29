@@ -74,10 +74,10 @@ modifier onlyOperator()
 modifier onlyOwner()
 ```
 
-### onlyOwnerOrManagerOrAutomator
+### onlyAuthorized
 
 ```solidity
-modifier onlyOwnerOrManagerOrAutomator()
+modifier onlyAuthorized()
 ```
 
 ### onlyPrivateVault
