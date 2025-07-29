@@ -639,7 +639,7 @@ contract Vault is
   /// @notice Transfer ownership of the vault to a new owner
   /// @param newOwner New owner address
   function transferOwnership(address newOwner) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(newOwner != address(0), ZeroAddress());
+    require(newOwner != _msgSender());
 
     emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
 
