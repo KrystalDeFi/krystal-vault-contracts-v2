@@ -14,12 +14,6 @@ uint256 SHARES_PRECISION
 uint16 WITHDRAWAL_FEE
 ```
 
-### ADMIN_ROLE_HASH
-
-```solidity
-bytes32 ADMIN_ROLE_HASH
-```
-
 ### configManager
 
 ```solidity
@@ -56,6 +50,12 @@ address WETH
 address vaultFactory
 ```
 
+### managers
+
+```solidity
+mapping(address => bool) managers
+```
+
 ### lastAllocateBlockNumber
 
 ```solidity
@@ -68,10 +68,16 @@ uint256 lastAllocateBlockNumber
 modifier onlyOperator()
 ```
 
-### onlyAdminOrAutomator
+### onlyOwner
 
 ```solidity
-modifier onlyAdminOrAutomator()
+modifier onlyOwner()
+```
+
+### onlyOwnerOrManagerOrAutomator
+
+```solidity
+modifier onlyOwnerOrManagerOrAutomator()
 ```
 
 ### onlyPrivateVault
@@ -359,6 +365,12 @@ Transfer ownership of the vault to a new owner
 | ---- | ---- | ----------- |
 | newOwner | address | New owner address |
 
+### setManagers
+
+```solidity
+function setManagers(address[] _managers, bool[] isManagers) external
+```
+
 ### getInventory
 
 ```solidity
@@ -397,6 +409,8 @@ Returns the vault's config
 ```solidity
 function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
 ```
+
+_See {IERC165-supportsInterface}._
 
 ### decimals
 
