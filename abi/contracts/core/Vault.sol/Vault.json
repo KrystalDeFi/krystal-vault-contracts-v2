@@ -428,6 +428,31 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address[]",
+        "name": "_managers",
+        "type": "address[]"
+      },
+      {
+        "indexed": true,
+        "internalType": "bool[]",
+        "name": "isManagers",
+        "type": "bool[]"
+      }
+    ],
+    "name": "SetVaultManager",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "from",
         "type": "address"
       },

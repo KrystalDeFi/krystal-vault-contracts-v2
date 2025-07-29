@@ -31,7 +31,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
 
   uint256 public constant SHARES_PRECISION = 1e4;
   uint16 public constant WITHDRAWAL_FEE = 1; // 0.01%
-  
+
   IConfigManager public configManager;
 
   address public override vaultOwner;
@@ -639,9 +639,9 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   function transferOwnership(address newOwner) external override onlyOwner {
     require(newOwner != address(0), ZeroAddress());
 
-    vaultOwner = newOwner;
-
     emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
+
+    vaultOwner = newOwner;
   }
 
   function setManagers(address[] calldata _managers, bool[] calldata isManagers) external onlyOwner {
@@ -652,6 +652,8 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
         i++;
       }
     }
+
+    emit SetVaultManager(vaultFactory, _managers, isManagers);
   }
 
   /// @notice Returns the vault's inventory

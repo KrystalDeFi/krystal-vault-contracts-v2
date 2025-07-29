@@ -44,6 +44,12 @@ event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config, ui
 event VaultOwnerChanged(address vaultFactory, address oldOwner, address newOwner)
 ```
 
+### SetVaultManager
+
+```solidity
+event SetVaultManager(address vaultFactory, address[] _managers, bool[] isManagers)
+```
+
 ### VaultPaused
 
 ```solidity

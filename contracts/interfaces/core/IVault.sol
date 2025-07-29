@@ -21,6 +21,8 @@ interface IVault is ICommon {
 
   event VaultOwnerChanged(address indexed vaultFactory, address indexed oldOwner, address indexed newOwner);
 
+  event SetVaultManager(address indexed vaultFactory, address[] indexed _managers, bool[] indexed isManagers);
+
   error VaultPaused();
   error InvalidAssetToken();
   error InvalidAssetAmount();
