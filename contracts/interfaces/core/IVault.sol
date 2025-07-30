@@ -21,7 +21,7 @@ interface IVault is ICommon {
 
   event VaultOwnerChanged(address indexed vaultFactory, address indexed oldOwner, address indexed newOwner);
 
-  event SetVaultManager(address indexed vaultFactory, address[] indexed _managers, bool[] indexed isManagers);
+  event SetVaultAdmin(address indexed vaultFactory, address indexed _address, bool indexed _isAdmin);
 
   error VaultPaused();
   error InvalidAssetToken();
@@ -79,6 +79,10 @@ interface IVault is ICommon {
   ) external;
 
   function getTotalValue() external view returns (uint256);
+
+  function grantAdminRole(address _address) external;
+
+  function revokeAdminRole(address _address) external;
 
   function sweepToken(address[] calldata tokens) external;
 

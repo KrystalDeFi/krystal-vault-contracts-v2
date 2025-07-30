@@ -380,6 +380,31 @@
         "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bool",
+        "name": "_isAdmin",
+        "type": "bool"
+      }
+    ],
+    "name": "SetVaultAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "bool",
@@ -420,31 +445,6 @@
       }
     ],
     "name": "SetVaultConfig",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vaultFactory",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address[]",
-        "name": "_managers",
-        "type": "address[]"
-      },
-      {
-        "indexed": true,
-        "internalType": "bool[]",
-        "name": "isManagers",
-        "type": "bool[]"
-      }
-    ],
-    "name": "SetVaultManager",
     "type": "event"
   },
   {
@@ -762,6 +762,25 @@
         "internalType": "uint16",
         "name": "",
         "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "admins",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -1140,6 +1159,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "grantAdminRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "enum AssetLib.AssetType",
@@ -1363,25 +1395,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "managers",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "name",
     "outputs": [
@@ -1584,17 +1597,12 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_managers",
-        "type": "address[]"
-      },
-      {
-        "internalType": "bool[]",
-        "name": "isManagers",
-        "type": "bool[]"
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
       }
     ],
-    "name": "setManagers",
+    "name": "revokeAdminRole",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -40,7 +40,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
   address public override WETH;
   address public vaultFactory;
 
-  mapping(address => bool) public managers;
+  mapping(address => bool) public admins;
 
   VaultConfig private vaultConfig;
 
@@ -59,7 +59,7 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
 
   modifier onlyAuthorized() {
     require(
-      _msgSender() == vaultOwner || managers[_msgSender()] || configManager.isWhitelistedAutomator(_msgSender()),
+      _msgSender() == vaultOwner || admins[_msgSender()] || configManager.isWhitelistedAutomator(_msgSender()),
       Unauthorized()
     );
     _;
@@ -606,6 +606,22 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     }
   }
 
+  /// @notice grant admin role to the address
+  /// @param _address The address to which the admin role is granted
+  function grantAdminRole(address _address) external override onlyOwner {
+    admins[_address] = true;
+
+    emit SetVaultAdmin(vaultFactory, _address, true);
+  }
+
+  /// @notice revoke admin role from the address
+  /// @param _address The address from which the admin role is revoked
+  function revokeAdminRole(address _address) external override onlyOwner {
+    admins[_address] = false;
+
+    emit SetVaultAdmin(vaultFactory, _address, false);
+  }
+
   /// @notice Turn on allow deposit
   /// @param _config New vault config
   /// @param _vaultOwnerFeeBasisPoint Vault owner fee basis point
@@ -642,21 +658,6 @@ contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155
     emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
 
     vaultOwner = newOwner;
-  }
-
-  /// @notice Sets the managers of the vault
-  /// @param _managers Array of manager addresses
-  /// @param isManagers Array of booleans indicating if the address is a manager
-  function setManagers(address[] calldata _managers, bool[] calldata isManagers) external onlyOwner {
-    for (uint256 i; i < _managers.length;) {
-      managers[_managers[i]] = isManagers[i];
-
-      unchecked {
-        i++;
-      }
-    }
-
-    emit SetVaultManager(vaultFactory, _managers, isManagers);
   }
 
   /// @notice Returns the vault's inventory

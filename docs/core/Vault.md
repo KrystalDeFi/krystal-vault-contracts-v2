@@ -50,10 +50,10 @@ address WETH
 address vaultFactory
 ```
 
-### managers
+### admins
 
 ```solidity
-mapping(address => bool) managers
+mapping(address => bool) admins
 ```
 
 ### lastAllocateBlockNumber
@@ -336,6 +336,34 @@ Sweep ERC1155 tokens to the caller
 | _tokens | address[] | Tokens to sweep |
 | _tokenIds | uint256[] | Token IDs to sweep |
 
+### grantAdminRole
+
+```solidity
+function grantAdminRole(address _address) external
+```
+
+grant admin role to the address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address to which the admin role is granted |
+
+### revokeAdminRole
+
+```solidity
+function revokeAdminRole(address _address) external
+```
+
+revoke admin role from the address
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _address | address | The address from which the admin role is revoked |
+
 ### allowDeposit
 
 ```solidity
@@ -364,21 +392,6 @@ Transfer ownership of the vault to a new owner
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | newOwner | address | New owner address |
-
-### setManagers
-
-```solidity
-function setManagers(address[] _managers, bool[] isManagers) external
-```
-
-Sets the managers of the vault
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _managers | address[] | Array of manager addresses |
-| isManagers | bool[] | Array of booleans indicating if the address is a manager |
 
 ### getInventory
 

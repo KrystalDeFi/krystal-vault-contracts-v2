@@ -1009,16 +1009,11 @@ contract VaultTest is TestCommon {
     Vault v = new Vault();
     v.initialize(params, USER, USER, address(configManager), WETH);
     address manager = address(0x1234);
-    address[] memory managersArr = new address[](1);
-    bool[] memory isManagersArr = new bool[](1);
-    managersArr[0] = manager;
-    isManagersArr[0] = true;
-    v.setManagers(managersArr, isManagersArr);
-    assertTrue(v.managers(manager));
+    v.grantAdminRole(manager);
+    assertTrue(v.admins(manager));
     // Remove manager
-    isManagersArr[0] = false;
-    v.setManagers(managersArr, isManagersArr);
-    assertTrue(!v.managers(manager));
+    v.revokeAdminRole(manager);
+    assertTrue(!v.admins(manager));
   }
 
   function test_allocate_fail_notManager() public {
@@ -1085,11 +1080,7 @@ contract VaultTest is TestCommon {
 
     vm.roll(block.number + 1);
     address manager = address(0x1234);
-    address[] memory managersArr = new address[](1);
-    bool[] memory isManagersArr = new bool[](1);
-    managersArr[0] = manager;
-    isManagersArr[0] = true;
-    vault.setManagers(managersArr, isManagersArr);
+    vault.grantAdminRole(manager);
     vm.stopBroadcast();
     vm.startBroadcast(manager);
     vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));

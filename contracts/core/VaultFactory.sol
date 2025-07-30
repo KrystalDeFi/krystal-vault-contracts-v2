@@ -69,7 +69,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
 
   function _createVault(VaultCreateParams memory params) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "2.0"))
+      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "3.0"))
     );
 
     address sender = _msgSender();

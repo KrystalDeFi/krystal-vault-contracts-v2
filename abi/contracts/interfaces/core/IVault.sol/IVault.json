@@ -149,6 +149,31 @@
         "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bool",
+        "name": "_isAdmin",
+        "type": "bool"
+      }
+    ],
+    "name": "SetVaultAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "bool",
@@ -189,31 +214,6 @@
       }
     ],
     "name": "SetVaultConfig",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vaultFactory",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address[]",
-        "name": "_managers",
-        "type": "address[]"
-      },
-      {
-        "indexed": true,
-        "internalType": "bool[]",
-        "name": "isManagers",
-        "type": "bool[]"
-      }
-    ],
-    "name": "SetVaultManager",
     "type": "event"
   },
   {
@@ -709,6 +709,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "grantAdminRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "internalType": "enum AssetLib.AssetType",
@@ -927,6 +940,19 @@
       }
     ],
     "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_address",
+        "type": "address"
+      }
+    ],
+    "name": "revokeAdminRole",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

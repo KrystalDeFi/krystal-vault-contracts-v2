@@ -44,10 +44,10 @@ event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config, ui
 event VaultOwnerChanged(address vaultFactory, address oldOwner, address newOwner)
 ```
 
-### SetVaultManager
+### SetVaultAdmin
 
 ```solidity
-event SetVaultManager(address vaultFactory, address[] _managers, bool[] isManagers)
+event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
 ```
 
 ### VaultPaused
@@ -210,6 +210,18 @@ function harvestPrivate(struct AssetLib.Asset[] asset, bool unwrap, uint64 gasFe
 
 ```solidity
 function getTotalValue() external view returns (uint256)
+```
+
+### grantAdminRole
+
+```solidity
+function grantAdminRole(address _address) external
+```
+
+### revokeAdminRole
+
+```solidity
+function revokeAdminRole(address _address) external
 ```
 
 ### sweepToken
