@@ -834,7 +834,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       validator.validatePriceSanity(params.pool);
     }
 
-    IERC20(params.token).approve(address(optimalSwapper), params.amount);
+    _safeResetAndApprove(IERC20(params.token), address(optimalSwapper), params.amount);
     (amountOut, amountInUsed) = optimalSwapper.poolSwap(
       params.pool, params.amount, params.token < params.principalToken, params.amountOutMin, params.swapData
     );
@@ -1006,7 +1006,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @dev check old lp strategy for backward compatibility
   /// This was implemented as a migration method since old lp strategies have a bug
   function _checkAssetStrategy(address strategy) internal view {
-    address[14] memory oldStrategies = [
+    address[15] memory oldStrategies = [
       thisAddress,
       0x2AD2B6fAed8020354608381e29cF301921Cf8028,
       0x6ABE19d89396893fE8d051d982A75971ff1272FE,
@@ -1020,6 +1020,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       0x8e6d632C56dCBbf0D00a5821e8F32A77F190ab00,
       0x1b7c5534190F74782D04142e3A27ECA05563498a,
       0xc38ceD05b5ECbc0C78aa1Fa6Dc2B3AB48F7DD086,
+      0xB236740FF130Bfc38DaDF7F2e9073C9c8f2574CE,
       0x8D4889840a8f8A79E1Bcef8BB385F6327EAee1f6 // from unit test
     ];
     uint256 length = oldStrategies.length;
