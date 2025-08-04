@@ -71,15 +71,15 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     AssetLib.Asset[][] memory tempAssets = new AssetLib.Asset[][](instructions.length);
 
-    uint256 totalLength = 0;
-    uint256 assetIndex = 0;
+    uint256 totalLength;
+    uint256 assetIndex;
 
     for (uint256 i; i < instructions.length;) {
       uint8 assetGroupSize = instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity ? 2 : 1;
 
       AssetLib.Asset[] memory assetsData = new AssetLib.Asset[](assetGroupSize);
 
-      for (uint256 j = 0; j < assetGroupSize;) {
+      for (uint256 j; j < assetGroupSize;) {
         assetsData[j] = assets[assetIndex + j];
 
         unchecked {
@@ -109,10 +109,10 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
     }
 
     returnAssets = new AssetLib.Asset[](totalLength);
-    uint256 k = 0;
-    for (uint256 i = 0; i < tempAssets.length;) {
+    uint256 k;
+    for (uint256 i; i < tempAssets.length;) {
       AssetLib.Asset[] memory arr = tempAssets[i];
-      for (uint256 j = 0; j < arr.length;) {
+      for (uint256 j; j < arr.length;) {
         returnAssets[k] = arr[j];
         unchecked {
           k++;
@@ -133,15 +133,16 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     AssetLib.Asset[][] memory tempAssets = new AssetLib.Asset[][](instructions.length);
 
-    uint256 totalLength = 0;
-    uint256 assetIndex = 0;
+    uint256 totalLength;
+    uint256 assetIndex;
+    uint256 amountToReduce;
 
     for (uint256 i; i < instructions.length;) {
       uint8 assetGroupSize = instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity ? 2 : 1;
 
       AssetLib.Asset[] memory assetsData = new AssetLib.Asset[](assetGroupSize);
 
-      for (uint256 j = 0; j < assetGroupSize;) {
+      for (uint256 j; j < assetGroupSize;) {
         assetsData[j] = assets[assetIndex + j];
 
         unchecked {
@@ -159,28 +160,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
           || instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity
       ) {
         assetsData[0].amount += modifiedParams.addonPrincipalAmount;
-        // reduce the amount of principal token from the tempAssets to ensure the correct amount is used
-        uint256 amountToReduce = modifiedParams.addonPrincipalAmount;
-        for (uint256 j = 0; j < tempAssets.length;) {
-          for (uint256 x = 0; x < tempAssets[j].length;) {
-            if (tempAssets[j][x].token == assetsData[0].token) {
-              if (tempAssets[j][x].amount >= amountToReduce) {
-                tempAssets[j][x].amount -= amountToReduce;
-                break;
-              } else {
-                amountToReduce -= tempAssets[j][x].amount;
-                tempAssets[j][x].amount = 0;
-              }
-            }
-            unchecked {
-              x++;
-            }
-          }
-          unchecked {
-            j++;
-          }
-        }
-        require(amountToReduce == 0, InvalidAsset());
+        amountToReduce += modifiedParams.addonPrincipalAmount;
       }
 
       bytes memory cData = abi.encodeWithSelector(
@@ -202,11 +182,36 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
       }
     }
 
+    if (amountToReduce > 0) {
+      for (uint256 i; i < tempAssets.length;) {
+        for (uint256 j; j < tempAssets[i].length;) {
+          if (tempAssets[i][j].token == vaultConfig.principalToken) {
+            if (tempAssets[i][j].amount >= amountToReduce) {
+              tempAssets[i][j].amount -= amountToReduce;
+              break;
+            } else {
+              amountToReduce -= tempAssets[i][j].amount;
+              tempAssets[i][j].amount = 0;
+            }
+          }
+          unchecked {
+            j++;
+          }
+        }
+        unchecked {
+          i++;
+        }
+      }
+
+      // amountToReduce must be 0 after reducing all principal token amounts from decreased positions
+      require(amountToReduce == 0, InvalidAsset());
+    }
+
     returnAssets = new AssetLib.Asset[](totalLength);
-    uint256 k = 0;
-    for (uint256 i = 0; i < tempAssets.length;) {
+    uint256 k;
+    for (uint256 i; i < tempAssets.length;) {
       AssetLib.Asset[] memory arr = tempAssets[i];
-      for (uint256 j = 0; j < arr.length;) {
+      for (uint256 j; j < arr.length;) {
         returnAssets[k] = arr[j];
         unchecked {
           k++;
@@ -278,7 +283,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   }
 
   function _isIncludedDecrease(ChainingInstruction[] memory instructions) internal pure returns (bool) {
-    for (uint256 i = 0; i < instructions.length;) {
+    for (uint256 i; i < instructions.length;) {
       if (instructions[i].instructionType == InstructionType.DecreaseLiquidityAndSwap) return true;
       unchecked {
         i++;
