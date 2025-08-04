@@ -72,11 +72,6 @@
   },
   {
     "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SignatureExpired",
     "type": "error"
   },
