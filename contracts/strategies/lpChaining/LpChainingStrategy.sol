@@ -80,7 +80,7 @@ contract LpChainingStrategy is ReentrancyGuard, ILpChainingStrategy, ERC721Holde
 
       AssetLib.Asset[] memory assetsData = new AssetLib.Asset[](assetGroupSize);
 
-      for (uint256 j = 0; j < assetGroupSize; j++) {
+      for (uint256 j = 0; j < assetGroupSize;) {
         assetsData[j] = assets[assetIndex + j];
 
         unchecked {
