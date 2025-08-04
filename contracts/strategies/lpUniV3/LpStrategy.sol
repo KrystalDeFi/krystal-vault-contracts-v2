@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -21,7 +20,7 @@ import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/strategies/ILpValidator.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 
-contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
+contract LpStrategy is ILpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
   uint256 internal constant Q64 = 0x10000000000000000;
@@ -87,7 +86,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external payable nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
 
