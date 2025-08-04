@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -12,7 +11,7 @@ import "../../interfaces/strategies/IStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/lpChaining/ILpChainingStrategy.sol";
 
-contract LpChainingStrategy is ReentrancyGuard, ILpChainingStrategy, ERC721Holder {
+contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
   IConfigManager public configManager;
@@ -44,7 +43,7 @@ contract LpChainingStrategy is ReentrancyGuard, ILpChainingStrategy, ERC721Holde
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external payable nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
 
     uint8 instructionType = instruction.instructionType;
@@ -142,7 +141,7 @@ contract LpChainingStrategy is ReentrancyGuard, ILpChainingStrategy, ERC721Holde
 
       AssetLib.Asset[] memory assetsData = new AssetLib.Asset[](assetGroupSize);
 
-      for (uint256 j = 0; j < assetGroupSize; j++) {
+      for (uint256 j = 0; j < assetGroupSize;) {
         assetsData[j] = assets[assetIndex + j];
 
         unchecked {
@@ -279,8 +278,11 @@ contract LpChainingStrategy is ReentrancyGuard, ILpChainingStrategy, ERC721Holde
   }
 
   function _isIncludedDecrease(ChainingInstruction[] memory instructions) internal pure returns (bool) {
-    for (uint256 i = 0; i < instructions.length; i++) {
+    for (uint256 i = 0; i < instructions.length;) {
       if (instructions[i].instructionType == InstructionType.DecreaseLiquidityAndSwap) return true;
+      unchecked {
+        i++;
+      }
     }
     return false;
   }
