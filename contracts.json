@@ -1,6 +1,6 @@
 {
   "arbitrum_mainnet": {
-    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -8,7 +8,7 @@
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
-    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "base_mainnet": {
@@ -24,7 +24,7 @@
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "bsc_mainnet": {
-    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -32,11 +32,11 @@
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
-    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "eth_mainnet": {
-    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -44,11 +44,11 @@
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
-    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "polygon_mainnet": {
-    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x6d993f3035a343bf10109c61266c5fc4d37a714d",
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
@@ -56,7 +56,7 @@
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
-    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
   "berachain_mainnet": {
@@ -71,7 +71,7 @@
     "kodiakIslandStrategy": "0x9c0fc30b1e9c609e824d3bc7611832f84b79ce1b"
   },
   "ronin_mainnet": {
-    "vault": "0x2ea15461394160b280769d4cccafe09822bd41c0",
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
     "poolOptimalSwapper": "0x85ac4167b2190bb4ad3b86d39c30846779258742",
     "configManager": "0x3775e4b7737c9e8c12e5ea742298d054cd2beb9c",
@@ -79,7 +79,7 @@
     "lpFeeTaker": "0xa795d9d4Aa65B3DdC577Ad2c907Dc7b62de725a8",
     "merklAutomator": "0x74894d2c2ee68883b464ee855c39418a16e5d3b5",
     "lpStrategy": "0x1f10503b156c45a970090197ef62dbd133f56086",
-    "vaultFactory": "0x3a35f9fef2ba83702b6e20d79fff96f77c922cf3",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x9f6fd6f112f09e0b1a96cdaf6b62bb07659ce3ef"
   }
 }
