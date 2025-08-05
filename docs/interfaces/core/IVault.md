@@ -38,6 +38,18 @@ event VaultHarvestPrivate(address vaultFactory, address owner, uint256 principal
 event SetVaultConfig(address vaultFactory, struct ICommon.VaultConfig config, uint16 vaultOwnerFeeBasisPoint)
 ```
 
+### VaultOwnerChanged
+
+```solidity
+event VaultOwnerChanged(address vaultFactory, address oldOwner, address newOwner)
+```
+
+### SetVaultAdmin
+
+```solidity
+event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
+```
+
 ### VaultPaused
 
 ```solidity
@@ -234,6 +246,12 @@ function sweepERC1155(address[] _tokens, uint256[] _tokenIds) external
 
 ```solidity
 function allowDeposit(struct ICommon.VaultConfig _config, uint16 _vaultOwnerFeeBasisPoint) external
+```
+
+### transferOwnership
+
+```solidity
+function transferOwnership(address _newOwner) external
 ```
 
 ### getInventory

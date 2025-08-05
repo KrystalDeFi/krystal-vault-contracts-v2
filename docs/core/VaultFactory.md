@@ -58,6 +58,35 @@ Create a new vault
 | ---- | ---- | ----------- |
 | vault | address | Address of the new vault |
 
+### createVaultAndAllocate
+
+```solidity
+function createVaultAndAllocate(struct ICommon.VaultCreateParams params, struct AssetLib.Asset[] inputAssets, contract IStrategy strategy, bytes data) external payable returns (address vault)
+```
+
+Create a new vault and allocate
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| params | struct ICommon.VaultCreateParams | Vault creation parameters |
+| inputAssets | struct AssetLib.Asset[] | Assets to allocate |
+| strategy | contract IStrategy | Strategy to use for allocation |
+| data | bytes | Additional data for allocation |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | address | Address of the new vault |
+
+### _createVault
+
+```solidity
+function _createVault(struct ICommon.VaultCreateParams params) internal returns (address vault)
+```
+
 ### pause
 
 ```solidity

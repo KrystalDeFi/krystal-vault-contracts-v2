@@ -25,20 +25,13 @@ import "../interfaces/core/IVault.sol";
 import "../interfaces/core/IConfigManager.sol";
 import { IWETH9 } from "../interfaces/IWETH9.sol";
 
-contract Vault is
-  AccessControlUpgradeable,
-  ERC20PermitUpgradeable,
-  ReentrancyGuard,
-  ERC721Holder,
-  ERC1155Holder,
-  IVault
-{
+contract Vault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IVault {
   using SafeERC20 for IERC20;
   using InventoryLib for InventoryLib.Inventory;
 
   uint256 public constant SHARES_PRECISION = 1e4;
   uint16 public constant WITHDRAWAL_FEE = 1; // 0.01%
-  bytes32 public constant ADMIN_ROLE_HASH = keccak256("ADMIN_ROLE");
+
   IConfigManager public configManager;
 
   address public override vaultOwner;
@@ -46,6 +39,9 @@ contract Vault is
   address public operator;
   address public override WETH;
   address public vaultFactory;
+
+  mapping(address => bool) public admins;
+
   VaultConfig private vaultConfig;
 
   InventoryLib.Inventory private inventory;
@@ -56,9 +52,15 @@ contract Vault is
     _;
   }
 
-  modifier onlyAdminOrAutomator() {
+  modifier onlyOwner() {
+    require(_msgSender() == vaultOwner, Unauthorized());
+    _;
+  }
+
+  modifier onlyAuthorized() {
     require(
-      hasRole(ADMIN_ROLE_HASH, _msgSender()) || configManager.isWhitelistedAutomator(_msgSender()), Unauthorized()
+      _msgSender() == vaultOwner || admins[_msgSender()] || configManager.isWhitelistedAutomator(_msgSender()),
+      Unauthorized()
     );
     _;
   }
@@ -91,15 +93,10 @@ contract Vault is
     // Initialize ERC20 and Access Control
     __ERC20_init(params.name, params.symbol);
     __ERC20Permit_init(params.name);
-    __AccessControl_init();
-
-    // Grant roles to owner
-    _grantRole(DEFAULT_ADMIN_ROLE, _owner);
-    _grantRole(ADMIN_ROLE_HASH, _owner);
 
     // Cache variables to minimize storage writes
     configManager = IConfigManager(_configManager);
-    vaultOwner = _owner;
+    vaultOwner = _msgSender();
     vaultOwnerFeeBasisPoint = params.vaultOwnerFeeBasisPoint;
     operator = _operator;
     vaultFactory = _msgSender();
@@ -210,7 +207,7 @@ contract Vault is
     payable
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyAuthorized
     onlyPrivateVault
     returns (uint256 shares)
   {
@@ -349,7 +346,7 @@ contract Vault is
     external
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyAuthorized
     onlyPrivateVault
     returns (uint256)
   {
@@ -384,7 +381,7 @@ contract Vault is
   /// @param data Data for the strategy
   function allocate(AssetLib.Asset[] calldata inputAssets, IStrategy strategy, uint64 gasFeeX64, bytes calldata data)
     external
-    onlyAdminOrAutomator
+    onlyAuthorized
     whenNotPaused
   {
     require(configManager.isWhitelistedStrategy(address(strategy)), InvalidStrategy());
@@ -448,7 +445,7 @@ contract Vault is
   function harvest(AssetLib.Asset calldata asset, uint64 gasFeeX64, uint256 amountTokenOutMin)
     external
     override
-    onlyAdminOrAutomator
+    onlyAuthorized
     whenNotPaused
     nonReentrant
     returns (AssetLib.Asset[] memory harvestedAssets)
@@ -467,7 +464,7 @@ contract Vault is
     external
     override
     nonReentrant
-    onlyAdminOrAutomator
+    onlyAuthorized
     onlyPrivateVault
   {
     address principalToken = vaultConfig.principalToken;
@@ -611,14 +608,18 @@ contract Vault is
 
   /// @notice grant admin role to the address
   /// @param _address The address to which the admin role is granted
-  function grantAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    grantRole(ADMIN_ROLE_HASH, _address);
+  function grantAdminRole(address _address) external override onlyOwner {
+    admins[_address] = true;
+
+    emit SetVaultAdmin(vaultFactory, _address, true);
   }
 
   /// @notice revoke admin role from the address
   /// @param _address The address from which the admin role is revoked
-  function revokeAdminRole(address _address) external override onlyRole(DEFAULT_ADMIN_ROLE) {
-    revokeRole(ADMIN_ROLE_HASH, _address);
+  function revokeAdminRole(address _address) external override onlyOwner {
+    admins[_address] = false;
+
+    emit SetVaultAdmin(vaultFactory, _address, false);
   }
 
   /// @notice Turn on allow deposit
@@ -627,7 +628,7 @@ contract Vault is
   function allowDeposit(VaultConfig calldata _config, uint16 _vaultOwnerFeeBasisPoint)
     external
     override
-    onlyRole(DEFAULT_ADMIN_ROLE)
+    onlyOwner
     whenNotPaused
   {
     require(!vaultConfig.allowDeposit, InvalidVaultConfig());
@@ -649,18 +650,14 @@ contract Vault is
     emit SetVaultConfig(vaultFactory, _config, _vaultOwnerFeeBasisPoint);
   }
 
-  /// @dev Adds multiple assets to the vault
-  /// @param newAssets New assets to add
-  function _addAssets(AssetLib.Asset[] memory newAssets) internal {
-    uint256 length = newAssets.length;
+  /// @notice Transfer ownership of the vault to a new owner
+  /// @param newOwner New owner address
+  function transferOwnership(address newOwner) external override onlyOwner {
+    require(newOwner != address(0), ZeroAddress());
 
-    for (uint256 i; i < length;) {
-      inventory.addAsset(newAssets[i]);
+    emit VaultOwnerChanged(vaultFactory, vaultOwner, newOwner);
 
-      unchecked {
-        i++;
-      }
-    }
+    vaultOwner = newOwner;
   }
 
   /// @notice Returns the vault's inventory
@@ -697,22 +694,26 @@ contract Vault is
     _vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
   }
 
-  function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    virtual
-    override(AccessControlUpgradeable, ERC1155Holder)
-    returns (bool)
-  {
+  function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
     return super.supportsInterface(interfaceId);
-  }
-
-  receive() external payable {
-    require(msg.sender == WETH, InvalidWETH());
   }
 
   function decimals() public view override returns (uint8) {
     return IERC20Metadata(vaultConfig.principalToken).decimals() + 4;
+  }
+
+  /// @dev Adds multiple assets to the vault
+  /// @param newAssets New assets to add
+  function _addAssets(AssetLib.Asset[] memory newAssets) internal {
+    uint256 length = newAssets.length;
+
+    for (uint256 i; i < length;) {
+      inventory.addAsset(newAssets[i]);
+
+      unchecked {
+        i++;
+      }
+    }
   }
 
   function _delegateCallToStrategy(address strategy, bytes memory cData) internal returns (bytes memory returnData) {
@@ -725,5 +726,9 @@ contract Vault is
         revert(add(32, returnData), returnDataSize)
       }
     }
+  }
+
+  receive() external payable {
+    require(_msgSender() == WETH, InvalidWETH());
   }
 }

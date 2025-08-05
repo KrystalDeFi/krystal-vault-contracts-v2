@@ -964,4 +964,127 @@ contract VaultTest is TestCommon {
     vm.expectRevert(IVault.InvalidAssetStrategy.selector);
     v.harvestPrivate(toHarvest, false, 0, 0);
   }
+
+  function test_transferOwnership() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+
+    address newOwner = address(0xBEEF);
+    // Transfer ownership to newOwner
+    v.transferOwnership(newOwner);
+
+    // Check vaultOwner variable
+    assertEq(v.vaultOwner(), newOwner);
+  }
+
+  function test_transferOwnership_fail_zeroAddress() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+    vm.expectRevert();
+    v.transferOwnership(address(0));
+  }
+
+  function test_setManagers() public {
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "TestVault",
+      symbol: "TV",
+      principalTokenAmount: 1 ether,
+      config: vaultConfig
+    });
+    Vault v = new Vault();
+    v.initialize(params, USER, USER, address(configManager), WETH);
+    address manager = address(0x1234);
+    v.grantAdminRole(manager);
+    assertTrue(v.admins(manager));
+    // Remove manager
+    v.revokeAdminRole(manager);
+    assertTrue(!v.admins(manager));
+  }
+
+  function test_allocate_fail_notManager() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    address notManager = address(0xDEAD);
+    vm.stopBroadcast();
+    vm.startBroadcast(notManager);
+    vm.expectRevert(IVault.Unauthorized.selector);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
+
+  function test_allocate_success_manager() public {
+    assertEq(IERC20(vault).balanceOf(USER), 0.5 ether * vault.SHARES_PRECISION());
+
+    vm.deal(USER, 100 ether);
+    vault.deposit{ value: 0.5 ether }(0.5 ether, 0);
+    console.log("vault.getTotalValue(): %d", vault.getTotalValue());
+    assertEq(IERC20(vault).balanceOf(USER), 1 ether * vault.SHARES_PRECISION());
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
+    ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(NFPM),
+      token0: WETH,
+      token1: USDC,
+      fee: 500,
+      tickLower: -887_220,
+      tickUpper: 887_200,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
+      params: abi.encode(params)
+    });
+
+    vm.roll(block.number + 1);
+    address manager = address(0x1234);
+    vault.grantAdminRole(manager);
+    vm.stopBroadcast();
+    vm.startBroadcast(manager);
+    vault.allocate(assets, lpStrategy, 0, abi.encode(instruction));
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
+  }
 }

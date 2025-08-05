@@ -45,8 +45,31 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
   function createVault(VaultCreateParams memory params) external payable override whenNotPaused returns (address vault) {
+    vault = _createVault(params);
+    IVault(vault).transferOwnership(_msgSender());
+  }
+
+  /// @notice Create a new vault and allocate
+  /// @param params Vault creation parameters
+  /// @param inputAssets Assets to allocate
+  /// @param strategy Strategy to use for allocation
+  /// @param data Additional data for allocation
+  /// @return vault Address of the new vault
+  function createVaultAndAllocate(
+    VaultCreateParams memory params,
+    AssetLib.Asset[] calldata inputAssets,
+    IStrategy strategy,
+    bytes calldata data
+  ) external payable override whenNotPaused returns (address vault) {
+    vault = _createVault(params);
+
+    IVault(vault).allocate(inputAssets, strategy, 0, data);
+    IVault(vault).transferOwnership(_msgSender());
+  }
+
+  function _createVault(VaultCreateParams memory params) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "2.0"))
+      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "3.0"))
     );
 
     address sender = _msgSender();
