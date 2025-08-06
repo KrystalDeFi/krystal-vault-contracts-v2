@@ -14,7 +14,7 @@ import "../../interfaces/strategies/lpChaining/ILpChainingStrategy.sol";
 contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
-  IConfigManager public configManager;
+  IConfigManager public immutable configManager;
 
   constructor(address _configManager) {
     require(_configManager != address(0), ZeroAddress());
