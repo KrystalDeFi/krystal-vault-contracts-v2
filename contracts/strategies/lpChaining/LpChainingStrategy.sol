@@ -100,6 +100,11 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
 
       assetIndex += assetGroupSize;
 
+      if (
+        instructions[i].instructionType == InstructionType.SwapAndMintPosition
+          || instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity
+      ) require(assetsData[0].token == vaultConfig.principalToken, InvalidAsset());
+
       bytes memory cData = abi.encodeWithSelector(
         IStrategy.convert.selector,
         assetsData,
