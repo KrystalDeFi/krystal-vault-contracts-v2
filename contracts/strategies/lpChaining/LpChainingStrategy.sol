@@ -188,6 +188,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
           if (tempAssets[i][j].token == vaultConfig.principalToken) {
             if (tempAssets[i][j].amount >= amountToReduce) {
               tempAssets[i][j].amount -= amountToReduce;
+              amountToReduce = 0;
               break;
             } else {
               amountToReduce -= tempAssets[i][j].amount;
@@ -285,6 +286,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
   function _isIncludedDecrease(ChainingInstruction[] memory instructions) internal pure returns (bool) {
     for (uint256 i; i < instructions.length;) {
       if (instructions[i].instructionType == InstructionType.DecreaseLiquidityAndSwap) return true;
+
       unchecked {
         i++;
       }
