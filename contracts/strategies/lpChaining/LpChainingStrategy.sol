@@ -201,12 +201,14 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
     }
 
     if (amountToReduce > 0) {
-      for (uint256 i; i < tempAssets.length;) {
-        for (uint256 j; j < tempAssets[i].length;) {
+      bool done;
+      for (uint256 i; i < tempAssets.length && !done;) {
+        for (uint256 j; j < tempAssets[i].length && !done;) {
           if (tempAssets[i][j].token == vaultConfig.principalToken) {
             if (tempAssets[i][j].amount >= amountToReduce) {
               tempAssets[i][j].amount -= amountToReduce;
               amountToReduce = 0;
+              done = true;
               break;
             } else {
               amountToReduce -= tempAssets[i][j].amount;
