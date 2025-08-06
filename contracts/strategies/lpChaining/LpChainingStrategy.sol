@@ -50,6 +50,17 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
 
     ChainingInstruction[] memory instructions = abi.decode(instruction.params, (ChainingInstruction[]));
 
+    uint256 increaseInstructionCount;
+    for (uint256 i; i < instructions.length;) {
+      if (instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity) increaseInstructionCount++;
+
+      unchecked {
+        i++;
+      }
+    }
+
+    require(instructions.length == assets.length - increaseInstructionCount, InvalidNumberOfAssets());
+
     if (instructionType == uint8(ChainingInstructionType.Batch)) {
       require(!_isIncludedDecrease(instructions), InvalidInstructionType());
 
@@ -159,6 +170,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
         instructions[i].instructionType == InstructionType.SwapAndMintPosition
           || instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity
       ) {
+        require(assetsData[0].token == vaultConfig.principalToken, InvalidAsset());
         assetsData[0].amount += modifiedParams.addonPrincipalAmount;
         amountToReduce += modifiedParams.addonPrincipalAmount;
       }
