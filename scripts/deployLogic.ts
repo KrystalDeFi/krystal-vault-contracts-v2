@@ -17,6 +17,7 @@ import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
 import { KatanaLpFeeTaker, KatanaPoolOptimalSwapper } from "../typechain-types/contracts/strategies/roninKatanaV3";
+import { LpChainingStrategy } from "../typechain-types/contracts/strategies/lpChaining";
 
 const { SALT } = process.env;
 
@@ -36,6 +37,7 @@ export interface Contracts {
   lpValidator?: LpValidator;
   lpFeeTaker?: LpFeeTaker | KatanaLpFeeTaker;
   lpStrategy?: LpStrategy;
+  lpChainingStrategy?: LpChainingStrategy;
   merklStrategy?: MerklStrategy;
   merklAutomator?: MerklAutomator;
   vaultFactory?: VaultFactory;
@@ -96,12 +98,14 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, undefined, contracts);
+  const lpChainingStrategy = await deployLpChainingStrategyContract(++step, existingContract, undefined, contracts);
   const merklStrategy = await deployMerklStrategyContract(++step, existingContract, undefined, contracts);
   const vaultFactory = await deployVaultFactoryContract(++step, existingContract, undefined, contracts);
   const kodiakIslandStrategy = await deployKodiakIslandStrategyContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpStrategy: lpStrategy.lpStrategy,
+    lpChainingStrategy: lpChainingStrategy.lpChainingStrategy,
     vaultFactory: vaultFactory.vaultFactory,
     merklStrategy: merklStrategy.merklStrategy,
     kodiakIslandStrategy: kodiakIslandStrategy.kodiakIslandStrategy,
@@ -178,6 +182,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
       isRonin ? commonConfig.roninAdmin : commonConfig.admin,
       [
         existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
+        existingContract?.["lpChainingStrategy"] || contracts?.lpChainingStrategy?.target,
         existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
         existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target,
       ]?.filter(Boolean),
@@ -471,6 +476,32 @@ export const deployLpStrategyContract = async (
   }
   return {
     lpStrategy,
+  };
+};
+
+export const deployLpChainingStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpChainingStrategy;
+  if (config.lpChainingStrategy?.enabled) {
+    lpChainingStrategy = (await deployContract(
+      `${step} >>`,
+      config.lpChainingStrategy?.autoVerifyContract,
+      "LpChainingStrategy",
+      existingContract?.["lpChainingStrategy"],
+      "contracts/strategies/lpChaining/LpChainingStrategy.sol:LpChainingStrategy",
+      undefined,
+      ["address"],
+      [existingContract?.["configManager"] || contracts?.configManager?.target],
+    )) as LpChainingStrategy;
+  }
+  return {
+    lpChainingStrategy,
   };
 };
 

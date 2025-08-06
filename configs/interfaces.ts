@@ -43,6 +43,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  lpChainingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   merklStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
