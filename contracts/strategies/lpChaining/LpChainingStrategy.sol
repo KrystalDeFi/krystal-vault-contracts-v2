@@ -52,6 +52,7 @@ contract LpChainingStrategy is ILpChainingStrategy, ERC721Holder {
 
     uint256 increaseInstructionCount;
     for (uint256 i; i < instructions.length;) {
+      require(configManager.isWhitelistedStrategy(instructions[i].strategy), InvalidStrategy());
       if (instructions[i].instructionType == InstructionType.SwapAndIncreaseLiquidity) increaseInstructionCount++;
 
       unchecked {
