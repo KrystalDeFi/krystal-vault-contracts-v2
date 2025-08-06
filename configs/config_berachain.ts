@@ -31,6 +31,10 @@ export const BerachainConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    lpChainingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     merklStrategy: {
       enabled: false,
       autoVerifyContract: true,

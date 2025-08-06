@@ -35,6 +35,10 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    lpChainingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     merklStrategy: {
       enabled: true,
       autoVerifyContract: true,
