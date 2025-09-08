@@ -355,21 +355,21 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
+    assertEq(vaultAssets.length, 3);
     assertApproxEqRel(vaultAssets[0].amount, 599_938_178_992_524_679, TOLERANCE);
     assertEq(vaultAssets[0].token, WHYPE);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_399_852_099_737_301_014, TOLERANCE);
 
     {
       // User can compound 1 specific LP
       AssetLib.Asset[] memory compoundAssets = new AssetLib.Asset[](1);
-      compoundAssets[0] = vaultAssets[1];
+      compoundAssets[0] = vaultAssets[2];
       ILpStrategy.SwapAndCompoundParams memory compoundParams =
         ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
       ICommon.Instruction memory compoundInstruction = ICommon.Instruction({
@@ -381,15 +381,15 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
+    assertEq(vaultAssets.length, 3);
     assertApproxEqRel(vaultAssets[0].amount, 599_938_178_992_524_679, TOLERANCE);
     assertEq(vaultAssets[0].token, WHYPE);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_399_852_099_737_301_014, TOLERANCE);
 
     console.log("==== test_allowDepositVaultRevert ====");
@@ -414,7 +414,7 @@ contract IntegrationTest is TestCommon {
     {
       // User can Allow Deposit with proper Vault Config
       // Existing assets should follow the vault config
-      (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultAssets[2].tokenId);
       address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
       address[] memory supportedAddresses = new address[](1);
       supportedAddresses[0] = pool;
@@ -449,15 +449,15 @@ contract IntegrationTest is TestCommon {
       userVaultSharesBefore - IERC20(vaultInstance).balanceOf(USER), 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
     assertApproxEqRel(IERC20(WHYPE).balanceOf(address(vaultInstance)), 0.45 ether, TOLERANCE);
-    assertEq(vaultAssets.length, 2);
+    assertEq(vaultAssets.length, 3);
     assertApproxEqRel(vaultAssets[0].amount, 0.45 ether, TOLERANCE);
     assertEq(vaultAssets[0].token, WHYPE);
     assertEq(vaultAssets[0].tokenId, 0);
     assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    assertEq(vaultAssets[2].amount, 1);
+    assertEq(vaultAssets[2].token, NFPM);
+    assertEq(vaultAssets[2].strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[2], WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1.05 ether, TOLERANCE);
 
     // Burn all shares
