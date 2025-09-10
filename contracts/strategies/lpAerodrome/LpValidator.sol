@@ -7,7 +7,7 @@ import "../../interfaces/core/IConfigManager.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+  "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";

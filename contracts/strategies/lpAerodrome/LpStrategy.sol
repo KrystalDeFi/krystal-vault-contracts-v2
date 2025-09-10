@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
+  "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
+import { ICLFactory } from "../../interfaces/strategies/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../interfaces/strategies/aerodrome/ICLPool.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";
@@ -58,9 +58,9 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   {
     (uint256 amount0, uint256 amount1) = _getAmountsForPosition(INFPM(asset.token), asset.tokenId);
     (uint256 fee0, uint256 fee1) = _getFeesForPosition(INFPM(asset.token), asset.tokenId);
-    (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
+    (,, address token0, address token1, int24 tickSpacing,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
 
-    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(token0, token1, fee);
+    address pool = ICLFactory(INFPM(asset.token).factory()).getPool(token0, token1, tickSpacing);
     uint160 sqrtPriceX96;
     (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ExternalCallFailed());
@@ -157,8 +157,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       INFPM.CollectParams(asset.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
 
-    (,, address pToken, address swapToken, uint24 fee,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
-    address pool = IUniswapV3Factory(INFPM(asset.token).factory()).getPool(pToken, swapToken, fee);
+    (,, address pToken, address swapToken, int24 tickSpacing,,,,,,,) = INFPM(asset.token).positions(asset.tokenId);
+    address pool = ICLFactory(INFPM(asset.token).factory()).getPool(pToken, swapToken, tickSpacing);
     if (tokenOut == swapToken) {
       (principalAmount, swapAmount) = (swapAmount, principalAmount);
       swapToken = pToken;
@@ -216,14 +216,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 principalTokenAmount,
     VaultConfig calldata vaultConfig
   ) external payable returns (AssetLib.Asset[] memory) {
-    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
+    (,, address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(existingAsset.token).positions(existingAsset.tokenId);
     address otherToken = (token0 == vaultConfig.principalToken) ? token1 : token0;
 
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
       SwapFromPrincipalParams({
         principalTokenAmount: principalTokenAmount,
-        pool: IUniswapV3Factory(INFPM(existingAsset.token).factory()).getPool(token0, token1, fee),
+        pool: ICLFactory(INFPM(existingAsset.token).factory()).getPool(token0, token1, tickSpacing),
         principalToken: vaultConfig.principalToken,
         otherToken: otherToken,
         tickLower: tickLower,
@@ -259,7 +259,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     INFPM nfpm = INFPM(existingAsset.token);
     uint256 tokenId = existingAsset.tokenId;
-    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
+    (,, address token0, address token1, int24 tickSpacing,,, uint128 liquidity,,,,) = nfpm.positions(tokenId);
 
     liquidity = uint128(FullMath.mulDiv(shares, liquidity, totalSupply));
     returnAssets = _decreaseLiquidity(
@@ -268,7 +268,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (uint256 indexOfPrincipalAsset, uint256 indexOfOtherToken) =
       returnAssets[0].token == config.principalToken ? (0, 1) : (1, 0);
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+    address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
 
     if (returnAssets[indexOfOtherToken].amount > 0) {
       (uint256 amountOut, uint256 amountInUsed) = _swapToPrincipal(
@@ -334,11 +334,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     if (vaultConfig.allowDeposit) {
       validator.validateConfig(
-        params.nfpm, params.feeOrTickSpacing, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
+        params.nfpm,
+        params.feeOrTickSpacing,
+        params.token0,
+        params.token1,
+        params.tickLower,
+        params.tickUpper,
+        vaultConfig
       );
     }
 
-    address pool = IUniswapV3Factory(INFPM(params.nfpm).factory()).getPool(params.token0, params.token1, params.feeOrTickSpacing);
+    address pool = ICLFactory(INFPM(params.nfpm).factory()).getPool(
+      params.token0, params.token1, int24(uint24(params.feeOrTickSpacing))
+    );
     address principalToken = vaultConfig.principalToken;
     address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
@@ -397,7 +405,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       INFPM.MintParams(
         token0.token,
         token1.token,
-        params.feeOrTickSpacing,
+        int24(uint24(params.feeOrTickSpacing)),
         params.tickLower,
         params.tickUpper,
         token0.amount,
@@ -405,7 +413,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         params.amount0Min,
         params.amount1Min,
         address(this),
-        block.timestamp
+        block.timestamp,
+        uint160(0) // sqrtPriceX96 - required in Aerodrome Slipstream
       )
     );
 
@@ -461,17 +470,17 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 amount1;
     {
       // avoid stack too deep
-      uint24 fee;
+      int24 tickSpacing;
       int24 tickLower;
       int24 tickUpper;
-      (,, token0, token1, fee, tickLower, tickUpper,,,,,) = nfpm.positions(lpAsset.tokenId);
+      (,, token0, token1, tickSpacing, tickLower, tickUpper,,,,,) = nfpm.positions(lpAsset.tokenId);
       address principalToken = vaultConfig.principalToken;
       address otherToken = token0 == principalToken ? token1 : token0;
       bytes memory swapData = params.swapData;
       (amount0, amount1) = _optimalSwapFromPrincipal(
         SwapFromPrincipalParams({
           principalTokenAmount: asset0.amount,
-          pool: IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee),
+          pool: ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing),
           principalToken: principalToken,
           otherToken: otherToken,
           tickLower: tickLower,
@@ -593,12 +602,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     INFPM nfpm = INFPM(lpAsset.token);
     uint256 tokenId = lpAsset.tokenId;
 
-    (,, address token0, address token1, uint24 fee,,, uint160 posLiquidity,,,,) = nfpm.positions(tokenId);
+    (,, address token0, address token1, int24 tickSpacing,,, uint128 posLiquidity,,,,) =
+      nfpm.positions(tokenId);
 
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
 
-    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
+    address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
     {
       (uint256 fee0, uint256 fee1) =
         _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool, allowDeposit);
@@ -640,7 +650,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     _checkAssetStrategy(assets[0].strategy);
 
     AssetLib.Asset calldata asset0 = assets[0];
-    IUniswapV3Pool pool = _getPoolForPosition(INFPM(asset0.token), asset0.tokenId);
+    ICLPool pool = _getPoolForPosition(INFPM(asset0.token), asset0.tokenId);
 
     if (vaultConfig.allowDeposit) {
       int24 tickLower = params.tickLower;
@@ -657,7 +667,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       collected0 = returnAssets[0].amount;
       collected1 = returnAssets[1].amount;
     }
-    (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
+    (,, address token0, address token1, int24 tickSpacing,,, uint128 liquidity,,,,) =
       INFPM(asset0.token).positions(asset0.tokenId);
     {
       uint256 decreasedAmount0Min = params.decreasedAmount0Min;
@@ -710,7 +720,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
           nfpm: asset0.token,
           token0: token0,
           token1: token1,
-          feeOrTickSpacing: fee,
+          feeOrTickSpacing: uint24(tickSpacing),
           tickLower: tickLower,
           tickUpper: tickUpper,
           amount0Min: amount0Min,
@@ -747,13 +757,13 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     AssetLib.Asset calldata asset0 = assets[0];
 
-    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
+    (,, address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset0.token).positions(asset0.tokenId);
 
     (uint256 amount0Collected, uint256 amount1Collected) = INFPM(asset0.token).collect(
       INFPM.CollectParams(asset0.tokenId, address(this), type(uint128).max, type(uint128).max)
     );
-    address pool = IUniswapV3Factory(INFPM(asset0.token).factory()).getPool(token0, token1, fee);
+    address pool = ICLFactory(INFPM(asset0.token).factory()).getPool(token0, token1, tickSpacing);
     {
       (uint256 fee0, uint256 fee1) = _takeFees(
         token0,
@@ -846,19 +856,19 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view {
     _checkAssetStrategy(asset.strategy);
 
-    (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
+    (,, address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
-    validator.validateConfig(asset.token, fee, token0, token1, tickLower, tickUpper, config);
+    validator.validateConfig(asset.token, uint24(tickSpacing), token0, token1, tickLower, tickUpper, config);
   }
 
   /// @dev Gets the pool for the position
   /// @param nfpm The non-fungible position manager
   /// @param tokenId The token id of the position
   /// @return pool The pool for the position
-  function _getPoolForPosition(INFPM nfpm, uint256 tokenId) internal view returns (IUniswapV3Pool pool) {
-    (,, address token0, address token1, uint24 fee,,,,,,,) = nfpm.positions(tokenId);
-    IUniswapV3Factory factory = IUniswapV3Factory(nfpm.factory());
-    pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
+  function _getPoolForPosition(INFPM nfpm, uint256 tokenId) internal view returns (ICLPool pool) {
+    (,, address token0, address token1, int24 tickSpacing,,,,,,,) = nfpm.positions(tokenId);
+    ICLFactory factory = ICLFactory(nfpm.factory());
+    pool = ICLPool(factory.getPool(token0, token1, tickSpacing));
   }
 
   /// @dev Gets the amounts for the position
@@ -868,7 +878,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @return amount1 The amount of token1
   function _getAmountsForPosition(INFPM nfpm, uint256 tokenId) internal view returns (uint256 amount0, uint256 amount1) {
     (,,,,, int24 tickLower, int24 tickUpper, uint128 liquidity,,,,) = nfpm.positions(tokenId);
-    IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
+    ICLPool pool = _getPoolForPosition(nfpm, tokenId);
     uint160 sqrtPriceX96;
     (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ExternalCallFailed());
@@ -894,7 +904,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     uint256 feeGrowthInside1LastX128;
     (,,,,, tickLower, tickUpper, liquidity, feeGrowthInside0LastX128, feeGrowthInside1LastX128, fee0, fee1) =
       nfpm.positions(tokenId);
-    IUniswapV3Pool pool = _getPoolForPosition(nfpm, tokenId);
+    ICLPool pool = _getPoolForPosition(nfpm, tokenId);
     int24 tick;
     (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ExternalCallFailed());
@@ -917,7 +927,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
   /// @param tickCurrent The current tick of the pool
   /// @return feeGrowthInside0X128 The fee growth of token0
   /// @return feeGrowthInside1X128 The fee growth of token1
-  function _getFeeGrowthInside(IUniswapV3Pool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent)
+  function _getFeeGrowthInside(ICLPool pool, int24 tickLower, int24 tickUpper, int24 tickCurrent)
     internal
     view
     returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)

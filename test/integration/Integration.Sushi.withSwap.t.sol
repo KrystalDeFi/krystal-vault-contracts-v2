@@ -155,10 +155,10 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.95 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(SUSHI_NFPM),
+      nfpm: address(SUSHI_NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -287_220,
       tickUpper: -107_220,
       amount0Min: 0,

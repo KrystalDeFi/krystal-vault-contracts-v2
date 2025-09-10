@@ -111,10 +111,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -193,10 +193,10 @@ contract VaultTest is TestCommon {
     // allocate to a low liquidity pool
     console.log("allocate to a low liquidity pool");
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: DAI,
-      fee: 3000,
+      feeOrTickSpacing: 3000,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -248,10 +248,10 @@ contract VaultTest is TestCommon {
     // allocate to a low liquidity pool
     console.log("allocate to a high liquidity pool");
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -319,10 +319,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), USDC, 0, 500 * 1e6);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -349,10 +349,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -447,10 +447,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -539,10 +539,10 @@ contract VaultTest is TestCommon {
     address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(WETH, USDC, 500);
     (, int24 tick,,,,,) = IUniswapV3Pool(pool).slot0();
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: ((tick - 20) / 10) * 10,
       tickUpper: ((tick - 10) / 10) * 10,
       amount0Min: 0,
@@ -1027,10 +1027,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -1063,10 +1063,10 @@ contract VaultTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM),
+      nfpm: address(NFPM),
       token0: WETH,
       token1: USDC,
-      fee: 500,
+      feeOrTickSpacing: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,

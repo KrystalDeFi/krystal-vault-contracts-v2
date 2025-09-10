@@ -3,9 +3,6 @@ pragma solidity ^0.8.28;
 
 import "./IStrategy.sol";
 
-import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-
 interface ILpStrategy is IStrategy {
   enum InstructionType {
     // MintPosition,
@@ -22,10 +19,10 @@ interface ILpStrategy is IStrategy {
   );
 
   struct MintPositionParams {
-    INFPM nfpm;
+    address nfpm;
     address token0;
     address token1;
-    uint24 fee;
+    uint24 feeOrTickSpacing;
     int24 tickLower;
     int24 tickUpper;
     uint256 amount0Min;
@@ -33,10 +30,10 @@ interface ILpStrategy is IStrategy {
   }
 
   struct SwapAndMintPositionParams {
-    INFPM nfpm;
+    address nfpm;
     address token0;
     address token1;
-    uint24 fee;
+    uint24 feeOrTickSpacing;
     int24 tickLower;
     int24 tickUpper;
     uint256 amount0Min;

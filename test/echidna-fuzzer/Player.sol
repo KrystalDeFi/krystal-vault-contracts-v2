@@ -78,10 +78,10 @@ contract Player {
     }
 
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: INFPM(NFPM_ON_ETH_MAINNET),
+      nfpm: address(NFPM_ON_ETH_MAINNET),
       token0: token0,
       token1: token1,
-      fee: fee,
+      feeOrTickSpacing: fee,
       tickLower: tickLower,
       tickUpper: tickUpper,
       amount0Min: 0,
