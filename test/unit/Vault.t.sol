@@ -305,7 +305,12 @@ contract VaultTest is TestCommon {
       supportedAddresses: new address[](0)
     });
 
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_vaultUsdc")))));
+    vm.startBroadcast(deployer);
     vault = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(USDC).transfer(address(vault), 1000 * 1e6);
     ICommon.VaultCreateParams memory createVaultParams = ICommon.VaultCreateParams({
       vaultOwnerFeeBasisPoint: 0,
@@ -473,7 +478,12 @@ contract VaultTest is TestCommon {
 
     LpValidator validator = new LpValidator();
     validator.initialize(address(this), address(configManager), whitelistNfpms);
+    address feeTakerDeployer = address(uint160(uint256(keccak256(abi.encodePacked("test_vaultMigrateLp_LpFeeTaker")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(feeTakerDeployer);
     LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     LpStrategy newLpStrategy =
       new LpStrategy(address(configManager), address(swapper), address(validator), address(lpFeeTaker));
 
@@ -595,7 +605,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_happy_ERC20")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     deal(WETH, USER, 1 ether);
     IERC20(WETH).approve(address(v), 1 ether);
@@ -614,7 +629,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_happy_ETH")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 1 ether);
     uint256 startBal = USER.balance;
@@ -635,7 +655,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_happy_ERC201")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     deal(WETH, USER, 1 ether);
@@ -667,7 +692,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_happy_ETH1")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 1 ether);
@@ -688,7 +718,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_fail_notAdmin")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
@@ -707,7 +742,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_fail_notPrivateVault")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
     v.depositPrincipal(1 ether);
@@ -735,7 +776,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_fail_wrongETHtoken")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
     vm.expectRevert(IVault.InvalidAssetToken.selector);
@@ -752,7 +799,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_depositPrincipal_fail_wrongETHamount")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.deal(USER, 2 ether);
     vm.expectRevert(IVault.InvalidAssetAmount.selector);
@@ -771,7 +824,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_happy_ERC20")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
@@ -791,7 +849,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_happy_unwrapWETH")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 1 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
@@ -812,7 +875,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 2 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_happy_ERC202")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 2 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
@@ -832,7 +900,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 2 ether,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_happy_unwrapWETH2")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     IERC20(WETH).transfer(address(v), 2 ether);
     v.initialize(params, USER, USER, address(configManager), WETH);
     v.getInventory(); // Initialize inventory
@@ -853,7 +927,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_fail_notAdmin")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.stopBroadcast();
     vm.startBroadcast(address(this));
@@ -872,7 +951,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_fail_notPrivateVault")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(IVault.DepositAllowed.selector);
     v.withdrawPrincipal(1 ether, false);
@@ -899,7 +984,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 0.5 ether,
       config: vaultConfig
     });
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_withdrawPrincipal_fail_insufficientBalance")))));
+    vm.stopBroadcast();
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert(); // Should revert due to insufficient asset
     v.withdrawPrincipal(1 ether, false);
@@ -917,7 +1008,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_harvestPrivate_fail_notAdmin")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     // Allocate to strategy
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
@@ -939,7 +1035,13 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer =
+      address(uint160(uint256(keccak256(abi.encodePacked("test_harvestPrivate_fail_notPrivateVault")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 1 ether);
@@ -956,7 +1058,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_harvestPrivate_fail_noStrategy")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     // Asset with no strategy
     AssetLib.Asset[] memory toHarvest = new AssetLib.Asset[](1);
@@ -973,7 +1080,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_transferOwnership")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
 
     address newOwner = address(0xBEEF);
@@ -992,7 +1104,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_transferOwnership_fail_zeroAddress")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     vm.expectRevert();
     v.transferOwnership(address(0));
@@ -1006,7 +1123,12 @@ contract VaultTest is TestCommon {
       principalTokenAmount: 1 ether,
       config: vaultConfig
     });
+    vm.stopBroadcast();
+    address deployer = address(uint160(uint256(keccak256(abi.encodePacked("test_setManagers")))));
+    vm.startBroadcast(deployer);
     Vault v = new Vault();
+    vm.stopBroadcast();
+    vm.startBroadcast(USER);
     v.initialize(params, USER, USER, address(configManager), WETH);
     address manager = address(0x1234);
     v.grantAdminRole(manager);
