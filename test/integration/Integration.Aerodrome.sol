@@ -39,7 +39,7 @@ contract IntegrationTest is TestCommon {
   Vault public vaultInstance;
 
   function setUp() public {
-    uint256 fork = vm.createFork(vm.envString("BASE_RPC_URL"), 35_350_500);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 35_350_500);
     vm.selectFork(fork);
 
     vm.startBroadcast(USER);
