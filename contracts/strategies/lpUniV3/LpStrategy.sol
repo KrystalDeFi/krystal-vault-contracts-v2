@@ -334,18 +334,11 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     if (vaultConfig.allowDeposit) {
       validator.validateConfig(
-        params.nfpm,
-        params.feeOrTickSpacing,
-        params.token0,
-        params.token1,
-        params.tickLower,
-        params.tickUpper,
-        vaultConfig
+        params.nfpm, params.fee, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
       );
     }
 
-    address pool =
-      IUniswapV3Factory(INFPM(params.nfpm).factory()).getPool(params.token0, params.token1, params.feeOrTickSpacing);
+    address pool = IUniswapV3Factory(params.nfpm.factory()).getPool(params.token0, params.token1, params.fee);
     address principalToken = vaultConfig.principalToken;
     address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
@@ -371,7 +364,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         nfpm: params.nfpm,
         token0: params.token0,
         token1: params.token1,
-        feeOrTickSpacing: params.feeOrTickSpacing,
+        fee: params.fee,
         tickLower: params.tickLower,
         tickUpper: params.tickUpper,
         amount0Min: params.amount0Min,
@@ -397,14 +390,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     _safeResetAndApprove(IERC20(token1.token), address(params.nfpm), token1.amount);
 
     if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
-      validator.validateObservationCardinality(params.nfpm, params.feeOrTickSpacing, token0.token, token1.token);
+      validator.validateObservationCardinality(params.nfpm, params.fee, token0.token, token1.token);
     }
 
-    (uint256 tokenId,, uint256 amount0, uint256 amount1) = INFPM(params.nfpm).mint(
+    (uint256 tokenId,, uint256 amount0, uint256 amount1) = params.nfpm.mint(
       INFPM.MintParams(
         token0.token,
         token1.token,
-        params.feeOrTickSpacing,
+        params.fee,
         params.tickLower,
         params.tickUpper,
         token0.amount,
@@ -714,10 +707,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         vaultConfig,
         returnAssets,
         MintPositionParams({
-          nfpm: asset0.token,
+          nfpm: INFPM(asset0.token),
           token0: token0,
           token1: token1,
-          feeOrTickSpacing: fee,
+          fee: fee,
           tickLower: tickLower,
           tickUpper: tickUpper,
           amount0Min: amount0Min,
@@ -855,7 +848,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (,, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
-    validator.validateConfig(asset.token, fee, token0, token1, tickLower, tickUpper, config);
+    validator.validateConfig(INFPM(asset.token), fee, token0, token1, tickLower, tickUpper, config);
   }
 
   /// @dev Gets the pool for the position

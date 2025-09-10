@@ -6,8 +6,6 @@ import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
@@ -43,7 +41,7 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
   /// @param tickUpper The upper tick of the position
   /// @param config The configuration of the strategy
   function validateConfig(
-    address nfpm,
+    INFPM nfpm,
     uint24 fee,
     address token0,
     address token1,
@@ -57,7 +55,7 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
     LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
     LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
 
-    address pool = IUniswapV3Factory(INFPM(nfpm).factory()).getPool(token0, token1, fee);
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
@@ -107,8 +105,8 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
     require(tickUpper - tickLower >= minTickWidth, InvalidTickWidth());
   }
 
-  function validateObservationCardinality(address nfpm, uint24 fee, address token0, address token1) external view {
-    address pool = IUniswapV3Factory(INFPM(nfpm).factory()).getPool(token0, token1, fee);
+  function validateObservationCardinality(INFPM nfpm, uint24 fee, address token0, address token1) external view {
+    address pool = IUniswapV3Factory(nfpm.factory()).getPool(token0, token1, fee);
     uint16 observationCardinality;
     (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ExternalCallFailed());
