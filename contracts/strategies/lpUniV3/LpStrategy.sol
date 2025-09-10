@@ -334,11 +334,18 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     if (vaultConfig.allowDeposit) {
       validator.validateConfig(
-        params.nfpm, params.feeOrTickSpacing, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
+        params.nfpm,
+        params.feeOrTickSpacing,
+        params.token0,
+        params.token1,
+        params.tickLower,
+        params.tickUpper,
+        vaultConfig
       );
     }
 
-    address pool = IUniswapV3Factory(INFPM(params.nfpm).factory()).getPool(params.token0, params.token1, params.feeOrTickSpacing);
+    address pool =
+      IUniswapV3Factory(INFPM(params.nfpm).factory()).getPool(params.token0, params.token1, params.feeOrTickSpacing);
     address principalToken = vaultConfig.principalToken;
     address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(

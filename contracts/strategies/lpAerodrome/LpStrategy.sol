@@ -602,8 +602,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     INFPM nfpm = INFPM(lpAsset.token);
     uint256 tokenId = lpAsset.tokenId;
 
-    (,, address token0, address token1, int24 tickSpacing,,, uint128 posLiquidity,,,,) =
-      nfpm.positions(tokenId);
+    (,, address token0, address token1, int24 tickSpacing,,, uint128 posLiquidity,,,,) = nfpm.positions(tokenId);
 
     (uint256 amount0Collected, uint256 amount1Collected) =
       nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
