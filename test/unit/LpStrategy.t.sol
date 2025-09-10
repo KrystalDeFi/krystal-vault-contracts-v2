@@ -99,10 +99,10 @@ contract LpStrategyTest is TestCommon {
 
     console.log("==== swapAndMintPosition ====");
     ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -146,10 +146,10 @@ contract LpStrategyTest is TestCommon {
 
     console.log("==== swapAndMintPosition ====");
     ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -184,10 +184,10 @@ contract LpStrategyTest is TestCommon {
 
     console.log("==== swapAndMintPosition ====");
     ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,
@@ -377,10 +377,10 @@ contract LpStrategyTest is TestCommon {
       });
 
       ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: DAI,
-        feeOrTickSpacing: 3000,
+        fee: 3000,
         tickLower: -887_220,
         tickUpper: 887_220,
         amount0Min: 0,
@@ -553,10 +553,10 @@ contract LpStrategyTest is TestCommon {
       });
 
       ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: DAI,
-        feeOrTickSpacing: 3000,
+        fee: 3000,
         tickLower: -887_220,
         tickUpper: 887_220,
         amount0Min: 0,
@@ -619,10 +619,10 @@ contract LpStrategyTest is TestCommon {
 
     console.log("==== swapAndMintPosition ====");
     ILpStrategy.SwapAndMintPositionParams memory mintParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_220,
       amount0Min: 0,

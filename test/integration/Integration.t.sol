@@ -223,10 +223,10 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.7 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -501,10 +501,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets1 = new AssetLib.Asset[](1);
       anotherAssets1[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams1 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 500,
+        fee: 500,
         tickLower: -887_220,
         tickUpper: 887_220,
         amount0Min: 0,
@@ -540,10 +540,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets2 = new AssetLib.Asset[](1);
       anotherAssets2[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams2 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 500,
+        fee: 500,
         tickLower: -887_220,
         tickUpper: -884_220,
         amount0Min: 0,
@@ -564,10 +564,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets3 = new AssetLib.Asset[](1);
       anotherAssets3[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams3 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 100,
+        fee: 100,
         tickLower: -887_220,
         tickUpper: -884_220,
         amount0Min: 0,

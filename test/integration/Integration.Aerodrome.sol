@@ -20,8 +20,10 @@ import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol
 import { Vault } from "../../contracts/core/Vault.sol";
 import { IVault } from "../../contracts/interfaces/core/IVault.sol";
 import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { IAerodromeLpStrategy as ILpStrategy } from
+  "../../contracts/interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
+import { IAerodromeLpValidator as ILpValidator } from
+  "../../contracts/interfaces/strategies/aerodrome/IAerodromeLpValidator.sol";
 import { LpStrategy } from "../../contracts/strategies/lpAerodrome/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpAerodrome/LpValidator.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpAerodrome/LpFeeTaker.sol";
@@ -223,10 +225,10 @@ contract IntegrationTest is TestCommon {
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.7 ether);
     ILpStrategy.SwapAndMintPositionParams memory params = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 100,
+      tickSpacing: 100,
       tickLower: -887_200,
       tickUpper: 887_200,
       amount0Min: 0,
@@ -500,10 +502,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets1 = new AssetLib.Asset[](1);
       anotherAssets1[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams1 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 100,
+        tickSpacing: 100,
         tickLower: -887_200,
         tickUpper: 887_200,
         amount0Min: 0,
@@ -539,10 +541,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets2 = new AssetLib.Asset[](1);
       anotherAssets2[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams2 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 100,
+        tickSpacing: 100,
         tickLower: -887_200,
         tickUpper: -884_200,
         amount0Min: 0,
@@ -563,10 +565,10 @@ contract IntegrationTest is TestCommon {
       AssetLib.Asset[] memory anotherAssets3 = new AssetLib.Asset[](1);
       anotherAssets3[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.1 ether);
       ILpStrategy.SwapAndMintPositionParams memory anotherParams3 = ILpStrategy.SwapAndMintPositionParams({
-        nfpm: address(NFPM),
+        nfpm: INFPM(NFPM),
         token0: WETH,
         token1: USDC,
-        feeOrTickSpacing: 200,
+        tickSpacing: 200,
         tickLower: -887_200,
         tickUpper: -884_200,
         amount0Min: 0,

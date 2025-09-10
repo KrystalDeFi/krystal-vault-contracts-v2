@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "../../interfaces/strategies/ILpValidator.sol";
-import "../../interfaces/strategies/ILpStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IAerodromeLpValidator.sol";
+import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import "../../interfaces/core/IConfigManager.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -15,7 +15,7 @@ import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract LpValidator is OwnableUpgradeable, ILpValidator {
+contract LpValidator is OwnableUpgradeable, IAerodromeLpValidator {
   IConfigManager public configManager;
   mapping(address => bool) public whitelistNfpms;
 
@@ -36,15 +36,15 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
 
   /// @dev Checks the principal amount in the pool
   /// @param nfpm The non-fungible position manager
-  /// @param feeOrTickSpacing The tickSpacing of the pool
+  /// @param tickSpacing The tickSpacing of the pool
   /// @param token0 The token0 of the pool
   /// @param token1 The token1 of the pool
   /// @param tickLower The lower tick of the position
   /// @param tickUpper The upper tick of the position
   /// @param config The configuration of the strategy
   function validateConfig(
-    address nfpm,
-    uint24 feeOrTickSpacing,
+    INFPM nfpm,
+    int24 tickSpacing,
     address token0,
     address token1,
     int24 tickLower,
@@ -57,7 +57,7 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
     LpStrategyRangeConfig memory rangeConfig = lpConfig.rangeConfigs[config.rangeStrategyType];
     LpStrategyTvlConfig memory tvlConfig = lpConfig.tvlConfigs[config.tvlStrategyType];
 
-    address pool = ICLFactory(INFPM(nfpm).factory()).getPool(token0, token1, int24(feeOrTickSpacing));
+    address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
 
     // Check if the pool is allowed
     require(_isPoolAllowed(config, pool), InvalidPool());
@@ -107,8 +107,8 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
     require(tickUpper - tickLower >= minTickWidth, InvalidTickWidth());
   }
 
-  function validateObservationCardinality(address nfpm, uint24 feeOrTickSpacing, address token0, address token1) external view {
-    address pool = ICLFactory(INFPM(nfpm).factory()).getPool(token0, token1, int24(feeOrTickSpacing));
+  function validateObservationCardinality(INFPM nfpm, int24 tickSpacing, address token0, address token1) external view {
+    address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
     uint16 observationCardinality;
     (bool success, bytes memory returnedData) = address(pool).staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ExternalCallFailed());
@@ -145,8 +145,7 @@ contract LpValidator is OwnableUpgradeable, ILpValidator {
 
       if (observationIndex == 0) observationIndex = cardinality - 1;
       else observationIndex--;
-      (secondLastTimestamp, secondLastTickCummulative,, initialized) =
-        ICLPool(pool).observations(observationIndex);
+      (secondLastTimestamp, secondLastTickCummulative,, initialized) = ICLPool(pool).observations(observationIndex);
 
       require(initialized, InvalidObservation());
       require(lastTimestamp > secondLastTimestamp, InvalidObservation());

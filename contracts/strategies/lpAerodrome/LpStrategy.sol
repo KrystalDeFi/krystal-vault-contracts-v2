@@ -17,11 +17,11 @@ import { ERC721Holder } from "@openzeppelin/contracts/token/ERC721/utils/ERC721H
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import "../../interfaces/core/IConfigManager.sol";
-import "../../interfaces/strategies/ILpStrategy.sol";
-import "../../interfaces/strategies/ILpValidator.sol";
+import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IAerodromeLpValidator.sol";
 import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 
-contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
+contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
 
   uint256 internal constant Q64 = 0x10000000000000000;
@@ -31,7 +31,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
   IConfigManager public configManager;
   IOptimalSwapper public immutable optimalSwapper;
-  ILpValidator public immutable validator;
+  IAerodromeLpValidator public immutable validator;
   ILpFeeTaker private immutable lpFeeTaker;
   address private immutable thisAddress;
 
@@ -42,7 +42,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     configManager = IConfigManager(_configManager);
     optimalSwapper = IOptimalSwapper(_optimalSwapper);
-    validator = ILpValidator(_validator);
+    validator = IAerodromeLpValidator(_validator);
     lpFeeTaker = ILpFeeTaker(_lpFeeTaker);
     thisAddress = address(this);
   }
@@ -334,19 +334,12 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     if (vaultConfig.allowDeposit) {
       validator.validateConfig(
-        params.nfpm,
-        params.feeOrTickSpacing,
-        params.token0,
-        params.token1,
-        params.tickLower,
-        params.tickUpper,
-        vaultConfig
+        params.nfpm, params.tickSpacing, params.token0, params.token1, params.tickLower, params.tickUpper, vaultConfig
       );
     }
 
-    address pool = ICLFactory(INFPM(params.nfpm).factory()).getPool(
-      params.token0, params.token1, int24(uint24(params.feeOrTickSpacing))
-    );
+    address pool =
+      ICLFactory(INFPM(params.nfpm).factory()).getPool(params.token0, params.token1, int24(uint24(params.tickSpacing)));
     address principalToken = vaultConfig.principalToken;
     address otherToken = params.token0 == principalToken ? params.token1 : params.token0;
     (uint256 amount0, uint256 amount1) = _optimalSwapFromPrincipal(
@@ -372,7 +365,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         nfpm: params.nfpm,
         token0: params.token0,
         token1: params.token1,
-        feeOrTickSpacing: params.feeOrTickSpacing,
+        tickSpacing: params.tickSpacing,
         tickLower: params.tickLower,
         tickUpper: params.tickUpper,
         amount0Min: params.amount0Min,
@@ -398,14 +391,14 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     _safeResetAndApprove(IERC20(token1.token), address(params.nfpm), token1.amount);
 
     if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
-      validator.validateObservationCardinality(params.nfpm, params.feeOrTickSpacing, token0.token, token1.token);
+      validator.validateObservationCardinality(params.nfpm, params.tickSpacing, token0.token, token1.token);
     }
 
     (uint256 tokenId,, uint256 amount0, uint256 amount1) = INFPM(params.nfpm).mint(
       INFPM.MintParams(
         token0.token,
         token1.token,
-        int24(params.feeOrTickSpacing),
+        int24(params.tickSpacing),
         params.tickLower,
         params.tickUpper,
         token0.amount,
@@ -716,10 +709,10 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         vaultConfig,
         returnAssets,
         MintPositionParams({
-          nfpm: asset0.token,
+          nfpm: INFPM(asset0.token),
           token0: token0,
           token1: token1,
-          feeOrTickSpacing: uint24(tickSpacing),
+          tickSpacing: tickSpacing,
           tickLower: tickLower,
           tickUpper: tickUpper,
           amount0Min: amount0Min,
@@ -857,7 +850,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
 
     (,, address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
-    validator.validateConfig(asset.token, uint24(tickSpacing), token0, token1, tickLower, tickUpper, config);
+    validator.validateConfig(INFPM(asset.token), tickSpacing, token0, token1, tickLower, tickUpper, config);
   }
 
   /// @dev Gets the pool for the position

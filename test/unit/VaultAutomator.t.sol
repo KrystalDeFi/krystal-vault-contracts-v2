@@ -127,10 +127,10 @@ contract VaultAutomatorTest is TestCommon {
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
 
     ILpStrategy.SwapAndMintPositionParams memory strategyParams = ILpStrategy.SwapAndMintPositionParams({
-      nfpm: address(NFPM),
+      nfpm: INFPM(NFPM),
       token0: WETH,
       token1: USDC,
-      feeOrTickSpacing: 500,
+      fee: 500,
       tickLower: -887_220,
       tickUpper: 887_200,
       amount0Min: 0,
