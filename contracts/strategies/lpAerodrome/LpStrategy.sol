@@ -405,7 +405,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
       INFPM.MintParams(
         token0.token,
         token1.token,
-        int24(uint24(params.feeOrTickSpacing)),
+        int24(params.feeOrTickSpacing),
         params.tickLower,
         params.tickUpper,
         token0.amount,
@@ -414,7 +414,7 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
         params.amount1Min,
         address(this),
         block.timestamp,
-        uint160(0) // sqrtPriceX96 - required in Aerodrome Slipstream
+        0
       )
     );
 
@@ -932,8 +932,8 @@ contract LpStrategy is ReentrancyGuard, ILpStrategy, ERC721Holder {
     returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
   {
     unchecked {
-      (,, uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128,,,,) = pool.ticks(tickLower);
-      (,, uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128,,,,) = pool.ticks(tickUpper);
+      (,,, uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128,,,,,) = pool.ticks(tickLower);
+      (,,, uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128,,,,,) = pool.ticks(tickUpper);
       uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
       uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
 
