@@ -74,6 +74,6 @@ export const BaseConfig: Record<string, IConfig> = {
       1, // hbUSDT
     ],
     swapRouters: [],
-    nfpmAddresses: ["0x6eDA206207c09e5428F281761DdC0D300851fBC8"],
+    nfpmAddresses: ["0x6eDA206207c09e5428F281761DdC0D300851fBC8", "0xeaD19AE861c29bBb2101E834922B2FEee69B9091"],
   },
 };
