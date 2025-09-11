@@ -7,6 +7,7 @@ import { OptimismConfig } from "./config_optimism";
 import { PolygonConfig } from "./config_polygon";
 import { RoninConfig } from "./config_ronin";
 import { BerachainConfig } from "./config_berachain";
+import { HyperevmConfig } from "./config_hyperevm";
 
 const NetworkConfig: Record<string, IConfig> = {
   ...BaseConfig,
@@ -17,6 +18,7 @@ const NetworkConfig: Record<string, IConfig> = {
   ...PolygonConfig,
   ...RoninConfig,
   ...BerachainConfig,
+  ...HyperevmConfig,
 };
 
 NetworkConfig.hardhat = {
@@ -29,6 +31,7 @@ NetworkConfig.hardhat = {
   ...NetworkConfig["polygon_mainnet"],
   ...NetworkConfig["ronin_mainnet"],
   ...NetworkConfig["berachain_mainnet"],
+  ...NetworkConfig["hyperevm_mainnet"],
   autoVerifyContract: false,
 };
 

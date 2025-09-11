@@ -1,6 +1,7 @@
+import { commonConfig } from "./config_common";
 import { IConfig } from "./interfaces";
 
-export const BaseConfig: Record<string, IConfig> = {
+export const HyperevmConfig: Record<string, IConfig> = {
   hyperevm_mainnet: {
     sleepTime: 20000,
     vault: {
@@ -54,6 +55,11 @@ export const BaseConfig: Record<string, IConfig> = {
       "0xb50a96253abdf803d85efcdce07ad8becbc52bd5", // USDHL
       "0x5555555555555555555555555555555555555555", // WHYPE
       "0x5748ae796ae46a4f1348a1693de4b50560485562", // LHYPE
+      "0xfd739d4e423301ce9385c1fb8850539d657c296d", // kHYPE
+      "0x96c6cbb6251ee1c257b2162ca0f39aa5fa44b1fb", // hbHYPE
+      "0x81e064d0eb539de7c3170edf38c1a42cbd752a76", // lstHYPE
+      "0xdabb040c428436d41cecd0fb06bcfdbaad3a9aa8", // mHYPE
+      "0x94e8396e0869c9f2200760af0621afd240e1cf38", // wstHYPE
       "0xbe6727b535545c67d5caa73dea54865b92cf7907", // UETH
       "0x9fdbda0a5e284c32744d2f17ee5c74b284993463", // UBTC
       "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", // USDe
@@ -67,13 +73,40 @@ export const BaseConfig: Record<string, IConfig> = {
       1, // USDHL
       2, // WHYPE
       2, // LHYPE
+      2, // kHYPE
+      2, // hbHYPE
+      2, // lstHYPE
+      2, // mHYPE
+      2, // wstHYPE
       3, // UETH
       4, // UBTC
       1, // USDe
       1, // feUSD
       1, // hbUSDT
     ],
-    swapRouters: [],
+    encodedLpConfigs: [
+      // WHYPE
+      commonConfig.hypeConfig,
+      // USD₮0
+      commonConfig.stableConfigWith6Decimals,
+      // USDHL
+      commonConfig.stableConfigWith6Decimals,
+      // LHYPE
+      commonConfig.hypeConfig,
+      // kHYPE
+      commonConfig.hypeConfig,
+      // wstHYPE
+      commonConfig.hypeConfig,
+      // UETH
+      commonConfig.nativeConfig,
+      // UBTC
+      commonConfig.btcConfig,
+      // USDe
+      commonConfig.stableConfigWith18Decimals,
+      // feUSD
+      commonConfig.stableConfigWith18Decimals,
+    ],
+    swapRouters: ["0x14b37a44067c877F46aCE21d42ccEC4e9593A941"],
     nfpmAddresses: ["0x6eDA206207c09e5428F281761DdC0D300851fBC8", "0xeaD19AE861c29bBb2101E834922B2FEee69B9091"],
   },
 };

@@ -24,6 +24,11 @@ const { SALT } = process.env;
 const createXContractAddress = "0xba5ed099633d3b313e4d5f7bdc1305d3c28ba5ed";
 const createXTopic = "0xb8fda7e00c6b06a2b54e58521bc5894fee35f1090e5a3bb6390bfe2b98b497f7";
 
+const isRonin = network.name === "ronin_mainnet";
+const isBera = network.name === "berachain_mainnet";
+const isHyperevm = network.name === "hyperevm_mainnet";
+const contractAdmin = isRonin ? commonConfig.roninAdmin : isHyperevm ? commonConfig.hyperevmAdmin : commonConfig.admin;
+
 const networkConfig = NetworkConfig[network.name];
 if (!networkConfig) {
   throw new Error(`Missing deploy config for ${network.name}`);
@@ -65,8 +70,6 @@ export const deploy = async (existingContract: Record<string, any> | undefined =
 };
 
 async function deployContracts(existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> {
-  const isRonin = networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled;
-
   let step = 0;
 
   const vault = await deployVaultContract(++step, existingContract);
@@ -113,7 +116,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   if (networkConfig.vaultFactory.enabled) {
     await vaultFactory?.vaultFactory?.initialize(
-      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
+      contractAdmin,
       networkConfig.wrapToken || "",
       existingContract?.["configManager"] || contracts?.configManager?.target,
       existingContract?.["vault"] || contracts?.vault?.target,
@@ -125,7 +128,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
     let typedTokens;
     let configs;
 
-    if (networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled) {
+    if (isRonin) {
       lpValidators = [
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
@@ -136,12 +139,8 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         networkConfig?.typedTokens?.[1] || "",
         networkConfig?.wrapToken || "",
       ];
-      configs = [
-        commonConfig.nativeConfig,
-        commonConfig.stableConfigWith6Decimals,
-        "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fd700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000032d26d12e980b600000000000000000000000000000000000000000000000001fc3842bd1f071c00000000000000000000000000000000000000000000000013da329b6336471800000",
-      ];
-    } else if (networkConfig?.kodiakIslandStrategy?.enabled) {
+      configs = networkConfig.encodedLpConfigs || [];
+    } else if (isBera) {
       lpValidators = [
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
@@ -152,11 +151,33 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         networkConfig?.typedTokens?.[1] || "",
         networkConfig?.typedTokens?.[2] || "",
       ];
-      configs = [
-        "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003b900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fd70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b4aeaab10258f4000000000000000000000000000000000000000000000000070efc4d0e326fb4000000000000000000000000000000000000000000000000469604a4b21353340000",
-        commonConfig.stableConfigWith18Decimals,
-        commonConfig.stableConfigWith18Decimals,
+      configs = networkConfig.encodedLpConfigs || [];
+    } else if (isHyperevm) {
+      lpValidators = [
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
+        existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
       ];
+      typedTokens = [
+        networkConfig?.wrapToken || "",
+        networkConfig?.typedTokens?.[0] || "",
+        networkConfig?.typedTokens?.[2] || "",
+        networkConfig?.typedTokens?.[4] || "",
+        networkConfig?.typedTokens?.[5] || "",
+        networkConfig?.typedTokens?.[9] || "",
+        networkConfig?.typedTokens?.[10] || "",
+        networkConfig?.typedTokens?.[11] || "",
+        networkConfig?.typedTokens?.[12] || "",
+        networkConfig?.typedTokens?.[13] || "",
+      ];
+      configs = networkConfig.encodedLpConfigs || [];
     } else {
       lpValidators = [
         existingContract?.["lpValidator"] || contracts?.lpValidator?.target,
@@ -179,7 +200,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
     }
 
     await configManager?.configManager?.initialize(
-      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
+      contractAdmin,
       [
         existingContract?.["lpStrategy"] || contracts?.lpStrategy?.target,
         existingContract?.["lpChainingStrategy"] || contracts?.lpChainingStrategy?.target,
@@ -206,7 +227,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   if (networkConfig.lpValidator?.enabled) {
     await lpValidator?.lpValidator?.initialize(
-      isRonin ? commonConfig.roninAdmin : commonConfig.admin,
+      contractAdmin,
       existingContract?.["configManager"] || contracts?.configManager?.target,
       networkConfig.nfpmAddresses,
     );
@@ -246,8 +267,6 @@ export const deployVaultAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  const isRonin = config?.katanaLpFeeTaker?.enabled || config?.katanaPoolOptimalSwapper?.enabled;
-
   let vaultAutomator;
 
   if (config.vaultAutomator?.enabled) {
@@ -259,7 +278,7 @@ export const deployVaultAutomatorContract = async (
       "contracts/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
       undefined,
       ["address", "address[]"],
-      [isRonin ? commonConfig.roninAdmin : commonConfig.admin, commonConfig.automationOperators],
+      [contractAdmin, commonConfig.automationOperators],
     )) as LpUniV3VaultAutomator;
   }
 
@@ -276,8 +295,6 @@ export const deployMerklAutomatorContract = async (
 ): Promise<Contracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  const isRonin = config?.katanaLpFeeTaker?.enabled || config?.katanaPoolOptimalSwapper?.enabled;
-
   let merklAutomator;
 
   if (config.merklAutomator?.enabled) {
@@ -289,10 +306,7 @@ export const deployMerklAutomatorContract = async (
       "contracts/strategies/merkl/MerklAutomator.sol:MerklAutomator",
       undefined,
       ["address", "address"],
-      [
-        isRonin ? commonConfig.roninAdmin : commonConfig.admin,
-        existingContract?.["configManager"] || contracts?.configManager?.target,
-      ],
+      [contractAdmin, existingContract?.["configManager"] || contracts?.configManager?.target],
     )) as MerklAutomator;
   }
   return {
@@ -635,7 +649,7 @@ async function deployContract(
       log(3, ">> sleep first, wait for contract data to be propagated");
       await sleep(networkConfig.sleepTime ?? 60000);
       log(3, ">> start verifying");
-      if (networkConfig?.katanaLpFeeTaker?.enabled || networkConfig?.katanaPoolOptimalSwapper?.enabled) {
+      if (isRonin) {
         await run("verify:sourcify", {
           address: contract.target,
           constructorArguments: args,
