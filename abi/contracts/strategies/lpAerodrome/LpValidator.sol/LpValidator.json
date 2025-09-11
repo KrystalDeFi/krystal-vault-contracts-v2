@@ -248,14 +248,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract INonfungiblePositionManager",
         "name": "nfpm",
         "type": "address"
       },
       {
-        "internalType": "uint24",
-        "name": "feeOrTickSpacing",
-        "type": "uint24"
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
       },
       {
         "internalType": "address",
@@ -331,14 +331,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract INonfungiblePositionManager",
         "name": "nfpm",
         "type": "address"
       },
       {
-        "internalType": "uint24",
-        "name": "feeOrTickSpacing",
-        "type": "uint24"
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
       },
       {
         "internalType": "address",

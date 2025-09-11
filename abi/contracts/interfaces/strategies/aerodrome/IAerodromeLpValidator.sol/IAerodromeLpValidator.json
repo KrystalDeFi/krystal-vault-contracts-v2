@@ -102,9 +102,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint24",
-        "name": "fee",
-        "type": "uint24"
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
       },
       {
         "internalType": "address",
@@ -185,9 +185,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint24",
-        "name": "fee",
-        "type": "uint24"
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
       },
       {
         "internalType": "address",

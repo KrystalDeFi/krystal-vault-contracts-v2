@@ -1,31 +1,5 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_configManager",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_optimalSwapper",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_validator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_lpFeeTaker",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
     "inputs": [],
     "name": "ApproveFailed",
     "type": "error"
@@ -87,17 +61,7 @@
   },
   {
     "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "SignatureExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "T",
     "type": "error"
   },
   {
@@ -206,19 +170,6 @@
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "configManager",
-    "outputs": [
-      {
-        "internalType": "contract IConfigManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "components": [
@@ -281,7 +232,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       },
       {
@@ -358,7 +309,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -433,7 +384,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       }
     ],
@@ -620,7 +571,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -782,53 +733,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "name": "onERC721Received",
-    "outputs": [
-      {
-        "internalType": "bytes4",
-        "name": "",
-        "type": "bytes4"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "optimalSwapper",
-    "outputs": [
-      {
-        "internalType": "contract IOptimalSwapper",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "enum AssetLib.AssetType",
@@ -895,20 +799,7 @@
     ],
     "name": "revalidate",
     "outputs": [],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "validator",
-    "outputs": [
-      {
-        "internalType": "contract IAerodromeLpValidator",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -955,15 +846,11 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "valueInPrincipal",
+        "name": "",
         "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]
