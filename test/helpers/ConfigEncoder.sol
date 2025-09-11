@@ -49,6 +49,25 @@ contract IntegrationTest is TestCommon {
     console.log("==== btcConfig ====");
     console.logBytes(abi.encode(btcConfig));
 
+    ILpValidator.LpStrategyConfig memory hypeConfig = ILpValidator.LpStrategyConfig({
+      rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](3),
+      tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](4)
+    });
+
+    hypeConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 0, tickWidthTypedMin: 0 });
+    // ~10% and 0.02% wide
+    hypeConfig.rangeConfigs[1] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 953, tickWidthTypedMin: 0 });
+    // ~50% and 1% wide
+    hypeConfig.rangeConfigs[2] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 4055, tickWidthTypedMin: 0 });
+
+    hypeConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0 });
+    hypeConfig.tvlConfigs[1] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 180 ether });
+    hypeConfig.tvlConfigs[2] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 1800 ether });
+    hypeConfig.tvlConfigs[3] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 18_000 ether });
+
+    console.log("==== hypeConfig ====");
+    console.logBytes(abi.encode(hypeConfig));
+
     ILpValidator.LpStrategyConfig memory stableConfigWith6Decimals = ILpValidator.LpStrategyConfig({
       rangeConfigs: new ILpValidator.LpStrategyRangeConfig[](3),
       tvlConfigs: new ILpValidator.LpStrategyTvlConfig[](4)

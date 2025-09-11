@@ -43,6 +43,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  lpChainingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   merklStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -59,6 +63,7 @@ export interface IConfig {
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
   typedTokensTypes?: number[];
+  encodedLpConfigs?: string[];
   swapRouters: AddressLike[];
   nfpmAddresses: AddressLike[];
 

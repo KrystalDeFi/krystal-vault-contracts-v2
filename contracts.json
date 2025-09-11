@@ -47,6 +47,18 @@
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
+  "hyperevm_mainnet": {
+    "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
+    "vaultAutomator": "0x1f971442da103df84e437db0269e613295f301aa",
+    "poolOptimalSwapper": "0xbe287e7c9381519a4fad1621b7c65de4b9f5c7f5",
+    "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
+    "lpValidator": "0xe2098b96227ec9ab5be2b6a58669aceb77e387e4",
+    "lpFeeTaker": "0x33f301f2defe4b313f2150e9a31b8010a1a1c15a",
+    "merklAutomator": "0x2047f3c6a3a3c6f65c21216d4ac8717b6523b80e",
+    "lpStrategy": "0x1e4414d018bb2ebf5d2b08d02397e1325ad14af5",
+    "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
+  },
   "polygon_mainnet": {
     "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
     "vaultAutomator": "0xc421b96821ad8343d7524e6a5607485e68386aaa",
