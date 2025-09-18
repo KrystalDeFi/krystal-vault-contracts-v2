@@ -13,6 +13,7 @@ import "../../interfaces/strategies/IStrategy.sol";
 import "../../interfaces/strategies/aerodrome/ICLGauge.sol";
 import "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
 import { IFeeTaker } from "../../interfaces/strategies/IFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from
@@ -24,22 +25,11 @@ import "./RewardSwapper.sol";
  * @notice Strategy for farming Aerodrome LP positions using composition with LpStrategy
  * @dev Uses composition to delegate LP operations to LpStrategy while adding farming capabilities
  */
-contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
+contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   using SafeERC20 for IERC20;
   using SafeApprovalLib for IERC20;
 
   uint256 internal constant Q64 = 0x10000000000000000;
-
-  // Farming instruction types
-  enum FarmingInstructionType {
-    DepositExistingLP, // Deposit existing LP NFT into farming
-    CreateAndDepositLP, // Create LP position and deposit into farming
-    WithdrawLP, // Withdraw position from farming but keep as LP NFT
-    WithdrawLPToPrincipal, // Withdraw position from farming and convert to principal
-    RebalanceAndDeposit, // Rebalance LP position and maintain farming
-    HarvestFarmingRewards // Harvest farming rewards only
-
-  }
 
   // Core composition components
   address public immutable lpStrategyImplementation;
@@ -50,52 +40,6 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
   // Note: No storage state variables - farming state tracked via asset encoding
   // asset.strategy = thisAddress + asset.token = gaugeAddress means position is deposited in farming
   // asset.strategy = lpStrategyImplementation + asset.token = nftContract means regular LP position
-
-  // Events
-  event NFTDeposited(uint256 indexed tokenId, address indexed gauge, address indexed user);
-  event NFTWithdrawn(uint256 indexed tokenId, address indexed gauge, address indexed user);
-  event FarmingRewardsHarvested(address indexed gauge, address indexed rewardToken, uint256 amount);
-  event LPCreatedAndDeposited(uint256 indexed tokenId, address indexed gauge, uint256 liquidity);
-
-  // Errors
-  error InvalidFarmingInstructionType();
-  error InvalidGauge();
-  error InvalidNFT();
-  error NFTNotDeposited();
-  error NFTAlreadyDeposited();
-  error GaugeNotFound();
-  error DelegationFailed();
-  error UnsupportedRewardToken();
-
-  // Parameter structures
-  struct DepositExistingLPParams {
-    address gauge;
-  }
-
-  struct CreateAndDepositLPParams {
-    address gauge;
-    IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
-  }
-
-  struct WithdrawLPParams {
-    uint256 minPrincipalAmount;
-  }
-
-  struct WithdrawLPToPrincipalParams {
-    IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams decreaseAndSwapParams;
-  }
-
-  struct RebalanceAndDepositParams {
-    IAerodromeLpStrategy.SwapAndRebalancePositionParams rebalanceParams;
-  }
-
-  struct HarvestFarmingRewardsParams {
-    address gauge;
-    uint256 tokenId;
-    address swapRouter;
-    bytes swapData;
-    uint256 minAmountOut;
-  }
 
   /**
    * @notice Constructor
@@ -160,18 +104,22 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
 
-    if (instructionType == uint8(FarmingInstructionType.DepositExistingLP)) {
-      return _depositExistingLP(assets, abi.decode(instruction.params, (DepositExistingLPParams)));
-    } else if (instructionType == uint8(FarmingInstructionType.CreateAndDepositLP)) {
-      return _createAndDepositLP(assets, abi.decode(instruction.params, (CreateAndDepositLPParams)), config, feeConfig);
-    } else if (instructionType == uint8(FarmingInstructionType.WithdrawLP)) {
-      return _withdrawLP(assets, abi.decode(instruction.params, (WithdrawLPParams)), config, feeConfig);
-    } else if (instructionType == uint8(FarmingInstructionType.WithdrawLPToPrincipal)) {
-      return
-        _withdrawLPToPrincipal(assets, abi.decode(instruction.params, (WithdrawLPToPrincipalParams)), config, feeConfig);
-    } else if (instructionType == uint8(FarmingInstructionType.RebalanceAndDeposit)) {
-      return
-        _rebalanceAndDeposit(assets, abi.decode(instruction.params, (RebalanceAndDepositParams)), config, feeConfig);
+    if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP)) {
+      return _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)));
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
+      return _createAndDepositLP(
+        assets, abi.decode(instruction.params, (IFarmingStrategy.CreateAndDepositLPParams)), config, feeConfig
+      );
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLP)) {
+      return _withdrawLP(assets, abi.decode(instruction.params, (IFarmingStrategy.WithdrawLPParams)), config, feeConfig);
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal)) {
+      return _withdrawLPToPrincipal(
+        assets, abi.decode(instruction.params, (IFarmingStrategy.WithdrawLPToPrincipalParams)), config, feeConfig
+      );
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.RebalanceAndDeposit)) {
+      return _rebalanceAndDeposit(
+        assets, abi.decode(instruction.params, (IFarmingStrategy.RebalanceAndDepositParams)), config, feeConfig
+      );
     } else {
       revert InvalidFarmingInstructionType();
     }
@@ -357,14 +305,12 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
   /**
    * @notice Deposit existing LP NFT into farming
    */
-  function _depositExistingLP(AssetLib.Asset[] calldata assets, DepositExistingLPParams memory params)
+  function _depositExistingLP(AssetLib.Asset[] calldata assets, IFarmingStrategy.DepositExistingLPParams memory params)
     internal
     returns (AssetLib.Asset[] memory returnAssets)
   {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-
-    uint256 tokenId = assets[0].tokenId;
 
     // Deposit the position
     returnAssets = new AssetLib.Asset[](1);
@@ -376,7 +322,7 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _createAndDepositLP(
     AssetLib.Asset[] calldata assets,
-    CreateAndDepositLPParams memory params,
+    IFarmingStrategy.CreateAndDepositLPParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -405,7 +351,7 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _withdrawLP(
     AssetLib.Asset[] calldata assets,
-    WithdrawLPParams memory params,
+    IFarmingStrategy.WithdrawLPParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -428,7 +374,7 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _withdrawLPToPrincipal(
     AssetLib.Asset[] calldata assets,
-    WithdrawLPToPrincipalParams memory params,
+    IFarmingStrategy.WithdrawLPToPrincipalParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -469,7 +415,7 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _rebalanceAndDeposit(
     AssetLib.Asset[] calldata assets,
-    RebalanceAndDepositParams memory params,
+    IFarmingStrategy.RebalanceAndDepositParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -632,8 +578,8 @@ contract FarmingStrategy is IStrategy, IERC721Receiver, ReentrancyGuard {
 
     require(rewardSwapper.supportedRewardTokens(rewardToken), UnsupportedRewardToken());
 
-    // Approve RewardSwapper to spend reward tokens using safe reset-and-approve pattern
-    IERC20(rewardToken).safeResetAndApprove(address(rewardSwapper), amount);
+    // Approve RewardSwapper to spend reward tokens using safe approve with fallback pattern
+    IERC20(rewardToken).safeApproveWithFallback(address(rewardSwapper), amount);
 
     // Execute swap
     amountOut = rewardSwapper.swapRewardToPrincipal(

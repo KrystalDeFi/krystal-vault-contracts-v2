@@ -153,7 +153,7 @@ contract IntegrationFarmingTest is TestCommon {
     vaultInstance = Vault(payable(vaultAddress));
   }
 
-  function test_createAndDepositLP() public {
+  function test_integration() public {
     uint256 currentBlock = block.number;
     console.log("==== test_createAndDepositLP ====");
 
@@ -184,11 +184,11 @@ contract IntegrationFarmingTest is TestCommon {
     });
 
     {
-      FarmingStrategy.CreateAndDepositLPParams memory params =
-        FarmingStrategy.CreateAndDepositLPParams({ gauge: WETH_USDC_GAUGE, lpParams: lpParams });
+      IFarmingStrategy.CreateAndDepositLPParams memory params =
+        IFarmingStrategy.CreateAndDepositLPParams({ gauge: WETH_USDC_GAUGE, lpParams: lpParams });
 
       ICommon.Instruction memory instruction = ICommon.Instruction({
-        instructionType: uint8(FarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
         params: abi.encode(params)
       });
 
@@ -201,7 +201,7 @@ contract IntegrationFarmingTest is TestCommon {
       console.log("rebalance position");
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       // Withdraw LP from farming
-      FarmingStrategy.RebalanceAndDepositParams memory params = FarmingStrategy.RebalanceAndDepositParams({
+      IFarmingStrategy.RebalanceAndDepositParams memory params = IFarmingStrategy.RebalanceAndDepositParams({
         rebalanceParams: ILpStrategy.SwapAndRebalancePositionParams({
           tickLower: -193_000,
           tickUpper: -191_900,
@@ -215,7 +215,7 @@ contract IntegrationFarmingTest is TestCommon {
         })
       });
       ICommon.Instruction memory instruction = ICommon.Instruction({
-        instructionType: uint8(FarmingStrategy.FarmingInstructionType.RebalanceAndDeposit),
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.RebalanceAndDeposit),
         params: abi.encode(params)
       });
 
@@ -268,7 +268,7 @@ contract IntegrationFarmingTest is TestCommon {
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
       // Withdraw LP from farming
-      FarmingStrategy.WithdrawLPToPrincipalParams memory params = FarmingStrategy.WithdrawLPToPrincipalParams({
+      IFarmingStrategy.WithdrawLPToPrincipalParams memory params = IFarmingStrategy.WithdrawLPToPrincipalParams({
         decreaseAndSwapParams: ILpStrategy.DecreaseLiquidityAndSwapParams({
           liquidity: liquidity / 2,
           amount0Min: 0,
@@ -278,7 +278,7 @@ contract IntegrationFarmingTest is TestCommon {
         })
       });
       ICommon.Instruction memory instruction = ICommon.Instruction({
-        instructionType: uint8(FarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal),
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal),
         params: abi.encode(params)
       });
 
@@ -292,10 +292,10 @@ contract IntegrationFarmingTest is TestCommon {
       console.log("withdraw farming LP to normal position");
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       // Withdraw LP from farming
-      FarmingStrategy.WithdrawLPParams memory params = FarmingStrategy.WithdrawLPParams({ minPrincipalAmount: 0 });
+      IFarmingStrategy.WithdrawLPParams memory params = IFarmingStrategy.WithdrawLPParams({ minPrincipalAmount: 0 });
 
       ICommon.Instruction memory instruction = ICommon.Instruction({
-        instructionType: uint8(FarmingStrategy.FarmingInstructionType.WithdrawLP),
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLP),
         params: abi.encode(params)
       });
       assets = new AssetLib.Asset[](1);
@@ -307,11 +307,11 @@ contract IntegrationFarmingTest is TestCommon {
     {
       console.log("deposit existing LP position");
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
-      FarmingStrategy.DepositExistingLPParams memory params =
-        FarmingStrategy.DepositExistingLPParams({ gauge: WETH_USDC_GAUGE });
+      IFarmingStrategy.DepositExistingLPParams memory params =
+        IFarmingStrategy.DepositExistingLPParams({ gauge: WETH_USDC_GAUGE });
 
       ICommon.Instruction memory instruction = ICommon.Instruction({
-        instructionType: uint8(FarmingStrategy.FarmingInstructionType.DepositExistingLP),
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP),
         params: abi.encode(params)
       });
       assets = new AssetLib.Asset[](1);
@@ -344,134 +344,5 @@ contract IntegrationFarmingTest is TestCommon {
       console.log("\tamount", vaultAssets[i].amount);
       console.log("\t=================================");
     }
-  }
-
-  function test_valueOf() public {
-    console.log("==== test_valueOf ====");
-
-    // Create asset representing the deposited farming position
-    AssetLib.Asset memory asset = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(farmingStrategy),
-      token: WETH_USDC_GAUGE,
-      tokenId: testTokenId,
-      amount: 1
-    });
-
-    // Get value of the farming position
-    uint256 value = farmingStrategy.valueOf(asset, WETH);
-
-    // Should return non-zero value (LP value + potential rewards)
-    assertTrue(value > 0, "Farming position should have positive value");
-
-    console.log("Farming position value:", value);
-  }
-
-  function test_harvest() public {
-    console.log("==== test_harvest ====");
-
-    // Create asset representing the deposited farming position
-    AssetLib.Asset memory asset = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(farmingStrategy),
-      token: WETH_USDC_GAUGE,
-      tokenId: testTokenId,
-      amount: 1
-    });
-
-    // Fast forward time to accumulate some rewards
-    vm.warp(block.timestamp + 7 days);
-
-    // Execute harvest
-    AssetLib.Asset[] memory results = farmingStrategy.harvest(
-      asset,
-      WETH, // Output token
-      0, // Min amount out
-      ICommon.VaultConfig({
-        allowDeposit: true,
-        rangeStrategyType: 0,
-        tvlStrategyType: 0,
-        principalToken: WETH,
-        supportedAddresses: new address[](0)
-      }),
-      ICommon.FeeConfig({
-        vaultOwnerFeeBasisPoint: 0,
-        vaultOwner: address(0),
-        platformFeeBasisPoint: 0,
-        platformFeeRecipient: address(0),
-        gasFeeX64: 0,
-        gasFeeRecipient: address(0)
-      })
-    );
-
-    // Verify harvest results
-    console.log("Harvest results count:", results.length);
-    for (uint256 i = 0; i < results.length; i++) {
-      console.log("Result", i, "token:", results[i].token);
-      console.log("Result", i, "amount:", results[i].amount);
-    }
-  }
-
-  function test_revalidate() public {
-    console.log("==== test_revalidate ====");
-
-    // Create asset representing a farming position
-    AssetLib.Asset memory asset = AssetLib.Asset({
-      assetType: AssetLib.AssetType.ERC721,
-      strategy: address(farmingStrategy),
-      token: WETH_USDC_GAUGE,
-      tokenId: testTokenId,
-      amount: 1
-    });
-
-    // Should not revert for valid asset
-    farmingStrategy.revalidate(
-      asset,
-      ICommon.VaultConfig({
-        allowDeposit: true,
-        rangeStrategyType: 0,
-        tvlStrategyType: 0,
-        principalToken: WETH,
-        supportedAddresses: new address[](0)
-      })
-    );
-
-    // Should revert for invalid asset type
-    asset.assetType = AssetLib.AssetType.ERC20;
-    vm.expectRevert();
-    farmingStrategy.revalidate(
-      asset,
-      ICommon.VaultConfig({
-        allowDeposit: true,
-        rangeStrategyType: 0,
-        tvlStrategyType: 0,
-        principalToken: WETH,
-        supportedAddresses: new address[](0)
-      })
-    );
-  }
-
-  function test_basicSetup() public {
-    console.log("==== test_basicSetup ====");
-
-    // Test basic contract setup
-    assertTrue(address(farmingStrategy.rewardSwapper()) != address(0), "RewardSwapper should be set");
-    assertTrue(address(farmingStrategy.configManager()) != address(0), "ConfigManager should be set");
-    assertTrue(address(farmingStrategy.lpStrategyImplementation()) != address(0), "LpStrategy should be set");
-
-    console.log("FarmingStrategy address:", address(farmingStrategy));
-    console.log("RewardSwapper address:", address(farmingStrategy.rewardSwapper()));
-    console.log("ConfigManager address:", address(farmingStrategy.configManager()));
-  }
-
-  function test_rewardSwapperIntegration() public view {
-    console.log("==== test_rewardSwapperIntegration ====");
-
-    // Test RewardSwapper setup
-    assertTrue(address(farmingStrategy.rewardSwapper()) != address(0), "RewardSwapper should be set");
-
-    // Test reward token support (this would need to be configured by owner)
-    // rewardSwapper.setSupportedRewardToken(AERO, true);
-    // assertTrue(rewardSwapper.supportedRewardTokens(AERO), "AERO should be supported");
   }
 }

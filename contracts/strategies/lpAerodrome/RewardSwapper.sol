@@ -127,6 +127,11 @@ contract RewardSwapper is Ownable {
 
     // Transfer principal tokens back to caller
     IERC20(principalToken).safeTransfer(msg.sender, amountOut);
+    uint256 rewardTokenBalance = IERC20(rewardToken).balanceOf(address(this));
+    if (rewardTokenBalance > 0) {
+      // Return any remaining reward tokens
+      IERC20(rewardToken).safeTransfer(msg.sender, rewardTokenBalance);
+    }
 
     emit RewardSwapped(rewardToken, principalToken, amountIn, amountOut, pool);
   }
@@ -248,8 +253,8 @@ contract RewardSwapper is Ownable {
     else if (tokenIn == token1 && tokenOut == token0) zeroForOne = false;
     else revert InvalidPool();
 
-    // Approve tokens to pool swapper using safe reset-and-approve pattern
-    IERC20(tokenIn).safeResetAndApprove(address(poolSwapper), amountIn);
+    // Approve tokens to pool swapper using safe approve with fallback pattern
+    IERC20(tokenIn).safeApproveWithFallback(address(poolSwapper), amountIn);
 
     // Execute swap through PoolOptimalSwapper
     (uint256 amountOut,) = poolSwapper.poolSwap(pool, amountIn, zeroForOne, amountOutMin, "");
