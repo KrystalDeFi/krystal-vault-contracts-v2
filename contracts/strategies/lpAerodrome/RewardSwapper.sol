@@ -105,17 +105,11 @@ contract RewardSwapper is Ownable {
     uint256 amountOutMin,
     bytes calldata swapData
   ) external returns (uint256 amountOut) {
+    require(rewardToken != principalToken, "SameToken");
     require(supportedRewardTokens[rewardToken], UnsupportedRewardToken());
 
     address pool = rewardTokenPools[rewardToken][principalToken];
     require(pool != address(0), NoPoolConfigured());
-
-    // If reward token is already the principal token, no swap needed
-    if (rewardToken == principalToken) {
-      require(amountIn >= amountOutMin, InsufficientAmountOut());
-      IERC20(rewardToken).safeTransferFrom(msg.sender, msg.sender, amountIn);
-      return amountIn;
-    }
 
     // Transfer reward tokens from caller
     IERC20(rewardToken).safeTransferFrom(msg.sender, address(this), amountIn);
