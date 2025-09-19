@@ -1,43 +1,22 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_configManager",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_optimalSwapper",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_validator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_lpFeeTaker",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
     "inputs": [],
     "name": "ApproveFailed",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "ApproveFailed",
+    "name": "DelegationFailed",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GaugeNotFound",
     "type": "error"
   },
   {
@@ -52,12 +31,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFarmingInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidFeeConfig",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "InvalidGauge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNFT",
     "type": "error"
   },
   {
@@ -92,7 +86,12 @@
   },
   {
     "inputs": [],
-    "name": "ReentrancyGuardReentrantCall",
+    "name": "NFTAlreadyDeposited",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NFTNotDeposited",
     "type": "error"
   },
   {
@@ -102,18 +101,43 @@
   },
   {
     "inputs": [],
-    "name": "T",
+    "name": "TransferFailed",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "TransferFailed",
+    "name": "UnsupportedRewardToken",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "rewardToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FarmingRewardsHarvested",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -156,72 +180,76 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "address",
-        "name": "vaultAddress",
+        "name": "gauge",
         "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount0Collected",
+        "name": "liquidity",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount1Collected",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "indexed": false,
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "compoundAssets",
-        "type": "tuple[]"
       }
     ],
-    "name": "LpStrategyCompound",
+    "name": "LPCreatedAndDeposited",
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "configManager",
-    "outputs": [
+    "anonymous": false,
+    "inputs": [
       {
-        "internalType": "contract IConfigManager",
-        "name": "",
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
         "type": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "NFTDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "NFTWithdrawn",
+    "type": "event"
   },
   {
     "inputs": [
@@ -286,7 +314,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       },
       {
@@ -363,7 +391,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -438,7 +466,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       }
     ],
@@ -625,7 +653,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "returnAssets",
+        "name": "",
         "type": "tuple[]"
       }
     ],
@@ -787,53 +815,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "name": "onERC721Received",
-    "outputs": [
-      {
-        "internalType": "bytes4",
-        "name": "",
-        "type": "bytes4"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "optimalSwapper",
-    "outputs": [
-      {
-        "internalType": "contract IOptimalSwapper",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "enum AssetLib.AssetType",
@@ -900,20 +881,7 @@
     ],
     "name": "revalidate",
     "outputs": [],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "validator",
-    "outputs": [
-      {
-        "internalType": "contract IAerodromeLpValidator",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -960,15 +928,11 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "valueInPrincipal",
+        "name": "",
         "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]

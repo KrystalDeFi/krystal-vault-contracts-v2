@@ -3,22 +3,22 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_lpStrategyImplementation",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_configManager",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "_optimalSwapper",
+        "name": "_rewardSwapper",
         "type": "address"
       },
       {
         "internalType": "address",
         "name": "_validator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_lpFeeTaker",
         "type": "address"
       }
     ],
@@ -37,7 +37,17 @@
   },
   {
     "inputs": [],
+    "name": "DelegationFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GaugeNotFound",
     "type": "error"
   },
   {
@@ -52,12 +62,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFarmingInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidFeeConfig",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "InvalidGauge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNFT",
     "type": "error"
   },
   {
@@ -92,7 +117,28 @@
   },
   {
     "inputs": [],
+    "name": "NFTAlreadyDeposited",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NFTNotDeposited",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
     "type": "error"
   },
   {
@@ -102,18 +148,43 @@
   },
   {
     "inputs": [],
-    "name": "T",
+    "name": "TransferFailed",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "TransferFailed",
+    "name": "UnsupportedRewardToken",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "rewardToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FarmingRewardsHarvested",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -156,58 +227,75 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "address",
-        "name": "vaultAddress",
+        "name": "gauge",
         "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount0Collected",
+        "name": "liquidity",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount1Collected",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "enum AssetLib.AssetType",
-            "name": "assetType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          }
-        ],
-        "indexed": false,
-        "internalType": "struct AssetLib.Asset[]",
-        "name": "compoundAssets",
-        "type": "tuple[]"
       }
     ],
-    "name": "LpStrategyCompound",
+    "name": "LPCreatedAndDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "NFTDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "gauge",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      }
+    ],
+    "name": "NFTWithdrawn",
     "type": "event"
   },
   {
@@ -286,7 +374,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       },
       {
@@ -438,7 +526,7 @@
           }
         ],
         "internalType": "struct ICommon.VaultConfig",
-        "name": "vaultConfig",
+        "name": "config",
         "type": "tuple"
       }
     ],
@@ -473,7 +561,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "",
+        "name": "returnAssets",
         "type": "tuple[]"
       }
     ],
@@ -777,7 +865,7 @@
           }
         ],
         "internalType": "struct AssetLib.Asset[]",
-        "name": "",
+        "name": "returnAssets",
         "type": "tuple[]"
       }
     ],
@@ -785,25 +873,38 @@
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "lpStrategyImplementation",
+    "outputs": [
       {
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "from",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "tokenId",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "",
+        "name": "data",
         "type": "bytes"
       }
     ],
@@ -815,20 +916,7 @@
         "type": "bytes4"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "optimalSwapper",
-    "outputs": [
-      {
-        "internalType": "contract IOptimalSwapper",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -905,10 +993,23 @@
   },
   {
     "inputs": [],
+    "name": "rewardSwapper",
+    "outputs": [
+      {
+        "internalType": "contract RewardSwapper",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "validator",
     "outputs": [
       {
-        "internalType": "contract IAerodromeLpValidator",
+        "internalType": "contract IFarmingStrategyValidator",
         "name": "",
         "type": "address"
       }
@@ -960,7 +1061,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "valueInPrincipal",
+        "name": "",
         "type": "uint256"
       }
     ],
