@@ -90,7 +90,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external payable returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
 

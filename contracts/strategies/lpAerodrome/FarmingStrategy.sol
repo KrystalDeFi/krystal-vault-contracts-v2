@@ -14,6 +14,7 @@ import "../../interfaces/strategies/aerodrome/ICLGauge.sol";
 import "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IFarmingStrategyValidator.sol";
 import { IFeeTaker } from "../../interfaces/strategies/IFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from
@@ -35,6 +36,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   address public immutable lpStrategyImplementation;
   IConfigManager public immutable configManager;
   RewardSwapper public immutable rewardSwapper;
+  IFarmingStrategyValidator public immutable validator;
   address private immutable thisAddress;
 
   // Note: No storage state variables - farming state tracked via asset encoding
@@ -46,15 +48,18 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    * @param _lpStrategyImplementation Address of the LpStrategy implementation for delegatecall
    * @param _configManager Address of the config manager
    * @param _rewardSwapper Address of the reward swapper contract
+   * @param _validator Address of the farming strategy validator
    */
-  constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper) {
+  constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper, address _validator) {
     require(_lpStrategyImplementation != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(_rewardSwapper != address(0), ZeroAddress());
+    require(_validator != address(0), ZeroAddress());
 
     lpStrategyImplementation = _lpStrategyImplementation;
     configManager = IConfigManager(_configManager);
     rewardSwapper = RewardSwapper(_rewardSwapper);
+    validator = IFarmingStrategyValidator(_validator);
     thisAddress = address(this);
   }
 
@@ -100,7 +105,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig,
     bytes calldata data
-  ) external payable override nonReentrant returns (AssetLib.Asset[] memory returnAssets) {
+  ) external payable override returns (AssetLib.Asset[] memory returnAssets) {
     Instruction memory instruction = abi.decode(data, (Instruction));
     uint8 instructionType = instruction.instructionType;
 
@@ -312,6 +317,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
+    // Validate user-provided gauge address
+    validator.validateGauge(params.gauge);
+
     // Deposit the position
     returnAssets = new AssetLib.Asset[](1);
     returnAssets[0] = _depositPosition(assets[0], params.gauge);
@@ -326,6 +334,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    // Validate user-provided gauge address
+    validator.validateGauge(params.gauge);
+
     // Delegate LP creation to LpStrategy
     bytes memory lpInstructionData = abi.encode(
       Instruction({

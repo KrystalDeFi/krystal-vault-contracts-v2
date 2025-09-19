@@ -31,6 +31,7 @@ import { LpStrategy } from "../../contracts/strategies/lpAerodrome/LpStrategy.so
 import { LpValidator } from "../../contracts/strategies/lpAerodrome/LpValidator.sol";
 import { LpFeeTaker } from "../../contracts/strategies/lpAerodrome/LpFeeTaker.sol";
 import { FarmingStrategy } from "../../contracts/strategies/lpAerodrome/FarmingStrategy.sol";
+import { FarmingStrategyValidator } from "../../contracts/strategies/lpAerodrome/FarmingStrategyValidator.sol";
 import { RewardSwapper } from "../../contracts/strategies/lpAerodrome/RewardSwapper.sol";
 import { ICommon } from "../../contracts/interfaces/ICommon.sol";
 
@@ -46,6 +47,7 @@ contract IntegrationFarmingTest is TestCommon {
   LpValidator public validator;
   LpStrategy public lpStrategy;
   FarmingStrategy public farmingStrategy;
+  FarmingStrategyValidator public farmingValidator;
   RewardSwapper public rewardSwapper;
   PoolOptimalSwapper public poolSwapper;
 
@@ -110,8 +112,14 @@ contract IntegrationFarmingTest is TestCommon {
     rewardSwapper.setSupportedRewardToken(AERO, true);
     rewardSwapper.setRewardTokenPool(AERO, WETH, AERO_WETH_POOL);
 
+    // Set up FarmingStrategyValidator
+    address[] memory initialFactories = new address[](1);
+    // Get the gauge factory from the example gauge
+    initialFactories[0] = ICLGauge(WETH_USDC_GAUGE).gaugeFactory();
+    farmingValidator = new FarmingStrategyValidator(address(this), initialFactories);
+
     // Set up FarmingStrategy
-    farmingStrategy = new FarmingStrategy(address(lpStrategy), address(configManager), address(rewardSwapper));
+    farmingStrategy = new FarmingStrategy(address(lpStrategy), address(configManager), address(rewardSwapper), address(farmingValidator));
 
     address[] memory strategies = new address[](2);
     strategies[0] = address(lpStrategy);
