@@ -239,6 +239,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         existingContract?.["lpChainingStrategy"] || contracts?.lpChainingStrategy?.target,
         existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
         existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target,
+        existingContract?.["lpStrategyAerodrome"] || contracts?.lpStrategyAerodrome?.target,
         existingContract?.["farmingStrategy"] || contracts?.farmingStrategy?.target,
       ]?.filter(Boolean),
       networkConfig.swapRouters,
