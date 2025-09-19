@@ -20,6 +20,11 @@ library SafeApprovalLib {
   function safeApprove(IERC20 token, address spender, uint256 value) internal {
     (bool success, bytes memory returnData) =
       address(token).call(abi.encodeWithSelector(token.approve.selector, spender, value));
+    if (value == 0) {
+      // some token does not allow approve(0) so we skip check for this case
+      return;
+    }
+
     require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
   }
 
@@ -31,30 +36,11 @@ library SafeApprovalLib {
    * @dev First resets allowance to 0, then sets to desired value
    */
   function safeResetAndApprove(IERC20 token, address spender, uint256 value) internal {
+    if (value == 0) return;
     // First reset to 0 to handle tokens like USDT that require this
     safeApprove(token, spender, 0);
 
-    // Then approve the desired amount (if non-zero)
-    if (value > 0) safeApprove(token, spender, value);
-  }
-
-  /**
-   * @notice Safe approve with automatic reset if needed
-   * @param token The token to approve
-   * @param spender The spender address
-   * @param value The amount to approve
-   * @dev Attempts normal approve first, if it fails, tries reset-and-approve pattern
-   */
-  function safeApproveWithFallback(IERC20 token, address spender, uint256 value) internal {
-    // Try normal approve first
-    (bool success, bytes memory returnData) =
-      address(token).call(abi.encodeWithSelector(token.approve.selector, spender, value));
-
-    bool approveSuccess = success && (returnData.length == 0 || abi.decode(returnData, (bool)));
-
-    if (!approveSuccess) {
-      // If normal approve failed, try reset-and-approve pattern
-      safeResetAndApprove(token, spender, value);
-    }
+    // Then approve the desired amount
+    safeApprove(token, spender, value);
   }
 }

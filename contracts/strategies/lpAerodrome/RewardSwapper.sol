@@ -254,13 +254,10 @@ contract RewardSwapper is Ownable {
     else revert InvalidPool();
 
     // Approve tokens to pool swapper using safe approve with fallback pattern
-    IERC20(tokenIn).safeApproveWithFallback(address(poolSwapper), amountIn);
+    IERC20(tokenIn).safeResetAndApprove(address(poolSwapper), amountIn);
 
     // Execute swap through PoolOptimalSwapper
     (uint256 amountOut,) = poolSwapper.poolSwap(pool, amountIn, zeroForOne, amountOutMin, "");
-
-    // Reset approval to 0 for security
-    IERC20(tokenIn).safeApprove(address(poolSwapper), 0);
 
     // Verify we got some output
     require(amountOut > 0, SwapFailed());

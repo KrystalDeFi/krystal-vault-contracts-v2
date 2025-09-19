@@ -579,7 +579,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(rewardSwapper.supportedRewardTokens(rewardToken), UnsupportedRewardToken());
 
     // Approve RewardSwapper to spend reward tokens using safe approve with fallback pattern
-    IERC20(rewardToken).safeApproveWithFallback(address(rewardSwapper), amount);
+    IERC20(rewardToken).safeResetAndApprove(address(rewardSwapper), amount);
 
     // Execute swap
     amountOut = rewardSwapper.swapRewardToPrincipal(

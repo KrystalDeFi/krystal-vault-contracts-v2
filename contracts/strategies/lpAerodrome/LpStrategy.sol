@@ -390,8 +390,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
 
-    IERC20(token0.token).safeApproveWithFallback(address(params.nfpm), token0.amount);
-    IERC20(token1.token).safeApproveWithFallback(address(params.nfpm), token1.amount);
+    IERC20(token0.token).safeResetAndApprove(address(params.nfpm), token0.amount);
+    IERC20(token1.token).safeResetAndApprove(address(params.nfpm), token1.amount);
 
     if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
       validator.validateObservationCardinality(params.nfpm, params.tickSpacing, token0.token, token1.token);
@@ -515,8 +515,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
 
-    IERC20(token0.token).safeApproveWithFallback(address(lpAsset.token), token0.amount);
-    IERC20(token1.token).safeApproveWithFallback(address(lpAsset.token), token1.amount);
+    IERC20(token0.token).safeResetAndApprove(address(lpAsset.token), token0.amount);
+    IERC20(token1.token).safeResetAndApprove(address(lpAsset.token), token1.amount);
 
     (, uint256 amount0Added, uint256 amount1Added) = INFPM(lpAsset.token).increaseLiquidity(
       INFPM.IncreaseLiquidityParams(
@@ -566,7 +566,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     uint256 amountOut;
     uint256 amountInUsed;
     {
-      IERC20(otherAsset.token).safeApproveWithFallback(address(optimalSwapper), otherAsset.amount);
+      IERC20(otherAsset.token).safeResetAndApprove(address(optimalSwapper), otherAsset.amount);
 
       bytes memory swapData = params.swapData;
       (amountOut, amountInUsed) =
@@ -686,8 +686,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       bytes memory data = params.swapData;
       uint256 amount0 = returnAssets[0].amount;
       uint256 amount1 = returnAssets[1].amount;
-      IERC20(token0).safeApproveWithFallback(address(optimalSwapper), amount0);
-      IERC20(token1).safeApproveWithFallback(address(optimalSwapper), amount1);
+      IERC20(token0).safeResetAndApprove(address(optimalSwapper), amount0);
+      IERC20(token1).safeResetAndApprove(address(optimalSwapper), amount1);
       (amount0, amount1) = optimalSwapper.optimalSwap(
         IOptimalSwapper.OptimalSwapParams({
           pool: address(pool),
@@ -774,8 +774,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       amount1Collected -= fee1;
     }
 
-    IERC20(token0).safeApproveWithFallback(address(optimalSwapper), amount0Collected);
-    IERC20(token1).safeApproveWithFallback(address(optimalSwapper), amount1Collected);
+    IERC20(token0).safeResetAndApprove(address(optimalSwapper), amount0Collected);
+    IERC20(token1).safeResetAndApprove(address(optimalSwapper), amount1Collected);
     bytes memory swapData = params.swapData;
     (uint256 amount0, uint256 amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams({
@@ -817,7 +817,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (amount0, amount1) = params.principalToken < params.otherToken
       ? (params.principalTokenAmount, 0)
       : (uint256(0), params.principalTokenAmount);
-    IERC20(params.principalToken).safeApproveWithFallback(address(optimalSwapper), params.principalTokenAmount);
+    IERC20(params.principalToken).safeResetAndApprove(address(optimalSwapper), params.principalTokenAmount);
     (amount0, amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams(
         params.pool, amount0, amount1, params.tickLower, params.tickUpper, params.swapData
@@ -839,7 +839,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       validator.validatePriceSanity(params.pool);
     }
 
-    IERC20(params.token).safeApproveWithFallback(address(optimalSwapper), params.amount);
+    IERC20(params.token).safeResetAndApprove(address(optimalSwapper), params.amount);
     (amountOut, amountInUsed) = optimalSwapper.poolSwap(
       params.pool, params.amount, params.token < params.principalToken, params.amountOutMin, params.swapData
     );
@@ -970,8 +970,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     address pool,
     bool validatePriceSanity
   ) internal returns (uint256, uint256) {
-    IERC20(token0).safeApproveWithFallback(address(lpFeeTaker), amount0);
-    IERC20(token1).safeApproveWithFallback(address(lpFeeTaker), amount1);
+    IERC20(token0).safeResetAndApprove(address(lpFeeTaker), amount0);
+    IERC20(token1).safeResetAndApprove(address(lpFeeTaker), amount1);
     return lpFeeTaker.takeFees(
       token0,
       amount0,
