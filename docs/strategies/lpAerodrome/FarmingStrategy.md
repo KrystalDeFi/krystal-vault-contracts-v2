@@ -264,10 +264,25 @@ Get the NFT contract address for an asset
 | ---- | ---- | ----------- |
 | nftContract | address | The NFT contract address |
 
+### _validateRewardToken
+
+```solidity
+function _validateRewardToken(address gauge, address principalToken) internal view
+```
+
+Validate that reward token is compatible with principal token
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| gauge | address | The gauge address to check reward token for |
+| principalToken | address | The vault's principal token |
+
 ### _depositExistingLP
 
 ```solidity
-function _depositExistingLP(struct AssetLib.Asset[] assets, struct IFarmingStrategy.DepositExistingLPParams params) internal returns (struct AssetLib.Asset[] returnAssets)
+function _depositExistingLP(struct AssetLib.Asset[] assets, struct IFarmingStrategy.DepositExistingLPParams params, struct ICommon.VaultConfig config) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Deposit existing LP NFT into farming
