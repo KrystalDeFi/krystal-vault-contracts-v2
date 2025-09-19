@@ -92,7 +92,7 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: {
       mainnet: ETHERSCAN_APIKEY || "",
-      base: BASESCAN_APIKEY || "",
+      base: ETHERSCAN_V2_APIKEY || "",
       optimisticEthereum: OPTIMISM_APIKEY || "",
       bsc: BSCSCAN_APIKEY || "",
       polygon: POLYGONSCAN_APIKEY || "",
@@ -106,7 +106,7 @@ const config: HardhatUserConfig = {
         network: "base",
         chainId: 8453,
         urls: {
-          apiURL: "https://api.basescan.org/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
           browserURL: "https://basescan.org",
         },
       },

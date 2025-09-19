@@ -29,7 +29,7 @@ import { IAerodromeLpValidator as ILpValidator } from
 import { IFarmingStrategy } from "../../contracts/interfaces/strategies/aerodrome/IFarmingStrategy.sol";
 import { LpStrategy } from "../../contracts/strategies/lpAerodrome/LpStrategy.sol";
 import { LpValidator } from "../../contracts/strategies/lpAerodrome/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpAerodrome/LpFeeTaker.sol";
+import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
 import { FarmingStrategy } from "../../contracts/strategies/lpAerodrome/FarmingStrategy.sol";
 import { FarmingStrategyValidator } from "../../contracts/strategies/lpAerodrome/FarmingStrategyValidator.sol";
 import { RewardSwapper } from "../../contracts/strategies/lpAerodrome/RewardSwapper.sol";
@@ -119,7 +119,9 @@ contract IntegrationFarmingTest is TestCommon {
     farmingValidator = new FarmingStrategyValidator(address(this), initialFactories);
 
     // Set up FarmingStrategy
-    farmingStrategy = new FarmingStrategy(address(lpStrategy), address(configManager), address(rewardSwapper), address(farmingValidator));
+    farmingStrategy = new FarmingStrategy(
+      address(lpStrategy), address(configManager), address(rewardSwapper), address(farmingValidator)
+    );
 
     address[] memory strategies = new address[](2);
     strategies[0] = address(lpStrategy);
