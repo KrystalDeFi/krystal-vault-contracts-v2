@@ -2,6 +2,18 @@
 
 ## ICLPool
 
+### slot0
+
+```solidity
+function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, bool unlocked)
+```
+
+### liquidity
+
+```solidity
+function liquidity() external view returns (uint128)
+```
+
 ### token0
 
 ```solidity
