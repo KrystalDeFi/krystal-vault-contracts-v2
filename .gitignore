@@ -160,3 +160,6 @@ soljson-latest.js
 
 .generator/
 scripts/eip712/order.ts
+
+.claude/
+.serena/

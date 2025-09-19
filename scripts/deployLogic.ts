@@ -18,6 +18,13 @@ import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/strategies/merkl";
 import { KatanaLpFeeTaker, KatanaPoolOptimalSwapper } from "../typechain-types/contracts/strategies/roninKatanaV3";
 import { LpChainingStrategy } from "../typechain-types/contracts/strategies/lpChaining";
+import {
+  LpStrategy as LpStrategyAerodrome,
+  LpValidator as LpValidatorAerodrome,
+  FarmingStrategy,
+  FarmingStrategyValidator,
+  RewardSwapper,
+} from "../typechain-types/contracts/strategies/lpAerodrome";
 
 const { SALT } = process.env;
 
@@ -47,6 +54,13 @@ export interface Contracts {
   merklAutomator?: MerklAutomator;
   vaultFactory?: VaultFactory;
   kodiakIslandStrategy?: KodiakIslandStrategy;
+  // Aerodrome contracts
+  lpValidatorAerodrome?: LpValidatorAerodrome;
+  lpStrategyAerodrome?: LpStrategyAerodrome;
+  rewardSwapper?: RewardSwapper;
+  farmingStrategyValidator?: FarmingStrategyValidator;
+  farmingStrategy?: FarmingStrategy;
+  // --------------------
 }
 
 export const deploy = async (existingContract: Record<string, any> | undefined = undefined): Promise<Contracts> => {
@@ -90,17 +104,29 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   });
 
   const lpValidator = await deployLpValidatorContract(++step, existingContract, undefined, contracts);
+  const lpValidatorAerodrome = await deployLpValidatorAerodromeContract(++step, existingContract, undefined, contracts);
+  const farmingStrategyValidator = await deployFarmingStrategyValidatorContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
   const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, undefined, contracts);
   const katanaLpFeeTaker = await deployKatanaLpFeeTakerContract(++step, existingContract, undefined, contracts);
   const merklAutomator = await deployMerklAutomatorContract(++step, existingContract, undefined, contracts);
+  const rewardSwapper = await deployRewardSwapperContract(++step, existingContract, undefined, contracts);
 
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
+    lpValidatorAerodrome: lpValidatorAerodrome.lpValidatorAerodrome,
+    farmingStrategyValidator: farmingStrategyValidator.farmingStrategyValidator,
     lpFeeTaker: isRonin ? katanaLpFeeTaker.lpFeeTaker : lpFeeTaker.lpFeeTaker,
     merklAutomator: merklAutomator.merklAutomator,
+    rewardSwapper: rewardSwapper.rewardSwapper,
   });
 
   const lpStrategy = await deployLpStrategyContract(++step, existingContract, undefined, contracts);
+  const lpStrategyAerodrome = await deployLpStrategyAerodromeContract(++step, existingContract, undefined, contracts);
   const lpChainingStrategy = await deployLpChainingStrategyContract(++step, existingContract, undefined, contracts);
   const merklStrategy = await deployMerklStrategyContract(++step, existingContract, undefined, contracts);
   const vaultFactory = await deployVaultFactoryContract(++step, existingContract, undefined, contracts);
@@ -108,10 +134,17 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   Object.assign(contracts, {
     lpStrategy: lpStrategy.lpStrategy,
+    lpStrategyAerodrome: lpStrategyAerodrome.lpStrategyAerodrome,
     lpChainingStrategy: lpChainingStrategy.lpChainingStrategy,
     vaultFactory: vaultFactory.vaultFactory,
     merklStrategy: merklStrategy.merklStrategy,
     kodiakIslandStrategy: kodiakIslandStrategy.kodiakIslandStrategy,
+  });
+
+  const farmingStrategy = await deployFarmingStrategyContract(++step, existingContract, undefined, contracts);
+
+  Object.assign(contracts, {
+    farmingStrategy: farmingStrategy.farmingStrategy,
   });
 
   if (networkConfig.vaultFactory.enabled) {
@@ -206,6 +239,8 @@ async function deployContracts(existingContract: Record<string, any> | undefined
         existingContract?.["lpChainingStrategy"] || contracts?.lpChainingStrategy?.target,
         existingContract?.["merklStrategy"] || contracts?.merklStrategy?.target,
         existingContract?.["kodiakIslandStrategy"] || contracts?.kodiakIslandStrategy?.target,
+        existingContract?.["lpStrategyAerodrome"] || contracts?.lpStrategyAerodrome?.target,
+        existingContract?.["farmingStrategy"] || contracts?.farmingStrategy?.target,
       ]?.filter(Boolean),
       networkConfig.swapRouters,
       [
@@ -230,6 +265,14 @@ async function deployContracts(existingContract: Record<string, any> | undefined
       contractAdmin,
       existingContract?.["configManager"] || contracts?.configManager?.target,
       networkConfig.nfpmAddresses,
+    );
+  }
+
+  if (networkConfig.lpValidatorAerodrome?.enabled) {
+    await lpValidatorAerodrome?.lpValidatorAerodrome?.initialize(
+      contractAdmin,
+      existingContract?.["configManager"] || contracts?.configManager?.target,
+      networkConfig?.aerodromeNfpmAddresses || [],
     );
   }
 
@@ -462,6 +505,31 @@ export const deployLpValidatorContract = async (
   };
 };
 
+export const deployLpValidatorAerodromeContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpValidatorAerodrome;
+
+  if (config.lpValidatorAerodrome?.enabled) {
+    lpValidatorAerodrome = (await deployContract(
+      `${step} >>`,
+      config.lpValidatorAerodrome?.autoVerifyContract,
+      "contracts/strategies/lpAerodrome/LpValidator.sol:LpValidator",
+      existingContract?.["lpValidatorAerodrome"],
+      "contracts/strategies/lpAerodrome/LpValidator.sol:LpValidator",
+    )) as LpValidatorAerodrome;
+  }
+
+  return {
+    lpValidatorAerodrome,
+  };
+};
+
 export const deployLpStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
@@ -490,6 +558,37 @@ export const deployLpStrategyContract = async (
   }
   return {
     lpStrategy,
+  };
+};
+
+export const deployLpStrategyAerodromeContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let lpStrategyAerodrome;
+  if (config.lpStrategyAerodrome?.enabled) {
+    lpStrategyAerodrome = (await deployContract(
+      `${step} >>`,
+      config.lpStrategyAerodrome?.autoVerifyContract,
+      "contracts/strategies/lpAerodrome/LpStrategy.sol:LpStrategy",
+      existingContract?.["lpStrategyAerodrome"],
+      "contracts/strategies/lpAerodrome/LpStrategy.sol:LpStrategy",
+      undefined,
+      ["address", "address", "address", "address"],
+      [
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+        existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+        existingContract?.["lpValidatorAerodrome"] || contracts?.lpValidatorAerodrome?.target,
+        existingContract?.["lpFeeTaker"] || contracts?.lpFeeTaker?.target,
+      ],
+    )) as LpStrategyAerodrome;
+  }
+  return {
+    lpStrategyAerodrome,
   };
 };
 
@@ -596,6 +695,93 @@ export const deployKodiakIslandStrategyContract = async (
   }
   return {
     kodiakIslandStrategy,
+  };
+};
+
+export const deployRewardSwapperContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let rewardSwapper;
+  if (config.rewardSwapper?.enabled) {
+    rewardSwapper = (await deployContract(
+      `${step} >>`,
+      config.rewardSwapper?.autoVerifyContract,
+      "RewardSwapper",
+      existingContract?.["rewardSwapper"],
+      "contracts/strategies/lpAerodrome/RewardSwapper.sol:RewardSwapper",
+      undefined,
+      ["address", "address", "address"],
+      [
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+        existingContract?.["poolOptimalSwapper"] || contracts?.poolOptimalSwapper?.target,
+        contractAdmin,
+      ],
+    )) as RewardSwapper;
+  }
+  return {
+    rewardSwapper,
+  };
+};
+
+export const deployFarmingStrategyValidatorContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let farmingStrategyValidator;
+  if (config.farmingStrategyValidator?.enabled) {
+    farmingStrategyValidator = (await deployContract(
+      `${step} >>`,
+      config.farmingStrategyValidator?.autoVerifyContract,
+      "FarmingStrategyValidator",
+      existingContract?.["farmingStrategyValidator"],
+      "contracts/strategies/lpAerodrome/FarmingStrategyValidator.sol:FarmingStrategyValidator",
+      undefined,
+      ["address", "address[]"],
+      [contractAdmin, config.aerodromeGaugeFactories || []],
+    )) as FarmingStrategyValidator;
+  }
+  return {
+    farmingStrategyValidator,
+  };
+};
+
+export const deployFarmingStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let farmingStrategy;
+  if (config.farmingStrategy?.enabled) {
+    farmingStrategy = (await deployContract(
+      `${step} >>`,
+      config.farmingStrategy?.autoVerifyContract,
+      "FarmingStrategy",
+      existingContract?.["farmingStrategy"],
+      "contracts/strategies/lpAerodrome/FarmingStrategy.sol:FarmingStrategy",
+      undefined,
+      ["address", "address", "address", "address"],
+      [
+        existingContract?.["lpStrategyAerodrome"] || contracts?.lpStrategyAerodrome?.target,
+        existingContract?.["configManager"] || contracts?.configManager?.target,
+        existingContract?.["rewardSwapper"] || contracts?.rewardSwapper?.target,
+        existingContract?.["farmingStrategyValidator"] || contracts?.farmingStrategyValidator?.target,
+      ],
+    )) as FarmingStrategy;
+  }
+  return {
+    farmingStrategy,
   };
 };
 

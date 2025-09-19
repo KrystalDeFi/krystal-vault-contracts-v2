@@ -1,0 +1,451 @@
+[
+  {
+    "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ExternalCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidFeeConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInstructionType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNfpm",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidObservation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidObservationCardinality",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPool",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPoolAmountMin",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSigner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidTickWidth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVaultConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PriceSanityCheckFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "configManager",
+    "outputs": [
+      {
+        "internalType": "contract IConfigManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_configManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistNfpms",
+        "type": "address[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_whitelistNfpms",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWhitelist",
+        "type": "bool"
+      }
+    ],
+    "name": "setWhitelistNfpms",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract INonfungiblePositionManager",
+        "name": "nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
+      },
+      {
+        "internalType": "address",
+        "name": "token0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token1",
+        "type": "address"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickLower",
+        "type": "int24"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickUpper",
+        "type": "int24"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateConfig",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "validateNfpm",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract INonfungiblePositionManager",
+        "name": "nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickSpacing",
+        "type": "int24"
+      },
+      {
+        "internalType": "address",
+        "name": "token0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token1",
+        "type": "address"
+      }
+    ],
+    "name": "validateObservationCardinality",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      }
+    ],
+    "name": "validatePriceSanity",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token1",
+        "type": "address"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickLower",
+        "type": "int24"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickUpper",
+        "type": "int24"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "allowDeposit",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint8",
+            "name": "rangeStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "tvlStrategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "principalToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "supportedAddresses",
+            "type": "address[]"
+          }
+        ],
+        "internalType": "struct ICommon.VaultConfig",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateTickWidth",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "whitelistNfpms",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
