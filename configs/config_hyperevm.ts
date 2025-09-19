@@ -107,6 +107,10 @@ export const HyperevmConfig: Record<string, IConfig> = {
       commonConfig.stableConfigWith18Decimals,
     ],
     swapRouters: ["0x14b37a44067c877F46aCE21d42ccEC4e9593A941"],
-    nfpmAddresses: ["0x6eDA206207c09e5428F281761DdC0D300851fBC8", "0xeaD19AE861c29bBb2101E834922B2FEee69B9091"],
+    nfpmAddresses: [
+      "0x6eDA206207c09e5428F281761DdC0D300851fBC8",
+      "0xeaD19AE861c29bBb2101E834922B2FEee69B9091",
+      "0xC8352A2EbA29F4d9BD4221c07D3461BaCc779088",
+    ],
   },
 };
