@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import "../../libraries/SafeApprovalLib.sol";
+
 import { INonfungiblePositionManager as INFPM } from
   "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import { ICLFactory } from "../../interfaces/strategies/aerodrome/ICLFactory.sol";
@@ -23,6 +25,7 @@ import { ILpFeeTaker } from "../../interfaces/strategies/ILpFeeTaker.sol";
 
 contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
   using SafeERC20 for IERC20;
+  using SafeApprovalLib for IERC20;
 
   uint256 internal constant Q64 = 0x10000000000000000;
   uint256 internal constant Q96 = 0x1000000000000000000000000;
@@ -387,8 +390,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
 
-    _safeResetAndApprove(IERC20(token0.token), address(params.nfpm), token0.amount);
-    _safeResetAndApprove(IERC20(token1.token), address(params.nfpm), token1.amount);
+    IERC20(token0.token).safeResetAndApprove(address(params.nfpm), token0.amount);
+    IERC20(token1.token).safeResetAndApprove(address(params.nfpm), token1.amount);
 
     if (vaultConfig.allowDeposit && !configManager.isWhitelistedAutomator(msg.sender)) {
       validator.validateObservationCardinality(params.nfpm, params.tickSpacing, token0.token, token1.token);
@@ -512,8 +515,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
       assets[0].token < assets[1].token ? (assets[0], assets[1]) : (assets[1], assets[0]);
 
-    _safeResetAndApprove(IERC20(token0.token), address(lpAsset.token), token0.amount);
-    _safeResetAndApprove(IERC20(token1.token), address(lpAsset.token), token1.amount);
+    IERC20(token0.token).safeResetAndApprove(address(lpAsset.token), token0.amount);
+    IERC20(token1.token).safeResetAndApprove(address(lpAsset.token), token1.amount);
 
     (, uint256 amount0Added, uint256 amount1Added) = INFPM(lpAsset.token).increaseLiquidity(
       INFPM.IncreaseLiquidityParams(
@@ -563,7 +566,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     uint256 amountOut;
     uint256 amountInUsed;
     {
-      _safeResetAndApprove(IERC20(otherAsset.token), address(optimalSwapper), otherAsset.amount);
+      IERC20(otherAsset.token).safeResetAndApprove(address(optimalSwapper), otherAsset.amount);
 
       bytes memory swapData = params.swapData;
       (amountOut, amountInUsed) =
@@ -683,8 +686,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       bytes memory data = params.swapData;
       uint256 amount0 = returnAssets[0].amount;
       uint256 amount1 = returnAssets[1].amount;
-      _safeResetAndApprove(IERC20(token0), address(optimalSwapper), amount0);
-      _safeResetAndApprove(IERC20(token1), address(optimalSwapper), amount1);
+      IERC20(token0).safeResetAndApprove(address(optimalSwapper), amount0);
+      IERC20(token1).safeResetAndApprove(address(optimalSwapper), amount1);
       (amount0, amount1) = optimalSwapper.optimalSwap(
         IOptimalSwapper.OptimalSwapParams({
           pool: address(pool),
@@ -771,8 +774,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       amount1Collected -= fee1;
     }
 
-    _safeResetAndApprove(IERC20(token0), address(optimalSwapper), amount0Collected);
-    _safeResetAndApprove(IERC20(token1), address(optimalSwapper), amount1Collected);
+    IERC20(token0).safeResetAndApprove(address(optimalSwapper), amount0Collected);
+    IERC20(token1).safeResetAndApprove(address(optimalSwapper), amount1Collected);
     bytes memory swapData = params.swapData;
     (uint256 amount0, uint256 amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams({
@@ -814,7 +817,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     (amount0, amount1) = params.principalToken < params.otherToken
       ? (params.principalTokenAmount, 0)
       : (uint256(0), params.principalTokenAmount);
-    _safeResetAndApprove(IERC20(params.principalToken), address(optimalSwapper), params.principalTokenAmount);
+    IERC20(params.principalToken).safeResetAndApprove(address(optimalSwapper), params.principalTokenAmount);
     (amount0, amount1) = optimalSwapper.optimalSwap(
       IOptimalSwapper.OptimalSwapParams(
         params.pool, amount0, amount1, params.tickLower, params.tickUpper, params.swapData
@@ -836,7 +839,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       validator.validatePriceSanity(params.pool);
     }
 
-    _safeResetAndApprove(IERC20(params.token), address(optimalSwapper), params.amount);
+    IERC20(params.token).safeResetAndApprove(address(optimalSwapper), params.amount);
     (amountOut, amountInUsed) = optimalSwapper.poolSwap(
       params.pool, params.amount, params.token < params.principalToken, params.amountOutMin, params.swapData
     );
@@ -967,8 +970,8 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     address pool,
     bool validatePriceSanity
   ) internal returns (uint256, uint256) {
-    _safeResetAndApprove(IERC20(token0), address(lpFeeTaker), amount0);
-    _safeResetAndApprove(IERC20(token1), address(lpFeeTaker), amount1);
+    IERC20(token0).safeResetAndApprove(address(lpFeeTaker), amount0);
+    IERC20(token1).safeResetAndApprove(address(lpFeeTaker), amount1);
     return lpFeeTaker.takeFees(
       token0,
       amount0,
@@ -982,28 +985,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
   }
 
   /// @dev some tokens require allowance == 0 to approve new amount
-  /// but some tokens does not allow approve amount = 0
-  /// we try to set allowance = 0 before approve new amount. if it revert means that
-  /// the token not allow to approve 0, which means the following line code will work properly
-  function _safeResetAndApprove(IERC20 token, address _spender, uint256 _value) internal {
-    if (_value == 0) return;
-
-    /// @dev omitted approve(0) result because it might fail and does not break the flow
-    address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, 0));
-
-    /// @dev value for approval after reset must greater than 0
-    _safeApprove(token, _spender, _value);
-  }
-
-  function _safeApprove(IERC20 token, address _spender, uint256 _value) internal {
-    (bool success, bytes memory returnData) =
-      address(token).call(abi.encodeWithSelector(token.approve.selector, _spender, _value));
-    if (_value == 0) {
-      // some token does not allow approve(0) so we skip check for this case
-      return;
-    }
-    require(success && (returnData.length == 0 || abi.decode(returnData, (bool))), ApproveFailed());
-  }
 
   /// @dev check old lp strategy for backward compatibility
   /// This was implemented as a migration method since old lp strategies have a bug
