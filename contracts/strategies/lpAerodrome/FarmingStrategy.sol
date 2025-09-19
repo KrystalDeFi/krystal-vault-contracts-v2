@@ -110,7 +110,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     uint8 instructionType = instruction.instructionType;
 
     if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP)) {
-      return _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)));
+      return _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)), config);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
       return _createAndDepositLP(
         assets, abi.decode(instruction.params, (IFarmingStrategy.CreateAndDepositLPParams)), config, feeConfig
@@ -308,9 +308,24 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   // =============================================================================
 
   /**
+   * @notice Validate that reward token is compatible with principal token
+   * @param gauge The gauge address to check reward token for
+   * @param principalToken The vault's principal token
+   */
+  function _validateRewardToken(address gauge, address principalToken) internal view {
+    address rewardToken = ICLGauge(gauge).rewardToken();
+
+    // Allow if reward token is already the principal token
+    if (rewardToken == principalToken) return;
+
+    // Check if there's a valid swap route in RewardSwapper
+    require(rewardSwapper.isSwapSupported(rewardToken, principalToken), UnsupportedRewardToken());
+  }
+
+  /**
    * @notice Deposit existing LP NFT into farming
    */
-  function _depositExistingLP(AssetLib.Asset[] calldata assets, IFarmingStrategy.DepositExistingLPParams memory params)
+  function _depositExistingLP(AssetLib.Asset[] calldata assets, IFarmingStrategy.DepositExistingLPParams memory params, VaultConfig calldata config)
     internal
     returns (AssetLib.Asset[] memory returnAssets)
   {
@@ -319,6 +334,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
 
     // Validate user-provided gauge address
     validator.validateGauge(params.gauge);
+
+    // Validate reward token compatibility
+    _validateRewardToken(params.gauge, config.principalToken);
 
     // Deposit the position
     returnAssets = new AssetLib.Asset[](1);
@@ -336,6 +354,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     // Validate user-provided gauge address
     validator.validateGauge(params.gauge);
+
+    // Validate reward token compatibility
+    _validateRewardToken(params.gauge, config.principalToken);
 
     // Delegate LP creation to LpStrategy
     bytes memory lpInstructionData = abi.encode(
