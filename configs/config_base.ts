@@ -47,6 +47,28 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    // Aerodrome contracts
+    lpStrategyAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    lpValidatorAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    rewardSwapper: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    farmingStrategyValidator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    farmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    // -------------------
     wrapToken: "0x4200000000000000000000000000000000000006",
     typedTokens: [
       "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // USDC
@@ -80,6 +102,10 @@ export const BaseConfig: Record<string, IConfig> = {
       "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1",
       "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
       "0x80C7DD17B01855a6D2347444a0FCC36136a314de",
+    ],
+    aerodromeNfpmAddresses: ["0x827922686190790b37229fd06084350E74485b72"],
+    aerodromeGaugeFactories: [
+      "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08", // Aerodrome CLGaugeFactory on Base
     ],
   },
 };

@@ -59,6 +59,28 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  // Aerodrome contracts
+  lpStrategyAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  lpValidatorAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  rewardSwapper?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  farmingStrategyValidator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  farmingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  // -------------------
   wrapToken?: string;
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
@@ -66,9 +88,11 @@ export interface IConfig {
   encodedLpConfigs?: string[];
   swapRouters: AddressLike[];
   nfpmAddresses: AddressLike[];
+  aerodromeNfpmAddresses?: AddressLike[];
 
   katanaAggregateSwapRouter?: AddressLike;
   rewardVaultFactory?: string;
   bgtToken?: string;
   wbera?: string;
+  aerodromeGaugeFactories?: AddressLike[];
 }

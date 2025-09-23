@@ -21,7 +21,12 @@
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
     "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
-    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
+    "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0",
+    "lpValidatorAerodrome": "0xb0940938c6030d50e5e89069c098e216cde3a5c2",
+    "farmingStrategyValidator": "0x91779fd92fcc19c19f7578c33b80c92b6d725187",
+    "rewardSwapper": "0x0e23655e8f39e4d59125f52cf542b826e8b2836e",
+    "lpStrategyAerodrome": "0xfac58351331cf9fd2b8160efd6229759a689b3d6",
+    "farmingStrategy": "0xb9da681f459c2802abfdc3296301ccf19f4bc772"
   },
   "bsc_mainnet": {
     "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
