@@ -110,7 +110,8 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     uint8 instructionType = instruction.instructionType;
 
     if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP)) {
-      return _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)), config);
+      return
+        _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)), config);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
       return _createAndDepositLP(
         assets, abi.decode(instruction.params, (IFarmingStrategy.CreateAndDepositLPParams)), config, feeConfig
@@ -325,10 +326,11 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   /**
    * @notice Deposit existing LP NFT into farming
    */
-  function _depositExistingLP(AssetLib.Asset[] calldata assets, IFarmingStrategy.DepositExistingLPParams memory params, VaultConfig calldata config)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function _depositExistingLP(
+    AssetLib.Asset[] calldata assets,
+    IFarmingStrategy.DepositExistingLPParams memory params,
+    VaultConfig calldata config
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 

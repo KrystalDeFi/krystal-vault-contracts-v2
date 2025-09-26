@@ -24,10 +24,8 @@ contract Debug is Test {
     );
     ICommon.Instruction memory instruction = abi.decode(data2, (ICommon.Instruction));
     console.log(instruction.instructionType);
-    ILpStrategy.DecreaseLiquidityAndSwapParams memory params = abi.decode(
-      instruction.params,
-      (ILpStrategy.DecreaseLiquidityAndSwapParams)
-    );
+    ILpStrategy.DecreaseLiquidityAndSwapParams memory params =
+      abi.decode(instruction.params, (ILpStrategy.DecreaseLiquidityAndSwapParams));
     console.log(params.liquidity);
     console.log(params.amount0Min);
     console.log(params.amount1Min);
