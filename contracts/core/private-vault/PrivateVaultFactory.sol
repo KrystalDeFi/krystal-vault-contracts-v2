@@ -35,7 +35,6 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
 
   function createVault(
     bytes32 salt,
-    uint256 nativeTokenAmount,
     address[] calldata tokens,
     uint256[] calldata amounts,
     address[] calldata nfts721,
@@ -51,8 +50,8 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
 
     IPrivateVault(vault).initialize(msg.sender, configManager);
 
-    if (nativeTokenAmount > 0) {
-      (bool success, ) = vault.call{ value: nativeTokenAmount }("");
+    if (msg.value > 0) {
+      (bool success, ) = vault.call{ value: msg.value }("");
       require(success, "Failed to send native token");
     }
 

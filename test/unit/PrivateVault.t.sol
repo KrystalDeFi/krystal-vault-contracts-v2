@@ -76,8 +76,7 @@ contract MockERC721 {
   function safeTransferFrom(address from, address to, uint256 tokenId) external {
     require(ownerOf[tokenId] == from, "Not owner");
     require(
-      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
-      "Not approved"
+      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender], "Not approved"
     );
     ownerOf[tokenId] = to;
     balanceOf[from]--;
@@ -643,7 +642,7 @@ contract PrivateVaultTest is TestCommon {
     uint256 initialBalance = address(privateVault).balance;
 
     vm.deal(address(this), 1 ether);
-    (bool success, ) = address(privateVault).call{ value: 1 ether }("");
+    (bool success,) = address(privateVault).call{ value: 1 ether }("");
     assertTrue(success);
 
     assertEq(address(privateVault).balance, initialBalance + 1 ether);

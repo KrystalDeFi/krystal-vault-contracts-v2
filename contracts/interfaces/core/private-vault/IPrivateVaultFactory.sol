@@ -12,7 +12,6 @@ interface IPrivateVaultFactory is IPrivateCommon {
 
   function createVault(
     bytes32 salt,
-    uint256 nativeTokenAmount,
     address[] calldata tokens,
     uint256[] calldata amounts,
     address[] calldata nfts721,

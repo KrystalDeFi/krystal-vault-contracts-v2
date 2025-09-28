@@ -228,7 +228,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault(
       salt,
-      0, // no native tokens
       new address[](0), // no ERC20 tokens
       new uint256[](0),
       new address[](0), // no ERC721 tokens
@@ -263,7 +262,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault{ value: nativeAmount }(
       salt,
-      nativeAmount,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -300,7 +298,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault(
       salt,
-      0,
       tokens,
       amounts,
       new address[](0),
@@ -338,7 +335,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       nfts721,
@@ -379,7 +375,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -415,7 +410,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -488,7 +482,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault = factory.createVault{ value: nativeAmount }(
       salt,
-      nativeAmount,
       tokens,
       amounts,
       nfts721,
@@ -518,7 +511,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -540,7 +532,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert();
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -556,18 +547,15 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.stopBroadcast();
   }
 
-  function test_createVault_insufficient_native_balance() public {
-    bytes32 salt = keccak256("insufficient-native");
-    uint256 nativeAmount = 1 ether;
+  function test_createVault_with_partial_native_tokens() public {
+    bytes32 salt = keccak256("partial-native");
+    uint256 nativeAmount = 0.5 ether;
 
-    // Don't send enough native tokens
-    vm.deal(VAULT_CREATOR, nativeAmount - 1);
+    vm.deal(VAULT_CREATOR, nativeAmount);
 
     vm.startBroadcast(VAULT_CREATOR);
-    vm.expectRevert("Failed to send native token");
-    factory.createVault{ value: nativeAmount - 1 }(
+    address vault = factory.createVault{ value: nativeAmount }(
       salt,
-      nativeAmount,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -580,6 +568,9 @@ contract PrivateVaultFactoryTest is TestCommon {
       new IPrivateCommon.CallType[](0)
     );
     vm.stopBroadcast();
+
+    // Verify partial native tokens were sent to vault
+    assertEq(address(vault).balance, nativeAmount);
   }
 
   function test_createVault_insufficient_erc20_balance() public {
@@ -601,7 +592,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert("Insufficient balance");
     factory.createVault(
       salt,
-      0,
       tokens,
       amounts,
       new address[](0),
@@ -635,7 +625,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert("Insufficient allowance");
     factory.createVault(
       salt,
-      0,
       tokens,
       amounts,
       new address[](0),
@@ -668,7 +657,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert("Not owner");
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       nfts721,
@@ -706,7 +694,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert("Insufficient balance");
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -765,7 +752,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.expectRevert(Pausable.EnforcedPause.selector);
     factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -896,7 +882,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.startBroadcast(VAULT_CREATOR);
     address vault = factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -926,7 +911,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault1 = factory.createVault(
       salt1,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -941,7 +925,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault2 = factory.createVault(
       salt2,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -969,7 +952,6 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.startBroadcast(VAULT_CREATOR);
     address vault = factory.createVault(
       salt,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -995,7 +977,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault1 = factory.createVault(
       salt1,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -1010,7 +991,6 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     address vault2 = factory.createVault(
       salt2,
-      0,
       new address[](0),
       new uint256[](0),
       new address[](0),
