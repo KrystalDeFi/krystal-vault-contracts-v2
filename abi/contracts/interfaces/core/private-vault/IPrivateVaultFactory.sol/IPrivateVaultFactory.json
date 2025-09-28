@@ -62,11 +62,6 @@
         "type": "bytes32"
       },
       {
-        "internalType": "uint256",
-        "name": "nativeTokenAmount",
-        "type": "uint256"
-      },
-      {
         "internalType": "address[]",
         "name": "tokens",
         "type": "address[]"
