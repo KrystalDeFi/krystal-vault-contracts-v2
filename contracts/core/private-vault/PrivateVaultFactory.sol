@@ -22,6 +22,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
   mapping(address => address[]) public vaultsByAddress;
 
   address[] public allVaults;
+  mapping(address => bool) public isVaultAddress;
 
   function initialize(address _owner, address _configManager, address _vaultImplementation) external initializer {
     require(_owner != address(0) && _configManager != address(0) && _vaultImplementation != address(0), ZeroAddress());
@@ -51,7 +52,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     IPrivateVault(vault).initialize(msg.sender, configManager);
 
     if (msg.value > 0) {
-      (bool success, ) = vault.call{ value: msg.value }("");
+      (bool success,) = vault.call{ value: msg.value }("");
       require(success, "Failed to send native token");
     }
 
@@ -71,6 +72,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
 
     vaultsByAddress[msg.sender].push(vault);
     allVaults.push(vault);
+    isVaultAddress[vault] = true;
 
     emit VaultCreated(msg.sender, vault);
   }
@@ -104,9 +106,6 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
   /// @notice Check if a vault created by this factory
   /// @param vault Address of the vault to check
   function isVault(address vault) external view override returns (bool) {
-    for (uint256 i = 0; i < allVaults.length; i++) {
-      if (allVaults[i] == vault) return true;
-    }
-    return false;
+    return isVaultAddress[vault];
   }
 }

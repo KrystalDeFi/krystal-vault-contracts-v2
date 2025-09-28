@@ -23,6 +23,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   mapping(address => address[]) public vaultsByAddress;
 
   address[] public allVaults;
+  mapping(address => bool) public isVaultAddress;
 
   function initialize(address _owner, address _weth, address _configManager, address _vaultImplementation)
     external
@@ -88,6 +89,7 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
 
     vaultsByAddress[sender].push(vault);
     allVaults.push(vault);
+    isVaultAddress[vault] = true;
 
     emit VaultCreated(sender, vault, params);
   }
@@ -121,9 +123,6 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   /// @notice Check if a vault created by this factory
   /// @param vault Address of the vault to check
   function isVault(address vault) external view override returns (bool) {
-    for (uint256 i = 0; i < allVaults.length; i++) {
-      if (allVaults[i] == vault) return true;
-    }
-    return false;
+    return isVaultAddress[vault];
   }
 }

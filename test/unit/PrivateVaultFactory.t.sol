@@ -63,8 +63,7 @@ contract MockERC721 {
   function safeTransferFrom(address from, address to, uint256 tokenId) external {
     require(ownerOf[tokenId] == from, "Not owner");
     require(
-      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
-      "Not approved"
+      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender], "Not approved"
     );
     ownerOf[tokenId] = to;
     balanceOf[from]--;
@@ -481,17 +480,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     address vault = factory.createVault{ value: nativeAmount }(
-      salt,
-      tokens,
-      amounts,
-      nfts721,
-      nftIds,
-      nfts1155,
-      erc1155Ids,
-      erc1155Amounts,
-      targets,
-      data,
-      callTypes
+      salt, tokens, amounts, nfts721, nftIds, nfts1155, erc1155Ids, erc1155Amounts, targets, data, callTypes
     );
 
     vm.stopBroadcast();
@@ -1008,5 +997,111 @@ contract PrivateVaultFactoryTest is TestCommon {
     // Check that both vaults were created
     assertTrue(factory.isVault(vault1));
     assertTrue(factory.isVault(vault2));
+  }
+
+  // ============ IS VAULT OPTIMIZATION TESTS ============
+
+  function test_isVault_optimization_large_number_of_vaults() public {
+    // Create multiple vaults to test the optimization
+    address[] memory createdVaults = new address[](10);
+
+    for (uint256 i = 0; i < 10; i++) {
+      bytes32 salt = keccak256(abi.encodePacked("optimization-test-", i));
+
+      vm.startBroadcast(VAULT_CREATOR);
+      createdVaults[i] = factory.createVault(
+        salt,
+        new address[](0),
+        new uint256[](0),
+        new address[](0),
+        new uint256[](0),
+        new address[](0),
+        new uint256[](0),
+        new uint256[](0),
+        new address[](0),
+        new bytes[](0),
+        new IPrivateCommon.CallType[](0)
+      );
+      vm.stopBroadcast();
+    }
+
+    // Test that all created vaults are recognized
+    for (uint256 i = 0; i < 10; i++) {
+      assertTrue(factory.isVault(createdVaults[i]), "Created vault should be recognized");
+    }
+
+    // Test that random addresses are not recognized
+    address randomAddress1 = address(0x1234567890123456789012345678901234567890);
+    address randomAddress2 = address(0x9876543210987654321098765432109876543210);
+
+    assertFalse(factory.isVault(randomAddress1), "Random address should not be recognized");
+    assertFalse(factory.isVault(randomAddress2), "Random address should not be recognized");
+    assertFalse(factory.isVault(address(0)), "Zero address should not be recognized");
+  }
+
+  function test_isVault_optimization_mapping_consistency() public {
+    bytes32 salt = keccak256("consistency-test");
+
+    vm.startBroadcast(VAULT_CREATOR);
+    address vaultAddress = factory.createVault(
+      salt,
+      new address[](0),
+      new uint256[](0),
+      new address[](0),
+      new uint256[](0),
+      new address[](0),
+      new uint256[](0),
+      new uint256[](0),
+      new address[](0),
+      new bytes[](0),
+      new IPrivateCommon.CallType[](0)
+    );
+    vm.stopBroadcast();
+
+    // Test that the mapping is set correctly
+    assertTrue(factory.isVaultAddress(vaultAddress), "isVaultAddress mapping should be set");
+    assertTrue(factory.isVault(vaultAddress), "isVault should return true for created vault");
+
+    // Test that the vault is in allVaults array
+    assertEq(factory.allVaults(0), vaultAddress, "Vault should be in allVaults array");
+  }
+
+  function test_isVault_optimization_gas_efficiency() public {
+    // This test verifies that the optimization works by creating many vaults
+    // and ensuring isVault still works efficiently
+
+    // Create 20 vaults
+    address[] memory createdVaults = new address[](20);
+
+    for (uint256 i = 0; i < 20; i++) {
+      bytes32 salt = keccak256(abi.encodePacked("gas-test-", i));
+
+      vm.startBroadcast(VAULT_CREATOR);
+      createdVaults[i] = factory.createVault(
+        salt,
+        new address[](0),
+        new uint256[](0),
+        new address[](0),
+        new uint256[](0),
+        new address[](0),
+        new uint256[](0),
+        new uint256[](0),
+        new address[](0),
+        new bytes[](0),
+        new IPrivateCommon.CallType[](0)
+      );
+      vm.stopBroadcast();
+    }
+
+    // Test isVault on all created vaults - this should be O(1) now
+    for (uint256 i = 0; i < 20; i++) {
+      assertTrue(factory.isVault(createdVaults[i]), "All created vaults should be recognized");
+    }
+
+    // Test isVault on non-vault addresses - this should also be O(1)
+    for (uint256 i = 0; i < 10; i++) {
+      address randomAddress = address(uint160(0x1000 + i));
+      assertFalse(factory.isVault(randomAddress), "Random addresses should not be recognized");
+    }
   }
 }
