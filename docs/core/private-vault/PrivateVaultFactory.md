@@ -26,6 +26,12 @@ mapping(address => address[]) vaultsByAddress
 address[] allVaults
 ```
 
+### isVaultAddress
+
+```solidity
+mapping(address => bool) isVaultAddress
+```
+
 ### initialize
 
 ```solidity
