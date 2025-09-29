@@ -14,10 +14,10 @@ event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
 error InvalidMulticallParams()
 ```
 
-### InvalidStrategy
+### InvalidTarget
 
 ```solidity
-error InvalidStrategy(address strategy)
+error InvalidTarget(address strategy)
 ```
 
 ### StrategyDelegateCallFailed
@@ -42,6 +42,24 @@ function initialize(address _owner, address _configManager) external
 
 ```solidity
 function multicall(address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable
+```
+
+### depositErc20Tokens
+
+```solidity
+function depositErc20Tokens(address[] tokens, uint256[] amounts) external
+```
+
+### depositErc721Tokens
+
+```solidity
+function depositErc721Tokens(address[] tokens, uint256[] tokenIds) external
+```
+
+### depositErc1155Tokens
+
+```solidity
+function depositErc1155Tokens(address[] tokens, uint256[] tokenIds, uint256[] amounts) external
 ```
 
 ### sweepNativeToken

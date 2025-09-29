@@ -2,10 +2,10 @@
 
 ## PrivateVault
 
-### configManager
+### MAGIC_VALUE
 
 ```solidity
-contract IConfigManager configManager
+bytes4 MAGIC_VALUE
 ```
 
 ### vaultOwner
@@ -18,6 +18,12 @@ address vaultOwner
 
 ```solidity
 address vaultFactory
+```
+
+### configManager
+
+```solidity
+contract IPrivateConfigManager configManager
 ```
 
 ### admins
@@ -135,6 +141,52 @@ Sweep ERC1155 tokens to the caller
 | _tokenIds | uint256[] | Token IDs to sweep |
 | _amounts | uint256[] | Amounts of tokens to sweep |
 
+### depositErc20Tokens
+
+```solidity
+function depositErc20Tokens(address[] tokens, uint256[] amounts) external
+```
+
+Deposits ERC20 tokens to the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokens | address[] | Array of ERC20 token addresses |
+| amounts | uint256[] | Array of amounts to deposit |
+
+### depositErc721Tokens
+
+```solidity
+function depositErc721Tokens(address[] tokens, uint256[] tokenIds) external
+```
+
+Deposits ERC721 tokens to the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokens | address[] | Array of ERC721 token addresses |
+| tokenIds | uint256[] | Array of token IDs to deposit |
+
+### depositErc1155Tokens
+
+```solidity
+function depositErc1155Tokens(address[] tokens, uint256[] tokenIds, uint256[] amounts) external
+```
+
+Deposits ERC1155 tokens to the vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokens | address[] | Array of ERC1155 token addresses |
+| tokenIds | uint256[] | Array of token IDs to deposit |
+| amounts | uint256[] | Array of amounts to deposit |
+
 ### grantAdminRole
 
 ```solidity
@@ -162,6 +214,27 @@ revoke admin role from the address
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | _address | address | The address from which the admin role is revoked |
+
+### isValidSignature
+
+```solidity
+function isValidSignature(bytes32 hash, bytes signature) public view returns (bytes4 magicValue)
+```
+
+EIP-1271 signature validation
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hash | bytes32 | The hash of the data to be signed |
+| signature | bytes | The signature to be validated |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| magicValue | bytes4 | The magic value if the signature is valid, otherwise 0xffffffff |
 
 ### supportsInterface
 
