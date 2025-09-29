@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon } from "../TestCommon.t.sol";
-import { PrivateVault } from "../../contracts/core/private-vault/PrivateVault.sol";
-import { IPrivateVault } from "../../contracts/interfaces/core/private-vault/IPrivateVault.sol";
-import { IPrivateCommon } from "../../contracts/interfaces/core/private-vault/IPrivateCommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { IConfigManager } from "../../contracts/interfaces/core/IConfigManager.sol";
+import { PrivateVault } from "../../contracts/private-vault/core/PrivateVault.sol";
+import { IPrivateVault } from "../../contracts/private-vault/interfaces/core/IPrivateVault.sol";
+import { IPrivateCommon } from "../../contracts/private-vault/interfaces/core/IPrivateCommon.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { IConfigManager } from "../../contracts/public-vault/interfaces/core/IConfigManager.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";

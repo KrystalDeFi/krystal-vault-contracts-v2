@@ -10,8 +10,8 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
 
-import "../../interfaces/core/private-vault/IPrivateVaultFactory.sol";
-import "../../interfaces/core/private-vault/IPrivateVault.sol";
+import "../interfaces/core/IPrivateVaultFactory.sol";
+import "../interfaces/core/IPrivateVault.sol";
 
 contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivateVaultFactory {
   using SafeERC20 for IERC20;

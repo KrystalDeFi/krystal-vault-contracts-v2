@@ -8,7 +8,7 @@ interface IPrivateVault is IPrivateCommon {
 
   error InvalidMulticallParams();
 
-  error InvalidStrategy(address strategy);
+  error InvalidTarget(address strategy);
 
   error StrategyDelegateCallFailed();
 
@@ -17,6 +17,13 @@ interface IPrivateVault is IPrivateCommon {
   function initialize(address _owner, address _configManager) external;
 
   function multicall(address[] calldata targets, bytes[] calldata data, CallType[] calldata callTypes) external payable;
+
+  function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts) external;
+
+  function depositErc721Tokens(address[] calldata tokens, uint256[] calldata tokenIds) external;
+
+  function depositErc1155Tokens(address[] calldata tokens, uint256[] calldata tokenIds, uint256[] calldata amounts)
+    external;
 
   function sweepNativeToken(uint256 amount) external;
 

@@ -5,28 +5,28 @@ import { console } from "forge-std/console.sol";
 
 import { TestCommon, USER, DAI, AERODROME_NFPM as NFPM } from "../TestCommon.t.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { ICLFactory } from "../../contracts/interfaces/strategies/aerodrome/ICLFactory.sol";
+import { ICLFactory } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLFactory.sol";
 import { INonfungiblePositionManager as INFPM } from
-  "../../contracts/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
+  "../../contracts/public-vault/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
-import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
-import { Vault } from "../../contracts/core/Vault.sol";
-import { IVault } from "../../contracts/interfaces/core/IVault.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { VaultFactory } from "../../contracts/public-vault/core/VaultFactory.sol";
+import { IVaultFactory } from "../../contracts/public-vault/interfaces/core/IVaultFactory.sol";
+import { Vault } from "../../contracts/public-vault/core/Vault.sol";
+import { IVault } from "../../contracts/public-vault/interfaces/core/IVault.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
 import { IAerodromeLpStrategy as ILpStrategy } from
-  "../../contracts/interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
+  "../../contracts/public-vault/interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import { IAerodromeLpValidator as ILpValidator } from
-  "../../contracts/interfaces/strategies/aerodrome/IAerodromeLpValidator.sol";
-import { LpStrategy } from "../../contracts/strategies/lpAerodrome/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpAerodrome/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+  "../../contracts/public-vault/interfaces/strategies/aerodrome/IAerodromeLpValidator.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpAerodrome/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpAerodrome/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 address constant WETH = 0x4200000000000000000000000000000000000006;
 address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;

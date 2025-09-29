@@ -13,16 +13,15 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../../interfaces/core/IConfigManager.sol";
-import "../../interfaces/core/private-vault/IPrivateVault.sol";
+import "../interfaces/core/IPrivateVault.sol";
+import "../interfaces/core/IPrivateConfigManager.sol";
 
 contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IPrivateVault {
   using SafeERC20 for IERC20;
 
-  IConfigManager public configManager;
-
   address public vaultOwner;
   address public vaultFactory;
+  IPrivateConfigManager public configManager;
 
   mapping(address => bool) public admins;
 
@@ -31,15 +30,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     _;
   }
 
-  modifier onlyAuthorized() {
-    require(
-      msg.sender == vaultOwner || admins[msg.sender] || configManager.isWhitelistedAutomator(msg.sender), Unauthorized()
-    );
-    _;
-  }
-
-  modifier whenNotPaused() {
-    require(!configManager.isVaultPaused(), Paused());
+  modifier onlyAdminOrOwner() {
+    require(admins[msg.sender] || msg.sender == vaultOwner, Unauthorized());
     _;
   }
 
@@ -50,7 +42,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     require(_configManager != address(0), ZeroAddress());
 
     // Cache variables to minimize storage writes
-    configManager = IConfigManager(_configManager);
     vaultOwner = _owner;
     vaultFactory = msg.sender;
     admins[vaultFactory] = true;
@@ -65,8 +56,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     payable
     override
     nonReentrant
-    onlyAuthorized
-    whenNotPaused
+    onlyOwner
   {
     require(targets.length == data.length, InvalidMulticallParams());
     require(targets.length == callTypes.length, InvalidMulticallParams());
@@ -78,8 +68,9 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         }
         continue;
       }
-
-      require(configManager.isWhitelistedStrategy(targets[i]), InvalidStrategy(targets[i]));
+      if (msg.sender != vaultOwner && targets[i] != address(this)) {
+        require(configManager.isWhitelistedTarget(targets[i]), InvalidTarget(targets[i]));
+      }
 
       bool success;
       bytes memory result;
@@ -154,6 +145,70 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
       IERC1155 token = IERC1155(_tokens[i]);
       uint256 amount = _amounts[i];
       token.safeTransferFrom(address(this), msg.sender, _tokenIds[i], amount, "");
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Deposits ERC20 tokens to the vault
+  /// @param tokens Array of ERC20 token addresses
+  /// @param amounts Array of amounts to deposit
+  function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts)
+    external
+    override
+    nonReentrant
+    onlyOwner
+  {
+    require(tokens.length == amounts.length, InvalidMulticallParams());
+
+    for (uint256 i; i < tokens.length;) {
+      require(amounts[i] > 0, ZeroAddress()); // Reusing error for zero amount
+      IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), amounts[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Deposits ERC721 tokens to the vault
+  /// @param tokens Array of ERC721 token addresses
+  /// @param tokenIds Array of token IDs to deposit
+  function depositErc721Tokens(address[] calldata tokens, uint256[] calldata tokenIds)
+    external
+    override
+    nonReentrant
+    onlyOwner
+  {
+    require(tokens.length == tokenIds.length, InvalidMulticallParams());
+
+    for (uint256 i; i < tokens.length;) {
+      IERC721(tokens[i]).safeTransferFrom(msg.sender, address(this), tokenIds[i]);
+
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @notice Deposits ERC1155 tokens to the vault
+  /// @param tokens Array of ERC1155 token addresses
+  /// @param tokenIds Array of token IDs to deposit
+  /// @param amounts Array of amounts to deposit
+  function depositErc1155Tokens(address[] calldata tokens, uint256[] calldata tokenIds, uint256[] calldata amounts)
+    external
+    override
+    nonReentrant
+    onlyOwner
+  {
+    require(tokens.length == tokenIds.length, InvalidMulticallParams());
+    require(tokens.length == amounts.length, InvalidMulticallParams());
+
+    for (uint256 i; i < tokens.length;) {
+      require(amounts[i] > 0, ZeroAddress()); // Reusing error for zero amount
+      IERC1155(tokens[i]).safeTransferFrom(msg.sender, address(this), tokenIds[i], amounts[i], "");
 
       unchecked {
         i++;

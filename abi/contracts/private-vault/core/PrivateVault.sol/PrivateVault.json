@@ -119,19 +119,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "configManager",
-    "outputs": [
-      {
-        "internalType": "contract IConfigManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",

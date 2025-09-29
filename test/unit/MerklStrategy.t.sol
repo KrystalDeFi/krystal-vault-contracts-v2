@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
-import "../../contracts/strategies/merkl/MerklStrategy.sol";
-import "../../contracts/core/ConfigManager.sol";
+import "../../contracts/public-vault/strategies/merkl/MerklStrategy.sol";
+import "../../contracts/public-vault/core/ConfigManager.sol";
 import "../../test/TestCommon.t.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "../../contracts/interfaces/ICommon.sol";
+import "../../contracts/public-vault/interfaces/ICommon.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // Mock contracts for testing
