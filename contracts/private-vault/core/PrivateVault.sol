@@ -179,7 +179,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     require(tokens.length == amounts.length, InvalidMulticallParams());
 
     for (uint256 i; i < tokens.length;) {
-      require(amounts[i] > 0, ZeroAddress()); // Reusing error for zero amount
+      require(amounts[i] > 0, InvalidAmount());
       IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), amounts[i]);
 
       unchecked {
@@ -222,7 +222,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     require(tokens.length == amounts.length, InvalidMulticallParams());
 
     for (uint256 i; i < tokens.length;) {
-      require(amounts[i] > 0, ZeroAddress()); // Reusing error for zero amount
+      require(amounts[i] > 0, InvalidAmount());
       IERC1155(tokens[i]).safeTransferFrom(msg.sender, address(this), tokenIds[i], amounts[i], "");
 
       unchecked {

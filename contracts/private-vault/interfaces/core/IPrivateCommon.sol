@@ -10,4 +10,6 @@ interface IPrivateCommon {
   error Unauthorized();
 
   error ZeroAddress();
+
+  error InvalidAmount();
 }
