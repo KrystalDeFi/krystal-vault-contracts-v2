@@ -23,3 +23,9 @@ error Unauthorized()
 error ZeroAddress()
 ```
 
+### InvalidAmount
+
+```solidity
+error InvalidAmount()
+```
+
