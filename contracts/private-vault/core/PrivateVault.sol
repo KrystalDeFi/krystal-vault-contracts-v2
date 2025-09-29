@@ -13,11 +13,17 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
 import "../interfaces/core/IPrivateVault.sol";
 import "../interfaces/core/IPrivateConfigManager.sol";
 
-contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IPrivateVault {
+contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IERC1271, IPrivateVault {
   using SafeERC20 for IERC20;
+
+  // Magic value per EIP-1271
+  bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
 
   address public vaultOwner;
   address public vaultFactory;
@@ -230,6 +236,16 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     admins[_address] = false;
 
     emit SetVaultAdmin(vaultFactory, _address, false);
+  }
+
+  /// @notice EIP-1271 signature validation
+  /// @param hash The hash of the data to be signed
+  /// @param signature The signature to be validated
+  /// @return magicValue The magic value if the signature is valid, otherwise 0xffffffff
+  function isValidSignature(bytes32 hash, bytes memory signature) public view override returns (bytes4 magicValue) {
+    bool success = SignatureChecker.isValidSignatureNow(vaultOwner, hash, signature);
+
+    magicValue = success ? MAGIC_VALUE : bytes4("");
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

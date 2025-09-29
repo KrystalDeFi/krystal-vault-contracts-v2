@@ -76,7 +76,8 @@ contract MockERC721 {
   function safeTransferFrom(address from, address to, uint256 tokenId) external {
     require(ownerOf[tokenId] == from, "Not owner");
     require(
-      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender], "Not approved"
+      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
+      "Not approved"
     );
     ownerOf[tokenId] = to;
     balanceOf[from]--;
@@ -268,8 +269,8 @@ contract PrivateVaultTest is TestCommon {
     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
-    // Should revert with InvalidStrategy
-    vm.expectRevert(abi.encodeWithSelector(IPrivateVault.InvalidStrategy.selector, NON_WHITELISTED));
+    // Should revert with InvalidTarget
+    vm.expectRevert(abi.encodeWithSelector(IPrivateVault.InvalidTarget.selector, NON_WHITELISTED));
     privateVault.multicall(targets, data, callTypes);
 
     vm.stopBroadcast();
@@ -636,13 +637,131 @@ contract PrivateVaultTest is TestCommon {
     vm.stopBroadcast();
   }
 
+  // ============ SIGNATURE VALIDATION TESTS ============
+
+  function test_isValidSignature_valid_signature() public {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Use a known private key that corresponds to VAULT_OWNER
+    // Private key 0x1234567890123456789012345678901234567890123456789012345678901234
+    // corresponds to address 0x2e988A386a799F506693793c6A5AF6B54dfAaBfB
+    // But we need to use the actual VAULT_OWNER address
+    // Let's use a different approach - create a signature with the actual vault owner
+
+    // First, let's create a new vault with a known private key
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign the hash with the test private key
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test the signature validation
+    bytes4 result = testVault.isValidSignature(messageHash, signature);
+
+    // Should return the magic value for valid signature
+    assertEq(result, bytes4(0x1626ba7e));
+  }
+
+  function test_isValidSignature_invalid_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Create an invalid signature (wrong private key)
+    uint256 wrongPrivateKey = 0x9876543210987654321098765432109876543210987654321098765432109876;
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, messageHash);
+    bytes memory invalidSignature = abi.encodePacked(r, s, v);
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, invalidSignature);
+
+    // Should return empty bytes4 for invalid signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_empty_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Test with empty signature
+    bytes memory emptySignature = "";
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, emptySignature);
+
+    // Should return empty bytes4 for empty signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_malformed_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Create a malformed signature (too short)
+    bytes memory malformedSignature = abi.encodePacked(bytes32(0), bytes32(0));
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, malformedSignature);
+
+    // Should return empty bytes4 for malformed signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_different_message() public {
+    // Use a known private key for VAULT_OWNER
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign one message
+    bytes32 messageHash1 = keccak256(abi.encodePacked("message 1"));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash1);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test with a different message hash
+    bytes32 messageHash2 = keccak256(abi.encodePacked("message 2"));
+    bytes4 result = testVault.isValidSignature(messageHash2, signature);
+
+    // Should return empty bytes4 for signature of different message
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_correct_message() public {
+    // Use a known private key for VAULT_OWNER
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign a message
+    bytes32 messageHash = keccak256(abi.encodePacked("correct message"));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test with the same message hash
+    bytes4 result = testVault.isValidSignature(messageHash, signature);
+
+    // Should return the magic value for correct signature
+    assertEq(result, bytes4(0x1626ba7e));
+  }
+
   // ============ RECEIVE FUNCTION TESTS ============
 
   function test_receive_native_tokens() public {
     uint256 initialBalance = address(privateVault).balance;
 
     vm.deal(address(this), 1 ether);
-    (bool success,) = address(privateVault).call{ value: 1 ether }("");
+    (bool success, ) = address(privateVault).call{ value: 1 ether }("");
     assertTrue(success);
 
     assertEq(address(privateVault).balance, initialBalance + 1 ether);
