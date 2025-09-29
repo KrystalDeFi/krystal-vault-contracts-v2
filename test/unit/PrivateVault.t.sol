@@ -5,8 +5,8 @@ import { TestCommon } from "../TestCommon.t.sol";
 import { PrivateVault } from "../../contracts/private-vault/core/PrivateVault.sol";
 import { IPrivateVault } from "../../contracts/private-vault/interfaces/core/IPrivateVault.sol";
 import { IPrivateCommon } from "../../contracts/private-vault/interfaces/core/IPrivateCommon.sol";
-import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
-import { IConfigManager } from "../../contracts/public-vault/interfaces/core/IConfigManager.sol";
+import { PrivateConfigManager } from "../../contracts/private-vault/core/PrivateConfigManager.sol";
+import { IPrivateConfigManager } from "../../contracts/private-vault/interfaces/core/IPrivateConfigManager.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -76,8 +76,7 @@ contract MockERC721 {
   function safeTransferFrom(address from, address to, uint256 tokenId) external {
     require(ownerOf[tokenId] == from, "Not owner");
     require(
-      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender],
-      "Not approved"
+      msg.sender == from || getApproved[tokenId] == msg.sender || isApprovedForAll[from][msg.sender], "Not approved"
     );
     ownerOf[tokenId] = to;
     balanceOf[from]--;
@@ -112,7 +111,7 @@ contract MockERC1155 {
 
 contract PrivateVaultTest is TestCommon {
   PrivateVault public privateVault;
-  ConfigManager public configManager;
+  PrivateConfigManager public configManager;
   address public constant VAULT_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant ADMIN = 0x1234567890123456789012345678901234567891;
   address public constant STRATEGY = 0x1234567890123456789012345678901234567892;
@@ -128,28 +127,14 @@ contract PrivateVaultTest is TestCommon {
     vm.selectFork(fork);
 
     // Deploy config manager
-    configManager = new ConfigManager();
+    configManager = new PrivateConfigManager();
 
     // Initialize config manager
-    address[] memory whitelistAutomator = new address[](1);
-    whitelistAutomator[0] = VAULT_OWNER;
+    address[] memory whitelistTargets = new address[](0);
+    address[] memory whitelistCallers = new address[](1);
+    whitelistCallers[0] = VAULT_OWNER;
 
-    configManager.initialize(
-      VAULT_OWNER,
-      new address[](0), // whitelistStrategies
-      new address[](0), // whitelistSwapRouters
-      whitelistAutomator,
-      new address[](0), // whitelistSigners
-      new address[](0), // typedTokens
-      new uint256[](0), // typedTokenTypes
-      0, // vaultOwnerFeeBasisPoint
-      0, // platformFeeBasisPoint
-      0, // privatePlatformFeeBasisPoint
-      address(0), // feeCollector
-      new address[](0), // strategies
-      new address[](0), // principalTokens
-      new bytes[](0) // configs
-    );
+    configManager.initialize(VAULT_OWNER, whitelistTargets, whitelistCallers);
 
     // Deploy mock contracts
     mockStrategy = new MockStrategy();
@@ -165,7 +150,7 @@ contract PrivateVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     address[] memory strategies = new address[](1);
     strategies[0] = address(mockStrategy);
-    configManager.whitelistStrategy(strategies, true);
+    configManager.setWhitelistTargets(strategies, true);
 
     // Grant admin role
     privateVault.grantAdminRole(ADMIN);
@@ -258,7 +243,15 @@ contract PrivateVaultTest is TestCommon {
   }
 
   function test_multicall_fail_invalid_strategy() public {
+    address automator = address(0x888);
+
     vm.startBroadcast(VAULT_OWNER);
+    address[] memory automators = new address[](1);
+    automators[0] = automator;
+    configManager.setWhitelistCallers(automators, true);
+    vm.stopBroadcast();
+
+    vm.startBroadcast(automator);
 
     address[] memory targets = new address[](1);
     targets[0] = NON_WHITELISTED; // Not whitelisted strategy
@@ -761,7 +754,7 @@ contract PrivateVaultTest is TestCommon {
     uint256 initialBalance = address(privateVault).balance;
 
     vm.deal(address(this), 1 ether);
-    (bool success, ) = address(privateVault).call{ value: 1 ether }("");
+    (bool success,) = address(privateVault).call{ value: 1 ether }("");
     assertTrue(success);
 
     assertEq(address(privateVault).balance, initialBalance + 1 ether);
@@ -814,7 +807,7 @@ contract PrivateVaultTest is TestCommon {
     vm.startBroadcast(VAULT_OWNER);
     address[] memory automators = new address[](1);
     automators[0] = automator;
-    configManager.whitelistAutomator(automators, true);
+    configManager.setWhitelistCallers(automators, true);
     vm.stopBroadcast();
 
     address[] memory targets = new address[](1);

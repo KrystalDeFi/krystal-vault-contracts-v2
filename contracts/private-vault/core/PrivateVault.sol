@@ -36,8 +36,15 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     _;
   }
 
-  modifier onlyAdminOrOwner() {
-    require(admins[msg.sender] || msg.sender == vaultOwner, Unauthorized());
+  modifier onlyAuthorized() {
+    require(
+      admins[msg.sender] || msg.sender == vaultOwner || configManager.isWhitelistedCaller(msg.sender), Unauthorized()
+    );
+    _;
+  }
+
+  modifier whenNotPaused() {
+    require(!configManager.isVaultPaused(), Paused());
     _;
   }
 
@@ -48,6 +55,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     require(_configManager != address(0), ZeroAddress());
 
     // Cache variables to minimize storage writes
+    configManager = IPrivateConfigManager(_configManager);
     vaultOwner = _owner;
     vaultFactory = msg.sender;
     admins[vaultFactory] = true;
@@ -62,7 +70,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
     payable
     override
     nonReentrant
-    onlyOwner
+    onlyAuthorized
+    whenNotPaused
   {
     require(targets.length == data.length, InvalidMulticallParams());
     require(targets.length == callTypes.length, InvalidMulticallParams());

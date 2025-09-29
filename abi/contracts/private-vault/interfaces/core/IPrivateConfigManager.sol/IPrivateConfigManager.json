@@ -1,5 +1,37 @@
 [
   {
+    "inputs": [],
+    "name": "isVaultPaused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistedCaller",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -16,6 +48,55 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_isVaultPaused",
+        "type": "bool"
+      }
+    ],
+    "name": "setVaultPaused",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "callers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "setWhitelistCallers",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "setWhitelistTargets",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ]
