@@ -1,4 +1,39 @@
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  arbitrum_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "",
+    v4UtilsAddress: "",
+  },
+};
 
 export const ArbitrumConfig: Record<string, IConfig> = {
   arbitrum_mainnet: {
@@ -97,5 +132,6 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
       "0xF0cBce1942A68BEB3d1b73F0dd86C8DCc363eF49",
     ],
+    ...PrivateConfig.arbitrum_mainnet,
   },
 };

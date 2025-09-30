@@ -1,5 +1,40 @@
 import { commonConfig } from "./config_common";
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  ronin_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "",
+    v4UtilsAddress: "",
+  },
+};
 
 export const RoninConfig: Record<string, IConfig> = {
   ronin_mainnet: {
@@ -71,5 +106,6 @@ export const RoninConfig: Record<string, IConfig> = {
     nfpmAddresses: ["0x7cF0fb64d72b733695d77d197c664e90D07cF45A"],
 
     katanaAggregateSwapRouter: "0x5F0aCDD3eC767514fF1BF7e79949640bf94576BD",
+    ...PrivateConfig.ronin_mainnet,
   },
 };

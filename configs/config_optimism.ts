@@ -1,4 +1,39 @@
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  optimism_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "",
+    v4UtilsAddress: "",
+  },
+};
 
 export const OptimismConfig: Record<string, IConfig> = {
   optimism_mainnet: {
@@ -65,5 +100,6 @@ export const OptimismConfig: Record<string, IConfig> = {
     ],
     swapRouters: ["0xf6f2dafa542FefAae22187632Ef30D2dAa252b4e"],
     nfpmAddresses: ["0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "0x1af415a1EbA07a4986a52B6f2e7dE7003D82231e"],
+    ...PrivateConfig.optimism_mainnet,
   },
 };

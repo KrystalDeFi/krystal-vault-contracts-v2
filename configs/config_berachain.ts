@@ -1,5 +1,40 @@
 import { commonConfig } from "./config_common";
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  berachain_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "",
+    v4UtilsAddress: "",
+  },
+};
 
 export const BerachainConfig: Record<string, IConfig> = {
   berachain_mainnet: {
@@ -70,5 +105,6 @@ export const BerachainConfig: Record<string, IConfig> = {
     rewardVaultFactory: "0x94Ad6Ac84f6C6FbA8b8CCbD71d9f4f101def52a8",
     bgtToken: "0x656b95E550C07a9ffe548bd4085c72418Ceb1dba",
     wbera: "0x6969696969696969696969696969696969696969",
+    ...PrivateConfig.berachain_mainnet,
   },
 };

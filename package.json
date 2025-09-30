@@ -9,6 +9,7 @@
     "size": "hardhat size-contracts",
     "test": "forge test -vvv --via-ir --force && yarn docgen",
     "deploy": "./cmd.sh -x deploy",
+    "deploy-private": "./cmd.sh -x deploy-private",
     "verify": "hardhat verify --network",
     "docgen": "rm -rf ./docs && hardhat docgen",
     "prettier:check": "prettier --check \"**/*.{json,md,yml}\"",

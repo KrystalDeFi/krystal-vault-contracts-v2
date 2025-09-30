@@ -1,6 +1,68 @@
 import { AddressLike } from "ethers";
 
-export interface IConfig {
+export interface IConfigPrivate {
+  privateVault?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateVaultFactory?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateConfigManager?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateVaultAutomator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateAerodromeFarmingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateV3UtilsStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateV4UtilsStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  v3UtilsAddress?: AddressLike;
+  v4UtilsAddress?: AddressLike;
+}
+
+export interface IConfigAerodrome {
+  lpStrategyAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  lpValidatorAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  rewardSwapper?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  farmingStrategyValidator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  farmingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  vaultAutomatorAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  aerodromeNfpmAddresses?: AddressLike[];
+  aerodromeGaugeFactories?: AddressLike[];
+}
+
+export interface IConfig extends IConfigPrivate, IConfigAerodrome {
   autoVerifyContract?: boolean;
   sleepTime?: number;
   vault: {
@@ -59,32 +121,6 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  // Aerodrome contracts
-  lpStrategyAerodrome?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  lpValidatorAerodrome?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  rewardSwapper?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  farmingStrategyValidator?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  farmingStrategy?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  vaultAutomatorAerodrome?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  // -------------------
   wrapToken?: string;
   typedTokens?: string[];
   // 0 for stable, 1 for pegged,...
@@ -92,11 +128,9 @@ export interface IConfig {
   encodedLpConfigs?: string[];
   swapRouters: AddressLike[];
   nfpmAddresses: AddressLike[];
-  aerodromeNfpmAddresses?: AddressLike[];
 
   katanaAggregateSwapRouter?: AddressLike;
   rewardVaultFactory?: string;
   bgtToken?: string;
   wbera?: string;
-  aerodromeGaugeFactories?: AddressLike[];
 }
