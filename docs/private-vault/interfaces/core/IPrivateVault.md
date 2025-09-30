@@ -32,6 +32,12 @@ error StrategyDelegateCallFailed()
 error Paused()
 ```
 
+### vaultOwner
+
+```solidity
+function vaultOwner() external view returns (address)
+```
+
 ### initialize
 
 ```solidity
