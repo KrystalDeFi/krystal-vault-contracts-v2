@@ -80,6 +80,10 @@ export interface IConfig {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  vaultAutomatorAerodrome?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   // -------------------
   wrapToken?: string;
   typedTokens?: string[];
