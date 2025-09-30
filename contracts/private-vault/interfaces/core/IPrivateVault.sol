@@ -14,6 +14,8 @@ interface IPrivateVault is IPrivateCommon {
 
   error Paused();
 
+  function vaultOwner() external view returns (address);
+
   function initialize(address _owner, address _configManager) external;
 
   function multicall(address[] calldata targets, bytes[] calldata data, CallType[] calldata callTypes) external payable;

@@ -25,7 +25,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   // Magic value per EIP-1271
   bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
 
-  address public vaultOwner;
+  address public override vaultOwner;
   address public vaultFactory;
   IPrivateConfigManager public configManager;
 
