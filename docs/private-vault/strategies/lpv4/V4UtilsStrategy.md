@@ -8,6 +8,12 @@
 address v4UtilsRouter
 ```
 
+### constructor
+
+```solidity
+constructor(address _v4UtilsRouter) public
+```
+
 ### safeTransferNft
 
 ```solidity
