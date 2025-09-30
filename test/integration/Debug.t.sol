@@ -3,9 +3,9 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 import { Test } from "forge-std/Test.sol";
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
 import "forge-std/console.sol";
 
 contract Debug is Test {

@@ -2,8 +2,8 @@
 pragma solidity >=0.8.28;
 
 import { Test } from "forge-std/Test.sol";
-import { InventoryLib } from "../../contracts/libraries/InventoryLib.sol";
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { InventoryLib } from "../../contracts/public-vault/libraries/InventoryLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
 contract InventoryLibTest is Test {
   using InventoryLib for InventoryLib.Inventory;

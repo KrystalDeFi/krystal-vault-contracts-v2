@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon } from "../TestCommon.t.sol";
-import { PrivateVault } from "../../contracts/core/private-vault/PrivateVault.sol";
-import { IPrivateVault } from "../../contracts/interfaces/core/private-vault/IPrivateVault.sol";
-import { IPrivateCommon } from "../../contracts/interfaces/core/private-vault/IPrivateCommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { IConfigManager } from "../../contracts/interfaces/core/IConfigManager.sol";
+import { PrivateVault } from "../../contracts/private-vault/core/PrivateVault.sol";
+import { IPrivateVault } from "../../contracts/private-vault/interfaces/core/IPrivateVault.sol";
+import { IPrivateCommon } from "../../contracts/private-vault/interfaces/core/IPrivateCommon.sol";
+import { PrivateConfigManager } from "../../contracts/private-vault/core/PrivateConfigManager.sol";
+import { IPrivateConfigManager } from "../../contracts/private-vault/interfaces/core/IPrivateConfigManager.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -111,7 +111,7 @@ contract MockERC1155 {
 
 contract PrivateVaultTest is TestCommon {
   PrivateVault public privateVault;
-  ConfigManager public configManager;
+  PrivateConfigManager public configManager;
   address public constant VAULT_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant ADMIN = 0x1234567890123456789012345678901234567891;
   address public constant STRATEGY = 0x1234567890123456789012345678901234567892;
@@ -127,28 +127,14 @@ contract PrivateVaultTest is TestCommon {
     vm.selectFork(fork);
 
     // Deploy config manager
-    configManager = new ConfigManager();
+    configManager = new PrivateConfigManager();
 
     // Initialize config manager
-    address[] memory whitelistAutomator = new address[](1);
-    whitelistAutomator[0] = VAULT_OWNER;
+    address[] memory whitelistTargets = new address[](0);
+    address[] memory whitelistCallers = new address[](1);
+    whitelistCallers[0] = VAULT_OWNER;
 
-    configManager.initialize(
-      VAULT_OWNER,
-      new address[](0), // whitelistStrategies
-      new address[](0), // whitelistSwapRouters
-      whitelistAutomator,
-      new address[](0), // whitelistSigners
-      new address[](0), // typedTokens
-      new uint256[](0), // typedTokenTypes
-      0, // vaultOwnerFeeBasisPoint
-      0, // platformFeeBasisPoint
-      0, // privatePlatformFeeBasisPoint
-      address(0), // feeCollector
-      new address[](0), // strategies
-      new address[](0), // principalTokens
-      new bytes[](0) // configs
-    );
+    configManager.initialize(VAULT_OWNER, whitelistTargets, whitelistCallers);
 
     // Deploy mock contracts
     mockStrategy = new MockStrategy();
@@ -164,7 +150,7 @@ contract PrivateVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     address[] memory strategies = new address[](1);
     strategies[0] = address(mockStrategy);
-    configManager.whitelistStrategy(strategies, true);
+    configManager.setWhitelistTargets(strategies, true);
 
     // Grant admin role
     privateVault.grantAdminRole(ADMIN);
@@ -257,7 +243,15 @@ contract PrivateVaultTest is TestCommon {
   }
 
   function test_multicall_fail_invalid_strategy() public {
+    address automator = address(0x888);
+
     vm.startBroadcast(VAULT_OWNER);
+    address[] memory automators = new address[](1);
+    automators[0] = automator;
+    configManager.setWhitelistCallers(automators, true);
+    vm.stopBroadcast();
+
+    vm.startBroadcast(automator);
 
     address[] memory targets = new address[](1);
     targets[0] = NON_WHITELISTED; // Not whitelisted strategy
@@ -268,8 +262,8 @@ contract PrivateVaultTest is TestCommon {
     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
-    // Should revert with InvalidStrategy
-    vm.expectRevert(abi.encodeWithSelector(IPrivateVault.InvalidStrategy.selector, NON_WHITELISTED));
+    // Should revert with InvalidTarget
+    vm.expectRevert(abi.encodeWithSelector(IPrivateVault.InvalidTarget.selector, NON_WHITELISTED));
     privateVault.multicall(targets, data, callTypes);
 
     vm.stopBroadcast();
@@ -636,6 +630,124 @@ contract PrivateVaultTest is TestCommon {
     vm.stopBroadcast();
   }
 
+  // ============ SIGNATURE VALIDATION TESTS ============
+
+  function test_isValidSignature_valid_signature() public {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Use a known private key that corresponds to VAULT_OWNER
+    // Private key 0x1234567890123456789012345678901234567890123456789012345678901234
+    // corresponds to address 0x2e988A386a799F506693793c6A5AF6B54dfAaBfB
+    // But we need to use the actual VAULT_OWNER address
+    // Let's use a different approach - create a signature with the actual vault owner
+
+    // First, let's create a new vault with a known private key
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign the hash with the test private key
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test the signature validation
+    bytes4 result = testVault.isValidSignature(messageHash, signature);
+
+    // Should return the magic value for valid signature
+    assertEq(result, bytes4(0x1626ba7e));
+  }
+
+  function test_isValidSignature_invalid_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Create an invalid signature (wrong private key)
+    uint256 wrongPrivateKey = 0x9876543210987654321098765432109876543210987654321098765432109876;
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, messageHash);
+    bytes memory invalidSignature = abi.encodePacked(r, s, v);
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, invalidSignature);
+
+    // Should return empty bytes4 for invalid signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_empty_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Test with empty signature
+    bytes memory emptySignature = "";
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, emptySignature);
+
+    // Should return empty bytes4 for empty signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_malformed_signature() public view {
+    // Create a message hash
+    bytes32 messageHash = keccak256(abi.encodePacked("test message"));
+
+    // Create a malformed signature (too short)
+    bytes memory malformedSignature = abi.encodePacked(bytes32(0), bytes32(0));
+
+    // Test the signature validation
+    bytes4 result = privateVault.isValidSignature(messageHash, malformedSignature);
+
+    // Should return empty bytes4 for malformed signature
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_different_message() public {
+    // Use a known private key for VAULT_OWNER
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign one message
+    bytes32 messageHash1 = keccak256(abi.encodePacked("message 1"));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash1);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test with a different message hash
+    bytes32 messageHash2 = keccak256(abi.encodePacked("message 2"));
+    bytes4 result = testVault.isValidSignature(messageHash2, signature);
+
+    // Should return empty bytes4 for signature of different message
+    assertEq(result, bytes4(0));
+  }
+
+  function test_isValidSignature_correct_message() public {
+    // Use a known private key for VAULT_OWNER
+    uint256 testPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+    address testOwner = vm.addr(testPrivateKey);
+
+    // Create a new vault for this test
+    PrivateVault testVault = new PrivateVault();
+    testVault.initialize(testOwner, address(configManager));
+
+    // Sign a message
+    bytes32 messageHash = keccak256(abi.encodePacked("correct message"));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    // Test with the same message hash
+    bytes4 result = testVault.isValidSignature(messageHash, signature);
+
+    // Should return the magic value for correct signature
+    assertEq(result, bytes4(0x1626ba7e));
+  }
+
   // ============ RECEIVE FUNCTION TESTS ============
 
   function test_receive_native_tokens() public {
@@ -695,7 +807,7 @@ contract PrivateVaultTest is TestCommon {
     vm.startBroadcast(VAULT_OWNER);
     address[] memory automators = new address[](1);
     automators[0] = automator;
-    configManager.whitelistAutomator(automators, true);
+    configManager.setWhitelistCallers(automators, true);
     vm.stopBroadcast();
 
     address[] memory targets = new address[](1);

@@ -5,7 +5,7 @@ import { console } from "forge-std/console.sol";
 
 import { TestCommon, USER } from "../TestCommon.t.sol";
 
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
 
 contract IntegrationTest is TestCommon {
   function setUp() public {

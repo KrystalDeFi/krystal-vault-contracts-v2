@@ -10,19 +10,19 @@ import { INonfungiblePositionManager as INFPM } from
 
 import { TestCommon, IV3SwapRouter, WETH, DAI, USER, USDC, NFPM, PLATFORM_WALLET } from "../TestCommon.t.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract LpStrategyTest is TestCommon {
   LpStrategy public lpStrategy;
