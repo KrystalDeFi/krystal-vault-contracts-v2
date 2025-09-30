@@ -11,6 +11,10 @@ contract V4UtilsStrategy {
 
   address public immutable v4UtilsRouter;
 
+  constructor(address _v4UtilsRouter) {
+    v4UtilsRouter = _v4UtilsRouter;
+  }
+
   function safeTransferNft(address posm, uint256 tokenId, bytes calldata instruction) external {
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
   }
