@@ -12,6 +12,7 @@ interface IFarmingStrategy is IStrategy {
     WithdrawLP, // Withdraw position from farming but keep as LP NFT
     WithdrawLPToPrincipal, // Withdraw position from farming and convert to principal
     RebalanceAndDeposit, // Rebalance LP position and maintain farming
+    CompoundAndDeposit, // Compound LP Fee and maintain farming
     HarvestFarmingRewards // Harvest farming rewards only
 
   }
@@ -46,9 +47,13 @@ interface IFarmingStrategy is IStrategy {
     uint256 minAmountOut;
   }
 
+  struct CompoundAndDepositParams {
+    IAerodromeLpStrategy.SwapAndCompoundParams swapAndCompoundParams;
+  }
+
   // Events
-  event NFTDeposited(uint256 indexed tokenId, address indexed gauge, address indexed user);
-  event NFTWithdrawn(uint256 indexed tokenId, address indexed gauge, address indexed user);
+  event AerodromeStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
+  event AerodromeUnstaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
   event FarmingRewardsHarvested(address indexed gauge, address indexed rewardToken, uint256 amount);
   event LPCreatedAndDeposited(uint256 indexed tokenId, address indexed gauge, uint256 liquidity);
 

@@ -319,6 +319,14 @@ function _rebalanceAndDeposit(struct AssetLib.Asset[] assets, struct IFarmingStr
 
 Rebalance LP position while maintaining farming deposit
 
+### _compoundAndDeposit
+
+```solidity
+function _compoundAndDeposit(struct AssetLib.Asset[] assets, struct IFarmingStrategy.CompoundAndDepositParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+```
+
+Compound LP Position and deposit
+
 ### _depositPosition
 
 ```solidity

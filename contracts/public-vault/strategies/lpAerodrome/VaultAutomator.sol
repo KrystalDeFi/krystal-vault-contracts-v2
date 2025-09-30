@@ -12,7 +12,8 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../common/CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
-import "../../interfaces/strategies/ILpStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
+import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 
 /**
  * @title VaultAutomator
@@ -52,9 +53,12 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
     require(
-      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition)
-        || instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound)
-        || instruction.instructionType == uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+      instruction.instructionType == uint8(IAerodromeLpStrategy.InstructionType.SwapAndRebalancePosition)
+        || instruction.instructionType == uint8(IAerodromeLpStrategy.InstructionType.SwapAndCompound)
+        || instruction.instructionType == uint8(IAerodromeLpStrategy.InstructionType.DecreaseLiquidityAndSwap)
+        || instruction.instructionType == uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal)
+        || instruction.instructionType == uint8(IFarmingStrategy.FarmingInstructionType.RebalanceAndDeposit)
+        || instruction.instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CompoundAndDeposit),
       InvalidInstructionType()
     );
     vault.allocate(inputAssets, strategy, gasFeeX64, allocateData);

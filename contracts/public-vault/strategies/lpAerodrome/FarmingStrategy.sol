@@ -126,6 +126,10 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       return _rebalanceAndDeposit(
         assets, abi.decode(instruction.params, (IFarmingStrategy.RebalanceAndDepositParams)), config, feeConfig
       );
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CompoundAndDeposit)) {
+      return _compoundAndDeposit(
+        assets, abi.decode(instruction.params, (IFarmingStrategy.CompoundAndDepositParams)), config, feeConfig
+      );
     } else {
       revert InvalidFarmingInstructionType();
     }
@@ -488,6 +492,49 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   }
 
   /**
+   * @notice Compound LP Position and deposit
+   */
+  function _compoundAndDeposit(
+    AssetLib.Asset[] calldata assets,
+    IFarmingStrategy.CompoundAndDepositParams memory params,
+    VaultConfig calldata config,
+    FeeConfig calldata feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 1, InvalidNumberOfAssets());
+    require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
+    address gauge = assets[0].token;
+    // Harvest farming rewards first
+
+    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    // Withdraw temporarily
+    AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
+
+    AssetLib.Asset[] memory compoundAssets = new AssetLib.Asset[](1);
+    compoundAssets[0] = lpAsset;
+    // Delegate compound to LpStrategy
+    bytes memory compoundData = abi.encode(
+      Instruction({
+        instructionType: uint8(IAerodromeLpStrategy.InstructionType.SwapAndCompound),
+        params: abi.encode(params.swapAndCompoundParams)
+      })
+    );
+    compoundAssets = _lpConvert(compoundAssets, config, feeConfig, compoundData);
+
+    // Re-deposit the rebalanced position
+    require(compoundAssets.length > 2 && compoundAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
+    compoundAssets[2] = _depositPosition(compoundAssets[2], gauge);
+    // combine with farming harvest results
+
+    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + compoundAssets.length);
+    for (uint256 i; i < farmingHarvestResults.length; i++) {
+      returnAssets[i] = farmingHarvestResults[i];
+    }
+    for (uint256 i; i < compoundAssets.length; i++) {
+      returnAssets[farmingHarvestResults.length + i] = compoundAssets[i];
+    }
+  }
+
+  /**
    * @notice Deposit a position into the specified gauge
    */
   function _depositPosition(AssetLib.Asset memory lpAsset, address gauge)
@@ -506,7 +553,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     farmingAsset.token = gauge;
 
     // Note: State tracking is now handled in asset.strategy field when assets are returned
-    emit NFTDeposited(lpAsset.tokenId, gauge, msg.sender);
+    emit AerodromeStaked(nftContract, lpAsset.tokenId, gauge, msg.sender);
   }
 
   /**
@@ -524,7 +571,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     });
 
     // Note: State tracking is now handled in asset.strategy field when assets are returned
-    emit NFTWithdrawn(farmingAsset.tokenId, farmingAsset.token, msg.sender);
+    emit AerodromeUnstaked(lpAsset.token, farmingAsset.tokenId, farmingAsset.token, msg.sender);
   }
 
   /**

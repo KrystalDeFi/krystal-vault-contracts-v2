@@ -68,6 +68,10 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    vaultAutomatorAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     // -------------------
     wrapToken: "0x4200000000000000000000000000000000000006",
     typedTokens: [

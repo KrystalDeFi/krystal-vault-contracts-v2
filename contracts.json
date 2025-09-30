@@ -26,7 +26,8 @@
     "farmingStrategyValidator": "0x91779fd92fcc19c19f7578c33b80c92b6d725187",
     "rewardSwapper": "0x0e23655e8f39e4d59125f52cf542b826e8b2836e",
     "lpStrategyAerodrome": "0xfac58351331cf9fd2b8160efd6229759a689b3d6",
-    "farmingStrategy": "0xb9da681f459c2802abfdc3296301ccf19f4bc772"
+    "vaultAutomatorAerodrome": "0x6f9b3fde674746b153276efa985ae911f3f3e4ec",
+    "farmingStrategy": "0x4cd30d0ab8575ab4cf3f8e41dceec1bbfdac5484"
   },
   "bsc_mainnet": {
     "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",

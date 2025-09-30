@@ -8,7 +8,6 @@ import { PoolOptimalSwapper, Vault, VaultFactory, ConfigManager } from "../typec
 import {
   LpFeeTaker,
   LpStrategy,
-  VaultAutomator as LpUniV3VaultAutomator,
   LpValidator,
   VaultAutomator,
 } from "../typechain-types/contracts/public-vault/strategies/lpUniV3";
@@ -16,7 +15,10 @@ import { KodiakIslandStrategy } from "../typechain-types/contracts/public-vault/
 import { commonConfig } from "../configs/config_common";
 import { MerklStrategy } from "../typechain-types";
 import { MerklAutomator } from "../typechain-types/contracts/public-vault/strategies/merkl";
-import { KatanaLpFeeTaker, KatanaPoolOptimalSwapper } from "../typechain-types/contracts/public-vault/strategies/roninKatanaV3";
+import {
+  KatanaLpFeeTaker,
+  KatanaPoolOptimalSwapper,
+} from "../typechain-types/contracts/public-vault/strategies/roninKatanaV3";
 import { LpChainingStrategy } from "../typechain-types/contracts/public-vault/strategies/lpChaining";
 import {
   LpStrategy as LpStrategyAerodrome,
@@ -24,6 +26,7 @@ import {
   FarmingStrategy,
   FarmingStrategyValidator,
   RewardSwapper,
+  VaultAutomator as VaultAutomatorAerodrome,
 } from "../typechain-types/contracts/public-vault/strategies/lpAerodrome";
 
 const { SALT } = process.env;
@@ -60,6 +63,7 @@ export interface Contracts {
   rewardSwapper?: RewardSwapper;
   farmingStrategyValidator?: FarmingStrategyValidator;
   farmingStrategy?: FarmingStrategy;
+  vaultAutomatorAerodrome?: VaultAutomatorAerodrome;
   // --------------------
 }
 
@@ -88,12 +92,14 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   const vault = await deployVaultContract(++step, existingContract);
   const vaultAutomator = await deployVaultAutomatorContract(++step, existingContract);
+  const vaultAutomatorAerodrome = await deployVaultAutomatorAerodromeContract(++step, existingContract);
   const poolOptimalSwapper = await deployPoolOptimalSwapperContract(++step, existingContract);
   const katanaPoolOptimalSwapper = await deployKatanaPoolOptimalSwapperContract(++step, existingContract);
 
   const contracts: Contracts = {
     vault: vault.vault,
     vaultAutomator: vaultAutomator.vaultAutomator,
+    vaultAutomatorAerodrome: vaultAutomatorAerodrome.vaultAutomatorAerodrome,
     poolOptimalSwapper: isRonin ? katanaPoolOptimalSwapper.poolOptimalSwapper : poolOptimalSwapper.poolOptimalSwapper,
   };
 
@@ -245,6 +251,7 @@ async function deployContracts(existingContract: Record<string, any> | undefined
       networkConfig.swapRouters,
       [
         existingContract?.["vaultAutomator"] || contracts?.vaultAutomator?.target,
+        existingContract?.["vaultAutomatorAerodrome"] || contracts?.vaultAutomatorAerodrome?.target,
         existingContract?.["merklAutomator"] || contracts?.merklAutomator?.target,
       ]?.filter(Boolean),
       commonConfig.signers,
@@ -322,11 +329,39 @@ export const deployVaultAutomatorContract = async (
       undefined,
       ["address", "address[]"],
       [contractAdmin, commonConfig.automationOperators],
-    )) as LpUniV3VaultAutomator;
+    )) as VaultAutomator;
   }
 
   return {
     vaultAutomator,
+  };
+};
+
+export const deployVaultAutomatorAerodromeContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: Contracts,
+): Promise<Contracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let vaultAutomatorAerodrome;
+
+  if (config.vaultAutomatorAerodrome?.enabled) {
+    vaultAutomatorAerodrome = (await deployContract(
+      `${step} >>`,
+      config.vaultAutomatorAerodrome?.autoVerifyContract,
+      "contracts/public-vault/strategies/lpAerodrome/VaultAutomator.sol:VaultAutomator",
+      existingContract?.["vaultAutomatorAerodrome"],
+      "contracts/public-vault/strategies/lpAerodrome/VaultAutomator.sol:VaultAutomator",
+      undefined,
+      ["address", "address[]"],
+      [contractAdmin, commonConfig.automationOperators],
+    )) as VaultAutomatorAerodrome;
+  }
+
+  return {
+    vaultAutomatorAerodrome,
   };
 };
 
