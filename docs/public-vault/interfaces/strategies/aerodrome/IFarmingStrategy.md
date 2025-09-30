@@ -11,6 +11,7 @@ enum FarmingInstructionType {
   WithdrawLP,
   WithdrawLPToPrincipal,
   RebalanceAndDeposit,
+  CompoundAndDeposit,
   HarvestFarmingRewards
 }
 ```
@@ -68,16 +69,24 @@ struct HarvestFarmingRewardsParams {
 }
 ```
 
-### NFTDeposited
+### CompoundAndDepositParams
 
 ```solidity
-event NFTDeposited(uint256 tokenId, address gauge, address user)
+struct CompoundAndDepositParams {
+  struct IAerodromeLpStrategy.SwapAndCompoundParams swapAndCompoundParams;
+}
 ```
 
-### NFTWithdrawn
+### AerodromeStaked
 
 ```solidity
-event NFTWithdrawn(uint256 tokenId, address gauge, address user)
+event AerodromeStaked(address nfpm, uint256 tokenId, address gauge, address msgSender)
+```
+
+### AerodromeUnstaked
+
+```solidity
+event AerodromeUnstaked(address nfpm, uint256 tokenId, address gauge, address msgSender)
 ```
 
 ### FarmingRewardsHarvested
