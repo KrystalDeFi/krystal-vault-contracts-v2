@@ -92,7 +92,7 @@ event AerodromeUnstaked(address nfpm, uint256 tokenId, address gauge, address ms
 ### FarmingRewardsHarvested
 
 ```solidity
-event FarmingRewardsHarvested(address gauge, address rewardToken, uint256 amount)
+event FarmingRewardsHarvested(address gauge, address rewardToken, uint256 amount, address principalToken, uint256 principalAmount)
 ```
 
 ### LPCreatedAndDeposited
