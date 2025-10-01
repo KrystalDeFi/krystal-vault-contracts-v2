@@ -34,6 +34,18 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     vaultImplementation = _vaultImplementation;
   }
 
+  function createVault(bytes32 salt) external payable override whenNotPaused returns (address vault) {
+    vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, salt)));
+
+    IPrivateVault(vault).initialize(msg.sender, configManager);
+
+    vaultsByAddress[msg.sender].push(vault);
+    allVaults.push(vault);
+    isVaultAddress[vault] = true;
+
+    emit VaultCreated(msg.sender, vault);
+  }
+
   function createVault(
     bytes32 salt,
     address[] calldata tokens,
