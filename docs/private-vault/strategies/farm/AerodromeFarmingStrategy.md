@@ -20,9 +20,3 @@ function withdraw(uint256 tokenId, address clGauge) external
 function harvest(address clGauge, uint256 tokenId) external
 ```
 
-### harvestAll
-
-```solidity
-function harvestAll(address clGauge) external
-```
-
