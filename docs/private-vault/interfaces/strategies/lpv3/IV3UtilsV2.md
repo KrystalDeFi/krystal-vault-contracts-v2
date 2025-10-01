@@ -1,6 +1,50 @@
 # Solidity API
 
-## IV3Utils
+## IV3UtilsV2
+
+### WhatToDo
+
+Action which should be executed on provided NFT
+
+```solidity
+enum WhatToDo {
+  CHANGE_RANGE,
+  WITHDRAW_AND_COLLECT_AND_SWAP,
+  COMPOUND_FEES
+}
+```
+
+### Instructions
+
+Complete description of what should be executed on provided NFT - different fields are used depending on
+specified WhatToDo
+
+```solidity
+struct Instructions {
+  enum IV3UtilsV2.WhatToDo whatToDo;
+  uint8 protocol;
+  address targetToken;
+  uint256 amountRemoveMin0;
+  uint256 amountRemoveMin1;
+  uint256 amountIn0;
+  uint256 amountOut0Min;
+  bytes swapData0;
+  uint256 amountIn1;
+  uint256 amountOut1Min;
+  bytes swapData1;
+  int24 tickLower;
+  int24 tickUpper;
+  bool compoundFees;
+  uint128 liquidity;
+  uint256 amountAddMin0;
+  uint256 amountAddMin1;
+  uint256 deadline;
+  address recipient;
+  bool unwrap;
+  uint64 liquidityFeeX64;
+  uint64 performanceFeeX64;
+}
+```
 
 ### execute
 
@@ -38,6 +82,7 @@ struct SwapAndMintParams {
   address token0;
   address token1;
   uint24 fee;
+  int24 tickSpacing;
   int24 tickLower;
   int24 tickUpper;
   uint64 protocolFeeX64;
@@ -61,7 +106,7 @@ struct SwapAndMintParams {
 ### swapAndMint
 
 ```solidity
-function swapAndMint(struct IV3Utils.SwapAndMintParams params) external payable returns (struct IV3Utils.SwapAndMintResult result)
+function swapAndMint(struct IV3UtilsV2.SwapAndMintParams params) external payable returns (struct IV3UtilsV2.SwapAndMintResult result)
 ```
 
 Does 1 or 2 swaps from swapSourceToken to token0 and token1 and adds as much as possible liquidity to a
@@ -71,7 +116,7 @@ newly minted position.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| params | struct IV3Utils.SwapAndMintParams | Swap and mint configuration Newly minted NFT and leftover tokens are returned to recipient |
+| params | struct IV3UtilsV2.SwapAndMintParams | Swap and mint configuration Newly minted NFT and leftover tokens are returned to recipient |
 
 ### SwapAndIncreaseLiquidityResult
 
@@ -115,7 +160,7 @@ struct SwapAndIncreaseLiquidityParams {
 ### swapAndIncreaseLiquidity
 
 ```solidity
-function swapAndIncreaseLiquidity(struct IV3Utils.SwapAndIncreaseLiquidityParams params) external payable returns (struct IV3Utils.SwapAndIncreaseLiquidityResult result)
+function swapAndIncreaseLiquidity(struct IV3UtilsV2.SwapAndIncreaseLiquidityParams params) external payable returns (struct IV3UtilsV2.SwapAndIncreaseLiquidityResult result)
 ```
 
 Does 1 or 2 swaps from swapSourceToken to token0 and token1 and adds as much as possible liquidity to any
@@ -125,5 +170,5 @@ existing position (no need to be position owner).
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| params | struct IV3Utils.SwapAndIncreaseLiquidityParams | Swap and increase liquidity configuration |
+| params | struct IV3UtilsV2.SwapAndIncreaseLiquidityParams | Swap and increase liquidity configuration |
 
