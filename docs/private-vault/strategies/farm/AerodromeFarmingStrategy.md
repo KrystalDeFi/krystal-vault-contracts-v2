@@ -2,6 +2,18 @@
 
 ## AerodromeFarmingStrategy
 
+### gaugeFactory
+
+```solidity
+address gaugeFactory
+```
+
+### constructor
+
+```solidity
+constructor(address _gaugeFactory) public
+```
+
 ### deposit
 
 ```solidity
