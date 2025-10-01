@@ -10,6 +10,8 @@ interface IPrivateVaultFactory is IPrivateCommon {
 
   event VaultImplementationSet(address vaultImplementation);
 
+  function createVault(bytes32 salt) external payable returns (address vault);
+
   function createVault(
     bytes32 salt,
     address[] calldata tokens,
