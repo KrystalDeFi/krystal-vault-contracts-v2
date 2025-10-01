@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_gaugeFactory",
+        "name": "_masterChefV3",
         "type": "address"
       }
     ],
@@ -16,11 +16,6 @@
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
       }
     ],
     "name": "deposit",
@@ -29,8 +24,21 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "harvest",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "gaugeFactory",
+    "name": "masterChefV3",
     "outputs": [
       {
         "internalType": "address",
@@ -44,32 +52,9 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
-      },
-      {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
-      }
-    ],
-    "name": "harvest",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
       }
     ],
     "name": "withdraw",

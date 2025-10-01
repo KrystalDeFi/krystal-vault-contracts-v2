@@ -21,6 +21,10 @@ export interface IConfigPrivate {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  privatePancakeV3FarmingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   privateV3UtilsStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -31,6 +35,8 @@ export interface IConfigPrivate {
   };
   v3UtilsAddress?: AddressLike;
   v4UtilsAddress?: AddressLike;
+  aerodromeGaugeFactory?: AddressLike;
+  pancakeV3MasterChef?: AddressLike;
 }
 
 export interface IConfigAerodrome {

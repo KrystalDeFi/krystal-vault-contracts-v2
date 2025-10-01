@@ -22,6 +22,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privatePancakeV3FarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     privateV3UtilsStrategy: {
       enabled: true,
       autoVerifyContract: true,
@@ -32,6 +36,8 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     },
     v3UtilsAddress: "",
     v4UtilsAddress: "",
+    aerodromeGaugeFactory: "", // Aerodrome CLGaugeFactory on Base
+    pancakeV3MasterChef: "",
   },
 };
 

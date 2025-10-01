@@ -227,6 +227,36 @@ export const deployAerodromeFarmingStrategyContract = async (
       "AerodromeFarmingStrategy",
       existingContract?.["aerodromeFarmingStrategy"],
       "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
+      undefined,
+      ["address"],
+      [config.aerodromeGaugeFactory],
+    )) as AerodromeFarmingStrategy;
+  }
+
+  return {
+    aerodromeFarmingStrategy,
+  };
+};
+
+export const deployPancakeV3FarmingStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let aerodromeFarmingStrategy;
+
+  if (config.privateAerodromeFarmingStrategy?.enabled) {
+    aerodromeFarmingStrategy = (await deployContract(
+      `${step} >>`,
+      config.privatePancakeV3FarmingStrategy?.autoVerifyContract,
+      "PancakeV3FarmingStrategy",
+      existingContract?.["pancakeV3FarmingStrategy"],
+      "contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy.sol:PancakeV3FarmingStrategy",
+      undefined,
+      ["address"],
+      [config.pancakeV3MasterChef],
     )) as AerodromeFarmingStrategy;
   }
 

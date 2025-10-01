@@ -6,7 +6,14 @@ import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensio
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract AerodromeFarmingStrategy {
+  address public immutable gaugeFactory;
+
+  constructor(address _gaugeFactory) {
+    gaugeFactory = _gaugeFactory;
+  }
+
   function deposit(uint256 tokenId, address clGauge) external {
+    require(ICLGauge(clGauge).gaugeFactory() == gaugeFactory, "IG");
     IERC721Enumerable nfpm = IERC721Enumerable(ICLGauge(clGauge).nft());
     if (tokenId == 0) {
       // deposit the last created token

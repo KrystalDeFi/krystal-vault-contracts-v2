@@ -94,6 +94,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   address constant V3_UTILS = 0x16c6346916EEF89FD2C2Fb7DA61dA8825948Ec93; // V3Utils contract on Base
   address constant SWAP_ROUTER = 0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5; // Aerodrome SwapRouter on Base
   address constant GAUGE = 0xF33a96b5932D9E9B9A0eDA447AbD8C9d48d2e0c8; // Gauge contract for WETH/USDC pool
+  address constant GAUGE_FACTORY = 0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08;
   address constant AERO_TOKEN = 0x940181a94A35A4569E4529A3CDfB74e38FD98631; // AERO token on Base
   uint8 constant PROTOCOL = 3; // AERODROME
   int24 constant TICK_SPACING = 100;
@@ -143,7 +144,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     v3UtilsStrategy = new V3UtilsStrategy(V3_UTILS);
 
     // Deploy AerodromeFarmingStrategy
-    farmingStrategy = new AerodromeFarmingStrategy();
+    farmingStrategy = new AerodromeFarmingStrategy(GAUGE_FACTORY);
 
     // Add strategies to whitelist
     address[] memory strategiesToAdd = new address[](2);
