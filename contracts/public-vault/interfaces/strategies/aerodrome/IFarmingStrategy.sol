@@ -54,7 +54,7 @@ interface IFarmingStrategy is IStrategy {
   // Events
   event AerodromeStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeUnstaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
-  event FarmingRewardsHarvested(address indexed gauge, address indexed rewardToken, uint256 amount);
+  event FarmingRewardsHarvested(address indexed gauge, address indexed rewardToken, uint256 amount, address principalToken, uint256 principalAmount);
   event LPCreatedAndDeposited(uint256 indexed tokenId, address indexed gauge, uint256 liquidity);
 
   // Errors

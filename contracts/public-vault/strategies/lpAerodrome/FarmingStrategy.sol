@@ -587,6 +587,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     ICLGauge(asset.token).getReward(asset.tokenId);
 
     uint256 rewardBalance = IERC20(rewardToken).balanceOf(address(this)) - rewardBalanceBefore;
+    uint256 principalAmount;
 
     // Process rewards (swap if needed or take fees)
     if (rewardToken == tokenOut) {
@@ -599,6 +600,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         tokenId: 0,
         amount: amountAfterFee
       });
+      principalAmount = amountAfterFee;
     } else {
       // Swap reward token to desired output token via RewardSwapper
       uint256 amountOut = _swapRewardToken(rewardToken, tokenOut, rewardBalance);
@@ -613,6 +615,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         tokenId: 0,
         amount: amountOut
       });
+      principalAmount = amountOut;
       returnAssets[1] = AssetLib.Asset({
         assetType: AssetLib.AssetType.ERC20,
         strategy: address(0),
@@ -623,7 +626,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       if (tokenOut > rewardToken) (returnAssets[0], returnAssets[1]) = (returnAssets[1], returnAssets[0]);
     }
 
-    emit FarmingRewardsHarvested(asset.token, rewardToken, rewardBalance);
+    emit FarmingRewardsHarvested(asset.token, rewardToken, rewardBalance, tokenOut, principalAmount);
   }
 
   /**
