@@ -244,7 +244,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Set up trader with large balances
     setErc20Balance(token0, trader, 1000 ether);
-    setErc20Balance(token1, trader, 1000000 * 1e6); // Assuming token1 might be USDC
+    setErc20Balance(token1, trader, 1_000_000 * 1e6); // Assuming token1 might be USDC
 
     vm.startPrank(trader);
 
@@ -277,7 +277,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         fee: fee,
         recipient: trader,
         deadline: block.timestamp + 300,
-        amountIn: 25000 * 1e6, // Assuming token1 is USDC with 6 decimals
+        amountIn: 25_000 * 1e6, // Assuming token1 is USDC with 6 decimals
         amountOutMinimum: 0,
         sqrtPriceLimitX96: 0
       });

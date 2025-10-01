@@ -7,10 +7,10 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract AerodromeFarmingStrategy {
   function deposit(uint256 tokenId, address clGauge) external {
-    address nfpm = ICLGauge(clGauge).nft();
+    IERC721Enumerable nfpm = IERC721Enumerable(ICLGauge(clGauge).nft());
     if (tokenId == 0) {
       // deposit the last created token
-      tokenId = IERC721Enumerable(nfpm).totalSupply() - 1;
+      tokenId = nfpm.tokenByIndex(nfpm.totalSupply() - 1);
     }
     IERC721(nfpm).approve(clGauge, tokenId);
     ICLGauge(clGauge).deposit(tokenId);
@@ -22,9 +22,5 @@ contract AerodromeFarmingStrategy {
 
   function harvest(address clGauge, uint256 tokenId) external {
     ICLGauge(clGauge).getReward(tokenId);
-  }
-
-  function harvestAll(address clGauge) external {
-    ICLGauge(clGauge).getReward(address(this));
   }
 }

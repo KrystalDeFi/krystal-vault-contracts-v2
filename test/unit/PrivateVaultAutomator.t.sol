@@ -18,9 +18,7 @@ contract MockStrategy {
   bool public shouldFail;
 
   function setValue(uint256 _value) external {
-    if (shouldFail) {
-      revert("Strategy call failed");
-    }
+    if (shouldFail) revert("Strategy call failed");
     value = _value;
   }
 
@@ -131,9 +129,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
   function _createAutomationOrder(address strategy, uint256 nonce, uint256 deadline) internal pure returns (bytes32) {
     // Create a structured message for "Allow automation on strategy X"
     return
-      keccak256(
-        abi.encodePacked("Allow automation on strategy ", strategy, " nonce: ", nonce, " deadline: ", deadline)
-      );
+      keccak256(abi.encodePacked("Allow automation on strategy ", strategy, " nonce: ", nonce, " deadline: ", deadline));
   }
 
   function _signMessage(bytes32 messageHash, uint256 privateKey) internal pure returns (bytes memory) {
@@ -187,11 +183,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator
@@ -209,11 +201,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute as non-operator
@@ -229,23 +217,14 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory invalidSignature = _signMessage(orderHash, OPERATOR_PRIVATE_KEY); // Wrong signer
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute with invalid signature
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
     automator.executeMulticall(
-      IPrivateVault(address(privateVault)),
-      targets,
-      data,
-      callTypes,
-      orderHash,
-      invalidSignature
+      IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, invalidSignature
     );
     vm.stopPrank();
   }
@@ -261,11 +240,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute cancelled order
@@ -286,11 +261,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute when paused
@@ -327,27 +298,28 @@ contract PrivateVaultAutomatorTest is TestCommon {
     assertEq(mockStrategy.getValue(), 200);
   }
 
-//   function test_executeMulticall_delegateCall() public {
-//     // Create automation order
-//     bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
-//     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
+  //   function test_executeMulticall_delegateCall() public {
+  //     // Create automation order
+  //     bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
+  //     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
-//     // Prepare multicall data with delegatecall
-//     address[] memory targets = new address[](1);
-//     targets[0] = address(mockStrategy);
+  //     // Prepare multicall data with delegatecall
+  //     address[] memory targets = new address[](1);
+  //     targets[0] = address(mockStrategy);
 
-//     bytes[] memory data = new bytes[](1);
-//     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 300);
+  //     bytes[] memory data = new bytes[](1);
+  //     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 300);
 
-//     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
-//     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
+  //     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
+  //     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
-//     vm.startPrank(OPERATOR);
-//     automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
-//     vm.stopPrank();
+  //     vm.startPrank(OPERATOR);
+  //     automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash,
+  // signature);
+  //     vm.stopPrank();
 
-//     assertEq(mockStrategy.getValue(), 300);
-//   }
+  //     assertEq(mockStrategy.getValue(), 300);
+  //   }
 
   // ============ ORDER CANCELLATION TESTS ============
 
@@ -500,7 +472,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     uint256 initialBalance = address(automator).balance;
 
     vm.deal(address(this), 1 ether);
-    (bool success, ) = address(automator).call{ value: 1 ether }("");
+    (bool success,) = address(automator).call{ value: 1 ether }("");
     assertTrue(success);
 
     assertEq(address(automator).balance, initialBalance + 1 ether);
@@ -567,11 +539,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     mockStrategy.setShouldFail(true);
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator - should fail due to strategy failure
@@ -590,23 +558,14 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes32 differentOrderHash = _createAutomationOrder(address(mockStrategy), 2, block.timestamp + 3600);
 
     // Prepare multicall data
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator with different hash
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
     automator.executeMulticall(
-      IPrivateVault(address(privateVault)),
-      targets,
-      data,
-      callTypes,
-      differentOrderHash,
-      signature
+      IPrivateVault(address(privateVault)), targets, data, callTypes, differentOrderHash, signature
     );
     vm.stopPrank();
   }
@@ -622,11 +581,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     assertFalse(automator.isOrderCancelled(signature));
 
     // 3. Operator executes multicall
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
@@ -660,11 +615,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
 
     // Execute first order
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
@@ -706,11 +657,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
 
     // Execute first order
-    (
-      address[] memory targets,
-      bytes[] memory data,
-      IPrivateCommon.CallType[] memory callTypes
-    ) = _createMulticallData();
+    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
