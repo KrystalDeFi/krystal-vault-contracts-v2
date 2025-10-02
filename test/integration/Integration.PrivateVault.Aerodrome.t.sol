@@ -21,9 +21,8 @@ import { PrivateConfigManager } from "../../contracts/private-vault/core/Private
 import { IPrivateConfigManager } from "../../contracts/private-vault/interfaces/core/IPrivateConfigManager.sol";
 
 // V3Utils Strategy contracts
-import { V3UtilsV2Strategy as V3UtilsStrategy } from
-  "../../contracts/private-vault/strategies/lpv3/V3UtilsV2Strategy.sol";
-import { IV3UtilsV2 as IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3UtilsV2.sol";
+import { V3UtilsStrategy } from "../../contracts/private-vault/strategies/lpv3/V3UtilsStrategy.sol";
+import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 // Aerodrome Farming Strategy contracts
 import { AerodromeFarmingStrategy } from "../../contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol";
@@ -91,7 +90,7 @@ interface ISwapRouter {
 
 contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   // Test constants
-  address constant V3_UTILS = 0x16c6346916EEF89FD2C2Fb7DA61dA8825948Ec93; // V3Utils contract on Base
+  address constant V3_UTILS = 0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6; // V3Utils contract on Base
   address constant SWAP_ROUTER = 0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5; // Aerodrome SwapRouter on Base
   address constant GAUGE = 0xF33a96b5932D9E9B9A0eDA447AbD8C9d48d2e0c8; // Gauge contract for WETH/USDC pool
   address constant GAUGE_FACTORY = 0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08;
@@ -115,7 +114,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   function setUp() public {
     // Create mainnet fork for consistent testing environment
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 28_445_596);
+    uint256 fork = vm.createFork(vm.envString("BASE_RPC_URL"), 36_301_000);
     vm.selectFork(fork);
 
     vm.startPrank(vaultOwner);
@@ -231,7 +230,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       amountOut1Min: 0,
       swapData1: "",
       amountAddMin0: 0,
-      amountAddMin1: 0
+      amountAddMin1: 0,
+      poolDeployer: address(0)
     });
 
     // Prepare strategy call data
@@ -436,7 +436,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       amountOut1Min: 0,
       swapData1: "",
       amountAddMin0: 0,
-      amountAddMin1: 0
+      amountAddMin1: 0,
+      poolDeployer: address(0)
     });
 
     targets[0] = address(v3UtilsStrategy);
@@ -699,7 +700,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         amountOut1Min: 0,
         swapData1: "",
         amountAddMin0: 0,
-        amountAddMin1: 0
+        amountAddMin1: 0,
+        poolDeployer: address(0)
       }),
       0 ether,
       new address[](0),
@@ -748,7 +750,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         amountOut1Min: 0,
         swapData1: "",
         amountAddMin0: 0,
-        amountAddMin1: 0
+        amountAddMin1: 0,
+        poolDeployer: address(0)
       }),
       0 ether,
       new address[](0),
