@@ -1,19 +1,20 @@
-import { ethers, network, run } from "hardhat";
-import { NetworkConfig } from "../configs/networkConfig";
 import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
-import { IConfig } from "../configs/interfaces";
-import { sleep } from "./helpers";
+import { ethers, network, run } from "hardhat";
 import { isArray } from "lodash";
+import { commonConfig } from "../configs/config_common";
+import { IConfig } from "../configs/interfaces";
+import { NetworkConfig } from "../configs/networkConfig";
+import { PrivateVaultAutomator } from "../typechain-types";
 import {
+  PrivateConfigManager,
   PrivateVault,
   PrivateVaultFactory,
-  PrivateConfigManager,
 } from "../typechain-types/contracts/private-vault/core";
-import { PrivateVaultAutomator } from "../typechain-types";
 import { AerodromeFarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/AerodromeFarmingStrategy";
+import { PancakeV3FarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy";
 import { V3UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv3/V3UtilsStrategy";
 import { V4UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv4/V4UtilsStrategy";
-import { commonConfig } from "../configs/config_common";
+import { sleep } from "./helpers";
 
 const { SALT } = process.env;
 
@@ -36,6 +37,7 @@ export interface PrivateContracts {
   privateConfigManager?: PrivateConfigManager;
   privateVaultAutomator?: PrivateVaultAutomator;
   aerodromeFarmingStrategy?: AerodromeFarmingStrategy;
+  pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
 }
@@ -72,6 +74,7 @@ async function deployContracts(
   const privateConfigManager = await deployPrivateConfigManagerContract(++step, existingContract);
   const privateVaultAutomator = await deployPrivateVaultAutomatorContract(++step, existingContract);
   const aerodromeFarmingStrategy = await deployAerodromeFarmingStrategyContract(++step, existingContract);
+  const pancakeV3FarmingStrategy = await deployPancakeV3FarmingStrategyContract(++step, existingContract);
   const v3UtilsStrategy = await deployV3UtilsStrategyContract(++step, existingContract);
   const v4UtilsStrategy = await deployV4UtilsStrategyContract(++step, existingContract);
 
@@ -81,6 +84,7 @@ async function deployContracts(
     privateConfigManager: privateConfigManager.privateConfigManager,
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
     aerodromeFarmingStrategy: aerodromeFarmingStrategy.aerodromeFarmingStrategy,
+    pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
     v4UtilsStrategy: v4UtilsStrategy.v4UtilsStrategy,
   };
@@ -102,6 +106,7 @@ async function deployContracts(
 
     const whitelistedTargets = [
       existingContract?.["aerodromeFarmingStrategy"] || contracts?.aerodromeFarmingStrategy?.target,
+      existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
       existingContract?.["v3UtilsStrategy"] || contracts?.v3UtilsStrategy?.target,
       existingContract?.["v4UtilsStrategy"] || contracts?.v4UtilsStrategy?.target,
     ].filter(Boolean);
@@ -245,10 +250,10 @@ export const deployPancakeV3FarmingStrategyContract = async (
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let aerodromeFarmingStrategy;
+  let pancakeV3FarmingStrategy;
 
-  if (config.privateAerodromeFarmingStrategy?.enabled) {
-    aerodromeFarmingStrategy = (await deployContract(
+  if (config.privatePancakeV3FarmingStrategy?.enabled) {
+    pancakeV3FarmingStrategy = (await deployContract(
       `${step} >>`,
       config.privatePancakeV3FarmingStrategy?.autoVerifyContract,
       "PancakeV3FarmingStrategy",
@@ -257,11 +262,11 @@ export const deployPancakeV3FarmingStrategyContract = async (
       undefined,
       ["address"],
       [config.pancakeV3MasterChef],
-    )) as AerodromeFarmingStrategy;
+    )) as PancakeV3FarmingStrategy;
   }
 
   return {
-    aerodromeFarmingStrategy,
+    pancakeV3FarmingStrategy,
   };
 };
 

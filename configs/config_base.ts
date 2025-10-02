@@ -36,7 +36,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     },
     v3UtilsAddress: "",
     v4UtilsAddress: "",
-    aerodromeGaugeFactory: "", // Aerodrome CLGaugeFactory on Base
+    aerodromeGaugeFactory: "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
     pancakeV3MasterChef: "",
   },
 };

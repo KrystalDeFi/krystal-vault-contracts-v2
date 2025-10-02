@@ -222,6 +222,11 @@
           },
           {
             "internalType": "int24",
+            "name": "tickSpacing",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
             "name": "tickLower",
             "type": "int24"
           },
@@ -304,6 +309,11 @@
             "internalType": "uint256",
             "name": "amountAddMin1",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "poolDeployer",
+            "type": "address"
           }
         ],
         "internalType": "struct IV3Utils.SwapAndMintParams",
