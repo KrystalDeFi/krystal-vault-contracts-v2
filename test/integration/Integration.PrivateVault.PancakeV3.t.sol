@@ -57,7 +57,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   function setUp() public {
     // Create mainnet fork for consistent testing environment
-    uint256 fork = vm.createFork(vm.envString("BASE_RPC_URL"), 36_301_000);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_301_000);
     vm.selectFork(fork);
 
     vm.startPrank(vaultOwner);
