@@ -2,6 +2,50 @@
 
 ## IV3Utils
 
+### WhatToDo
+
+Action which should be executed on provided NFT
+
+```solidity
+enum WhatToDo {
+  CHANGE_RANGE,
+  WITHDRAW_AND_COLLECT_AND_SWAP,
+  COMPOUND_FEES
+}
+```
+
+### Instructions
+
+Complete description of what should be executed on provided NFT - different fields are used depending on
+specified WhatToDo
+
+```solidity
+struct Instructions {
+  enum IV3Utils.WhatToDo whatToDo;
+  uint8 protocol;
+  address targetToken;
+  uint256 amountRemoveMin0;
+  uint256 amountRemoveMin1;
+  uint256 amountIn0;
+  uint256 amountOut0Min;
+  bytes swapData0;
+  uint256 amountIn1;
+  uint256 amountOut1Min;
+  bytes swapData1;
+  int24 tickLower;
+  int24 tickUpper;
+  bool compoundFees;
+  uint128 liquidity;
+  uint256 amountAddMin0;
+  uint256 amountAddMin1;
+  uint256 deadline;
+  address recipient;
+  bool unwrap;
+  uint64 liquidityFeeX64;
+  uint64 performanceFeeX64;
+}
+```
+
 ### execute
 
 ```solidity
@@ -38,6 +82,7 @@ struct SwapAndMintParams {
   address token0;
   address token1;
   uint24 fee;
+  int24 tickSpacing;
   int24 tickLower;
   int24 tickUpper;
   uint64 protocolFeeX64;
@@ -55,6 +100,7 @@ struct SwapAndMintParams {
   bytes swapData1;
   uint256 amountAddMin0;
   uint256 amountAddMin1;
+  address poolDeployer;
 }
 ```
 
