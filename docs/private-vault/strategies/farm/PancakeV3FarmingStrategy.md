@@ -8,6 +8,24 @@
 address masterChefV3
 ```
 
+### PancakeV3FarmingStaked
+
+```solidity
+event PancakeV3FarmingStaked(address nfpm, uint256 tokenId, address masterChefV3, address msgSender)
+```
+
+### PancakeV3FarmingUnstaked
+
+```solidity
+event PancakeV3FarmingUnstaked(uint256 tokenId, address masterChefV3, address msgSender)
+```
+
+### PancakeV3FarmingRewardsHarvested
+
+```solidity
+event PancakeV3FarmingRewardsHarvested(uint256 tokenId, address masterChefV3, address msgSender)
+```
+
 ### constructor
 
 ```solidity

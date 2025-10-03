@@ -8,6 +8,24 @@
 address gaugeFactory
 ```
 
+### AerodromeFarmingStaked
+
+```solidity
+event AerodromeFarmingStaked(address nfpm, uint256 tokenId, address gauge, address msgSender)
+```
+
+### AerodromeFarmingUnstaked
+
+```solidity
+event AerodromeFarmingUnstaked(uint256 tokenId, address gauge, address msgSender)
+```
+
+### AerodromeFarmingRewardsHarvested
+
+```solidity
+event AerodromeFarmingRewardsHarvested(uint256 tokenId, address gauge, address msgSender)
+```
+
 ### constructor
 
 ```solidity

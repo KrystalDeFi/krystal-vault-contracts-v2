@@ -5,7 +5,7 @@
 ### VaultCreated
 
 ```solidity
-event VaultCreated(address owner, address vault)
+event VaultCreated(address owner, address vault, bytes32 salt)
 ```
 
 ### ConfigManagerSet

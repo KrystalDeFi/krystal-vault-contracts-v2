@@ -2,12 +2,6 @@
 
 ## IPrivateVault
 
-### SetVaultAdmin
-
-```solidity
-event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
-```
-
 ### InvalidMulticallParams
 
 ```solidity
@@ -30,6 +24,60 @@ error StrategyDelegateCallFailed()
 
 ```solidity
 error Paused()
+```
+
+### VaultMulticall
+
+```solidity
+event VaultMulticall(address vaultFactory, address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes)
+```
+
+### VaultSweepNativeToken
+
+```solidity
+event VaultSweepNativeToken(address caller, uint256 amount)
+```
+
+### VaultSweepToken
+
+```solidity
+event VaultSweepToken(address caller, address[] tokens, uint256[] amounts)
+```
+
+### VaultSweepERC721
+
+```solidity
+event VaultSweepERC721(address caller, address[] tokens, uint256[] tokenIds)
+```
+
+### VaultSweepERC1155
+
+```solidity
+event VaultSweepERC1155(address caller, address[] tokens, uint256[] tokenIds, uint256[] amounts)
+```
+
+### VaultDepositErc20Tokens
+
+```solidity
+event VaultDepositErc20Tokens(address caller, address[] tokens, uint256[] amounts)
+```
+
+### VaultDepositErc721Tokens
+
+```solidity
+event VaultDepositErc721Tokens(address caller, address[] tokens, uint256[] tokenIds)
+```
+
+### VaultDepositErc1155Tokens
+
+```solidity
+event VaultDepositErc1155Tokens(address caller, address[] tokens, uint256[] tokenIds, uint256[] amounts)
+```
+
+### SetVaultAdmin
+
+```solidity
+event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
 ```
 
 ### vaultOwner
