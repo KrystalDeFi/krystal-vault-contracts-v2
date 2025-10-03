@@ -8,6 +8,10 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 contract AerodromeFarmingStrategy {
   address public immutable gaugeFactory;
 
+  event AerodromeFarmingStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
+  event AerodromeFarmingUnstaked(uint256 indexed tokenId, address indexed gauge, address msgSender);
+  event AerodromeFarmingRewardsHarvested(uint256 indexed tokenId, address indexed gauge, address msgSender);
+
   constructor(address _gaugeFactory) {
     gaugeFactory = _gaugeFactory;
   }
@@ -21,13 +25,19 @@ contract AerodromeFarmingStrategy {
     }
     IERC721(nfpm).approve(clGauge, tokenId);
     ICLGauge(clGauge).deposit(tokenId);
+
+    emit AerodromeFarmingStaked(address(nfpm), tokenId, clGauge, msg.sender);
   }
 
   function withdraw(uint256 tokenId, address clGauge) external {
     ICLGauge(clGauge).withdraw(tokenId);
+
+    emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
   }
 
   function harvest(address clGauge, uint256 tokenId) external {
     ICLGauge(clGauge).getReward(tokenId);
+
+    emit AerodromeFarmingRewardsHarvested(tokenId, clGauge, msg.sender);
   }
 }

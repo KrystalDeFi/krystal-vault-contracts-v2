@@ -43,7 +43,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     allVaults.push(vault);
     isVaultAddress[vault] = true;
 
-    emit VaultCreated(msg.sender, vault);
+    emit VaultCreated(msg.sender, vault, salt);
   }
 
   function createVault(
@@ -86,7 +86,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     allVaults.push(vault);
     isVaultAddress[vault] = true;
 
-    emit VaultCreated(msg.sender, vault);
+    emit VaultCreated(msg.sender, vault, salt);
   }
 
   /// @notice Pause the contract

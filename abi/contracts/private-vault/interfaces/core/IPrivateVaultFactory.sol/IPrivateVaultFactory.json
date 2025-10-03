@@ -41,6 +41,12 @@
         "internalType": "address",
         "name": "vault",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "salt",
+        "type": "bytes32"
       }
     ],
     "name": "VaultCreated",

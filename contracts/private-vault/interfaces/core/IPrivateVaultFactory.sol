@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "./IPrivateCommon.sol";
 
 interface IPrivateVaultFactory is IPrivateCommon {
-  event VaultCreated(address indexed owner, address indexed vault);
+  event VaultCreated(address indexed owner, address indexed vault, bytes32 salt);
 
   event ConfigManagerSet(address configManager);
 

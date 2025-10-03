@@ -8,6 +8,12 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 contract PancakeV3FarmingStrategy {
   address public immutable masterChefV3;
 
+  event PancakeV3FarmingStaked(
+    address indexed nfpm, uint256 indexed tokenId, address indexed masterChefV3, address msgSender
+  );
+  event PancakeV3FarmingUnstaked(uint256 indexed tokenId, address indexed masterChefV3, address msgSender);
+  event PancakeV3FarmingRewardsHarvested(uint256 indexed tokenId, address indexed masterChefV3, address msgSender);
+
   constructor(address _masterChefV3) {
     masterChefV3 = _masterChefV3;
   }
@@ -20,13 +26,19 @@ contract PancakeV3FarmingStrategy {
     }
 
     IERC721(nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
+
+    emit PancakeV3FarmingStaked(nfpm, tokenId, masterChefV3, msg.sender);
   }
 
   function withdraw(uint256 tokenId) external {
     IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
+
+    emit PancakeV3FarmingUnstaked(tokenId, masterChefV3, msg.sender);
   }
 
   function harvest(uint256 tokenId) external {
     IMasterChefV3(masterChefV3).harvest(tokenId, address(this));
+
+    emit PancakeV3FarmingRewardsHarvested(tokenId, masterChefV3, msg.sender);
   }
 }

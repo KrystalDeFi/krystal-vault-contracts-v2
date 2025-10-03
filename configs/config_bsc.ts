@@ -30,8 +30,9 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "",
-    v4UtilsAddress: "",
+    v3UtilsAddress: "0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6",
+    v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+    pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
   },
 };
 

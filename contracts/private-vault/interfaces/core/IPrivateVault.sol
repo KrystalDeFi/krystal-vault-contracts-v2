@@ -4,8 +4,6 @@ pragma solidity ^0.8.28;
 import "./IPrivateCommon.sol";
 
 interface IPrivateVault is IPrivateCommon {
-  event SetVaultAdmin(address indexed vaultFactory, address indexed _address, bool indexed _isAdmin);
-
   error InvalidMulticallParams();
 
   error InvalidTarget(address strategy);
@@ -13,6 +11,19 @@ interface IPrivateVault is IPrivateCommon {
   error StrategyDelegateCallFailed();
 
   error Paused();
+
+  event VaultMulticall(address indexed vaultFactory, address[] targets, bytes[] data, CallType[] callTypes);
+
+  event VaultSweepNativeToken(address indexed caller, uint256 amount);
+  event VaultSweepToken(address indexed caller, address[] tokens, uint256[] amounts);
+  event VaultSweepERC721(address indexed caller, address[] tokens, uint256[] tokenIds);
+  event VaultSweepERC1155(address indexed caller, address[] tokens, uint256[] tokenIds, uint256[] amounts);
+
+  event VaultDepositErc20Tokens(address indexed caller, address[] tokens, uint256[] amounts);
+  event VaultDepositErc721Tokens(address indexed caller, address[] tokens, uint256[] tokenIds);
+  event VaultDepositErc1155Tokens(address indexed caller, address[] tokens, uint256[] tokenIds, uint256[] amounts);
+
+  event SetVaultAdmin(address indexed vaultFactory, address indexed _address, bool indexed _isAdmin);
 
   function vaultOwner() external view returns (address);
 

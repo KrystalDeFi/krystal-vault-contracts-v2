@@ -104,6 +104,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultMulticall(vaultFactory, targets, data, callTypes);
   }
 
   /// @notice Sweep native token to the caller
@@ -111,6 +113,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function sweepNativeToken(uint256 amount) external override nonReentrant onlyOwner {
     (bool success,) = msg.sender.call{ value: amount }("");
     require(success, "Failed to send native token");
+
+    emit VaultSweepNativeToken(msg.sender, amount);
   }
 
   /// @notice Sweeps the tokens to the caller
@@ -126,6 +130,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultSweepToken(msg.sender, tokens, amounts);
   }
 
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
@@ -145,6 +151,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultSweepERC721(msg.sender, _tokens, _tokenIds);
   }
 
   /// @notice Sweep ERC1155 tokens to the caller
@@ -166,6 +174,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultSweepERC1155(msg.sender, _tokens, _tokenIds, _amounts);
   }
 
   /// @notice Deposits ERC20 tokens to the vault
@@ -187,6 +197,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultDepositErc20Tokens(msg.sender, tokens, amounts);
   }
 
   /// @notice Deposits ERC721 tokens to the vault
@@ -207,6 +219,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultDepositErc721Tokens(msg.sender, tokens, tokenIds);
   }
 
   /// @notice Deposits ERC1155 tokens to the vault
@@ -230,6 +244,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         i++;
       }
     }
+
+    emit VaultDepositErc1155Tokens(msg.sender, tokens, tokenIds, amounts);
   }
 
   /// @notice grant admin role to the address
