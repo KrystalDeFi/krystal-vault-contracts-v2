@@ -38,3 +38,15 @@ function isWhitelistedCaller(address caller) external view returns (bool)
 function setVaultPaused(bool _isVaultPaused) external
 ```
 
+### enforceTargetWhitelistForOwners
+
+```solidity
+function enforceTargetWhitelistForOwners() external view returns (bool)
+```
+
+### setEnforceTargetWhitelistForOwners
+
+```solidity
+function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external
+```
+

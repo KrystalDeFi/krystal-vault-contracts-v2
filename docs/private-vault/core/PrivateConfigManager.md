@@ -20,6 +20,12 @@ mapping(address => bool) whitelistCallers
 bool isVaultPaused
 ```
 
+### enforceTargetWhitelistForOwners
+
+```solidity
+bool enforceTargetWhitelistForOwners
+```
+
 ### initialize
 
 ```solidity
@@ -54,5 +60,11 @@ function isWhitelistedCaller(address caller) external view returns (bool)
 
 ```solidity
 function setVaultPaused(bool _isVaultPaused) external
+```
+
+### setEnforceTargetWhitelistForOwners
+
+```solidity
+function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external
 ```
 
