@@ -83,7 +83,8 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
         }
         continue;
       }
-      if (msg.sender != vaultOwner && targets[i] != address(this)) {
+      if ((msg.sender != vaultOwner || configManager.enforceTargetWhitelistForOwners()) && targets[i] != address(this))
+      {
         require(configManager.isWhitelistedTarget(targets[i]), InvalidTarget(targets[i]));
       }
 

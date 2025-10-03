@@ -10,6 +10,7 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
   mapping(address => bool) public whitelistCallers;
 
   bool public override isVaultPaused = false;
+  bool public override enforceTargetWhitelistForOwners = false;
 
   function initialize(address _owner, address[] calldata _whitelistTargets, address[] calldata _whitelistCallers)
     public
@@ -56,5 +57,9 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
 
   function setVaultPaused(bool _isVaultPaused) external onlyOwner {
     isVaultPaused = _isVaultPaused;
+  }
+
+  function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external override onlyOwner {
+    enforceTargetWhitelistForOwners = _enforceTargetWhitelistForOwners;
   }
 }

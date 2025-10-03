@@ -13,4 +13,8 @@ interface IPrivateConfigManager {
   function isWhitelistedCaller(address caller) external view returns (bool);
 
   function setVaultPaused(bool _isVaultPaused) external;
+
+  function enforceTargetWhitelistForOwners() external view returns (bool);
+
+  function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external;
 }
