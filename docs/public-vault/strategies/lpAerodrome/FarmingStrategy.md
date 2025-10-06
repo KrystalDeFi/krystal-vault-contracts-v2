@@ -30,16 +30,10 @@ contract IConfigManager configManager
 contract RewardSwapper rewardSwapper
 ```
 
-### validator
-
-```solidity
-contract IFarmingStrategyValidator validator
-```
-
 ### constructor
 
 ```solidity
-constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper, address _validator) public
+constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper) public
 ```
 
 Constructor
@@ -51,7 +45,6 @@ Constructor
 | _lpStrategyImplementation | address | Address of the LpStrategy implementation for delegatecall |
 | _configManager | address | Address of the config manager |
 | _rewardSwapper | address | Address of the reward swapper contract |
-| _validator | address | Address of the farming strategy validator |
 
 ### valueOf
 
@@ -264,6 +257,50 @@ Get the NFT contract address for an asset
 | ---- | ---- | ----------- |
 | nftContract | address | The NFT contract address |
 
+### _getGaugeFromPosition
+
+```solidity
+function _getGaugeFromPosition(address nfpm, uint256 tokenId) internal view returns (address gauge)
+```
+
+Get gauge address from existing LP position
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | The NonFungiblePositionManager address |
+| tokenId | uint256 | The LP position token ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| gauge | address | The gauge address for this position |
+
+### _getGaugeFromLPParams
+
+```solidity
+function _getGaugeFromLPParams(address nfpm, address token0, address token1, int24 tickSpacing) internal view returns (address gauge)
+```
+
+Get gauge address from LP creation parameters
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | The NonFungiblePositionManager address |
+| token0 | address | The first token of the pair |
+| token1 | address | The second token of the pair |
+| tickSpacing | int24 | The tick spacing for the pool |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| gauge | address | The gauge address for this pool |
+
 ### _validateRewardToken
 
 ```solidity
@@ -282,7 +319,7 @@ Validate that reward token is compatible with principal token
 ### _depositExistingLP
 
 ```solidity
-function _depositExistingLP(struct AssetLib.Asset[] assets, struct IFarmingStrategy.DepositExistingLPParams params, struct ICommon.VaultConfig config) internal returns (struct AssetLib.Asset[] returnAssets)
+function _depositExistingLP(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Deposit existing LP NFT into farming

@@ -16,19 +16,10 @@ enum FarmingInstructionType {
 }
 ```
 
-### DepositExistingLPParams
-
-```solidity
-struct DepositExistingLPParams {
-  address gauge;
-}
-```
-
 ### CreateAndDepositLPParams
 
 ```solidity
 struct CreateAndDepositLPParams {
-  address gauge;
   struct IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
 }
 ```
@@ -61,7 +52,6 @@ struct RebalanceAndDepositParams {
 
 ```solidity
 struct HarvestFarmingRewardsParams {
-  address gauge;
   uint256 tokenId;
   address swapRouter;
   bytes swapData;

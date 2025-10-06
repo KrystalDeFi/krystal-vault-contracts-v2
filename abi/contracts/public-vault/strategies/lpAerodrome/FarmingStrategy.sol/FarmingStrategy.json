@@ -15,11 +15,6 @@
         "internalType": "address",
         "name": "_rewardSwapper",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_validator",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -1021,19 +1016,6 @@
     "outputs": [
       {
         "internalType": "contract RewardSwapper",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "validator",
-    "outputs": [
-      {
-        "internalType": "contract IFarmingStrategyValidator",
         "name": "",
         "type": "address"
       }

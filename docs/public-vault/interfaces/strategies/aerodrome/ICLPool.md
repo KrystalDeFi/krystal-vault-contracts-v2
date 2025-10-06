@@ -50,3 +50,9 @@ function feeGrowthGlobal1X128() external view returns (uint256)
 function observations(uint256 index) external view returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized)
 ```
 
+### gauge
+
+```solidity
+function gauge() external view returns (address)
+```
+
