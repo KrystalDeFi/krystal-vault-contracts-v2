@@ -11,6 +11,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import { ICLFactory } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLPool.sol";
 import { INonfungiblePositionManager as INFPM } from
   "../../contracts/public-vault/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import { ICLGauge } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLGauge.sol";
@@ -40,7 +41,7 @@ address constant WETH = 0x4200000000000000000000000000000000000006;
 address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 address constant AERO = 0x940181a94A35A4569E4529A3CDfB74e38FD98631; // Aerodrome token
 address constant AERO_WETH_POOL = 0x82321f3BEB69f503380D6B233857d5C43562e2D0;
-address constant WETH_USDC_GAUGE = 0xF33a96b5932D9E9B9A0eDA447AbD8C9d48d2e0c8; // Example gauge address
+address constant AERODROME_FACTORY = 0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A; // Aerodrome factory address
 
 contract IntegrationFarmingTest is TestCommon {
   ConfigManager public configManager;
@@ -48,7 +49,6 @@ contract IntegrationFarmingTest is TestCommon {
   LpValidator public validator;
   LpStrategy public lpStrategy;
   FarmingStrategy public farmingStrategy;
-  FarmingStrategyValidator public farmingValidator;
   RewardSwapper public rewardSwapper;
   PoolOptimalSwapper public poolSwapper;
 
@@ -56,6 +56,15 @@ contract IntegrationFarmingTest is TestCommon {
   Vault public vaultInstance;
 
   uint256 testTokenId;
+
+  // Helper function to get the expected gauge address for testing
+  function getExpectedGauge(address tokenA, address tokenB, int24 tickSpacing) internal view returns (address) {
+    address factory = INFPM(NFPM).factory();
+    // Ensure tokens are in correct order (token0 < token1)
+    (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
+    return ICLPool(pool).gauge();
+  }
 
   function setUp() public {
     // Skip forking for basic compilation test - can be enabled for full integration testing
@@ -115,14 +124,11 @@ contract IntegrationFarmingTest is TestCommon {
 
     // Set up FarmingStrategyValidator
     address[] memory initialFactories = new address[](1);
-    // Get the gauge factory from the example gauge
-    initialFactories[0] = ICLGauge(WETH_USDC_GAUGE).gaugeFactory();
-    farmingValidator = new FarmingStrategyValidator(address(this), initialFactories);
+    // Use the known Aerodrome factory address
+    initialFactories[0] = AERODROME_FACTORY;
 
     // Set up FarmingStrategy
-    farmingStrategy = new FarmingStrategy(
-      address(lpStrategy), address(configManager), address(rewardSwapper), address(farmingValidator)
-    );
+    farmingStrategy = new FarmingStrategy(address(lpStrategy), address(configManager), address(rewardSwapper));
 
     address[] memory strategies = new address[](2);
     strategies[0] = address(lpStrategy);
@@ -136,8 +142,6 @@ contract IntegrationFarmingTest is TestCommon {
 
     initialConfig.rangeConfigs[0] = ILpValidator.LpStrategyRangeConfig({ tickWidthMin: 3, tickWidthTypedMin: 3 });
     initialConfig.tvlConfigs[0] = ILpValidator.LpStrategyTvlConfig({ principalTokenAmountMin: 0.1 ether });
-
-    configManager.setStrategyConfig(address(validator), WETH, abi.encode(initialConfig));
 
     // Set up VaultFactory
     vaultImplementation = new Vault();
@@ -196,7 +200,7 @@ contract IntegrationFarmingTest is TestCommon {
 
     {
       IFarmingStrategy.CreateAndDepositLPParams memory params =
-        IFarmingStrategy.CreateAndDepositLPParams({ gauge: WETH_USDC_GAUGE, lpParams: lpParams });
+        IFarmingStrategy.CreateAndDepositLPParams({ lpParams: lpParams });
 
       ICommon.Instruction memory instruction = ICommon.Instruction({
         instructionType: uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
@@ -245,7 +249,9 @@ contract IntegrationFarmingTest is TestCommon {
       assertEq(vaultAssets[0].tokenId, 0);
       assertEq(vaultAssets[0].strategy, address(0));
       assertEq(vaultAssets[1].amount, 1);
-      assertEq(vaultAssets[1].token, WETH_USDC_GAUGE);
+      // Get expected gauge from the LP parameters used in the test
+      address expectedGauge = getExpectedGauge(WETH, USDC, 100);
+      assertEq(vaultAssets[1].token, expectedGauge);
       assertEq(vaultAssets[1].strategy, address(farmingStrategy));
 
       // Deposit to a vault with both principal and Farming LPs
@@ -258,7 +264,8 @@ contract IntegrationFarmingTest is TestCommon {
       assertEq(vaultAssets[0].tokenId, 0);
       assertEq(vaultAssets[0].strategy, address(0));
       assertEq(vaultAssets[1].amount, 1);
-      assertEq(vaultAssets[1].token, WETH_USDC_GAUGE);
+      // Use the same expected gauge as before
+      assertEq(vaultAssets[1].token, expectedGauge);
       assertEq(vaultAssets[1].strategy, address(farmingStrategy));
 
       printVaultAssets();
@@ -318,12 +325,9 @@ contract IntegrationFarmingTest is TestCommon {
     {
       console.log("deposit existing LP position");
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
-      IFarmingStrategy.DepositExistingLPParams memory params =
-        IFarmingStrategy.DepositExistingLPParams({ gauge: WETH_USDC_GAUGE });
-
       ICommon.Instruction memory instruction = ICommon.Instruction({
         instructionType: uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP),
-        params: abi.encode(params)
+        params: ""
       });
       assets = new AssetLib.Asset[](1);
       assets[0] = vaultAssets[1];

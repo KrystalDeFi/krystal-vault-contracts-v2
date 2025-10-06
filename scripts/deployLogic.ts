@@ -61,7 +61,6 @@ export interface Contracts {
   lpValidatorAerodrome?: LpValidatorAerodrome;
   lpStrategyAerodrome?: LpStrategyAerodrome;
   rewardSwapper?: RewardSwapper;
-  farmingStrategyValidator?: FarmingStrategyValidator;
   farmingStrategy?: FarmingStrategy;
   vaultAutomatorAerodrome?: VaultAutomatorAerodrome;
   // --------------------
@@ -111,12 +110,6 @@ async function deployContracts(existingContract: Record<string, any> | undefined
 
   const lpValidator = await deployLpValidatorContract(++step, existingContract, undefined, contracts);
   const lpValidatorAerodrome = await deployLpValidatorAerodromeContract(++step, existingContract, undefined, contracts);
-  const farmingStrategyValidator = await deployFarmingStrategyValidatorContract(
-    ++step,
-    existingContract,
-    undefined,
-    contracts,
-  );
   const lpFeeTaker = await deployLpFeeTakerContract(++step, existingContract, undefined, contracts);
   const katanaLpFeeTaker = await deployKatanaLpFeeTakerContract(++step, existingContract, undefined, contracts);
   const merklAutomator = await deployMerklAutomatorContract(++step, existingContract, undefined, contracts);
@@ -125,7 +118,6 @@ async function deployContracts(existingContract: Record<string, any> | undefined
   Object.assign(contracts, {
     lpValidator: lpValidator.lpValidator,
     lpValidatorAerodrome: lpValidatorAerodrome.lpValidatorAerodrome,
-    farmingStrategyValidator: farmingStrategyValidator.farmingStrategyValidator,
     lpFeeTaker: isRonin ? katanaLpFeeTaker.lpFeeTaker : lpFeeTaker.lpFeeTaker,
     merklAutomator: merklAutomator.merklAutomator,
     rewardSwapper: rewardSwapper.rewardSwapper,
@@ -763,32 +755,6 @@ export const deployRewardSwapperContract = async (
   };
 };
 
-export const deployFarmingStrategyValidatorContract = async (
-  step: number,
-  existingContract: Record<string, any> | undefined,
-  customNetworkConfig?: IConfig,
-  contracts?: Contracts,
-): Promise<Contracts> => {
-  const config = { ...networkConfig, ...customNetworkConfig };
-
-  let farmingStrategyValidator;
-  if (config.farmingStrategyValidator?.enabled) {
-    farmingStrategyValidator = (await deployContract(
-      `${step} >>`,
-      config.farmingStrategyValidator?.autoVerifyContract,
-      "FarmingStrategyValidator",
-      existingContract?.["farmingStrategyValidator"],
-      "contracts/public-vault/strategies/lpAerodrome/FarmingStrategyValidator.sol:FarmingStrategyValidator",
-      undefined,
-      ["address", "address[]"],
-      [contractAdmin, config.aerodromeGaugeFactories || []],
-    )) as FarmingStrategyValidator;
-  }
-  return {
-    farmingStrategyValidator,
-  };
-};
-
 export const deployFarmingStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
@@ -806,12 +772,11 @@ export const deployFarmingStrategyContract = async (
       existingContract?.["farmingStrategy"],
       "contracts/public-vault/strategies/lpAerodrome/FarmingStrategy.sol:FarmingStrategy",
       undefined,
-      ["address", "address", "address", "address"],
+      ["address", "address", "address"],
       [
         existingContract?.["lpStrategyAerodrome"] || contracts?.lpStrategyAerodrome?.target,
         existingContract?.["configManager"] || contracts?.configManager?.target,
         existingContract?.["rewardSwapper"] || contracts?.rewardSwapper?.target,
-        existingContract?.["farmingStrategyValidator"] || contracts?.farmingStrategyValidator?.target,
       ],
     )) as FarmingStrategy;
   }

@@ -44,4 +44,6 @@ interface ICLPool {
     external
     view
     returns (uint32 blockTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, bool initialized);
+
+  function gauge() external view returns (address);
 }

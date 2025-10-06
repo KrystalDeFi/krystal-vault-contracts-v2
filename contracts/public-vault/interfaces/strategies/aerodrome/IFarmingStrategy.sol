@@ -17,13 +17,7 @@ interface IFarmingStrategy is IStrategy {
 
   }
 
-  // Parameter structures
-  struct DepositExistingLPParams {
-    address gauge;
-  }
-
   struct CreateAndDepositLPParams {
-    address gauge;
     IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
   }
 
@@ -40,7 +34,6 @@ interface IFarmingStrategy is IStrategy {
   }
 
   struct HarvestFarmingRewardsParams {
-    address gauge;
     uint256 tokenId;
     address swapRouter;
     bytes swapData;

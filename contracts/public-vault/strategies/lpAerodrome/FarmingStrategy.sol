@@ -11,6 +11,8 @@ import "../../libraries/SafeApprovalLib.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/IStrategy.sol";
 import "../../interfaces/strategies/aerodrome/ICLGauge.sol";
+import "../../interfaces/strategies/aerodrome/ICLFactory.sol";
+import "../../interfaces/strategies/aerodrome/ICLPool.sol";
 import "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
@@ -36,7 +38,6 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   address public immutable lpStrategyImplementation;
   IConfigManager public immutable configManager;
   RewardSwapper public immutable rewardSwapper;
-  IFarmingStrategyValidator public immutable validator;
   address private immutable thisAddress;
 
   // Note: No storage state variables - farming state tracked via asset encoding
@@ -48,18 +49,15 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    * @param _lpStrategyImplementation Address of the LpStrategy implementation for delegatecall
    * @param _configManager Address of the config manager
    * @param _rewardSwapper Address of the reward swapper contract
-   * @param _validator Address of the farming strategy validator
    */
-  constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper, address _validator) {
+  constructor(address _lpStrategyImplementation, address _configManager, address _rewardSwapper) {
     require(_lpStrategyImplementation != address(0), ZeroAddress());
     require(_configManager != address(0), ZeroAddress());
     require(_rewardSwapper != address(0), ZeroAddress());
-    require(_validator != address(0), ZeroAddress());
 
     lpStrategyImplementation = _lpStrategyImplementation;
     configManager = IConfigManager(_configManager);
     rewardSwapper = RewardSwapper(_rewardSwapper);
-    validator = IFarmingStrategyValidator(_validator);
     thisAddress = address(this);
   }
 
@@ -110,8 +108,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     uint8 instructionType = instruction.instructionType;
 
     if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP)) {
-      return
-        _depositExistingLP(assets, abi.decode(instruction.params, (IFarmingStrategy.DepositExistingLPParams)), config);
+      return _depositExistingLP(assets, config);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
       return _createAndDepositLP(
         assets, abi.decode(instruction.params, (IFarmingStrategy.CreateAndDepositLPParams)), config, feeConfig
@@ -313,6 +310,45 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   // =============================================================================
 
   /**
+   * @notice Get gauge address from existing LP position
+   * @param nfpm The NonFungiblePositionManager address
+   * @param tokenId The LP position token ID
+   * @return gauge The gauge address for this position
+   */
+  function _getGaugeFromPosition(address nfpm, uint256 tokenId) internal view returns (address gauge) {
+    // Get position info to extract token0, token1, and tickSpacing
+    (,, address token0, address token1, int24 tickSpacing,,,,,,,) = INFPM(nfpm).positions(tokenId);
+
+    // Get gauge from LP parameters
+    return _getGaugeFromLPParams(nfpm, token0, token1, tickSpacing);
+  }
+
+  /**
+   * @notice Get gauge address from LP creation parameters
+   * @param nfpm The NonFungiblePositionManager address
+   * @param token0 The first token of the pair
+   * @param token1 The second token of the pair
+   * @param tickSpacing The tick spacing for the pool
+   * @return gauge The gauge address for this pool
+   */
+  function _getGaugeFromLPParams(address nfpm, address token0, address token1, int24 tickSpacing)
+    internal
+    view
+    returns (address gauge)
+  {
+    // Get factory from NFPM
+    address factory = INFPM(nfpm).factory();
+
+    // Get pool address from factory
+    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
+    require(pool != address(0), "Pool not found");
+
+    // Get gauge from pool
+    gauge = ICLPool(pool).gauge();
+    require(gauge != address(0), "Gauge not found");
+  }
+
+  /**
    * @notice Validate that reward token is compatible with principal token
    * @param gauge The gauge address to check reward token for
    * @param principalToken The vault's principal token
@@ -330,23 +366,23 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   /**
    * @notice Deposit existing LP NFT into farming
    */
-  function _depositExistingLP(
-    AssetLib.Asset[] calldata assets,
-    IFarmingStrategy.DepositExistingLPParams memory params,
-    VaultConfig calldata config
-  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+  function _depositExistingLP(AssetLib.Asset[] calldata assets, VaultConfig calldata config)
+    internal
+    returns (AssetLib.Asset[] memory returnAssets)
+  {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
-    // Validate user-provided gauge address
-    validator.validateGauge(params.gauge);
+    // Get gauge address automatically from the LP position
+    address nftContract = _getNFTContract(assets[0]);
+    address gauge = _getGaugeFromPosition(nftContract, assets[0].tokenId);
 
     // Validate reward token compatibility
-    _validateRewardToken(params.gauge, config.principalToken);
+    _validateRewardToken(gauge, config.principalToken);
 
     // Deposit the position
     returnAssets = new AssetLib.Asset[](1);
-    returnAssets[0] = _depositPosition(assets[0], params.gauge);
+    returnAssets[0] = _depositPosition(assets[0], gauge);
   }
 
   /**
@@ -358,11 +394,16 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
-    // Validate user-provided gauge address
-    validator.validateGauge(params.gauge);
+    // Get gauge address automatically from LP parameters
+    address gauge = _getGaugeFromLPParams(
+      address(params.lpParams.nfpm),
+      params.lpParams.token0,
+      params.lpParams.token1,
+      int24(uint24(params.lpParams.tickSpacing))
+    );
 
     // Validate reward token compatibility
-    _validateRewardToken(params.gauge, config.principalToken);
+    _validateRewardToken(gauge, config.principalToken);
 
     // Delegate LP creation to LpStrategy
     bytes memory lpInstructionData = abi.encode(
@@ -379,9 +420,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(returnAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
     // Deposit the newly created LP position
-    returnAssets[2] = _depositPosition(returnAssets[2], params.gauge);
+    returnAssets[2] = _depositPosition(returnAssets[2], gauge);
 
-    emit LPCreatedAndDeposited(returnAssets[2].tokenId, params.gauge, returnAssets[2].amount);
+    emit LPCreatedAndDeposited(returnAssets[2].tokenId, gauge, returnAssets[2].amount);
   }
 
   /**

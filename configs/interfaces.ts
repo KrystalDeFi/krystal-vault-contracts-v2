@@ -52,10 +52,6 @@ export interface IConfigAerodrome {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  farmingStrategyValidator?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
   farmingStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
