@@ -16,7 +16,6 @@ import "../../interfaces/strategies/aerodrome/ICLPool.sol";
 import "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
-import "../../interfaces/strategies/aerodrome/IFarmingStrategyValidator.sol";
 import { IFeeTaker } from "../../interfaces/strategies/IFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from

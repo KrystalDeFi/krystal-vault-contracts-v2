@@ -55,10 +55,6 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    farmingStrategyValidator: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
     farmingStrategy: {
       enabled: true,
       autoVerifyContract: true,

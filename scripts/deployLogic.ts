@@ -24,7 +24,6 @@ import {
   LpStrategy as LpStrategyAerodrome,
   LpValidator as LpValidatorAerodrome,
   FarmingStrategy,
-  FarmingStrategyValidator,
   RewardSwapper,
   VaultAutomator as VaultAutomatorAerodrome,
 } from "../typechain-types/contracts/public-vault/strategies/lpAerodrome";

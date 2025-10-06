@@ -32,8 +32,6 @@ import { LpStrategy } from "../../contracts/public-vault/strategies/lpAerodrome/
 import { LpValidator } from "../../contracts/public-vault/strategies/lpAerodrome/LpValidator.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 import { FarmingStrategy } from "../../contracts/public-vault/strategies/lpAerodrome/FarmingStrategy.sol";
-import { FarmingStrategyValidator } from
-  "../../contracts/public-vault/strategies/lpAerodrome/FarmingStrategyValidator.sol";
 import { RewardSwapper } from "../../contracts/public-vault/strategies/lpAerodrome/RewardSwapper.sol";
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 
@@ -122,7 +120,6 @@ contract IntegrationFarmingTest is TestCommon {
     rewardSwapper.setSupportedRewardToken(AERO, true);
     rewardSwapper.setRewardTokenPool(AERO, WETH, AERO_WETH_POOL);
 
-    // Set up FarmingStrategyValidator
     address[] memory initialFactories = new address[](1);
     // Use the known Aerodrome factory address
     initialFactories[0] = AERODROME_FACTORY;
