@@ -6,7 +6,7 @@
     "privateVaultAutomator": "0x3ca556cb65d3572d5c596fe948d89bb7a1dee1bb",
     "aerodromeFarmingStrategy": "0x2b45768a571b04e3d3abbcc8b7b6346a61b6acb4",
     "pancakeV3FarmingStrategy": "0x79dcf9662c39ecba74a369332780ba75b6ebf052",
-    "v3UtilsStrategy": "0x85c9c2a54464aaf9676389d46de5cb4e2c5231df",
+    "v3UtilsStrategy": "0x5f3b5b105c1d2f015a976993cd775d9d5b45a16c",
     "v4UtilsStrategy": "0xb598d727ab4d757076f0a99f228982fba77b5980"
   }
 }
