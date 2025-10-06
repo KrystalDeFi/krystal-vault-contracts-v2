@@ -382,11 +382,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       performanceFeeX64: 0
     });
 
-    bytes memory encodedInstructions = abi.encode(instructions);
-
     // Prepare safeTransferNft call data
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, encodedInstructions);
+      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(v3UtilsStrategy), strategyCallData);

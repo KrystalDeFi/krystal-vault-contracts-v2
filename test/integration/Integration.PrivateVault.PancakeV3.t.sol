@@ -325,11 +325,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       performanceFeeX64: 0
     });
 
-    bytes memory encodedInstructions = abi.encode(instructions);
-
     // Prepare safeTransferNft call data
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, encodedInstructions);
+      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(v3UtilsStrategy), strategyCallData);
@@ -1120,13 +1118,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       performanceFeeX64: 0
     });
 
-    bytes memory encodedInstructions = abi.encode(instructions);
-
     // Prepare unstake, compound, restake multicall
     bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
 
     bytes memory compoundCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, encodedInstructions);
+      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
 
     bytes memory restakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.deposit.selector, tokenId);
 

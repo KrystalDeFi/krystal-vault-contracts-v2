@@ -15,26 +15,29 @@ contract V3UtilsStrategy {
     v3utils = _v3utils;
   }
 
-  function safeTransferNft(address _nfpm, uint256 tokenId, bytes calldata instructions) external {
-    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, instructions);
+  function safeTransferNft(address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) external {
+    instructions.recipient = address(this);
+    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
   }
 
   function swapAndMint(
-    IV3Utils.SwapAndMintParams calldata params,
+    IV3Utils.SwapAndMintParams memory params,
     uint256 ethValue,
     address[] calldata tokens,
     uint256[] calldata amounts
   ) external payable returns (IV3Utils.SwapAndMintResult memory) {
+    params.recipient = address(this);
     _approveTokens(tokens, amounts, v3utils);
     return IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
   }
 
   function swapAndIncreaseLiquidity(
-    IV3Utils.SwapAndIncreaseLiquidityParams calldata params,
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params,
     uint256 ethValue,
     address[] calldata tokens,
     uint256[] calldata amounts
   ) external payable returns (IV3Utils.SwapAndIncreaseLiquidityResult memory) {
+    params.recipient = address(this);
     _approveTokens(tokens, amounts, v3utils);
     return IV3Utils(v3utils).swapAndIncreaseLiquidity{ value: ethValue }(params);
   }
