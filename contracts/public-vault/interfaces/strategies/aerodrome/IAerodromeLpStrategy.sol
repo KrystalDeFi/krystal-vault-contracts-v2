@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import "../IStrategy.sol";
 
-import "./INonfungiblePositionManager.sol";
+import "../../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 
 interface IAerodromeLpStrategy is IStrategy {
   enum InstructionType {

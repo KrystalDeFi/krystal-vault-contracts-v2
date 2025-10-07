@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "../../interfaces/strategies/aerodrome/ICLGauge.sol";
+import "../../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategyValidator.sol";
 
 /**

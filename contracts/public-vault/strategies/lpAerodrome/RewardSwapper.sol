@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/core/IOptimalSwapper.sol";
 import "../../libraries/SafeApprovalLib.sol";
-import "../../interfaces/strategies/aerodrome/ICLPool.sol";
+import "../../../common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 /**

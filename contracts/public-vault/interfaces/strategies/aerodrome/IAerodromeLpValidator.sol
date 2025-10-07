@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "./INonfungiblePositionManager.sol";
+import "../../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 
 import "../../ICommon.sol";
 

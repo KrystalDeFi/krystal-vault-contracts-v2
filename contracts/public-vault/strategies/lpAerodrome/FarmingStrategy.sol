@@ -10,16 +10,16 @@ import "../../libraries/AssetLib.sol";
 import "../../libraries/SafeApprovalLib.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/IStrategy.sol";
-import "../../interfaces/strategies/aerodrome/ICLGauge.sol";
-import "../../interfaces/strategies/aerodrome/ICLFactory.sol";
-import "../../interfaces/strategies/aerodrome/ICLPool.sol";
-import "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
+import "../../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
+import "../../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
+import "../../../common/interfaces/protocols/aerodrome/ICLPool.sol";
+import "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
 import { IFeeTaker } from "../../interfaces/strategies/IFeeTaker.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from
-  "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
+  "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import "./RewardSwapper.sol";
 
 /**

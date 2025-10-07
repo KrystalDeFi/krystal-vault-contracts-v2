@@ -10,7 +10,7 @@ import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Rec
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import { INonfungiblePositionManager as INFPM } from
-  "../../contracts/private-vault/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
+  "../../contracts/common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 
 // Private Vault contracts
 import { PrivateVault } from "../../contracts/private-vault/core/PrivateVault.sol";
@@ -27,9 +27,9 @@ import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lp
 
 // Aerodrome Farming Strategy contracts
 import { AerodromeFarmingStrategy } from "../../contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol";
-import { ICLGauge } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLGauge.sol";
-import { ICLFactory } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLFactory.sol";
-import { ICLPool } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLPool.sol";
+import { ICLGauge } from "../../contracts/common/interfaces/protocols/aerodrome/ICLGauge.sol";
+import { ICLFactory } from "../../contracts/common/interfaces/protocols/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../contracts/common/interfaces/protocols/aerodrome/ICLPool.sol";
 
 interface ISwapRouter {
   struct ExactInputSingleParams {

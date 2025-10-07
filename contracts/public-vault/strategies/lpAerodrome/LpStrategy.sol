@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "../../libraries/SafeApprovalLib.sol";
 
 import { INonfungiblePositionManager as INFPM } from
-  "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
-import { ICLFactory } from "../../interfaces/strategies/aerodrome/ICLFactory.sol";
-import { ICLPool } from "../../interfaces/strategies/aerodrome/ICLPool.sol";
+  "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
+import { ICLFactory } from "../../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../../common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { IOptimalSwapper } from "../../interfaces/core/IOptimalSwapper.sol";

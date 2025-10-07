@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { ICLGauge } from "../../interfaces/strategies/aerodrome/ICLGauge.sol";
-import { INonfungiblePositionManager } from "../../interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
-import { ICLFactory } from "../../interfaces/strategies/aerodrome/ICLFactory.sol";
-import { ICLPool } from "../../interfaces/strategies/aerodrome/ICLPool.sol";
+import { ICLGauge } from "../../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
+import { INonfungiblePositionManager } from "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
+import { ICLFactory } from "../../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../../common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ICLGaugeFactory } from "../../interfaces/strategies/aerodrome/ICLGaugeFactory.sol";

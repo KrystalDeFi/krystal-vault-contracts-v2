@@ -10,11 +10,11 @@ import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import { ICLFactory } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLFactory.sol";
-import { ICLPool } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLPool.sol";
+import { ICLFactory } from "../../contracts/common/interfaces/protocols/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../contracts/common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { INonfungiblePositionManager as INFPM } from
-  "../../contracts/public-vault/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
-import { ICLGauge } from "../../contracts/public-vault/interfaces/strategies/aerodrome/ICLGauge.sol";
+  "../../contracts/common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
+import { ICLGauge } from "../../contracts/common/interfaces/protocols/aerodrome/ICLGauge.sol";
 
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
