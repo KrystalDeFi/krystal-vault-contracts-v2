@@ -9,16 +9,21 @@ interface IFarmingStrategy is IStrategy {
   enum FarmingInstructionType {
     DepositExistingLP, // Deposit existing LP NFT into farming
     CreateAndDepositLP, // Create LP position and deposit into farming
+    SwapAndIncreaseLiquidity, // Increase LP position liquidity
     WithdrawLP, // Withdraw position from farming but keep as LP NFT
     WithdrawLPToPrincipal, // Withdraw position from farming and convert to principal
     RebalanceAndDeposit, // Rebalance LP position and maintain farming
     CompoundAndDeposit, // Compound LP Fee and maintain farming
     HarvestFarmingRewards // Harvest farming rewards only
-
   }
 
   struct CreateAndDepositLPParams {
     IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
+  }
+
+  struct SwapAndIncreaseLiquidityParams {
+    bool compoundFarmReward;
+    IAerodromeLpStrategy.SwapAndIncreaseLiquidityParams increaseLiquidityParams;
   }
 
   struct WithdrawLPParams {

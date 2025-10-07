@@ -54,15 +54,7 @@ contract IntegrationFarmingTest is TestCommon {
   Vault public vaultInstance;
 
   uint256 testTokenId;
-
-  // Helper function to get the expected gauge address for testing
-  function getExpectedGauge(address tokenA, address tokenB, int24 tickSpacing) internal view returns (address) {
-    address factory = INFPM(NFPM).factory();
-    // Ensure tokens are in correct order (token0 < token1)
-    (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
-    return ICLPool(pool).gauge();
-  }
+  uint256 blockTimestamp;
 
   function setUp() public {
     // Skip forking for basic compilation test - can be enabled for full integration testing
@@ -163,6 +155,7 @@ contract IntegrationFarmingTest is TestCommon {
     address vaultAddress = vaultFactory.createVault(params);
 
     vaultInstance = Vault(payable(vaultAddress));
+    blockTimestamp = block.timestamp;
   }
 
   function test_integration() public {
@@ -179,7 +172,7 @@ contract IntegrationFarmingTest is TestCommon {
       strategy: address(0),
       token: WETH,
       tokenId: 0,
-      amount: 2 ether
+      amount: 1.5 ether
     });
 
     // Prepare LP creation parameters
@@ -239,6 +232,56 @@ contract IntegrationFarmingTest is TestCommon {
     }
 
     {
+      // Test SwapAndIncreaseLiquidity
+      console.log("==== test_swapAndIncreaseLiquidity ====");
+      AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
+
+      // Get current liquidity before increase
+      (,,,,,,, uint128 liquidityBefore,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      console.log("liquidity before increase:", liquidityBefore);
+
+      // Prepare SwapAndIncreaseLiquidity parameters
+      IFarmingStrategy.SwapAndIncreaseLiquidityParams memory params = IFarmingStrategy.SwapAndIncreaseLiquidityParams({
+        compoundFarmReward: true, // Harvest farming rewards before increasing liquidity
+        increaseLiquidityParams: ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" })
+      });
+
+      ICommon.Instruction memory instruction = ICommon.Instruction({
+        instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
+        params: abi.encode(params)
+      });
+
+      // Prepare assets: LP NFT + Principal token to add
+      assets = new AssetLib.Asset[](2);
+      assets[0] = vaultAssets[1]; // Farming LP NFT
+      assets[1] = AssetLib.Asset({ // Additional principal token to add
+        assetType: AssetLib.AssetType.ERC20,
+        strategy: address(0),
+        token: WETH,
+        tokenId: 0,
+        amount: 0.5 ether
+      });
+
+      vm.roll(++currentBlock);
+      vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(instruction));
+
+      // Verify results
+      vaultAssets = vaultInstance.getInventory();
+      (,,,,,,, uint128 liquidityAfter,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      console.log("liquidity after increase:", liquidityAfter);
+
+      // Verify liquidity increased
+      assertGt(liquidityAfter, liquidityBefore, "Liquidity should have increased");
+
+      // Verify position is still farming
+      assertEq(vaultAssets[1].strategy, address(farmingStrategy), "Position should remain in farming");
+      assertEq(vaultAssets[1].token, NFPM, "Token should be NFPM address");
+
+      console.log("SwapAndIncreaseLiquidity test completed successfully");
+      printVaultAssets();
+    }
+
+    {
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       assertEq(vaultAssets.length, 2);
       assertApproxEqRel(vaultAssets[0].amount, 1 ether, TOLERANCE);
@@ -246,9 +289,7 @@ contract IntegrationFarmingTest is TestCommon {
       assertEq(vaultAssets[0].tokenId, 0);
       assertEq(vaultAssets[0].strategy, address(0));
       assertEq(vaultAssets[1].amount, 1);
-      // Get expected gauge from the LP parameters used in the test
-      address expectedGauge = getExpectedGauge(WETH, USDC, 100);
-      assertEq(vaultAssets[1].token, expectedGauge);
+      assertEq(vaultAssets[1].token, NFPM);
       assertEq(vaultAssets[1].strategy, address(farmingStrategy));
 
       // Deposit to a vault with both principal and Farming LPs
@@ -261,8 +302,7 @@ contract IntegrationFarmingTest is TestCommon {
       assertEq(vaultAssets[0].tokenId, 0);
       assertEq(vaultAssets[0].strategy, address(0));
       assertEq(vaultAssets[1].amount, 1);
-      // Use the same expected gauge as before
-      assertEq(vaultAssets[1].token, expectedGauge);
+      assertEq(vaultAssets[1].token, NFPM);
       assertEq(vaultAssets[1].strategy, address(farmingStrategy));
 
       printVaultAssets();
@@ -342,6 +382,215 @@ contract IntegrationFarmingTest is TestCommon {
       assertApproxEqRel(wethWithdrawn, 3.02 ether, TOLERANCE);
       console.log("wethWithdrawn", wethWithdrawn);
     }
+  }
+
+  // Helper function for common farming position setup
+  function _setupFarmingPosition() internal returns (AssetLib.Asset[] memory vaultAssets) {
+    vm.warp(blockTimestamp);
+    // Setup farming position
+    IERC20(WETH).approve(address(vaultInstance), 3 ether);
+    vaultInstance.deposit(3 ether, 0);
+
+    // Create initial LP farming position
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
+    assets[0] = AssetLib.Asset({
+      assetType: AssetLib.AssetType.ERC20,
+      strategy: address(0),
+      token: WETH,
+      tokenId: 0,
+      amount: 1.5 ether
+    });
+
+    ILpStrategy.SwapAndMintPositionParams memory lpParams = ILpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(address(NFPM)),
+      token0: WETH < USDC ? WETH : USDC,
+      token1: WETH < USDC ? USDC : WETH,
+      tickSpacing: 100,
+      tickLower: -193_000,
+      tickUpper: 191_900,
+      amount0Min: 0,
+      amount1Min: 0,
+      swapData: ""
+    });
+
+    IFarmingStrategy.CreateAndDepositLPParams memory createParams =
+      IFarmingStrategy.CreateAndDepositLPParams({ lpParams: lpParams });
+
+    ICommon.Instruction memory createInstruction = ICommon.Instruction({
+      instructionType: uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
+      params: abi.encode(createParams)
+    });
+
+    vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(createInstruction));
+    vaultAssets = vaultInstance.getInventory();
+  }
+
+  function test_swapAndIncreaseLiquidityWithoutCompound() public {
+    uint256 currentBlock = block.number;
+    vm.warp(blockTimestamp); // 300 days
+    AssetLib.Asset[] memory vaultAssets = _setupFarmingPosition();
+
+    // Calculate expected reward amount using valueOf() before and after time warp
+    vm.startPrank(address(vaultInstance));
+    uint256 valueOfPositionBefore = farmingStrategy.valueOf(vaultAssets[1], WETH);
+    console.log("Position value before time warp:", valueOfPositionBefore);
+
+    vm.warp(block.timestamp + 300 * 86_400); // 300 days
+
+    uint256 valueOfPositionAfter = farmingStrategy.valueOf(vaultAssets[1], WETH);
+    console.log("Position value after time warp:", valueOfPositionAfter);
+
+    uint256 expectedRewardAmount = valueOfPositionAfter - valueOfPositionBefore;
+    console.log("Expected reward amount:", expectedRewardAmount);
+    vm.stopPrank();
+
+    require(expectedRewardAmount > 0, "Should have accumulated some rewards");
+
+    // Get updated vault assets and position info
+    vaultAssets = vaultInstance.getInventory();
+    uint256 farmingTokenId = vaultAssets[1].tokenId;
+
+    // Track principal asset before operation
+    uint256 principalBefore = 0;
+    for (uint256 i = 0; i < vaultAssets.length; i++) {
+      if (vaultAssets[i].token == WETH && vaultAssets[i].assetType == AssetLib.AssetType.ERC20) {
+        principalBefore = vaultAssets[i].amount;
+        break;
+      }
+    }
+    console.log("Principal asset before:", principalBefore);
+
+    // Get liquidity before increase
+    (,,,,,,, uint128 liquidityBefore,,,,) = INFPM(NFPM).positions(farmingTokenId);
+    console.log("Liquidity before increase:", liquidityBefore);
+
+    // Test WITHOUT compoundFarmReward
+    IFarmingStrategy.SwapAndIncreaseLiquidityParams memory params = IFarmingStrategy.SwapAndIncreaseLiquidityParams({
+      compoundFarmReward: false, // Do NOT compound rewards - should increase principal asset
+      increaseLiquidityParams: ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" })
+    });
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    assets[0] = vaultAssets[1]; // Farming LP NFT
+    assets[1] = AssetLib.Asset({ // Principal token to add
+      assetType: AssetLib.AssetType.ERC20,
+      strategy: address(0),
+      token: WETH,
+      tokenId: 0,
+      amount: 0.5 ether
+    });
+
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
+      params: abi.encode(params)
+    });
+
+    vm.roll(++currentBlock);
+    vm.startPrank(USER);
+    vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(instruction));
+
+    // Verify results
+    vaultAssets = vaultInstance.getInventory();
+    (,,,,,,, uint128 liquidityAfter,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+
+    console.log("Liquidity after increase:", liquidityAfter);
+    console.log("Liquidity increase:", liquidityAfter - liquidityBefore);
+    console.log("Vault assets count:", vaultAssets.length);
+
+    // Track principal asset after operation
+    uint256 principalAfter = 0;
+    for (uint256 i = 0; i < vaultAssets.length; i++) {
+      if (vaultAssets[i].token == WETH && vaultAssets[i].assetType == AssetLib.AssetType.ERC20) {
+        principalAfter = vaultAssets[i].amount;
+        break;
+      }
+    }
+    console.log("Principal asset after:", principalAfter);
+
+    // Calculate net principal increase (excluding input amount)
+    uint256 inputAmount = 0.5 ether;
+    uint256 netPrincipalIncrease = principalAfter - (principalBefore - inputAmount);
+    console.log("Net principal increase (harvested rewards):", netPrincipalIncrease);
+
+    // Verify principal asset increased by approximately the expected reward amount
+    assertApproxEqRel(
+      netPrincipalIncrease,
+      expectedRewardAmount,
+      TOLERANCE,
+      "Principal should increase by harvested reward amount when not compounding"
+    );
+
+    // Verify liquidity increased (should be from input amount only, not compounded rewards)
+    assertGt(liquidityAfter, liquidityBefore, "Liquidity should have increased");
+
+    console.log("Non-compound test completed successfully - rewards converted to principal");
+    printVaultAssets();
+  }
+
+  function test_swapAndIncreaseLiquidityWithCompound() public {
+    uint256 currentBlock = block.number;
+    console.log("==== test_swapAndIncreaseLiquidityWithCompound ====");
+
+    // Setup farming position with accumulated rewards
+    AssetLib.Asset[] memory vaultAssets = _setupFarmingPosition();
+    uint256 farmingTokenId = vaultAssets[1].tokenId;
+
+    // Get liquidity before increase
+    (,,,,,,, uint128 liquidityBefore,,,,) = INFPM(NFPM).positions(farmingTokenId);
+    console.log("Liquidity before increase:", liquidityBefore);
+
+    // Test WITH compoundFarmReward
+    IFarmingStrategy.SwapAndIncreaseLiquidityParams memory params = IFarmingStrategy.SwapAndIncreaseLiquidityParams({
+      compoundFarmReward: true, // DO compound rewards
+      increaseLiquidityParams: ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" })
+    });
+
+    // Calculate expected reward amount using valueOf() before and after time warp
+    vm.stopPrank();
+    vm.startPrank(address(vaultInstance));
+    uint256 valueOfPositionBefore = farmingStrategy.valueOf(vaultAssets[1], WETH);
+    console.log("Position value before time warp:", valueOfPositionBefore);
+
+    vm.warp(block.timestamp + 300 * 86_400); // 300 days
+
+    uint256 valueOfPositionAfter = farmingStrategy.valueOf(vaultAssets[1], WETH);
+    console.log("Position value after time warp:", valueOfPositionAfter);
+
+    uint256 expectedRewardAmount = valueOfPositionAfter - valueOfPositionBefore;
+    console.log("Expected reward amount:", expectedRewardAmount);
+    vm.stopPrank();
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
+    assets[0] = vaultAssets[1]; // Farming LP NFT
+    assets[1] = AssetLib.Asset({ // Principal token to add
+      assetType: AssetLib.AssetType.ERC20,
+      strategy: address(0),
+      token: WETH,
+      tokenId: 0,
+      amount: 0.5 ether
+    });
+
+    ICommon.Instruction memory instruction = ICommon.Instruction({
+      instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
+      params: abi.encode(params)
+    });
+
+    vm.roll(++currentBlock);
+    vm.startPrank(USER);
+    vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(instruction));
+
+    vm.stopPrank();
+    vm.startPrank(address(vaultInstance));
+    valueOfPositionBefore = valueOfPositionAfter;
+    valueOfPositionAfter = farmingStrategy.valueOf(vaultAssets[1], WETH);
+    // Verify results
+    assertApproxEqRel(
+      valueOfPositionAfter,
+      valueOfPositionBefore + expectedRewardAmount + 0.5 ether,
+      TOLERANCE,
+      "Position value should increase by expected reward amount"
+    );
+    printVaultAssets();
   }
 
   function printVaultAssets() internal view {

@@ -69,10 +69,12 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   function valueOf(AssetLib.Asset calldata asset, address principalToken) external view override returns (uint256) {
     if (asset.assetType != AssetLib.AssetType.ERC721) return 0;
 
-    address gauge = asset.token;
     AssetLib.Asset memory lpAsset = asset;
     lpAsset.strategy = lpStrategyImplementation;
-    lpAsset.token = ICLGauge(asset.token).nft();
+    // asset.token is already the NFT contract address
+
+    address gauge = address(0);
+    if (_isDeposited(asset)) gauge = _getGaugeFromPosition(asset.token, asset.tokenId);
     // Get LP position value by delegating to LpStrategy
     uint256 lpValue = IStrategy(lpStrategyImplementation).valueOf(lpAsset, principalToken);
 
@@ -126,6 +128,10 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       return _compoundAndDeposit(
         assets, abi.decode(instruction.params, (IFarmingStrategy.CompoundAndDepositParams)), config, feeConfig
       );
+    } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity)) {
+      return _swapAndIncreaseLiquidity(
+        assets, abi.decode(instruction.params, (IFarmingStrategy.SwapAndIncreaseLiquidityParams)), config, feeConfig
+      );
     } else {
       revert InvalidFarmingInstructionType();
     }
@@ -151,13 +157,13 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(asset.assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
     // Then harvest farming rewards first
-    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(asset, tokenOut, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults,) = _harvestFarmingRewards(asset, tokenOut, feeConfig);
 
     // Then withdraw so we can harvest LP fees
     _withdrawPosition(asset);
 
     AssetLib.Asset memory lpAsset = asset;
-    address gauge = asset.token;
+    address gauge = _getGaugeFromPosition(asset.token, asset.tokenId);
     lpAsset.strategy = lpStrategyImplementation;
     lpAsset.token = ICLGauge(gauge).nft();
 
@@ -192,7 +198,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   ) external payable override returns (AssetLib.Asset[] memory returnAssets) {
     require(principalTokenAmount > 0, InvalidParams());
 
-    address gauge = existingAsset.token;
+    address gauge = _getGaugeFromPosition(existingAsset.token, existingAsset.tokenId);
 
     require(gauge != address(0), InvalidGauge());
 
@@ -236,7 +242,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     returnAssets = _lpConvertToPrincipal(lpAsset, shares, totalSupply, config, feeConfig);
 
     // Deposit again
-    address gauge = existingAsset.token;
+    address gauge = _getGaugeFromPosition(lpAsset.token, lpAsset.tokenId);
     returnAssets[2] = _depositPosition(returnAssets[2], gauge);
   }
 
@@ -265,7 +271,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _getDepositedGauge(AssetLib.Asset memory asset) internal view returns (address gauge) {
     // If asset.strategy points to FarmingStrategy (thisAddress), position is deposited
-    if (asset.strategy == thisAddress) return asset.token; // token field contains gauge address
+    if (asset.strategy == thisAddress) return _getGaugeFromPosition(asset.token, asset.tokenId);
 
     return address(0);
   }
@@ -293,15 +299,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    * @param asset The asset to get NFT contract for
    * @return nftContract The NFT contract address
    */
-  function _getNFTContract(AssetLib.Asset memory asset) internal view returns (address nftContract) {
-    if (_isDeposited(asset)) {
-      // For deposited positions, get NFT contract from gauge
-      address gauge = asset.token;
-      return ICLGauge(gauge).nft();
-    } else {
-      // For regular LP positions, token field is the NFT contract
-      return asset.token;
-    }
+  function _getNFTContract(AssetLib.Asset memory asset) internal pure returns (address nftContract) {
+    // Now both deposited and regular LP positions store NFT contract in asset.token
+    return asset.token;
   }
 
   // =============================================================================
@@ -436,7 +436,8 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
-    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults,) =
+      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
     returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + 1);
@@ -458,9 +459,10 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    address gauge = assets[0].token;
+    address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
 
-    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults,) =
+      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
     // Delegate LP conversion to LpStrategy
@@ -499,10 +501,11 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    address gauge = assets[0].token;
+    address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
     // Harvest farming rewards first
 
-    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults,) =
+      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     // Withdraw temporarily
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
@@ -542,10 +545,11 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    address gauge = assets[0].token;
+    address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
     // Harvest farming rewards first
 
-    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults,) =
+      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     // Withdraw temporarily
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
@@ -575,6 +579,71 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   }
 
   /**
+   * @notice Swap and increase liquidity while maintaining farming deposit
+   */
+  function _swapAndIncreaseLiquidity(
+    AssetLib.Asset[] calldata assets,
+    IFarmingStrategy.SwapAndIncreaseLiquidityParams memory params,
+    VaultConfig calldata config,
+    FeeConfig calldata feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
+    require(assets.length == 2, InvalidNumberOfAssets());
+    require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
+    require(assets[1].assetType == AssetLib.AssetType.ERC20, InvalidAsset());
+    require(assets[1].token == config.principalToken, InvalidAsset());
+
+    address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
+
+    // Optionally harvest farming rewards first if requested
+    (AssetLib.Asset[] memory farmingHarvestResults, uint256 harvestedPrincipalAmount) =
+      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+
+    // Withdraw temporarily
+    AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
+
+    // Prepare assets for LpStrategy (principal token first, then LP NFT)
+    AssetLib.Asset[] memory increaseLiquidityAssets = new AssetLib.Asset[](2);
+
+    if (params.compoundFarmReward) {
+      increaseLiquidityAssets[0] = assets[1]; // Principal token
+    } else {
+      increaseLiquidityAssets[0] = AssetLib.Asset({
+        assetType: AssetLib.AssetType.ERC20,
+        strategy: address(0),
+        token: config.principalToken,
+        tokenId: 0,
+        amount: harvestedPrincipalAmount + assets[1].amount
+      }); // Principal token from });
+    }
+    increaseLiquidityAssets[1] = lpAsset; // LP NFT
+
+    // Delegate increase liquidity to LpStrategy
+    bytes memory increaseLiquidityData = abi.encode(
+      Instruction({
+        instructionType: uint8(IAerodromeLpStrategy.InstructionType.SwapAndIncreaseLiquidity),
+        params: abi.encode(params.increaseLiquidityParams)
+      })
+    );
+    increaseLiquidityAssets = _lpConvert(increaseLiquidityAssets, config, feeConfig, increaseLiquidityData);
+
+    // Re-deposit the position with increased liquidity
+    require(
+      increaseLiquidityAssets.length > 2 && increaseLiquidityAssets[2].assetType == AssetLib.AssetType.ERC721,
+      InvalidAsset()
+    );
+    increaseLiquidityAssets[2] = _depositPosition(increaseLiquidityAssets[2], gauge);
+
+    // Combine with farming harvest results
+    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + increaseLiquidityAssets.length);
+    for (uint256 i; i < farmingHarvestResults.length; i++) {
+      returnAssets[i] = farmingHarvestResults[i];
+    }
+    for (uint256 i; i < increaseLiquidityAssets.length; i++) {
+      returnAssets[farmingHarvestResults.length + i] = increaseLiquidityAssets[i];
+    }
+  }
+
+  /**
    * @notice Deposit a position into the specified gauge
    */
   function _depositPosition(AssetLib.Asset memory lpAsset, address gauge)
@@ -582,7 +651,6 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     returns (AssetLib.Asset memory farmingAsset)
   {
     address nftContract = lpAsset.token;
-    require(ICLGauge(gauge).nft() == nftContract, InvalidNFT());
 
     // Approve and deposit NFT into gauge
     IERC721(nftContract).approve(gauge, lpAsset.tokenId);
@@ -590,7 +658,8 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
 
     farmingAsset = lpAsset;
     farmingAsset.strategy = thisAddress;
-    farmingAsset.token = gauge;
+    // Keep original NFT contract address instead of replacing with gauge
+    // farmingAsset.token remains as nftContract
 
     // Note: State tracking is now handled in asset.strategy field when assets are returned
     emit AerodromeStaked(nftContract, lpAsset.tokenId, gauge, msg.sender);
@@ -600,18 +669,21 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    * @notice Withdraw a position from the specified gauge
    */
   function _withdrawPosition(AssetLib.Asset memory farmingAsset) internal returns (AssetLib.Asset memory lpAsset) {
+    // Get gauge address from the NFT position
+    address gauge = _getGaugeFromPosition(farmingAsset.token, farmingAsset.tokenId);
+
     // Withdraw NFT from gauge (this automatically claims rewards if any)
-    ICLGauge(farmingAsset.token).withdraw(farmingAsset.tokenId);
+    ICLGauge(gauge).withdraw(farmingAsset.tokenId);
     lpAsset = AssetLib.Asset({
       assetType: farmingAsset.assetType,
       strategy: lpStrategyImplementation,
-      token: ICLGauge(farmingAsset.token).nft(),
+      token: farmingAsset.token, // Keep original NFT contract address
       tokenId: farmingAsset.tokenId,
       amount: farmingAsset.amount
     });
 
     // Note: State tracking is now handled in asset.strategy field when assets are returned
-    emit AerodromeUnstaked(lpAsset.token, farmingAsset.tokenId, farmingAsset.token, msg.sender);
+    emit AerodromeUnstaked(lpAsset.token, farmingAsset.tokenId, gauge, msg.sender);
   }
 
   /**
@@ -619,15 +691,15 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _harvestFarmingRewards(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
     internal
-    returns (AssetLib.Asset[] memory returnAssets)
+    returns (AssetLib.Asset[] memory returnAssets, uint256 principalAmount)
   {
-    address rewardToken = ICLGauge(asset.token).rewardToken();
+    address gauge = _getGaugeFromPosition(asset.token, asset.tokenId);
+    address rewardToken = ICLGauge(gauge).rewardToken();
     uint256 rewardBalanceBefore = IERC20(rewardToken).balanceOf(address(this));
     // Claim rewards
-    ICLGauge(asset.token).getReward(asset.tokenId);
+    ICLGauge(gauge).getReward(asset.tokenId);
 
     uint256 rewardBalance = IERC20(rewardToken).balanceOf(address(this)) - rewardBalanceBefore;
-    uint256 principalAmount;
 
     // Process rewards (swap if needed or take fees)
     if (rewardToken == tokenOut) {
@@ -666,7 +738,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       if (tokenOut > rewardToken) (returnAssets[0], returnAssets[1]) = (returnAssets[1], returnAssets[0]);
     }
 
-    emit FarmingRewardsHarvested(asset.token, rewardToken, rewardBalance, tokenOut, principalAmount);
+    emit FarmingRewardsHarvested(gauge, rewardToken, rewardBalance, tokenOut, principalAmount);
   }
 
   /**
