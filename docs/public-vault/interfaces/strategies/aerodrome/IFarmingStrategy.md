@@ -8,6 +8,7 @@
 enum FarmingInstructionType {
   DepositExistingLP,
   CreateAndDepositLP,
+  SwapAndIncreaseLiquidity,
   WithdrawLP,
   WithdrawLPToPrincipal,
   RebalanceAndDeposit,
@@ -21,6 +22,15 @@ enum FarmingInstructionType {
 ```solidity
 struct CreateAndDepositLPParams {
   struct IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
+}
+```
+
+### SwapAndIncreaseLiquidityParams
+
+```solidity
+struct SwapAndIncreaseLiquidityParams {
+  bool compoundFarmReward;
+  struct IAerodromeLpStrategy.SwapAndIncreaseLiquidityParams increaseLiquidityParams;
 }
 ```
 

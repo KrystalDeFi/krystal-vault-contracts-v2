@@ -240,7 +240,7 @@ Check if an asset represents a regular LP position (not deposited)
 ### _getNFTContract
 
 ```solidity
-function _getNFTContract(struct AssetLib.Asset asset) internal view returns (address nftContract)
+function _getNFTContract(struct AssetLib.Asset asset) internal pure returns (address nftContract)
 ```
 
 Get the NFT contract address for an asset
@@ -364,6 +364,14 @@ function _compoundAndDeposit(struct AssetLib.Asset[] assets, struct IFarmingStra
 
 Compound LP Position and deposit
 
+### _swapAndIncreaseLiquidity
+
+```solidity
+function _swapAndIncreaseLiquidity(struct AssetLib.Asset[] assets, struct IFarmingStrategy.SwapAndIncreaseLiquidityParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+```
+
+Swap and increase liquidity while maintaining farming deposit
+
 ### _depositPosition
 
 ```solidity
@@ -383,7 +391,7 @@ Withdraw a position from the specified gauge
 ### _harvestFarmingRewards
 
 ```solidity
-function _harvestFarmingRewards(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _harvestFarmingRewards(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets, uint256 principalAmount)
 ```
 
 Harvest farming rewards from a specific gauge
