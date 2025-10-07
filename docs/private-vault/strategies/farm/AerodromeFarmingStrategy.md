@@ -8,6 +8,12 @@
 address gaugeFactory
 ```
 
+### nfpm
+
+```solidity
+address nfpm
+```
+
 ### AerodromeFarmingStaked
 
 ```solidity
@@ -32,21 +38,27 @@ event AerodromeFarmingRewardsHarvested(uint256 tokenId, address gauge, address m
 constructor(address _gaugeFactory) public
 ```
 
+### _getGaugeFromTokenId
+
+```solidity
+function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address gauge)
+```
+
 ### deposit
 
 ```solidity
-function deposit(uint256 tokenId, address clGauge) external
+function deposit(uint256 tokenId) external
 ```
 
 ### withdraw
 
 ```solidity
-function withdraw(uint256 tokenId, address clGauge) external
+function withdraw(uint256 tokenId) external
 ```
 
 ### harvest
 
 ```solidity
-function harvest(address clGauge, uint256 tokenId) external
+function harvest(uint256 tokenId) external
 ```
 

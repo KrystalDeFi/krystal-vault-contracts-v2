@@ -97,11 +97,6 @@
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
       }
     ],
     "name": "deposit",
@@ -125,11 +120,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
-      },
-      {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -141,16 +131,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "nfpm",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "clGauge",
-        "type": "address"
       }
     ],
     "name": "withdraw",
