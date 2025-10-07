@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import { ICLGauge } from "../../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
-import { INonfungiblePositionManager } from "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
+import { INonfungiblePositionManager } from
+  "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import { ICLFactory } from "../../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
 import { ICLPool } from "../../../common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
