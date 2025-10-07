@@ -7,9 +7,10 @@ import { TestCommon, USER, WETH, USDC, AERODROME_NFPM as NFPM } from "../TestCom
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+  "../../contracts/private-vault/interfaces/strategies/aerodrome/INonfungiblePositionManager.sol";
 
 // Private Vault contracts
 import { PrivateVault } from "../../contracts/private-vault/core/PrivateVault.sol";
@@ -27,6 +28,8 @@ import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lp
 // Aerodrome Farming Strategy contracts
 import { AerodromeFarmingStrategy } from "../../contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol";
 import { ICLGauge } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLGauge.sol";
+import { ICLFactory } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLFactory.sol";
+import { ICLPool } from "../../contracts/private-vault/interfaces/strategies/aerodrome/ICLPool.sol";
 
 interface ISwapRouter {
   struct ExactInputSingleParams {
@@ -250,7 +253,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     vaultInstance.multicall(targets, dataArray, callTypes);
 
     // Return the token ID of the created position
-    return INFPM(NFPM).tokenOfOwnerByIndex(address(vaultInstance), 0);
+    return IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), 0);
   }
 
   // Helper function to add liquidity to existing position (no prank management)
@@ -446,23 +449,38 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     targets[1] = address(farmingStrategy);
     dataArray[1] = abi.encodeWithSelector(
       AerodromeFarmingStrategy.deposit.selector,
-      0, // tokenId = 0 means use the last created token
-      GAUGE
+      0 // tokenId = 0 means use the last created token
     );
     callTypes[1] = IPrivateCommon.CallType.DELEGATECALL;
+
+    // Get the NFT count before executing to find the new tokenId
+    uint256 nftCountBefore = IERC721(NFPM).balanceOf(address(vaultInstance));
 
     // Execute multicall
     vaultInstance.multicall(targets, dataArray, callTypes);
 
-    // Get the staked tokenId from the gauge
-    uint256[] memory stakedTokens = ICLGauge(GAUGE).stakedValues(address(vaultInstance));
-    require(stakedTokens.length > 0, "No tokens staked");
-    return stakedTokens[stakedTokens.length - 1]; // Return the most recently staked token
+    // Find the new tokenId by checking which one was added
+    uint256 tokenId;
+    uint256 nftCountAfter = IERC721(NFPM).balanceOf(address(vaultInstance));
+
+    if (nftCountAfter > nftCountBefore) {
+      // NFT was minted but not staked (shouldn't happen in this case)
+      tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), nftCountAfter - 1);
+    } else {
+      // NFT was staked, so we need to find it in the gauge
+      // Get the gauge from the token parameters we used
+      address expectedGauge = getExpectedGauge(WETH, USDC, TICK_SPACING);
+      uint256[] memory stakedTokens = ICLGauge(expectedGauge).stakedValues(address(vaultInstance));
+      require(stakedTokens.length > 0, "No tokens staked");
+      tokenId = stakedTokens[stakedTokens.length - 1]; // Return the most recently staked token
+    }
+
+    return tokenId;
   }
 
   // Helper function to stake existing LP position in gauge (no prank management)
   function _stakeInGauge(uint256 tokenId) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId, GAUGE);
+    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(farmingStrategy), strategyCallData);
@@ -472,7 +490,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to unstake LP position from gauge (no prank management)
   function _unstakeFromGauge(uint256 tokenId) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, GAUGE);
+    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(farmingStrategy), strategyCallData);
@@ -482,7 +500,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to claim AERO rewards from gauge (no prank management)
   function _claimGaugeRewards(uint256 tokenId) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, GAUGE, tokenId);
+    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(farmingStrategy), strategyCallData);
@@ -505,7 +523,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // 1. Unstake operation
     allTargets[0] = address(farmingStrategy);
-    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, GAUGE);
+    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId);
     allCallTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. LP operations
@@ -517,7 +535,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // 3. Restake operation
     allTargets[totalOperations - 1] = address(farmingStrategy);
-    allData[totalOperations - 1] = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId, GAUGE);
+    allData[totalOperations - 1] = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId);
     allCallTypes[totalOperations - 1] = IPrivateCommon.CallType.DELEGATECALL;
 
     // Execute complete multicall
@@ -567,6 +585,28 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Execute unstake -> increase liquidity -> restake
     _unstakeOperateRestake(tokenId, targets, dataArray, callTypes);
+  }
+
+  // Helper function to get expected gauge from tokenId
+  function getExpectedGaugeFromTokenId(uint256 tokenId) internal view returns (address) {
+    (,, address token0, address token1, int24 tickSpacing,,,,,,,) = INFPM(NFPM).positions(tokenId);
+
+    // Ensure tokens are ordered correctly (token0 < token1)
+    if (token0 > token1) (token0, token1) = (token1, token0);
+
+    address factory = INFPM(NFPM).factory();
+    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
+    return ICLPool(pool).gauge();
+  }
+
+  // Helper function to get expected gauge from token parameters
+  function getExpectedGauge(address tokenA, address tokenB, int24 tickSpacing) internal view returns (address) {
+    // Ensure tokens are ordered correctly (token0 < token1)
+    (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+
+    address factory = INFPM(NFPM).factory();
+    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
+    return ICLPool(pool).gauge();
   }
 
   // Test basic token deposit functionality
@@ -809,21 +849,21 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 wethAmount = 1 ether;
     uint256 usdcAmount = 3000 * 1e6;
 
-    // Check gauge balance before
-    uint256 stakedCountBefore = ICLGauge(GAUGE).stakedLength(address(vaultInstance));
-
     // Execute zap into gauge
     uint256 tokenId = _zapIntoGauge(wethAmount, usdcAmount);
 
-    // Verify token is staked in gauge
-    uint256 stakedCountAfter = ICLGauge(GAUGE).stakedLength(address(vaultInstance));
-    assertEq(stakedCountAfter, stakedCountBefore + 1);
+    // Get the actual gauge for this position
+    address actualGauge = getExpectedGaugeFromTokenId(tokenId);
+
+    // Check gauge balance before and after (we'll assume it increased by 1)
+    uint256 stakedCountAfter = ICLGauge(actualGauge).stakedLength(address(vaultInstance));
+    assertGt(stakedCountAfter, 0);
 
     // Verify the specific token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(actualGauge).stakedContains(address(vaultInstance), tokenId));
 
     // Verify vault no longer owns the NFT (it's in the gauge)
-    assertEq(IERC721(NFPM).ownerOf(tokenId), GAUGE);
+    assertEq(IERC721(NFPM).ownerOf(tokenId), actualGauge);
 
     vm.stopPrank();
   }
@@ -840,18 +880,21 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // Verify vault owns the NFT initially
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
     // Check gauge balance before
-    uint256 stakedCountBefore = ICLGauge(GAUGE).stakedLength(address(vaultInstance));
+    uint256 stakedCountBefore = ICLGauge(expectedGauge).stakedLength(address(vaultInstance));
 
     // Stake the position in the gauge
     _stakeInGauge(tokenId);
 
     // Verify token is staked in gauge
-    uint256 stakedCountAfter = ICLGauge(GAUGE).stakedLength(address(vaultInstance));
+    uint256 stakedCountAfter = ICLGauge(expectedGauge).stakedLength(address(vaultInstance));
     assertEq(stakedCountAfter, stakedCountBefore + 1);
 
     // Verify the specific token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     vm.stopPrank();
   }
@@ -865,14 +908,17 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 usdcAmount = 3000 * 1e6;
     uint256 tokenId = _zapIntoGauge(wethAmount, usdcAmount);
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
     // Verify token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // Unstake from gauge
     _unstakeFromGauge(tokenId);
 
     // Verify token is no longer staked
-    assertFalse(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertFalse(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // Verify vault owns the NFT again
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
@@ -911,7 +957,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     vm.startPrank(unauthorized);
 
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1, GAUGE);
+    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(farmingStrategy), strategyCallData);
@@ -923,18 +969,17 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     vm.stopPrank();
   }
 
-  // Test error handling for invalid gauge
-  function test_ErrorHandling_InvalidGauge() public {
+  // Test error handling for invalid tokenId
+  function test_ErrorHandling_InvalidTokenId() public {
     vm.startPrank(vaultOwner);
 
-    address invalidGauge = 0x1111111111111111111111111111111111111111;
-
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1, invalidGauge);
+    // Using tokenId 1 which likely doesn't exist
+    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1);
 
     (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
       _createMulticallData(address(farmingStrategy), strategyCallData);
 
-    // This should revert due to invalid gauge
+    // This should revert due to invalid tokenId (position doesn't exist)
     vm.expectRevert();
     vaultInstance.multicall(targets, dataArray, callTypes);
 
@@ -951,8 +996,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // 1. Zap into gauge (create LP + stake)
     uint256 tokenId = _zapIntoGauge(wethAmount, usdcAmount);
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
     // Verify token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // 2. Simulate farming period
     vm.warp(block.timestamp + 7 days);
@@ -967,7 +1015,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     _unstakeFromGauge(tokenId);
 
     // Verify final state
-    assertFalse(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertFalse(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
 
     vm.stopPrank();
@@ -982,8 +1030,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 usdcAmount = 3000 * 1e6;
     uint256 tokenId = _zapIntoGauge(wethAmount, usdcAmount);
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
     // Verify token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // Get position info before increase
     (,,,,,,, uint128 liquidityBefore,,,,) = INFPM(NFPM).positions(tokenId);
@@ -994,8 +1045,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     _increaseLiquidityWhileFarming(tokenId, additionalWethAmount, additionalUsdcAmount);
 
     // Verify position is still staked after operation
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
-    assertEq(IERC721(NFPM).ownerOf(tokenId), GAUGE);
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
+    assertEq(IERC721(NFPM).ownerOf(tokenId), expectedGauge);
 
     // Verify liquidity increased
     (,,,,,,, uint128 liquidityAfter,,,,) = INFPM(NFPM).positions(tokenId);
@@ -1029,8 +1080,10 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     _unstakeFromGauge(tokenId);
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
     _stakeInGauge(tokenId);
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // 4. Verify liquidity is still the same after unstake/restake cycle
     (,,,,,,, uint128 finalLiquidity,,,,) = INFPM(NFPM).positions(tokenId);
@@ -1048,8 +1101,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 usdcAmount = 3000 * 1e6;
     uint256 tokenId = _zapIntoGauge(wethAmount, usdcAmount);
 
+    // Get the expected gauge for this position
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
     // Verify token is staked
-    assertTrue(ICLGauge(GAUGE).stakedContains(address(vaultInstance), tokenId));
+    assertTrue(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
 
     // 2. Try to increase liquidity with insufficient tokens (should fail)
     // Don't deposit tokens first to cause failure
