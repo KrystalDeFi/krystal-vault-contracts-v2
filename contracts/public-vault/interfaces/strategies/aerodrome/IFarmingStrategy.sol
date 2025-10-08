@@ -15,6 +15,7 @@ interface IFarmingStrategy is IStrategy {
     RebalanceAndDeposit, // Rebalance LP position and maintain farming
     CompoundAndDeposit, // Compound LP Fee and maintain farming
     HarvestFarmingRewards // Harvest farming rewards only
+
   }
 
   struct CreateAndDepositLPParams {
