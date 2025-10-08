@@ -327,7 +327,7 @@ Deposit existing LP NFT into farming
 ### _createAndDepositLP
 
 ```solidity
-function _createAndDepositLP(struct AssetLib.Asset[] assets, struct IFarmingStrategy.CreateAndDepositLPParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _createAndDepositLP(struct AssetLib.Asset[] assets, struct IAerodromeLpStrategy.SwapAndMintPositionParams lpParams, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Create LP position and deposit it into farming
@@ -343,7 +343,7 @@ Withdraw LP position from farming
 ### _withdrawLPToPrincipal
 
 ```solidity
-function _withdrawLPToPrincipal(struct AssetLib.Asset[] assets, struct IFarmingStrategy.WithdrawLPToPrincipalParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _withdrawLPToPrincipal(struct AssetLib.Asset[] assets, struct IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Withdraw LP position from farming to principal, if position still has liquidity, deposit into farming again
@@ -351,7 +351,7 @@ Withdraw LP position from farming to principal, if position still has liquidity,
 ### _rebalanceAndDeposit
 
 ```solidity
-function _rebalanceAndDeposit(struct AssetLib.Asset[] assets, struct IFarmingStrategy.RebalanceAndDepositParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _rebalanceAndDeposit(struct AssetLib.Asset[] assets, struct IAerodromeLpStrategy.SwapAndRebalancePositionParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Rebalance LP position while maintaining farming deposit
@@ -359,7 +359,7 @@ Rebalance LP position while maintaining farming deposit
 ### _compoundAndDeposit
 
 ```solidity
-function _compoundAndDeposit(struct AssetLib.Asset[] assets, struct IFarmingStrategy.CompoundAndDepositParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
+function _compoundAndDeposit(struct AssetLib.Asset[] assets, struct IAerodromeLpStrategy.SwapAndCompoundParams params, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Compound LP Position and deposit

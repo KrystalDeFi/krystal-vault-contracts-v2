@@ -17,14 +17,6 @@ enum FarmingInstructionType {
 }
 ```
 
-### CreateAndDepositLPParams
-
-```solidity
-struct CreateAndDepositLPParams {
-  struct IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
-}
-```
-
 ### SwapAndIncreaseLiquidityParams
 
 ```solidity
@@ -42,36 +34,12 @@ struct WithdrawLPParams {
 }
 ```
 
-### WithdrawLPToPrincipalParams
-
-```solidity
-struct WithdrawLPToPrincipalParams {
-  struct IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams decreaseAndSwapParams;
-}
-```
-
-### RebalanceAndDepositParams
-
-```solidity
-struct RebalanceAndDepositParams {
-  struct IAerodromeLpStrategy.SwapAndRebalancePositionParams rebalanceParams;
-}
-```
-
 ### HarvestFarmingRewardsParams
 
 ```solidity
 struct HarvestFarmingRewardsParams {
   uint256 tokenId;
   uint256 minAmountOut;
-}
-```
-
-### CompoundAndDepositParams
-
-```solidity
-struct CompoundAndDepositParams {
-  struct IAerodromeLpStrategy.SwapAndCompoundParams swapAndCompoundParams;
 }
 ```
 
