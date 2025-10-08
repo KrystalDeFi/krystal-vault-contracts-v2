@@ -382,6 +382,15 @@ contract IntegrationFarmingTest is TestCommon {
       assertApproxEqRel(wethWithdrawn, 3.02 ether, TOLERANCE);
       console.log("wethWithdrawn", wethWithdrawn);
     }
+    // Withdraw all
+    {
+      uint256 wethWithdrawn = IERC20(WETH).balanceOf(USER);
+      uint256 userVaultSharesBefore = vaultInstance.balanceOf(USER);
+      vaultInstance.withdraw(userVaultSharesBefore, false, 0);
+      wethWithdrawn = IERC20(WETH).balanceOf(USER) - wethWithdrawn;
+      assertApproxEqRel(wethWithdrawn, 3.02 ether, TOLERANCE);
+      console.log("wethWithdrawn", wethWithdrawn);
+    }
   }
 
   // Helper function for common farming position setup

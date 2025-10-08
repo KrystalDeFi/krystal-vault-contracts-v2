@@ -241,9 +241,12 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     // Delegate to LpStrategy to convert LP to principal
     returnAssets = _lpConvertToPrincipal(lpAsset, shares, totalSupply, config, feeConfig);
 
-    // Deposit again
-    address gauge = _getGaugeFromPosition(lpAsset.token, lpAsset.tokenId);
-    returnAssets[2] = _depositPosition(returnAssets[2], gauge);
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(lpAsset.token).positions(lpAsset.tokenId);
+    if (liquidity > 0) {
+      //Deposit again if there's still liquidity in position
+      address gauge = _getGaugeFromPosition(lpAsset.token, lpAsset.tokenId);
+      returnAssets[2] = _depositPosition(returnAssets[2], gauge);
+    }
   }
 
   /**
