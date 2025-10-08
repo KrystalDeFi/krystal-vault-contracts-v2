@@ -591,31 +591,31 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 2, InvalidNumberOfAssets());
-    require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    require(assets[1].assetType == AssetLib.AssetType.ERC20, InvalidAsset());
-    require(assets[1].token == config.principalToken, InvalidAsset());
+    require(assets[0].assetType == AssetLib.AssetType.ERC20, InvalidAsset());
+    require(assets[0].token == config.principalToken, InvalidAsset());
+    require(assets[1].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
-    address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
+    address gauge = _getGaugeFromPosition(assets[1].token, assets[1].tokenId);
 
     // Optionally harvest farming rewards first if requested
     (AssetLib.Asset[] memory farmingHarvestResults, uint256 harvestedPrincipalAmount) =
-      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+      _harvestFarmingRewards(assets[1], config.principalToken, feeConfig);
 
     // Withdraw temporarily
-    AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
+    AssetLib.Asset memory lpAsset = _withdrawPosition(assets[1]);
 
     // Prepare assets for LpStrategy (principal token first, then LP NFT)
     AssetLib.Asset[] memory increaseLiquidityAssets = new AssetLib.Asset[](2);
 
-    if (params.compoundFarmReward) {
-      increaseLiquidityAssets[0] = assets[1]; // Principal token
+    if (!params.compoundFarmReward) {
+      increaseLiquidityAssets[0] = assets[0]; // Principal token
     } else {
       increaseLiquidityAssets[0] = AssetLib.Asset({
         assetType: AssetLib.AssetType.ERC20,
         strategy: address(0),
         token: config.principalToken,
         tokenId: 0,
-        amount: harvestedPrincipalAmount + assets[1].amount
+        amount: harvestedPrincipalAmount + assets[0].amount
       }); // Principal token from });
     }
     increaseLiquidityAssets[1] = lpAsset; // LP NFT

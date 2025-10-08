@@ -253,14 +253,14 @@ contract IntegrationFarmingTest is TestCommon {
 
       // Prepare assets: LP NFT + Principal token to add
       assets = new AssetLib.Asset[](2);
-      assets[0] = vaultAssets[1]; // Farming LP NFT
-      assets[1] = AssetLib.Asset({ // Additional principal token to add
+      assets[0] = AssetLib.Asset({ // Additional principal token to add
         assetType: AssetLib.AssetType.ERC20,
         strategy: address(0),
         token: WETH,
         tokenId: 0,
         amount: 0.5 ether
       });
+      assets[1] = vaultAssets[1]; // Farming LP NFT
 
       vm.roll(++currentBlock);
       vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(instruction));
@@ -480,14 +480,14 @@ contract IntegrationFarmingTest is TestCommon {
     });
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = vaultAssets[1]; // Farming LP NFT
-    assets[1] = AssetLib.Asset({ // Principal token to add
+    assets[0] = AssetLib.Asset({ // Principal token to add
       assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 0.5 ether
     });
+    assets[1] = vaultAssets[1]; // Farming LP NFT
 
     ICommon.Instruction memory instruction = ICommon.Instruction({
       instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
@@ -570,14 +570,14 @@ contract IntegrationFarmingTest is TestCommon {
     vm.stopPrank();
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](2);
-    assets[0] = vaultAssets[1]; // Farming LP NFT
-    assets[1] = AssetLib.Asset({ // Principal token to add
+    assets[0] = AssetLib.Asset({ // Principal token to add
       assetType: AssetLib.AssetType.ERC20,
       strategy: address(0),
       token: WETH,
       tokenId: 0,
       amount: 0.5 ether
     });
+    assets[1] = vaultAssets[1]; // Farming LP NFT
 
     ICommon.Instruction memory instruction = ICommon.Instruction({
       instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
