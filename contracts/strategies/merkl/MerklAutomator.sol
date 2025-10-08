@@ -14,7 +14,7 @@ import "../../interfaces/strategies/IMerklAutomator.sol";
  * @notice Contract that allows anyone to trigger Merkl reward claims through vault allocation
  */
 contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
-  IConfigManager public configManager;
+  IConfigManager public immutable configManager;
 
   constructor(address _owner, address _configManager) Ownable(_owner) {
     require(_configManager != address(0), ZeroAddress());
