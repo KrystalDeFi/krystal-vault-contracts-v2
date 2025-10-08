@@ -41,8 +41,6 @@ interface IFarmingStrategy is IStrategy {
 
   struct HarvestFarmingRewardsParams {
     uint256 tokenId;
-    address swapRouter;
-    bytes swapData;
     uint256 minAmountOut;
   }
 
