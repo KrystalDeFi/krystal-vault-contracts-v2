@@ -18,10 +18,6 @@ interface IFarmingStrategy is IStrategy {
 
   }
 
-  struct CreateAndDepositLPParams {
-    IAerodromeLpStrategy.SwapAndMintPositionParams lpParams;
-  }
-
   struct SwapAndIncreaseLiquidityParams {
     bool compoundFarmReward;
     IAerodromeLpStrategy.SwapAndIncreaseLiquidityParams increaseLiquidityParams;
@@ -31,21 +27,9 @@ interface IFarmingStrategy is IStrategy {
     uint256 minPrincipalAmount;
   }
 
-  struct WithdrawLPToPrincipalParams {
-    IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams decreaseAndSwapParams;
-  }
-
-  struct RebalanceAndDepositParams {
-    IAerodromeLpStrategy.SwapAndRebalancePositionParams rebalanceParams;
-  }
-
   struct HarvestFarmingRewardsParams {
     uint256 tokenId;
     uint256 minAmountOut;
-  }
-
-  struct CompoundAndDepositParams {
-    IAerodromeLpStrategy.SwapAndCompoundParams swapAndCompoundParams;
   }
 
   // Events

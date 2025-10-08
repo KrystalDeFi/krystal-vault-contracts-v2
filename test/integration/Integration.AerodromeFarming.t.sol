@@ -189,12 +189,9 @@ contract IntegrationFarmingTest is TestCommon {
     });
 
     {
-      IFarmingStrategy.CreateAndDepositLPParams memory params =
-        IFarmingStrategy.CreateAndDepositLPParams({ lpParams: lpParams });
-
       ICommon.Instruction memory instruction = ICommon.Instruction({
         instructionType: uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
-        params: abi.encode(params)
+        params: abi.encode(lpParams)
       });
 
       vm.roll(++currentBlock);
@@ -206,22 +203,20 @@ contract IntegrationFarmingTest is TestCommon {
       console.log("rebalance position");
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       // Withdraw LP from farming
-      IFarmingStrategy.RebalanceAndDepositParams memory params = IFarmingStrategy.RebalanceAndDepositParams({
-        rebalanceParams: ILpStrategy.SwapAndRebalancePositionParams({
-          tickLower: -193_000,
-          tickUpper: -191_900,
-          decreasedAmount0Min: 0,
-          decreasedAmount1Min: 0,
-          amount0Min: 0,
-          amount1Min: 0,
-          compoundFee: true,
-          compoundFeeAmountOutMin: 0,
-          swapData: ""
-        })
+      ILpStrategy.SwapAndRebalancePositionParams memory rebalanceParams = ILpStrategy.SwapAndRebalancePositionParams({
+        tickLower: -193_000,
+        tickUpper: -191_900,
+        decreasedAmount0Min: 0,
+        decreasedAmount1Min: 0,
+        amount0Min: 0,
+        amount1Min: 0,
+        compoundFee: true,
+        compoundFeeAmountOutMin: 0,
+        swapData: ""
       });
       ICommon.Instruction memory instruction = ICommon.Instruction({
         instructionType: uint8(IFarmingStrategy.FarmingInstructionType.RebalanceAndDeposit),
-        params: abi.encode(params)
+        params: abi.encode(rebalanceParams)
       });
 
       assets = new AssetLib.Asset[](1);
@@ -323,14 +318,12 @@ contract IntegrationFarmingTest is TestCommon {
       AssetLib.Asset[] memory vaultAssets = vaultInstance.getInventory();
       (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
       // Withdraw LP from farming
-      IFarmingStrategy.WithdrawLPToPrincipalParams memory params = IFarmingStrategy.WithdrawLPToPrincipalParams({
-        decreaseAndSwapParams: ILpStrategy.DecreaseLiquidityAndSwapParams({
-          liquidity: liquidity / 2,
-          amount0Min: 0,
-          amount1Min: 0,
-          principalAmountOutMin: 0,
-          swapData: ""
-        })
+      ILpStrategy.DecreaseLiquidityAndSwapParams memory params = ILpStrategy.DecreaseLiquidityAndSwapParams({
+        liquidity: liquidity / 2,
+        amount0Min: 0,
+        amount1Min: 0,
+        principalAmountOutMin: 0,
+        swapData: ""
       });
       ICommon.Instruction memory instruction = ICommon.Instruction({
         instructionType: uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal),
@@ -422,12 +415,9 @@ contract IntegrationFarmingTest is TestCommon {
       swapData: ""
     });
 
-    IFarmingStrategy.CreateAndDepositLPParams memory createParams =
-      IFarmingStrategy.CreateAndDepositLPParams({ lpParams: lpParams });
-
     ICommon.Instruction memory createInstruction = ICommon.Instruction({
       instructionType: uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP),
-      params: abi.encode(createParams)
+      params: abi.encode(lpParams)
     });
 
     vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(createInstruction));

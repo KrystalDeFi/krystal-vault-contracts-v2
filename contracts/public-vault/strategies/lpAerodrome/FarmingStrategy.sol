@@ -112,21 +112,21 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       return _depositExistingLP(assets, config);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
       return _createAndDepositLP(
-        assets, abi.decode(instruction.params, (IFarmingStrategy.CreateAndDepositLPParams)), config, feeConfig
+        assets, abi.decode(instruction.params, (IAerodromeLpStrategy.SwapAndMintPositionParams)), config, feeConfig
       );
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLP)) {
       return _withdrawLP(assets, abi.decode(instruction.params, (IFarmingStrategy.WithdrawLPParams)), config, feeConfig);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.WithdrawLPToPrincipal)) {
       return _withdrawLPToPrincipal(
-        assets, abi.decode(instruction.params, (IFarmingStrategy.WithdrawLPToPrincipalParams)), config, feeConfig
+        assets, abi.decode(instruction.params, (IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams)), config, feeConfig
       );
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.RebalanceAndDeposit)) {
       return _rebalanceAndDeposit(
-        assets, abi.decode(instruction.params, (IFarmingStrategy.RebalanceAndDepositParams)), config, feeConfig
+        assets, abi.decode(instruction.params, (IAerodromeLpStrategy.SwapAndRebalancePositionParams)), config, feeConfig
       );
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CompoundAndDeposit)) {
       return _compoundAndDeposit(
-        assets, abi.decode(instruction.params, (IFarmingStrategy.CompoundAndDepositParams)), config, feeConfig
+        assets, abi.decode(instruction.params, (IAerodromeLpStrategy.SwapAndCompoundParams)), config, feeConfig
       );
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity)) {
       return _swapAndIncreaseLiquidity(
@@ -392,16 +392,13 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _createAndDepositLP(
     AssetLib.Asset[] calldata assets,
-    IFarmingStrategy.CreateAndDepositLPParams memory params,
+    IAerodromeLpStrategy.SwapAndMintPositionParams memory lpParams,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     // Get gauge address automatically from LP parameters
     address gauge = _getGaugeFromLPParams(
-      address(params.lpParams.nfpm),
-      params.lpParams.token0,
-      params.lpParams.token1,
-      int24(uint24(params.lpParams.tickSpacing))
+      address(lpParams.nfpm), lpParams.token0, lpParams.token1, int24(uint24(lpParams.tickSpacing))
     );
 
     // Validate reward token compatibility
@@ -411,7 +408,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     bytes memory lpInstructionData = abi.encode(
       Instruction({
         instructionType: uint8(IAerodromeLpStrategy.InstructionType.SwapAndMintPosition),
-        params: abi.encode(params.lpParams)
+        params: abi.encode(lpParams)
       })
     );
 
@@ -456,7 +453,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _withdrawLPToPrincipal(
     AssetLib.Asset[] calldata assets,
-    IFarmingStrategy.WithdrawLPToPrincipalParams memory params,
+    IAerodromeLpStrategy.DecreaseLiquidityAndSwapParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -478,7 +475,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       abi.encode(
         Instruction({
           instructionType: uint8(IAerodromeLpStrategy.InstructionType.DecreaseLiquidityAndSwap),
-          params: abi.encode(params.decreaseAndSwapParams)
+          params: abi.encode(params)
         })
       )
     );
@@ -498,7 +495,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _rebalanceAndDeposit(
     AssetLib.Asset[] calldata assets,
-    IFarmingStrategy.RebalanceAndDepositParams memory params,
+    IAerodromeLpStrategy.SwapAndRebalancePositionParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -518,7 +515,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     bytes memory rebalanceData = abi.encode(
       Instruction({
         instructionType: uint8(IAerodromeLpStrategy.InstructionType.SwapAndRebalancePosition),
-        params: abi.encode(params.rebalanceParams)
+        params: abi.encode(params)
       })
     );
     rebalanceAssets = _lpConvert(rebalanceAssets, config, feeConfig, rebalanceData);
@@ -542,7 +539,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _compoundAndDeposit(
     AssetLib.Asset[] calldata assets,
-    IFarmingStrategy.CompoundAndDepositParams memory params,
+    IAerodromeLpStrategy.SwapAndCompoundParams memory params,
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
@@ -562,7 +559,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     bytes memory compoundData = abi.encode(
       Instruction({
         instructionType: uint8(IAerodromeLpStrategy.InstructionType.SwapAndCompound),
-        params: abi.encode(params.swapAndCompoundParams)
+        params: abi.encode(params)
       })
     );
     compoundAssets = _lpConvert(compoundAssets, config, feeConfig, compoundData);
@@ -616,7 +613,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         token: config.principalToken,
         tokenId: 0,
         amount: harvestedPrincipalAmount + assets[0].amount
-      }); // Principal token from });
+      }); // Principal token combined with harvested rewards
     }
     increaseLiquidityAssets[1] = lpAsset; // LP NFT
 

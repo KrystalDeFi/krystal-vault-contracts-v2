@@ -23,20 +23,19 @@ contract Debug is Test {
     console.log(ins.instructionType);
     console.log("params");
     console.logBytes(ins.params);
-    // IFarmingStrategy.CreateAndDepositLPParams memory params = abi.decode(ins.params,
-    // (IFarmingStrategy.CreateAndDepositLPParams));
-    IFarmingStrategy.CreateAndDepositLPParams memory params = IFarmingStrategy.CreateAndDepositLPParams({
-      lpParams: IAerodromeLpStrategy.SwapAndMintPositionParams({
-        nfpm: INFPM(0x827922686190790b37229fd06084350E74485b72),
-        token0: 0x20FbD133897Ef802e0235dB77bB19a071E257d41,
-        token1: 0x4200000000000000000000000000000000000006,
-        tickSpacing: 200,
-        tickLower: int24(int256(uint256(0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffded88))),
-        tickUpper: int24(int256(uint256(0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf170))),
-        amount0Min: 0x000000000000000000000000000000000000000000000016fdff6e27c73cef80,
-        amount1Min: 0x00000000000000000000000000000000000000000000000000017bfdbba7878a,
-        swapData: ""
-      })
+    // IAerodromeLpStrategy.SwapAndMintPositionParams memory params = abi.decode(
+    //   ins.params, (IAerodromeLpStrategy.SwapAndMintPositionParams)
+    // );
+    IAerodromeLpStrategy.SwapAndMintPositionParams memory params = IAerodromeLpStrategy.SwapAndMintPositionParams({
+      nfpm: INFPM(0x827922686190790b37229fd06084350E74485b72),
+      token0: 0x20FbD133897Ef802e0235dB77bB19a071E257d41,
+      token1: 0x4200000000000000000000000000000000000006,
+      tickSpacing: 200,
+      tickLower: int24(int256(uint256(0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffded88))),
+      tickUpper: int24(int256(uint256(0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdf170))),
+      amount0Min: 0x000000000000000000000000000000000000000000000016fdff6e27c73cef80,
+      amount1Min: 0x00000000000000000000000000000000000000000000000000017bfdbba7878a,
+      swapData: ""
     });
     console.log("params2");
     console.logBytes(abi.encode(params));
