@@ -3,12 +3,12 @@ pragma solidity ^0.8.28;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import "../../contracts/core/ConfigManager.sol";
-import "../../contracts/strategies/merkl/MerklAutomator.sol";
-import "../../contracts/strategies/merkl/MerklStrategy.sol";
-import "../../contracts/interfaces/core/IVault.sol";
-import "../../contracts/interfaces/strategies/IMerklStrategy.sol";
-import "../../contracts/libraries/AssetLib.sol";
+import "../../contracts/public-vault/core/ConfigManager.sol";
+import "../../contracts/public-vault/strategies/merkl/MerklAutomator.sol";
+import "../../contracts/public-vault/strategies/merkl/MerklStrategy.sol";
+import "../../contracts/public-vault/interfaces/core/IVault.sol";
+import "../../contracts/public-vault/interfaces/strategies/IMerklStrategy.sol";
+import "../../contracts/public-vault/libraries/AssetLib.sol";
 import "../../test/TestCommon.t.sol";
 
 contract MerklAutomatorTest is TestCommon {
