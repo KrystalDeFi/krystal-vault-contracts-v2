@@ -483,6 +483,8 @@ contract IntegrationFarmingTest is TestCommon {
       instructionType: uint8(IFarmingStrategy.FarmingInstructionType.SwapAndIncreaseLiquidity),
       params: abi.encode(params)
     });
+    console.log("before increase");
+    assertEq(vaultAssets[0].amount, IERC20(WETH).balanceOf(address(vaultInstance)));
 
     vm.roll(++currentBlock);
     vm.startPrank(USER);
@@ -490,6 +492,8 @@ contract IntegrationFarmingTest is TestCommon {
 
     // Verify results
     vaultAssets = vaultInstance.getInventory();
+    console.log("after increase");
+    assertEq(vaultAssets[0].amount, IERC20(WETH).balanceOf(address(vaultInstance)));
     (,,,,,,, uint128 liquidityAfter,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
 
     console.log("Liquidity after increase:", liquidityAfter);
@@ -577,6 +581,13 @@ contract IntegrationFarmingTest is TestCommon {
     vm.roll(++currentBlock);
     vm.startPrank(USER);
     vaultInstance.allocate(assets, farmingStrategy, 0, abi.encode(instruction));
+    // Compare vault invetory assets[0] to be equal to WETH balance
+    vaultAssets = vaultInstance.getInventory();
+    assertEq(
+      vaultAssets[0].amount,
+      IERC20(WETH).balanceOf(address(vaultInstance)),
+      "Vault should have WETH balance equal to assets[0].amount"
+    );
 
     vm.stopPrank();
     vm.startPrank(address(vaultInstance));

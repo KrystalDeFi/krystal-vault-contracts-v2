@@ -21,6 +21,7 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from
   "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import "./RewardSwapper.sol";
+import "forge-std/console.sol";
 
 /**
  * @title FarmingStrategy
@@ -109,7 +110,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     uint8 instructionType = instruction.instructionType;
 
     if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.DepositExistingLP)) {
-      return _depositExistingLP(assets, config);
+      return _depositExistingLP(assets, config, feeConfig);
     } else if (instructionType == uint8(IFarmingStrategy.FarmingInstructionType.CreateAndDepositLP)) {
       return _createAndDepositLP(
         assets, abi.decode(instruction.params, (IAerodromeLpStrategy.SwapAndMintPositionParams)), config, feeConfig
@@ -157,7 +158,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(asset.assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
     // Then harvest farming rewards first
-    (AssetLib.Asset[] memory farmingHarvestResults,) = _harvestFarmingRewards(asset, tokenOut, feeConfig);
+    (AssetLib.Asset[] memory farmingHarvestResults) = _harvestFarmingRewards(asset, tokenOut, feeConfig);
 
     // Then withdraw so we can harvest LP fees
     _withdrawPosition(asset);
@@ -168,13 +169,12 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     lpAsset.token = ICLGauge(gauge).nft();
 
     // First harvest LP fees by delegating to LpStrategy
-    AssetLib.Asset[] memory lpHarvestResults = _lpHarvest(lpAsset, tokenOut, 0, vaultConfig, feeConfig);
+    returnAssets = _lpHarvest(lpAsset, tokenOut, 0, vaultConfig, feeConfig);
 
     // deposit again
-    _depositPosition(lpAsset, gauge);
-
-    // Combine results
-    returnAssets = _combineHarvestResults(lpHarvestResults, farmingHarvestResults, asset);
+    returnAssets[0].amount += farmingHarvestResults[0].amount;
+    returnAssets[1].amount += farmingHarvestResults[1].amount;
+    returnAssets[2] = _depositPosition(lpAsset, gauge);
 
     // Verify minimum output requirement
     uint256 totalOut = 0;
@@ -211,10 +211,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(returnAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
     // Deposit the newly created LP position
-    uint256 tokenId = returnAssets[2].tokenId;
     returnAssets[2] = _depositPosition(returnAssets[2], gauge);
-
-    emit LPCreatedAndDeposited(tokenId, gauge, returnAssets[2].amount);
   }
 
   /**
@@ -368,23 +365,23 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
   /**
    * @notice Deposit existing LP NFT into farming
    */
-  function _depositExistingLP(AssetLib.Asset[] calldata assets, VaultConfig calldata config)
-    internal
-    returns (AssetLib.Asset[] memory returnAssets)
-  {
+  function _depositExistingLP(
+    AssetLib.Asset[] calldata assets,
+    VaultConfig calldata config,
+    FeeConfig calldata feeConfig
+  ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
     // Get gauge address automatically from the LP position
     address nftContract = _getNFTContract(assets[0]);
     address gauge = _getGaugeFromPosition(nftContract, assets[0].tokenId);
+    returnAssets = _lpHarvest(assets[0], config.principalToken, 0, config, feeConfig);
 
     // Validate reward token compatibility
     _validateRewardToken(gauge, config.principalToken);
 
-    // Deposit the position
-    returnAssets = new AssetLib.Asset[](1);
-    returnAssets[0] = _depositPosition(assets[0], gauge);
+    returnAssets[2] = _depositPosition(assets[0], gauge);
   }
 
   /**
@@ -436,7 +433,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(assets.length == 1, InvalidNumberOfAssets());
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
 
-    (AssetLib.Asset[] memory farmingHarvestResults,) =
+    (AssetLib.Asset[] memory farmingHarvestResults) =
       _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
@@ -461,14 +458,14 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     require(assets[0].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
     address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
 
-    (AssetLib.Asset[] memory farmingHarvestResults,) =
+    (AssetLib.Asset[] memory farmingHarvestResults) =
       _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
     // Delegate LP conversion to LpStrategy
     AssetLib.Asset[] memory lpConvertAssets = new AssetLib.Asset[](1);
     lpConvertAssets[0] = lpAsset;
-    lpConvertAssets = _lpConvert(
+    returnAssets = _lpConvert(
       lpConvertAssets,
       config,
       feeConfig,
@@ -479,15 +476,13 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         })
       )
     );
-    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + lpConvertAssets.length);
-    for (uint256 i; i < farmingHarvestResults.length; i++) {
-      returnAssets[i] = farmingHarvestResults[i];
+    if (returnAssets[0].token > returnAssets[1].token) {
+      (returnAssets[0], returnAssets[1]) = (returnAssets[1], returnAssets[0]);
     }
-    for (uint256 i; i < lpConvertAssets.length; i++) {
-      returnAssets[farmingHarvestResults.length + i] = lpConvertAssets[i];
-    }
-    (,,,,,,, uint128 liquidity,,,,) = INFPM(lpConvertAssets[2].token).positions(lpConvertAssets[2].tokenId);
-    if (liquidity > 0) returnAssets[returnAssets.length - 1] = _depositPosition(lpConvertAssets[2], gauge);
+    returnAssets[0].amount += farmingHarvestResults[0].amount;
+    returnAssets[1].amount += farmingHarvestResults[1].amount;
+    (,,,,,,, uint128 liquidity,,,,) = INFPM(returnAssets[2].token).positions(returnAssets[2].tokenId);
+    if (liquidity > 0) returnAssets[2] = _depositPosition(returnAssets[2], gauge);
   }
 
   /**
@@ -504,8 +499,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
     // Harvest farming rewards first
 
-    (AssetLib.Asset[] memory farmingHarvestResults,) =
-      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     // Withdraw temporarily
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
@@ -518,20 +512,13 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         params: abi.encode(params)
       })
     );
-    rebalanceAssets = _lpConvert(rebalanceAssets, config, feeConfig, rebalanceData);
+    returnAssets = _lpConvert(rebalanceAssets, config, feeConfig, rebalanceData);
 
     // Re-deposit the rebalanced position
-    require(rebalanceAssets.length > 2 && rebalanceAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    rebalanceAssets[2] = _depositPosition(rebalanceAssets[2], gauge);
-    // combine with farming harvest results
-
-    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + rebalanceAssets.length);
-    for (uint256 i; i < farmingHarvestResults.length; i++) {
-      returnAssets[i] = farmingHarvestResults[i];
-    }
-    for (uint256 i; i < rebalanceAssets.length; i++) {
-      returnAssets[farmingHarvestResults.length + i] = rebalanceAssets[i];
-    }
+    require(returnAssets.length > 2 && returnAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
+    returnAssets[0].amount += farmingHarvestResults[0].amount;
+    returnAssets[1].amount += farmingHarvestResults[1].amount;
+    returnAssets[2] = _depositPosition(returnAssets[2], gauge);
   }
 
   /**
@@ -548,8 +535,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     address gauge = _getGaugeFromPosition(assets[0].token, assets[0].tokenId);
     // Harvest farming rewards first
 
-    (AssetLib.Asset[] memory farmingHarvestResults,) =
-      _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
+    returnAssets = _harvestFarmingRewards(assets[0], config.principalToken, feeConfig);
     // Withdraw temporarily
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[0]);
 
@@ -566,16 +552,9 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
 
     // Re-deposit the rebalanced position
     require(compoundAssets.length > 2 && compoundAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
-    compoundAssets[2] = _depositPosition(compoundAssets[2], gauge);
-    // combine with farming harvest results
-
-    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + compoundAssets.length);
-    for (uint256 i; i < farmingHarvestResults.length; i++) {
-      returnAssets[i] = farmingHarvestResults[i];
-    }
-    for (uint256 i; i < compoundAssets.length; i++) {
-      returnAssets[farmingHarvestResults.length + i] = compoundAssets[i];
-    }
+    returnAssets[0].amount += compoundAssets[0].amount;
+    returnAssets[1].amount += compoundAssets[1].amount;
+    returnAssets[2] = _depositPosition(compoundAssets[2], gauge);
   }
 
   /**
@@ -595,8 +574,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     address gauge = _getGaugeFromPosition(assets[1].token, assets[1].tokenId);
 
     // Optionally harvest farming rewards first if requested
-    (AssetLib.Asset[] memory farmingHarvestResults, uint256 harvestedPrincipalAmount) =
-      _harvestFarmingRewards(assets[1], config.principalToken, feeConfig);
+    AssetLib.Asset[] memory farmingHarvestResults = _harvestFarmingRewards(assets[1], config.principalToken, feeConfig);
 
     // Withdraw temporarily
     AssetLib.Asset memory lpAsset = _withdrawPosition(assets[1]);
@@ -604,18 +582,16 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     // Prepare assets for LpStrategy (principal token first, then LP NFT)
     AssetLib.Asset[] memory increaseLiquidityAssets = new AssetLib.Asset[](2);
 
-    if (!params.compoundFarmReward) {
-      increaseLiquidityAssets[0] = assets[0]; // Principal token
-    } else {
-      increaseLiquidityAssets[0] = AssetLib.Asset({
-        assetType: AssetLib.AssetType.ERC20,
-        strategy: address(0),
-        token: config.principalToken,
-        tokenId: 0,
-        amount: harvestedPrincipalAmount + assets[0].amount
-      }); // Principal token combined with harvested rewards
-    }
+    increaseLiquidityAssets[0] = assets[0]; // Principal token
     increaseLiquidityAssets[1] = lpAsset; // LP NFT
+    if (params.compoundFarmReward) {
+      for (uint256 i; i < farmingHarvestResults.length; i++) {
+        if (farmingHarvestResults[i].token == config.principalToken) {
+          increaseLiquidityAssets[0].amount += farmingHarvestResults[i].amount;
+          farmingHarvestResults[i].amount = 0;
+        }
+      }
+    }
 
     // Delegate increase liquidity to LpStrategy
     bytes memory increaseLiquidityData = abi.encode(
@@ -624,23 +600,17 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
         params: abi.encode(params.increaseLiquidityParams)
       })
     );
-    increaseLiquidityAssets = _lpConvert(increaseLiquidityAssets, config, feeConfig, increaseLiquidityData);
+    returnAssets = _lpConvert(increaseLiquidityAssets, config, feeConfig, increaseLiquidityData);
 
     // Re-deposit the position with increased liquidity
-    require(
-      increaseLiquidityAssets.length > 2 && increaseLiquidityAssets[2].assetType == AssetLib.AssetType.ERC721,
-      InvalidAsset()
-    );
-    increaseLiquidityAssets[2] = _depositPosition(increaseLiquidityAssets[2], gauge);
+    require(returnAssets.length > 2 && returnAssets[2].assetType == AssetLib.AssetType.ERC721, InvalidAsset());
+    returnAssets[0].amount += farmingHarvestResults[0].amount;
+    returnAssets[1].amount += farmingHarvestResults[1].amount;
 
-    // Combine with farming harvest results
-    returnAssets = new AssetLib.Asset[](farmingHarvestResults.length + increaseLiquidityAssets.length);
-    for (uint256 i; i < farmingHarvestResults.length; i++) {
-      returnAssets[i] = farmingHarvestResults[i];
-    }
-    for (uint256 i; i < increaseLiquidityAssets.length; i++) {
-      returnAssets[farmingHarvestResults.length + i] = increaseLiquidityAssets[i];
-    }
+    AssetLib.Asset[] memory lpFeeAssets = _lpHarvest(returnAssets[2], config.principalToken, 0, config, feeConfig);
+    returnAssets[0].amount += lpFeeAssets[0].amount;
+    returnAssets[1].amount += lpFeeAssets[1].amount;
+    returnAssets[2] = _depositPosition(returnAssets[2], gauge);
   }
 
   /**
@@ -691,7 +661,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
    */
   function _harvestFarmingRewards(AssetLib.Asset calldata asset, address tokenOut, FeeConfig calldata feeConfig)
     internal
-    returns (AssetLib.Asset[] memory returnAssets, uint256 principalAmount)
+    returns (AssetLib.Asset[] memory returnAssets)
   {
     address gauge = _getGaugeFromPosition(asset.token, asset.tokenId);
     address rewardToken = ICLGauge(gauge).rewardToken();
@@ -700,6 +670,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     ICLGauge(gauge).getReward(asset.tokenId);
 
     uint256 rewardBalance = IERC20(rewardToken).balanceOf(address(this)) - rewardBalanceBefore;
+    uint256 principalAmount;
 
     // Process rewards (swap if needed or take fees)
     if (rewardToken == tokenOut) {
@@ -719,6 +690,7 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       uint256 amountLeft = IERC20(rewardToken).balanceOf(address(this)) - rewardBalanceBefore;
       // Successfully swapped to desired token
       if (amountOut > 0) amountOut = amountOut - _takeFees(tokenOut, amountOut, feeConfig);
+      console.log("balanceOut", IERC20(tokenOut).balanceOf(address(this)));
       returnAssets = new AssetLib.Asset[](2);
       returnAssets[0] = AssetLib.Asset({
         assetType: AssetLib.AssetType.ERC20,
@@ -739,26 +711,6 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
     }
 
     emit FarmingRewardsHarvested(gauge, rewardToken, rewardBalance, tokenOut, principalAmount);
-  }
-
-  /**
-   * @notice Combine LP and farming harvest results
-   */
-  function _combineHarvestResults(
-    AssetLib.Asset[] memory lpResults,
-    AssetLib.Asset[] memory farmingResults,
-    AssetLib.Asset memory farmingAsset
-  ) internal pure returns (AssetLib.Asset[] memory combined) {
-    // ignore the LP asset in lpResults, as it was farming in farmingResults
-    combined = new AssetLib.Asset[](lpResults.length + farmingResults.length);
-    combined[0] = lpResults[0];
-    combined[1] = lpResults[1];
-    uint256 lpResultLength = lpResults.length - 1;
-
-    for (uint256 i = 0; i < farmingResults.length; i++) {
-      combined[lpResultLength + i] = farmingResults[i];
-    }
-    combined[lpResultLength + farmingResults.length] = farmingAsset;
   }
 
   /**
