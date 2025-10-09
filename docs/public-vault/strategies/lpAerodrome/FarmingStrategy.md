@@ -319,7 +319,7 @@ Validate that reward token is compatible with principal token
 ### _depositExistingLP
 
 ```solidity
-function _depositExistingLP(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config) internal returns (struct AssetLib.Asset[] returnAssets)
+function _depositExistingLP(struct AssetLib.Asset[] assets, struct ICommon.VaultConfig config, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Deposit existing LP NFT into farming
@@ -391,18 +391,10 @@ Withdraw a position from the specified gauge
 ### _harvestFarmingRewards
 
 ```solidity
-function _harvestFarmingRewards(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets, uint256 principalAmount)
+function _harvestFarmingRewards(struct AssetLib.Asset asset, address tokenOut, struct ICommon.FeeConfig feeConfig) internal returns (struct AssetLib.Asset[] returnAssets)
 ```
 
 Harvest farming rewards from a specific gauge
-
-### _combineHarvestResults
-
-```solidity
-function _combineHarvestResults(struct AssetLib.Asset[] lpResults, struct AssetLib.Asset[] farmingResults, struct AssetLib.Asset farmingAsset) internal pure returns (struct AssetLib.Asset[] combined)
-```
-
-Combine LP and farming harvest results
 
 ### _swapRewardToken
 
