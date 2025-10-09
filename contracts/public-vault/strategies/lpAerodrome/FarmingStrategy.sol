@@ -21,7 +21,6 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { INonfungiblePositionManager as INFPM } from
   "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import "./RewardSwapper.sol";
-import "forge-std/console.sol";
 
 /**
  * @title FarmingStrategy
@@ -690,7 +689,6 @@ contract FarmingStrategy is IFarmingStrategy, IERC721Receiver, ReentrancyGuard {
       uint256 amountLeft = IERC20(rewardToken).balanceOf(address(this)) - rewardBalanceBefore;
       // Successfully swapped to desired token
       if (amountOut > 0) amountOut = amountOut - _takeFees(tokenOut, amountOut, feeConfig);
-      console.log("balanceOut", IERC20(tokenOut).balanceOf(address(this)));
       returnAssets = new AssetLib.Asset[](2);
       returnAssets[0] = AssetLib.Asset({
         assetType: AssetLib.AssetType.ERC20,
