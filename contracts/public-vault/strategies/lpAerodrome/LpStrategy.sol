@@ -989,23 +989,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
   /// @dev check old lp strategy for backward compatibility
   /// This was implemented as a migration method since old lp strategies have a bug
   function _checkAssetStrategy(address strategy) internal view {
-    address[15] memory oldStrategies = [
-      thisAddress,
-      0x2AD2B6fAed8020354608381e29cF301921Cf8028,
-      0x6ABE19d89396893fE8d051d982A75971ff1272FE,
-      0x8Ec8389EA7ae457D2966c2FeD05eAad3889D5462,
-      0x9910f22c4b2a1634c985985d7cbc714d18926AEE,
-      0x8FB8F9C9BBf489A453e386E866cc6D205fEF35Be,
-      0x4C14985fD1a7cdf7D6B755c0b78B3cb1112F31F3,
-      0xB914EF1391F471cfD6b50B6EC0563B5584eC8E6C,
-      0x1827E3CDc63A503A8f7143d4532c459DddFF19a0,
-      0xEa2459145c82fc7707FD53BA0ed754f99F186702,
-      0x8e6d632C56dCBbf0D00a5821e8F32A77F190ab00,
-      0x1b7c5534190F74782D04142e3A27ECA05563498a,
-      0xc38ceD05b5ECbc0C78aa1Fa6Dc2B3AB48F7DD086,
-      0xB236740FF130Bfc38DaDF7F2e9073C9c8f2574CE,
-      0x8D4889840a8f8A79E1Bcef8BB385F6327EAee1f6 // from unit test
-    ];
+    address[1] memory oldStrategies = [thisAddress];
     uint256 length = oldStrategies.length;
     for (uint256 i = 0; i < length; i++) {
       if (strategy == oldStrategies[i]) return;
