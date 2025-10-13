@@ -17,7 +17,7 @@ constructor(address _owner, address[] _operators) public
 ### executeMulticall
 
 ```solidity
-function executeMulticall(contract IPrivateVault vault, address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes32 hash, bytes signature) external
+function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes32 hash, bytes signature) external
 ```
 
 ### _validateOrder

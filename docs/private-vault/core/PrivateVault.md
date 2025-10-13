@@ -68,7 +68,7 @@ Initializes the vault
 ### multicall
 
 ```solidity
-function multicall(address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable
+function multicall(address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable
 ```
 
 Batch multiple calls together (calls or delegatecalls)
@@ -78,6 +78,7 @@ Batch multiple calls together (calls or delegatecalls)
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | targets | address[] | Array of targets to call |
+| callValues | uint256[] |  |
 | data | bytes[] | Array of data to pass with the calls |
 | callTypes | enum IPrivateCommon.CallType[] | Array of call types (CALL or DELEGATECALL) |
 

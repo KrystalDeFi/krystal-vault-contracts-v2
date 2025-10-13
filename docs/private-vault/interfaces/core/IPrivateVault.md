@@ -95,7 +95,7 @@ function initialize(address _owner, address _configManager) external
 ### multicall
 
 ```solidity
-function multicall(address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable
+function multicall(address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable
 ```
 
 ### depositErc20Tokens

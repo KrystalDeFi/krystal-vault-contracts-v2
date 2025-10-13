@@ -20,6 +20,12 @@ error OrderCancelled()
 event CancelOrder(address user, bytes32 hash, bytes signature)
 ```
 
+### executeMulticall
+
+```solidity
+function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes32 hash, bytes signature) external
+```
+
 ### cancelOrder
 
 ```solidity

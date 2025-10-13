@@ -5,7 +5,7 @@
 ### VaultCreated
 
 ```solidity
-event VaultCreated(address owner, address vault, bytes32 salt)
+event VaultCreated(address owner, address vault, string name)
 ```
 
 ### ConfigManagerSet
@@ -23,13 +23,13 @@ event VaultImplementationSet(address vaultImplementation)
 ### createVault
 
 ```solidity
-function createVault(bytes32 salt) external payable returns (address vault)
+function createVault(string name) external payable returns (address vault)
 ```
 
 ### createVault
 
 ```solidity
-function createVault(bytes32 salt, address[] tokens, uint256[] amounts, address[] nfts721, uint256[] nfts721TokenIds, address[] nfts1155, uint256[] nfts1155TokenIds, uint256[] nfts1155Amounts, address[] targets, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable returns (address vault)
+function createVault(string name, address[] tokens, uint256[] amounts, address[] nfts721, uint256[] nfts721TokenIds, address[] nfts1155, uint256[] nfts1155TokenIds, uint256[] nfts1155Amounts, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes) external payable returns (address vault)
 ```
 
 ### isVault
