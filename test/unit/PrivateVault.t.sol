@@ -15,6 +15,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 // Mock strategy contract for testing
 contract MockStrategy {
   uint256 public value;
+  uint256 public receivedValue;
 
   function setValue(uint256 _value) external {
     value = _value;
@@ -26,6 +27,21 @@ contract MockStrategy {
 
   function fail() external pure {
     revert("Strategy call failed");
+  }
+
+  // Payable function to receive ETH and track the amount
+  function receiveValue() external payable {
+    receivedValue += msg.value;
+  }
+
+  function getReceivedValue() external view returns (uint256) {
+    return receivedValue;
+  }
+
+  // Function that both sets value and receives ETH
+  function setValueAndReceive(uint256 _value) external payable {
+    value = _value;
+    receivedValue += msg.value;
   }
 }
 
@@ -171,7 +187,9 @@ contract PrivateVaultTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // Execute multicall
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     // Verify the value was set via delegatecall (should be set on the vault's storage)
     // Since it's a delegatecall, the storage should be modified on the vault
@@ -192,7 +210,9 @@ contract PrivateVaultTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     // Execute multicall
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     // Verify the value was set via call (should be set on the strategy's storage)
     assertEq(mockStrategy.getValue(), 100);
@@ -217,7 +237,10 @@ contract PrivateVaultTest is TestCommon {
     callTypes[1] = IPrivateCommon.CallType.DELEGATECALL;
 
     // Execute multicall
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](2);
+    callValues[0] = 0;
+    callValues[1] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     // The last call should have set the value to 300 via delegatecall
     vm.stopBroadcast();
@@ -237,7 +260,9 @@ contract PrivateVaultTest is TestCommon {
 
     // Should revert with Unauthorized
     vm.expectRevert(IPrivateCommon.Unauthorized.selector);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     vm.stopBroadcast();
   }
@@ -264,7 +289,9 @@ contract PrivateVaultTest is TestCommon {
 
     // Should revert with InvalidTarget
     vm.expectRevert(abi.encodeWithSelector(IPrivateVault.InvalidTarget.selector, NON_WHITELISTED));
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     vm.stopBroadcast();
   }
@@ -284,7 +311,9 @@ contract PrivateVaultTest is TestCommon {
 
     // Should revert with InvalidMulticallParams
     vm.expectRevert(IPrivateVault.InvalidMulticallParams.selector);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     vm.stopBroadcast();
   }
@@ -304,7 +333,9 @@ contract PrivateVaultTest is TestCommon {
 
     // Should revert with InvalidMulticallParams
     vm.expectRevert(IPrivateVault.InvalidMulticallParams.selector);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     vm.stopBroadcast();
   }
@@ -325,7 +356,10 @@ contract PrivateVaultTest is TestCommon {
     callTypes[1] = IPrivateCommon.CallType.CALL;
 
     // Should execute successfully, skipping the zero address
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](2);
+    callValues[0] = 0;
+    callValues[1] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     // Verify the second call was executed
     assertEq(mockStrategy.getValue(), 100);
@@ -346,7 +380,9 @@ contract PrivateVaultTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     // Admin should be able to call multicall
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     // Verify the call was executed
     assertEq(mockStrategy.getValue(), 999);
@@ -368,7 +404,9 @@ contract PrivateVaultTest is TestCommon {
 
     // Should revert with StrategyDelegateCallFailed
     vm.expectRevert(IPrivateVault.StrategyDelegateCallFailed.selector);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
 
     vm.stopBroadcast();
   }
@@ -795,7 +833,9 @@ contract PrivateVaultTest is TestCommon {
 
     vm.startBroadcast(VAULT_OWNER);
     vm.expectRevert(IPrivateVault.Paused.selector);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
     vm.stopBroadcast();
   }
 
@@ -820,9 +860,207 @@ contract PrivateVaultTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     vm.startBroadcast(automator);
-    privateVault.multicall(targets, data, callTypes);
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+    privateVault.multicall(targets, callValues, data, callTypes);
     vm.stopBroadcast();
 
     assertEq(mockStrategy.getValue(), 777);
+  }
+
+  // ============ MULTICALL WITH VALUE TESTS ============
+
+  function test_multicall_with_value_call() public {
+    // Send ETH to vault
+    vm.deal(address(privateVault), 2 ether);
+
+    uint256 initialVaultBalance = address(privateVault).balance;
+    uint256 initialStrategyBalance = address(mockStrategy).balance;
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](1);
+    targets[0] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](1);
+    data[0] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
+    callTypes[0] = IPrivateCommon.CallType.CALL;
+
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 1 ether; // Send 1 ETH with the call
+
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+
+    // Verify ETH was sent to strategy
+    assertEq(address(mockStrategy).balance, initialStrategyBalance + 1 ether);
+    assertEq(address(privateVault).balance, initialVaultBalance - 1 ether);
+    assertEq(mockStrategy.getReceivedValue(), 1 ether);
+  }
+
+  function test_multicall_with_value_delegatecall() public {
+    // Send ETH to vault
+    vm.deal(address(privateVault), 2 ether);
+
+    uint256 initialVaultBalance = address(privateVault).balance;
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](1);
+    targets[0] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](1);
+    data[0] = abi.encodeWithSelector(MockStrategy.setValueAndReceive.selector, 42);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
+    callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
+
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0.5 ether; // Send 0.5 ETH with the delegatecall
+
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+
+    // For delegatecall, the ETH stays in the vault but the function executes in vault context
+    assertEq(address(privateVault).balance, initialVaultBalance);
+    // The value should be set on the vault's storage (via delegatecall)
+    // and the receivedValue should be tracked in vault's storage
+  }
+
+  function test_multicall_mixed_with_value() public {
+    // Send ETH to vault
+    vm.deal(address(privateVault), 3 ether);
+
+    uint256 initialVaultBalance = address(privateVault).balance;
+    uint256 initialStrategyBalance = address(mockStrategy).balance;
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](2);
+    targets[0] = address(mockStrategy);
+    targets[1] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](2);
+    data[0] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+    data[1] = abi.encodeWithSelector(MockStrategy.setValueAndReceive.selector, 100);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](2);
+    callTypes[0] = IPrivateCommon.CallType.CALL;
+    callTypes[1] = IPrivateCommon.CallType.DELEGATECALL;
+
+    uint256[] memory callValues = new uint256[](2);
+    callValues[0] = 1 ether; // Send 1 ETH with first call
+    callValues[1] = 0.5 ether; // Send 0.5 ETH with second delegatecall
+
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+
+    // First call (CALL) should send ETH to strategy
+    assertEq(address(mockStrategy).balance, initialStrategyBalance + 1 ether);
+    assertEq(mockStrategy.getReceivedValue(), 1 ether);
+
+    // Second call (DELEGATECALL) should keep ETH in vault
+    assertEq(address(privateVault).balance, initialVaultBalance - 1 ether);
+  }
+
+  function test_multicall_with_value_insufficient_balance() public {
+    // Don't send any ETH to vault
+    assertEq(address(privateVault).balance, 0);
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](1);
+    targets[0] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](1);
+    data[0] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
+    callTypes[0] = IPrivateCommon.CallType.CALL;
+
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 1 ether; // Try to send 1 ETH but vault has 0
+
+    // Should revert due to insufficient balance
+    vm.expectRevert();
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+  }
+
+  function test_multicall_multiple_values() public {
+    // Send ETH to vault
+    vm.deal(address(privateVault), 5 ether);
+
+    uint256 initialVaultBalance = address(privateVault).balance;
+    uint256 initialStrategyBalance = address(mockStrategy).balance;
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](3);
+    targets[0] = address(mockStrategy);
+    targets[1] = address(mockStrategy);
+    targets[2] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](3);
+    data[0] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+    data[1] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+    data[2] = abi.encodeWithSelector(MockStrategy.receiveValue.selector);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](3);
+    callTypes[0] = IPrivateCommon.CallType.CALL;
+    callTypes[1] = IPrivateCommon.CallType.CALL;
+    callTypes[2] = IPrivateCommon.CallType.CALL;
+
+    uint256[] memory callValues = new uint256[](3);
+    callValues[0] = 1 ether; // Send 1 ETH with first call
+    callValues[1] = 0.5 ether; // Send 0.5 ETH with second call
+    callValues[2] = 0.25 ether; // Send 0.25 ETH with third call
+
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+
+    // Verify total ETH sent to strategy
+    uint256 totalSent = 1 ether + 0.5 ether + 0.25 ether;
+    assertEq(address(mockStrategy).balance, initialStrategyBalance + totalSent);
+    assertEq(address(privateVault).balance, initialVaultBalance - totalSent);
+    assertEq(mockStrategy.getReceivedValue(), totalSent);
+  }
+
+  function test_multicall_with_zero_value() public {
+    // Send ETH to vault
+    vm.deal(address(privateVault), 1 ether);
+
+    uint256 initialVaultBalance = address(privateVault).balance;
+    uint256 initialStrategyBalance = address(mockStrategy).balance;
+
+    vm.startBroadcast(VAULT_OWNER);
+
+    address[] memory targets = new address[](1);
+    targets[0] = address(mockStrategy);
+
+    bytes[] memory data = new bytes[](1);
+    data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 42);
+
+    IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](1);
+    callTypes[0] = IPrivateCommon.CallType.CALL;
+
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0; // Send 0 ETH
+
+    privateVault.multicall(targets, callValues, data, callTypes);
+
+    vm.stopBroadcast();
+
+    // Should work normally with zero value
+    assertEq(mockStrategy.getValue(), 42);
+    assertEq(address(mockStrategy).balance, initialStrategyBalance);
+    assertEq(address(privateVault).balance, initialVaultBalance);
   }
 }

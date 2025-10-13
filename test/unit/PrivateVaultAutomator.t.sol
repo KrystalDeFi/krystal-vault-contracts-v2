@@ -140,10 +140,18 @@ contract PrivateVaultAutomatorTest is TestCommon {
   function _createMulticallData()
     internal
     pure
-    returns (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes)
+    returns (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    )
   {
     targets = new address[](1);
     targets[0] = address(0); // Will be set in tests
+
+    callValues = new uint256[](1);
+    callValues[0] = 0; // No ETH value for calls
 
     data = new bytes[](1);
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 42);
@@ -151,7 +159,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     callTypes = new IPrivateCommon.CallType[](1);
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
-    return (targets, data, callTypes);
+    return (targets, callValues, data, callTypes);
   }
 
   // ============ CONSTRUCTOR TESTS ============
@@ -183,12 +191,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
 
     // Verify the strategy was called
@@ -201,13 +216,20 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute as non-operator
     vm.startPrank(NON_OPERATOR);
     vm.expectRevert();
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
   }
 
@@ -217,14 +239,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory invalidSignature = _signMessage(orderHash, OPERATOR_PRIVATE_KEY); // Wrong signer
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute with invalid signature
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
     automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, invalidSignature
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, invalidSignature
     );
     vm.stopPrank();
   }
@@ -240,13 +267,20 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute cancelled order
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
   }
 
@@ -261,13 +295,20 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Try to execute when paused
     vm.startPrank(OPERATOR);
     vm.expectRevert(Pausable.EnforcedPause.selector);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
   }
 
@@ -281,6 +322,10 @@ contract PrivateVaultAutomatorTest is TestCommon {
     targets[0] = address(mockStrategy);
     targets[1] = address(mockStrategy);
 
+    uint256[] memory callValues = new uint256[](2);
+    callValues[0] = 0;
+    callValues[1] = 0;
+
     bytes[] memory data = new bytes[](2);
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 100);
     data[1] = abi.encodeWithSelector(MockStrategy.setValue.selector, 200);
@@ -291,7 +336,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
 
     // Verify the last call was executed
@@ -496,12 +543,15 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Prepare empty multicall data
     address[] memory targets = new address[](0);
+    uint256[] memory callValues = new uint256[](0);
     bytes[] memory data = new bytes[](0);
     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](0);
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
 
     // Should succeed with empty arrays
@@ -516,6 +566,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
     address[] memory targets = new address[](1);
     targets[0] = address(0);
 
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+
     bytes[] memory data = new bytes[](1);
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 42);
 
@@ -524,7 +577,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
 
     // Should succeed (zero address targets are skipped in the vault)
@@ -539,13 +594,20 @@ contract PrivateVaultAutomatorTest is TestCommon {
     mockStrategy.setShouldFail(true);
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator - should fail due to strategy failure
     vm.startPrank(OPERATOR);
     vm.expectRevert();
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
   }
 
@@ -558,14 +620,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes32 differentOrderHash = _createAutomationOrder(address(mockStrategy), 2, block.timestamp + 3600);
 
     // Prepare multicall data
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     // Execute multicall as operator with different hash
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
     automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, data, callTypes, differentOrderHash, signature
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, differentOrderHash, signature
     );
     vm.stopPrank();
   }
@@ -581,11 +648,18 @@ contract PrivateVaultAutomatorTest is TestCommon {
     assertFalse(automator.isOrderCancelled(signature));
 
     // 3. Operator executes multicall
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
 
     // 4. Verify strategy was executed
@@ -602,7 +676,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // 7. Try to execute again - should fail
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash, signature);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash, signature
+    );
     vm.stopPrank();
   }
 
@@ -615,11 +691,18 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
 
     // Execute first order
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash1, signature1);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash1, signature1
+    );
     vm.stopPrank();
 
     assertEq(mockStrategy.getValue(), 42);
@@ -633,7 +716,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 100);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash2, signature2);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash2, signature2
+    );
     vm.stopPrank();
 
     assertEq(mockStrategy.getValue(), 100);
@@ -657,11 +742,18 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
 
     // Execute first order
-    (address[] memory targets, bytes[] memory data, IPrivateCommon.CallType[] memory callTypes) = _createMulticallData();
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash1, signature1);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash1, signature1
+    );
     vm.stopPrank();
 
     assertEq(mockStrategy.getValue(), 42);
@@ -671,7 +763,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 200);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(IPrivateVault(address(privateVault)), targets, data, callTypes, orderHash2, signature2);
+    automator.executeMulticall(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, orderHash2, signature2
+    );
     vm.stopPrank();
 
     assertEq(strategy2.getValue(), 200);

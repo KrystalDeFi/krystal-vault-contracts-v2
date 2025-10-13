@@ -207,20 +207,21 @@ contract PrivateVaultFactoryTest is TestCommon {
   // ============ CREATE VAULT TESTS ============
 
   function test_createVault_basic() public {
-    bytes32 salt = keccak256("test-salt");
+    string memory name = "test-vault";
 
     vm.startBroadcast(VAULT_CREATOR);
 
     address vault = factory.createVault(
-      salt,
-      new address[](0), // no ERC20 tokens
+      name,
+      new address[](0),
       new uint256[](0),
-      new address[](0), // no ERC721 tokens
+      new address[](0),
       new uint256[](0),
-      new address[](0), // no ERC1155 tokens
+      new address[](0),
       new uint256[](0),
       new uint256[](0),
-      new address[](0), // no multicall
+      new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -238,7 +239,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_native_tokens() public {
-    bytes32 salt = keccak256("test-salt-native");
+    string memory name = "test-vault-native";
     uint256 nativeAmount = 1 ether;
 
     vm.deal(VAULT_CREATOR, nativeAmount);
@@ -246,7 +247,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     vm.startBroadcast(VAULT_CREATOR);
 
     address vault = factory.createVault{ value: nativeAmount }(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -255,6 +256,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -266,7 +268,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_erc20_tokens() public {
-    bytes32 salt = keccak256("test-salt-erc20");
+    string memory name = "test-vault-erc20";
     uint256 tokenAmount = 1000;
 
     // Set ERC20 balance for creator and approve factory
@@ -282,7 +284,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     amounts[0] = tokenAmount;
 
     address vault = factory.createVault(
-      salt,
+      name,
       tokens,
       amounts,
       new address[](0),
@@ -291,6 +293,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -303,7 +306,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_erc721_tokens() public {
-    bytes32 salt = keccak256("test-salt-erc721");
+    string memory name = "test-vault-erc721";
     uint256 tokenId = 1;
 
     // Mint NFT to creator and approve factory
@@ -319,7 +322,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     tokenIds[0] = tokenId;
 
     address vault = factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       nfts721,
@@ -328,6 +331,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -339,7 +343,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_erc1155_tokens() public {
-    bytes32 salt = keccak256("test-salt-erc1155");
+    string memory name = "test-vault-erc1155";
     uint256 tokenId = 1;
     uint256 amount = 100;
 
@@ -359,7 +363,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     amounts[0] = amount;
 
     address vault = factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -368,6 +372,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       tokenIds,
       amounts,
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -380,12 +385,15 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_multicall() public {
-    bytes32 salt = keccak256("test-salt-multicall");
+    string memory name = "test-vault-multicall";
 
     vm.startBroadcast(VAULT_CREATOR);
 
     address[] memory targets = new address[](1);
     targets[0] = address(mockStrategy);
+
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
 
     bytes[] memory data = new bytes[](1);
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 42);
@@ -394,7 +402,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -403,6 +411,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       targets,
+      callValues,
       data,
       callTypes
     );
@@ -414,7 +423,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_comprehensive() public {
-    bytes32 salt = keccak256("test-salt-comprehensive");
+    string memory name = "test-vault-comprehensive";
     uint256 nativeAmount = 0.5 ether;
     uint256 tokenAmount = 1000;
     uint256 nftId = 1;
@@ -459,6 +468,9 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory targets = new address[](1);
     targets[0] = address(mockStrategy);
 
+    uint256[] memory callValues = new uint256[](1);
+    callValues[0] = 0;
+
     bytes[] memory data = new bytes[](1);
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 999);
 
@@ -466,7 +478,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     callTypes[0] = IPrivateCommon.CallType.CALL;
 
     address vault = factory.createVault{ value: nativeAmount }(
-      salt, tokens, amounts, nfts721, nftIds, nfts1155, erc1155Ids, erc1155Amounts, targets, data, callTypes
+      name, tokens, amounts, nfts721, nftIds, nfts1155, erc1155Ids, erc1155Amounts, targets, callValues, data, callTypes
     );
 
     vm.stopBroadcast();
@@ -480,12 +492,12 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_deterministic_address() public {
-    bytes32 salt = keccak256("deterministic-test");
+    string memory name = "deterministic-test";
 
     vm.startBroadcast(VAULT_CREATOR);
 
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -494,6 +506,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -506,7 +519,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     // This should revert because the vault already exists
     vm.expectRevert();
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -515,6 +528,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -523,14 +537,14 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_with_partial_native_tokens() public {
-    bytes32 salt = keccak256("partial-native");
+    string memory name = "partial-native";
     uint256 nativeAmount = 0.5 ether;
 
     vm.deal(VAULT_CREATOR, nativeAmount);
 
     vm.startBroadcast(VAULT_CREATOR);
     address vault = factory.createVault{ value: nativeAmount }(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -539,6 +553,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -549,7 +564,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_insufficient_erc20_balance() public {
-    bytes32 salt = keccak256("insufficient-erc20");
+    string memory name = "insufficient-erc20";
     uint256 tokenAmount = 1000;
 
     // Set less ERC20 balance than requested
@@ -566,7 +581,7 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     vm.expectRevert("Insufficient balance");
     factory.createVault(
-      salt,
+      name,
       tokens,
       amounts,
       new address[](0),
@@ -575,6 +590,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -582,7 +598,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_insufficient_erc20_allowance() public {
-    bytes32 salt = keccak256("insufficient-allowance");
+    string memory name = "insufficient-allowance";
     uint256 tokenAmount = 1000;
 
     setErc20Balance(address(mockERC20), VAULT_CREATOR, tokenAmount);
@@ -599,7 +615,7 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     vm.expectRevert("Insufficient allowance");
     factory.createVault(
-      salt,
+      name,
       tokens,
       amounts,
       new address[](0),
@@ -608,6 +624,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -615,7 +632,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_erc721_not_owner() public {
-    bytes32 salt = keccak256("erc721-not-owner");
+    string memory name = "erc721-not-owner";
     uint256 tokenId = 1;
 
     // Mint NFT to different address
@@ -631,7 +648,7 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     vm.expectRevert("Not owner");
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       nfts721,
@@ -640,6 +657,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -647,7 +665,7 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_erc1155_insufficient_balance() public {
-    bytes32 salt = keccak256("erc1155-insufficient");
+    string memory name = "erc1155-insufficient";
     uint256 tokenId = 1;
     uint256 amount = 100;
 
@@ -668,7 +686,7 @@ contract PrivateVaultFactoryTest is TestCommon {
 
     vm.expectRevert("Insufficient balance");
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -677,6 +695,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       tokenIds,
       amounts,
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -721,12 +740,12 @@ contract PrivateVaultFactoryTest is TestCommon {
     factory.pause();
     vm.stopBroadcast();
 
-    bytes32 salt = keccak256("paused-test");
+    string memory name = "paused-test";
 
     vm.startBroadcast(VAULT_CREATOR);
     vm.expectRevert(Pausable.EnforcedPause.selector);
     factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -735,6 +754,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -824,11 +844,11 @@ contract PrivateVaultFactoryTest is TestCommon {
   // ============ IS VAULT TESTS ============
 
   function test_isVault_true() public {
-    bytes32 salt = keccak256("is-vault-test");
+    string memory name = "is-vault-test";
 
     vm.startBroadcast(VAULT_CREATOR);
     address vault = factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -837,6 +857,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0), // no callValues
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -851,13 +872,13 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_isVault_multiple_vaults() public {
-    bytes32 salt1 = keccak256("vault-1");
-    bytes32 salt2 = keccak256("vault-2");
+    string memory name1 = "vault-1";
+    string memory name2 = "vault-2";
 
     vm.startBroadcast(VAULT_CREATOR);
 
     address vault1 = factory.createVault(
-      salt1,
+      name1,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -866,12 +887,13 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
 
     address vault2 = factory.createVault(
-      salt2,
+      name2,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -880,6 +902,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -894,11 +917,11 @@ contract PrivateVaultFactoryTest is TestCommon {
   // ============ VAULT TRACKING TESTS ============
 
   function test_vaultsByAddress() public {
-    bytes32 salt = keccak256("tracking-test");
+    string memory name = "tracking-test";
 
     vm.startBroadcast(VAULT_CREATOR);
     address vault = factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -907,6 +930,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -917,13 +941,13 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_allVaults() public {
-    bytes32 salt1 = keccak256("all-vaults-1");
-    bytes32 salt2 = keccak256("all-vaults-2");
+    string memory name1 = "all-vaults-1";
+    string memory name2 = "all-vaults-2";
 
     vm.startBroadcast(VAULT_CREATOR);
 
     address vault1 = factory.createVault(
-      salt1,
+      name1,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -932,12 +956,13 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
 
     address vault2 = factory.createVault(
-      salt2,
+      name2,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -946,6 +971,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -964,11 +990,11 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory createdVaults = new address[](10);
 
     for (uint256 i = 0; i < 10; i++) {
-      bytes32 salt = keccak256(abi.encodePacked("optimization-test-", i));
+      string memory name = string(abi.encodePacked("optimization-test-", i));
 
       vm.startBroadcast(VAULT_CREATOR);
       createdVaults[i] = factory.createVault(
-        salt,
+        name,
         new address[](0),
         new uint256[](0),
         new address[](0),
@@ -977,6 +1003,7 @@ contract PrivateVaultFactoryTest is TestCommon {
         new uint256[](0),
         new uint256[](0),
         new address[](0),
+        new uint256[](0),
         new bytes[](0),
         new IPrivateCommon.CallType[](0)
       );
@@ -998,11 +1025,11 @@ contract PrivateVaultFactoryTest is TestCommon {
   }
 
   function test_isVault_optimization_mapping_consistency() public {
-    bytes32 salt = keccak256("consistency-test");
+    string memory name = "consistency-test";
 
     vm.startBroadcast(VAULT_CREATOR);
     address vaultAddress = factory.createVault(
-      salt,
+      name,
       new address[](0),
       new uint256[](0),
       new address[](0),
@@ -1011,6 +1038,7 @@ contract PrivateVaultFactoryTest is TestCommon {
       new uint256[](0),
       new uint256[](0),
       new address[](0),
+      new uint256[](0),
       new bytes[](0),
       new IPrivateCommon.CallType[](0)
     );
@@ -1032,11 +1060,11 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory createdVaults = new address[](20);
 
     for (uint256 i = 0; i < 20; i++) {
-      bytes32 salt = keccak256(abi.encodePacked("gas-test-", i));
+      string memory name = string(abi.encodePacked("gas-test-", i));
 
       vm.startBroadcast(VAULT_CREATOR);
       createdVaults[i] = factory.createVault(
-        salt,
+        name,
         new address[](0),
         new uint256[](0),
         new address[](0),
@@ -1045,6 +1073,7 @@ contract PrivateVaultFactoryTest is TestCommon {
         new uint256[](0),
         new uint256[](0),
         new address[](0),
+        new uint256[](0),
         new bytes[](0),
         new IPrivateCommon.CallType[](0)
       );

@@ -4,16 +4,16 @@ pragma solidity ^0.8.28;
 import "./IPrivateCommon.sol";
 
 interface IPrivateVaultFactory is IPrivateCommon {
-  event VaultCreated(address indexed owner, address indexed vault, bytes32 salt);
+  event VaultCreated(address indexed owner, address indexed vault, string name);
 
   event ConfigManagerSet(address configManager);
 
   event VaultImplementationSet(address vaultImplementation);
 
-  function createVault(bytes32 salt) external payable returns (address vault);
+  function createVault(string calldata name) external payable returns (address vault);
 
   function createVault(
-    bytes32 salt,
+    string calldata name,
     address[] calldata tokens,
     uint256[] calldata amounts,
     address[] calldata nfts721,
@@ -22,6 +22,7 @@ interface IPrivateVaultFactory is IPrivateCommon {
     uint256[] calldata nfts1155TokenIds,
     uint256[] calldata nfts1155Amounts,
     address[] calldata targets,
+    uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes
   ) external payable returns (address vault);

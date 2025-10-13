@@ -29,7 +29,12 @@ interface IPrivateVault is IPrivateCommon {
 
   function initialize(address _owner, address _configManager) external;
 
-  function multicall(address[] calldata targets, bytes[] calldata data, CallType[] calldata callTypes) external payable;
+  function multicall(
+    address[] calldata targets,
+    uint256[] calldata callValues,
+    bytes[] calldata data,
+    CallType[] calldata callTypes
+  ) external payable;
 
   function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts) external;
 

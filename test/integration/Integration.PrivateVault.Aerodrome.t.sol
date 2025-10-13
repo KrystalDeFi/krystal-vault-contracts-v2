@@ -180,13 +180,20 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   function _createMulticallData(address target, bytes memory data)
     internal
     pure
-    returns (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes)
+    returns (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    )
   {
     targets = new address[](1);
+    callValues = new uint256[](1);
     dataArray = new bytes[](1);
     callTypes = new IPrivateCommon.CallType[](1);
 
     targets[0] = target;
+    callValues[0] = 0;
     dataArray[0] = data;
     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
   }
@@ -246,11 +253,15 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       amounts
     );
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // Execute strategy through vault multicall
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     // Return the token ID of the created position
     return IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), 0);
@@ -299,11 +310,15 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       amounts
     );
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // Execute strategy through vault multicall
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
   }
 
   // Helper function to simulate swaps and generate fees (no prank management)
@@ -389,11 +404,15 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     bytes memory strategyCallData =
       abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // Execute strategy through vault multicall
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
   }
 
   // Helper function to create LP position and stake in gauge in one multicall (no prank management)
@@ -410,6 +429,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Prepare multicall with LP creation + gauge staking
     address[] memory targets = new address[](2);
+    uint256[] memory callValues = new uint256[](2);
     bytes[] memory dataArray = new bytes[](2);
     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](2);
 
@@ -442,11 +462,13 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     targets[0] = address(v3UtilsStrategy);
+    callValues[0] = 0;
     dataArray[0] = abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts);
     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. Stake in gauge (using tokenId = 0 to auto-select the last created token)
     targets[1] = address(farmingStrategy);
+    callValues[1] = 0;
     dataArray[1] = abi.encodeWithSelector(
       AerodromeFarmingStrategy.deposit.selector,
       0 // tokenId = 0 means use the last created token
@@ -457,55 +479,67 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 nftCountBefore = IERC721(NFPM).balanceOf(address(vaultInstance));
 
     // Execute multicall
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     // Find the new tokenId by checking which one was added
-    uint256 tokenId;
+    uint256 newTokenId;
     uint256 nftCountAfter = IERC721(NFPM).balanceOf(address(vaultInstance));
 
     if (nftCountAfter > nftCountBefore) {
       // NFT was minted but not staked (shouldn't happen in this case)
-      tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), nftCountAfter - 1);
+      newTokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), nftCountAfter - 1);
     } else {
       // NFT was staked, so we need to find it in the gauge
       // Get the gauge from the token parameters we used
       address expectedGauge = getExpectedGauge(WETH, USDC, TICK_SPACING);
       uint256[] memory stakedTokens = ICLGauge(expectedGauge).stakedValues(address(vaultInstance));
       require(stakedTokens.length > 0, "No tokens staked");
-      tokenId = stakedTokens[stakedTokens.length - 1]; // Return the most recently staked token
+      newTokenId = stakedTokens[stakedTokens.length - 1]; // Return the most recently staked token
     }
 
-    return tokenId;
+    return newTokenId;
   }
 
   // Helper function to stake existing LP position in gauge (no prank management)
   function _stakeInGauge(uint256 tokenId) internal {
     bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(farmingStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
 
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
   }
 
   // Helper function to unstake LP position from gauge (no prank management)
   function _unstakeFromGauge(uint256 tokenId) internal {
     bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(farmingStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
 
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
   }
 
   // Helper function to claim AERO rewards from gauge (no prank management)
   function _claimGaugeRewards(uint256 tokenId) internal {
     bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(farmingStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
 
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
   }
 
   // Helper function for unstake -> operate -> restake multicall (no prank management)
@@ -518,28 +552,32 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // Build complete multicall: unstake + operations + restake
     uint256 totalOperations = 2 + targets.length; // unstake + operations + restake
     address[] memory allTargets = new address[](totalOperations);
+    uint256[] memory allCallValues = new uint256[](totalOperations);
     bytes[] memory allData = new bytes[](totalOperations);
     IPrivateCommon.CallType[] memory allCallTypes = new IPrivateCommon.CallType[](totalOperations);
 
     // 1. Unstake operation
     allTargets[0] = address(farmingStrategy);
+    allCallValues[0] = 0;
     allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId);
     allCallTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. LP operations
     for (uint256 i = 0; i < targets.length; i++) {
       allTargets[1 + i] = targets[i];
+      allCallValues[1 + i] = 0;
       allData[1 + i] = dataArray[i];
       allCallTypes[1 + i] = callTypes[i];
     }
 
     // 3. Restake operation
     allTargets[totalOperations - 1] = address(farmingStrategy);
+    allCallValues[totalOperations - 1] = 0;
     allData[totalOperations - 1] = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, tokenId);
     allCallTypes[totalOperations - 1] = IPrivateCommon.CallType.DELEGATECALL;
 
     // Execute complete multicall
-    vaultInstance.multicall(allTargets, allData, allCallTypes);
+    vaultInstance.multicall(allTargets, allCallValues, allData, allCallTypes);
   }
 
   // Helper function to increase liquidity while farming (no prank management)
@@ -580,8 +618,12 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     bytes memory strategyCallData =
       abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // Execute unstake -> increase liquidity -> restake
     _unstakeOperateRestake(tokenId, targets, dataArray, callTypes);
@@ -746,12 +788,16 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       new uint256[](0)
     );
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // This should revert due to access control
     vm.expectRevert();
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     vm.stopPrank();
   }
@@ -796,12 +842,16 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       new uint256[](0)
     );
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(nonWhitelistedStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(nonWhitelistedStrategy), strategyCallData);
 
     // This should revert due to strategy not being whitelisted
     vm.expectRevert();
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     vm.stopPrank();
   }
@@ -959,12 +1009,16 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(farmingStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
 
     // This should revert due to access control
     vm.expectRevert();
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     vm.stopPrank();
   }
@@ -976,12 +1030,16 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // Using tokenId 1 which likely doesn't exist
     bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.deposit.selector, 1);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(farmingStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
 
     // This should revert due to invalid tokenId (position doesn't exist)
     vm.expectRevert();
-    vaultInstance.multicall(targets, dataArray, callTypes);
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     vm.stopPrank();
   }
@@ -1140,8 +1198,12 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     bytes memory strategyCallData =
       abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // This operation should fail due to insufficient balance
     vm.expectRevert();
@@ -1195,8 +1257,12 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     bytes memory strategyCallData =
       abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
 
-    (address[] memory targets, bytes[] memory dataArray, IPrivateCommon.CallType[] memory callTypes) =
-      _createMulticallData(address(v3UtilsStrategy), strategyCallData);
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
     // This should revert due to access control
     vm.expectRevert();

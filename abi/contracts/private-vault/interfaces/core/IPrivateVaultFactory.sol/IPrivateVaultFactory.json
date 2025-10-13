@@ -44,9 +44,9 @@
       },
       {
         "indexed": false,
-        "internalType": "bytes32",
-        "name": "salt",
-        "type": "bytes32"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
       }
     ],
     "name": "VaultCreated",
@@ -68,9 +68,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "salt",
-        "type": "bytes32"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
       }
     ],
     "name": "createVault",
@@ -87,9 +87,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "salt",
-        "type": "bytes32"
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
       },
       {
         "internalType": "address[]",
@@ -130,6 +130,11 @@
         "internalType": "address[]",
         "name": "targets",
         "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "callValues",
+        "type": "uint256[]"
       },
       {
         "internalType": "bytes[]",

@@ -34,8 +34,8 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     vaultImplementation = _vaultImplementation;
   }
 
-  function createVault(bytes32 salt) external payable override whenNotPaused returns (address vault) {
-    vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, salt)));
+  function createVault(string calldata name) external payable override whenNotPaused returns (address vault) {
+    vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, name)));
 
     IPrivateVault(vault).initialize(msg.sender, configManager);
 
@@ -43,11 +43,11 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     allVaults.push(vault);
     isVaultAddress[vault] = true;
 
-    emit VaultCreated(msg.sender, vault, salt);
+    emit VaultCreated(msg.sender, vault, name);
   }
 
   function createVault(
-    bytes32 salt,
+    string calldata name,
     address[] calldata tokens,
     uint256[] calldata amounts,
     address[] calldata nfts721,
@@ -56,10 +56,11 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     uint256[] calldata nfts1155TokenIds,
     uint256[] calldata nfts1155Amounts,
     address[] calldata targets,
+    uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes
   ) external payable override whenNotPaused returns (address vault) {
-    vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, salt)));
+    vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, name)));
 
     IPrivateVault(vault).initialize(msg.sender, configManager);
 
@@ -80,13 +81,13 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
       IERC1155(nfts1155[i]).safeTransferFrom(msg.sender, vault, nfts1155TokenIds[i], nfts1155Amounts[i], "");
     }
 
-    IPrivateVault(vault).multicall(targets, data, callTypes);
+    IPrivateVault(vault).multicall(targets, callValues, data, callTypes);
 
     vaultsByAddress[msg.sender].push(vault);
     allVaults.push(vault);
     isVaultAddress[vault] = true;
 
-    emit VaultCreated(msg.sender, vault, salt);
+    emit VaultCreated(msg.sender, vault, name);
   }
 
   /// @notice Pause the contract

@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
-import "../interfaces/core/IPrivateVault.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
@@ -25,13 +24,14 @@ contract PrivateVaultAutomator is AccessControl, Pausable, IPrivateVaultAutomato
   function executeMulticall(
     IPrivateVault vault,
     address[] calldata targets,
+    uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes,
     bytes32 hash,
     bytes memory signature
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateOrder(hash, signature, vault.vaultOwner());
-    vault.multicall(targets, data, callTypes);
+    vault.multicall(targets, callValues, data, callTypes);
   }
 
   /// @dev Validate the order

@@ -65,14 +65,13 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @param targets Array of targets to call
   /// @param data Array of data to pass with the calls
   /// @param callTypes Array of call types (CALL or DELEGATECALL)
-  function multicall(address[] calldata targets, bytes[] calldata data, CallType[] calldata callTypes)
-    external
-    payable
-    override
-    nonReentrant
-    onlyAuthorized
-    whenNotPaused
-  {
+  function multicall(
+    address[] calldata targets,
+    uint256[] calldata callValues,
+    bytes[] calldata data,
+    CallType[] calldata callTypes
+  ) external payable override nonReentrant onlyAuthorized whenNotPaused {
+    require(targets.length == callValues.length, InvalidMulticallParams());
     require(targets.length == data.length, InvalidMulticallParams());
     require(targets.length == callTypes.length, InvalidMulticallParams());
 
@@ -92,7 +91,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
       bytes memory result;
 
       if (callTypes[i] == CallType.DELEGATECALL) (success, result) = targets[i].delegatecall(data[i]);
-      else (success, result) = targets[i].call(data[i]);
+      else (success, result) = targets[i].call{ value: callValues[i] }(data[i]);
 
       if (!success) {
         if (result.length == 0) revert StrategyDelegateCallFailed();

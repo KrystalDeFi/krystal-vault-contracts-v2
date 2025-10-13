@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./IPrivateCommon.sol";
+import "./IPrivateVault.sol";
 
 interface IPrivateVaultAutomator is IPrivateCommon {
   error InvalidSignature();
@@ -9,6 +10,16 @@ interface IPrivateVaultAutomator is IPrivateCommon {
   error OrderCancelled();
 
   event CancelOrder(address user, bytes32 hash, bytes signature);
+
+  function executeMulticall(
+    IPrivateVault vault,
+    address[] calldata targets,
+    uint256[] calldata callValues,
+    bytes[] calldata data,
+    CallType[] calldata callTypes,
+    bytes32 hash,
+    bytes memory signature
+  ) external;
 
   function cancelOrder(bytes32 hash, bytes memory signature) external;
 
