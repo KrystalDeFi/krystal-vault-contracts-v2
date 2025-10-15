@@ -109,7 +109,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Deploy private vault
     privateVault = new PrivateVault();
-    privateVault.initialize(VAULT_OWNER, address(configManager));
+    privateVault.initialize(VAULT_OWNER, address(configManager), "Test Vault");
 
     // Deploy automator with owner and operators
     address[] memory operators = new address[](1);

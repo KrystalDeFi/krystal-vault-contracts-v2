@@ -160,7 +160,7 @@ contract PrivateVaultTest is TestCommon {
 
     // Deploy private vault
     privateVault = new PrivateVault();
-    privateVault.initialize(VAULT_OWNER, address(configManager));
+    privateVault.initialize(VAULT_OWNER, address(configManager), "Test Vault");
 
     // Whitelist the mock strategy
     vm.startPrank(VAULT_OWNER);
@@ -686,7 +686,7 @@ contract PrivateVaultTest is TestCommon {
 
     // Create a new vault for this test
     PrivateVault testVault = new PrivateVault();
-    testVault.initialize(testOwner, address(configManager));
+    testVault.initialize(testOwner, address(configManager), "Test Vault");
 
     // Sign the hash with the test private key
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(testPrivateKey, messageHash);
@@ -750,7 +750,7 @@ contract PrivateVaultTest is TestCommon {
 
     // Create a new vault for this test
     PrivateVault testVault = new PrivateVault();
-    testVault.initialize(testOwner, address(configManager));
+    testVault.initialize(testOwner, address(configManager), "Test Vault");
 
     // Sign one message
     bytes32 messageHash1 = keccak256(abi.encodePacked("message 1"));
@@ -772,7 +772,7 @@ contract PrivateVaultTest is TestCommon {
 
     // Create a new vault for this test
     PrivateVault testVault = new PrivateVault();
-    testVault.initialize(testOwner, address(configManager));
+    testVault.initialize(testOwner, address(configManager), "Test Vault");
 
     // Sign a message
     bytes32 messageHash = keccak256(abi.encodePacked("correct message"));
@@ -804,15 +804,15 @@ contract PrivateVaultTest is TestCommon {
     PrivateVault newVault = new PrivateVault();
 
     vm.expectRevert(IPrivateCommon.ZeroAddress.selector);
-    newVault.initialize(VAULT_OWNER, address(0));
+    newVault.initialize(VAULT_OWNER, address(0), "Test Vault");
   }
 
   function test_initialize_already_initialized() public {
     PrivateVault newVault = new PrivateVault();
-    newVault.initialize(VAULT_OWNER, address(configManager));
+    newVault.initialize(VAULT_OWNER, address(configManager), "Test Vault");
 
     vm.expectRevert(Initializable.InvalidInitialization.selector);
-    newVault.initialize(VAULT_OWNER, address(configManager));
+    newVault.initialize(VAULT_OWNER, address(configManager), "Test Vault");
   }
 
   // ============ PAUSE TESTS ============

@@ -25,6 +25,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   // Magic value per EIP-1271
   bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
 
+  string public name;
   address public override vaultOwner;
   address public vaultFactory;
   IPrivateConfigManager public configManager;
@@ -51,11 +52,13 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Initializes the vault
   /// @param _owner Owner of the vault
   /// @param _configManager Address of the whitelist manager
-  function initialize(address _owner, address _configManager) public initializer {
+  /// @param _name Name of the vault
+  function initialize(address _owner, address _configManager, string calldata _name) public initializer {
     require(_configManager != address(0), ZeroAddress());
 
     // Cache variables to minimize storage writes
     configManager = IPrivateConfigManager(_configManager);
+    name = _name;
     vaultOwner = _owner;
     vaultFactory = msg.sender;
     admins[vaultFactory] = true;

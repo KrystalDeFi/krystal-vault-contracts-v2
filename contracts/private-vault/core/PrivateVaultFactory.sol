@@ -37,7 +37,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
   function createVault(string calldata name) external payable override whenNotPaused returns (address vault) {
     vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, name)));
 
-    IPrivateVault(vault).initialize(msg.sender, configManager);
+    IPrivateVault(vault).initialize(msg.sender, configManager, name);
 
     vaultsByAddress[msg.sender].push(vault);
     allVaults.push(vault);
@@ -62,7 +62,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
   ) external payable override whenNotPaused returns (address vault) {
     vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, name)));
 
-    IPrivateVault(vault).initialize(msg.sender, configManager);
+    IPrivateVault(vault).initialize(msg.sender, configManager, name);
 
     if (msg.value > 0) {
       (bool success,) = vault.call{ value: msg.value }("");

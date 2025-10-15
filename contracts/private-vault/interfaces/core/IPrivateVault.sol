@@ -25,9 +25,11 @@ interface IPrivateVault is IPrivateCommon {
 
   event SetVaultAdmin(address indexed vaultFactory, address indexed _address, bool indexed _isAdmin);
 
+  function name() external view returns (string memory);
+
   function vaultOwner() external view returns (address);
 
-  function initialize(address _owner, address _configManager) external;
+  function initialize(address _owner, address _configManager, string calldata _name) external;
 
   function multicall(
     address[] calldata targets,
