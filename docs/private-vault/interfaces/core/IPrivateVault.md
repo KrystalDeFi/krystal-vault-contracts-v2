@@ -80,6 +80,12 @@ event VaultDepositErc1155Tokens(address caller, address[] tokens, uint256[] toke
 event SetVaultAdmin(address vaultFactory, address _address, bool _isAdmin)
 ```
 
+### name
+
+```solidity
+function name() external view returns (string)
+```
+
 ### vaultOwner
 
 ```solidity
@@ -89,7 +95,7 @@ function vaultOwner() external view returns (address)
 ### initialize
 
 ```solidity
-function initialize(address _owner, address _configManager) external
+function initialize(address _owner, address _configManager, string _name) external
 ```
 
 ### multicall

@@ -8,6 +8,12 @@
 bytes4 MAGIC_VALUE
 ```
 
+### name
+
+```solidity
+string name
+```
+
 ### vaultOwner
 
 ```solidity
@@ -53,7 +59,7 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(address _owner, address _configManager) public
+function initialize(address _owner, address _configManager, string _name) public
 ```
 
 Initializes the vault
@@ -64,6 +70,7 @@ Initializes the vault
 | ---- | ---- | ----------- |
 | _owner | address | Owner of the vault |
 | _configManager | address | Address of the whitelist manager |
+| _name | string | Name of the vault |
 
 ### multicall
 
