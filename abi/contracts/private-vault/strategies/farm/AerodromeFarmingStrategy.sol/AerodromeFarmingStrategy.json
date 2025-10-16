@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "_gaugeFactory",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_configManager",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -154,6 +159,19 @@
     ],
     "name": "FeeCollect",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "configManager",
+    "outputs": [
+      {
+        "internalType": "contract IPrivateConfigManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [

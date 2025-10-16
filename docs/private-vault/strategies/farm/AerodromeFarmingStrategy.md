@@ -20,6 +20,12 @@ address gaugeFactory
 address nfpm
 ```
 
+### configManager
+
+```solidity
+contract IPrivateConfigManager configManager
+```
+
 ### AerodromeFarmingStaked
 
 ```solidity
@@ -41,7 +47,7 @@ event AerodromeFarmingRewardsHarvested(uint256 tokenId, address gauge, address m
 ### constructor
 
 ```solidity
-constructor(address _gaugeFactory) public
+constructor(address _gaugeFactory, address _configManager) public
 ```
 
 ### _getGaugeFromTokenId
@@ -68,10 +74,10 @@ function withdraw(uint256 tokenId, uint16 feeBps) external
 function harvest(uint256 tokenId, uint16 feeBps) external
 ```
 
-### _collectRewards
+### _harvest
 
 ```solidity
-function _collectRewards(address clGauge, uint256 tokenId, uint16 feeBps) internal
+function _harvest(address clGauge, uint256 tokenId, uint16 feeBps) internal
 ```
 
 ### _handleReward

@@ -14,6 +14,12 @@ uint8 FARM_REWARD_FEE_TYPE
 address masterChefV3
 ```
 
+### configManager
+
+```solidity
+contract IPrivateConfigManager configManager
+```
+
 ### PancakeV3FarmingStaked
 
 ```solidity
@@ -35,7 +41,7 @@ event PancakeV3FarmingRewardsHarvested(uint256 tokenId, address masterChefV3, ad
 ### constructor
 
 ```solidity
-constructor(address _masterChefV3) public
+constructor(address _masterChefV3, address _configManager) public
 ```
 
 ### deposit
@@ -56,10 +62,10 @@ function withdraw(uint256 tokenId, uint16 feeBps) external
 function harvest(uint256 tokenId, uint16 feeBps) external
 ```
 
-### _collectRewards
+### _harvest
 
 ```solidity
-function _collectRewards(uint256 tokenId, uint16 feeBps) internal
+function _harvest(uint256 tokenId, uint16 feeBps) internal
 ```
 
 ### _handleReward

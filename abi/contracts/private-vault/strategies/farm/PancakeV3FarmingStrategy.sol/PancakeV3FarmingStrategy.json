@@ -5,6 +5,11 @@
         "internalType": "address",
         "name": "_masterChefV3",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_configManager",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -154,6 +159,19 @@
     ],
     "name": "PancakeV3FarmingUnstaked",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "configManager",
+    "outputs": [
+      {
+        "internalType": "contract IPrivateConfigManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
