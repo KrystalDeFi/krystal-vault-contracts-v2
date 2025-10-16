@@ -6,13 +6,13 @@ import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensio
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CollectFee } from "../../libraries/CollectFee.sol";
-import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 
 contract PancakeV3FarmingStrategy {
   uint8 internal constant FARM_REWARD_FEE_TYPE = 1;
 
   address public immutable masterChefV3;
+  IPrivateConfigManager public immutable configManager;
 
   event PancakeV3FarmingStaked(
     address indexed nfpm, uint256 indexed tokenId, address indexed masterChefV3, address msgSender
@@ -20,9 +20,11 @@ contract PancakeV3FarmingStrategy {
   event PancakeV3FarmingUnstaked(uint256 indexed tokenId, address indexed masterChefV3, address msgSender);
   event PancakeV3FarmingRewardsHarvested(uint256 indexed tokenId, address indexed masterChefV3, address msgSender);
 
-  constructor(address _masterChefV3) {
+  constructor(address _masterChefV3, address _configManager) {
     require(_masterChefV3 != address(0), "Invalid masterChef");
+    require(_configManager != address(0), "Invalid config manager");
     masterChefV3 = _masterChefV3;
+    configManager = IPrivateConfigManager(_configManager);
   }
 
   function deposit(uint256 tokenId) external {
@@ -38,19 +40,19 @@ contract PancakeV3FarmingStrategy {
   }
 
   function withdraw(uint256 tokenId, uint16 feeBps) external {
-    _collectRewards(tokenId, feeBps);
+    _harvest(tokenId, feeBps);
     IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
 
     emit PancakeV3FarmingUnstaked(tokenId, masterChefV3, msg.sender);
   }
 
   function harvest(uint256 tokenId, uint16 feeBps) external {
-    _collectRewards(tokenId, feeBps);
+    _harvest(tokenId, feeBps);
 
     emit PancakeV3FarmingRewardsHarvested(tokenId, masterChefV3, msg.sender);
   }
 
-  function _collectRewards(uint256 tokenId, uint16 feeBps) internal {
+  function _harvest(uint256 tokenId, uint16 feeBps) internal {
     address rewardToken = IMasterChefV3(masterChefV3).CAKE();
     uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
 
@@ -66,7 +68,6 @@ contract PancakeV3FarmingStrategy {
     uint256 harvestedAmount = balanceAfter - balanceBefore;
     if (feeBps == 0) return;
 
-    IPrivateConfigManager configManager = IPrivateVault(address(this)).configManager();
     CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, FARM_REWARD_FEE_TYPE);
   }
 }

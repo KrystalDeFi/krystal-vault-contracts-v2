@@ -89,7 +89,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     v3UtilsStrategy = new V3UtilsStrategy(V3_UTILS);
 
     // Deploy PancakeV3FarmingStrategy
-    farmingStrategy = new PancakeV3FarmingStrategy(MASTERCHEF_V3);
+    farmingStrategy = new PancakeV3FarmingStrategy(MASTERCHEF_V3, address(configManager));
 
     // Add strategies to whitelist
     address[] memory strategiesToAdd = new address[](2);
@@ -99,6 +99,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     vm.prank(admin);
     configManager.setWhitelistTargets(strategiesToAdd, true);
+
+    vm.prank(admin);
+    configManager.setFeeRecipient(feeRecipient);
 
     vm.prank(admin);
     configManager.setFeeRecipient(feeRecipient);

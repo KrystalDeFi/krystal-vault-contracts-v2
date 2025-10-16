@@ -11,7 +11,6 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ICLFactory } from "../../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CollectFee } from "../../libraries/CollectFee.sol";
-import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 
 contract AerodromeFarmingStrategy {
@@ -19,15 +18,18 @@ contract AerodromeFarmingStrategy {
 
   address public immutable gaugeFactory;
   address public immutable nfpm;
+  IPrivateConfigManager public immutable configManager;
 
   event AerodromeFarmingStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingUnstaked(uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingRewardsHarvested(uint256 indexed tokenId, address indexed gauge, address msgSender);
 
-  constructor(address _gaugeFactory) {
+  constructor(address _gaugeFactory, address _configManager) {
     require(_gaugeFactory != address(0), "Invalid gauge factory");
+    require(_configManager != address(0), "Invalid config manager");
     gaugeFactory = _gaugeFactory;
     nfpm = ICLGaugeFactory(_gaugeFactory).nft();
+    configManager = IPrivateConfigManager(_configManager);
   }
 
   function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address gauge) {
@@ -65,7 +67,7 @@ contract AerodromeFarmingStrategy {
 
   function withdraw(uint256 tokenId, uint16 feeBps) external {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _collectRewards(clGauge, tokenId, feeBps);
+    _harvest(clGauge, tokenId, feeBps);
     ICLGauge(clGauge).withdraw(tokenId);
 
     emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
@@ -73,12 +75,12 @@ contract AerodromeFarmingStrategy {
 
   function harvest(uint256 tokenId, uint16 feeBps) external {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _collectRewards(clGauge, tokenId, feeBps);
+    _harvest(clGauge, tokenId, feeBps);
 
     emit AerodromeFarmingRewardsHarvested(tokenId, clGauge, msg.sender);
   }
 
-  function _collectRewards(address clGauge, uint256 tokenId, uint16 feeBps) internal {
+  function _harvest(address clGauge, uint256 tokenId, uint16 feeBps) internal {
     address rewardToken = ICLGauge(clGauge).rewardToken();
     uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
 
@@ -88,15 +90,12 @@ contract AerodromeFarmingStrategy {
   }
 
   function _handleReward(address rewardToken, uint256 balanceBefore, uint16 feeBps) internal {
-    if (rewardToken == address(0)) return;
-
     uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
     if (balanceAfter <= balanceBefore) return;
 
     uint256 harvestedAmount = balanceAfter - balanceBefore;
     if (feeBps == 0) return;
 
-    IPrivateConfigManager configManager = IPrivateVault(address(this)).configManager();
     CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, FARM_REWARD_FEE_TYPE);
   }
 }
