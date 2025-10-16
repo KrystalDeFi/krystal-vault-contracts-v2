@@ -35,7 +35,7 @@ address feeRecipient
 ### initialize
 
 ```solidity
-function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers) public
+function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient) public
 ```
 
 ### setWhitelistTargets
