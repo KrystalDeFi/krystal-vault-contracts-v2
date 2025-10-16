@@ -14,7 +14,7 @@ contract MerklStrategy {
   address public immutable distributor;
   IPrivateConfigManager public immutable configManager;
 
-  event MerkleRewardClaim(address distributor, address token, uint256 amount);
+  event MerklRewardClaim(address distributor, address token, uint256 amount);
 
   constructor(address _distributor, address _configManager) {
     distributor = _distributor;
@@ -38,6 +38,6 @@ contract MerklStrategy {
       CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, feeBps, CollectFee.FARM_REWARD_FEE_TYPE);
     }
 
-    emit MerkleRewardClaimed(distributor, token, rewardAmount);
+    emit MerklRewardClaim(distributor, token, rewardAmount);
   }
 }

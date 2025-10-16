@@ -14,6 +14,8 @@ import { AerodromeFarmingStrategy } from "../typechain-types/contracts/private-v
 import { PancakeV3FarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy";
 import { V3UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv3/V3UtilsStrategy";
 import { V4UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv4/V4UtilsStrategy";
+import { MerklStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/MerklStrategy";
+import { KyberFairFlowStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/KyberFairFlowStrategy";
 import { sleep } from "./helpers";
 
 const { SALT } = process.env;
@@ -40,6 +42,8 @@ export interface PrivateContracts {
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
+  merklStrategy?: MerklStrategy;
+  kyberFairFlowStrategy?: KyberFairFlowStrategy;
 }
 
 export const deploy = async (
@@ -294,6 +298,62 @@ export const deployPancakeV3FarmingStrategyContract = async (
 
   return {
     pancakeV3FarmingStrategy,
+  };
+};
+
+export const deployMerklStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let merklStrategy;
+
+  if (config.merklStrategy?.enabled) {
+    merklStrategy = (await deployContract(
+      `${step} >>`,
+      config.privateMerklStrategy?.autoVerifyContract,
+      "MerklStrategy",
+      existingContract?.["merklStrategy"],
+      "contracts/private-vault/strategies/farm/MerklStrategy.sol:MerklStrategy",
+      undefined,
+      ["address", "address"],
+      [config.merklDistributor, existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+    )) as MerklStrategy;
+  }
+
+  return {
+    merklStrategy,
+  };
+};
+
+export const deployKyberFairFlowStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let kyberFairFlowStrategy;
+
+  if (config.privateKyberFairFlowStrategy?.enabled) {
+    kyberFairFlowStrategy = (await deployContract(
+      `${step} >>`,
+      config.privateKyberFairFlowStrategy?.autoVerifyContract,
+      "KyberFairFlowStrategy",
+      existingContract?.["kyberFairFlowStrategy"],
+      "contracts/private-vault/strategies/farm/KyberFairFlowStrategy.sol:KyberFairFlowStrategy",
+      undefined,
+      ["address", "address"],
+      [config.uniswapV4KEMHook, existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+    )) as KyberFairFlowStrategy;
+  }
+
+  return {
+    kyberFairFlowStrategy,
   };
 };
 

@@ -25,6 +25,14 @@ export interface IConfigPrivate {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  privateMerklStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  privateKyberFairFlowStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   privateV3UtilsStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -37,6 +45,8 @@ export interface IConfigPrivate {
   v4UtilsAddress?: AddressLike;
   aerodromeGaugeFactory?: AddressLike;
   pancakeV3MasterChef?: AddressLike;
+  merklDistributor?: AddressLike;
+  uniswapV4KEMHook?: AddressLike;
 }
 
 export interface IConfigAerodrome {
