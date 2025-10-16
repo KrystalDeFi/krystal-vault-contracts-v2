@@ -2,10 +2,15 @@
 
 ## CollectFee
 
-### FARM_REWARD_FEE_TYPE
+### FeeType
 
 ```solidity
-uint8 FARM_REWARD_FEE_TYPE
+enum FeeType {
+  PLATFORM,
+  OWNER,
+  GAS,
+  FARM_REWARD
+}
 ```
 
 ### BPS_DENOMINATOR
@@ -29,12 +34,12 @@ error FeeRecipientNotSet()
 ### FeeCollect
 
 ```solidity
-event FeeCollect(address token, uint256 feeAmount, uint16 feeBps, uint8 feeType, address sender, address recipient)
+event FeeCollect(address token, uint256 feeAmount, uint16 feeBps, enum CollectFee.FeeType feeType, address sender, address recipient)
 ```
 
 ### collect
 
 ```solidity
-function collect(address recipient, address token, uint256 amount, uint16 feeBps, uint8 feeType) internal returns (uint256 feeAmount)
+function collect(address recipient, address token, uint256 amount, uint16 feeBps, enum CollectFee.FeeType feeType) internal returns (uint256 feeAmount)
 ```
 
