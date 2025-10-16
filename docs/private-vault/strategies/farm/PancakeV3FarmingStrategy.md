@@ -2,12 +2,6 @@
 
 ## PancakeV3FarmingStrategy
 
-### FARM_REWARD_FEE_TYPE
-
-```solidity
-uint8 FARM_REWARD_FEE_TYPE
-```
-
 ### masterChefV3
 
 ```solidity

@@ -2,12 +2,6 @@
 
 ## AerodromeFarmingStrategy
 
-### FARM_REWARD_FEE_TYPE
-
-```solidity
-uint8 FARM_REWARD_FEE_TYPE
-```
-
 ### gaugeFactory
 
 ```solidity

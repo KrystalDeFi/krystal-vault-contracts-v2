@@ -2,6 +2,12 @@
 
 ## CollectFee
 
+### FARM_REWARD_FEE_TYPE
+
+```solidity
+uint8 FARM_REWARD_FEE_TYPE
+```
+
 ### BPS_DENOMINATOR
 
 ```solidity
