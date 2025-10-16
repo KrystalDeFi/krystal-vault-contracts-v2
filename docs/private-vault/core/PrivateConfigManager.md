@@ -26,6 +26,12 @@ bool isVaultPaused
 bool enforceTargetWhitelistForOwners
 ```
 
+### feeRecipient
+
+```solidity
+address feeRecipient
+```
+
 ### initialize
 
 ```solidity
@@ -66,5 +72,11 @@ function setVaultPaused(bool _isVaultPaused) external
 
 ```solidity
 function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external
+```
+
+### setFeeRecipient
+
+```solidity
+function setFeeRecipient(address newFeeRecipient) external
 ```
 

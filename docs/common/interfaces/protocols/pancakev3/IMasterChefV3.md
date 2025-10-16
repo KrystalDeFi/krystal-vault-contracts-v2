@@ -8,6 +8,12 @@
 function nonfungiblePositionManager() external view returns (address)
 ```
 
+### CAKE
+
+```solidity
+function CAKE() external view returns (address)
+```
+
 ### harvest
 
 ```solidity

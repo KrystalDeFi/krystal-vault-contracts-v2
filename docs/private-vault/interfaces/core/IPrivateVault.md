@@ -92,6 +92,12 @@ function name() external view returns (string)
 function vaultOwner() external view returns (address)
 ```
 
+### configManager
+
+```solidity
+function configManager() external view returns (contract IPrivateConfigManager)
+```
+
 ### initialize
 
 ```solidity

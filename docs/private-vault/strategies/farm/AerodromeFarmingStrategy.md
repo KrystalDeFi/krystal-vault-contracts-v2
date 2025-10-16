@@ -2,6 +2,12 @@
 
 ## AerodromeFarmingStrategy
 
+### FARM_REWARD_FEE_TYPE
+
+```solidity
+uint8 FARM_REWARD_FEE_TYPE
+```
+
 ### gaugeFactory
 
 ```solidity
@@ -53,12 +59,24 @@ function deposit(uint256 tokenId) external
 ### withdraw
 
 ```solidity
-function withdraw(uint256 tokenId) external
+function withdraw(uint256 tokenId, uint16 feeBps) external
 ```
 
 ### harvest
 
 ```solidity
-function harvest(uint256 tokenId) external
+function harvest(uint256 tokenId, uint16 feeBps) external
+```
+
+### _collectRewards
+
+```solidity
+function _collectRewards(address clGauge, uint256 tokenId, uint16 feeBps) internal
+```
+
+### _handleReward
+
+```solidity
+function _handleReward(address rewardToken, uint256 balanceBefore, uint16 feeBps) internal
 ```
 

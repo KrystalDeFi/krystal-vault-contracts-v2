@@ -2,6 +2,12 @@
 
 ## IPrivateConfigManager
 
+### FeeRecipientUpdated
+
+```solidity
+event FeeRecipientUpdated(address previousRecipient, address newRecipient)
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -48,5 +54,17 @@ function enforceTargetWhitelistForOwners() external view returns (bool)
 
 ```solidity
 function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external
+```
+
+### feeRecipient
+
+```solidity
+function feeRecipient() external view returns (address)
+```
+
+### setFeeRecipient
+
+```solidity
+function setFeeRecipient(address newFeeRecipient) external
 ```
 
