@@ -11,6 +11,7 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
 
   bool public override isVaultPaused = false;
   bool public override enforceTargetWhitelistForOwners = false;
+  address public override feeRecipient;
 
   function initialize(address _owner, address[] calldata _whitelistTargets, address[] calldata _whitelistCallers)
     public
@@ -61,5 +62,14 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
 
   function setEnforceTargetWhitelistForOwners(bool _enforceTargetWhitelistForOwners) external override onlyOwner {
     enforceTargetWhitelistForOwners = _enforceTargetWhitelistForOwners;
+  }
+
+  function setFeeRecipient(address newFeeRecipient) external override onlyOwner {
+    require(newFeeRecipient != address(0), "ZeroAddress");
+
+    address previousRecipient = feeRecipient;
+    feeRecipient = newFeeRecipient;
+
+    emit FeeRecipientUpdated(previousRecipient, newFeeRecipient);
   }
 }

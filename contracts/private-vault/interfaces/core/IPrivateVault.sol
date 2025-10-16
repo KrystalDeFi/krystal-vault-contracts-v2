@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./IPrivateCommon.sol";
+import "./IPrivateConfigManager.sol";
 
 interface IPrivateVault is IPrivateCommon {
   error InvalidMulticallParams();
@@ -28,6 +29,8 @@ interface IPrivateVault is IPrivateCommon {
   function name() external view returns (string memory);
 
   function vaultOwner() external view returns (address);
+
+  function configManager() external view returns (IPrivateConfigManager);
 
   function initialize(address _owner, address _configManager, string calldata _name) external;
 

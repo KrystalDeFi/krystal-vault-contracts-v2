@@ -30,7 +30,7 @@ import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lp
 
 // PancakeV3 Farming Strategy contracts
 import { PancakeV3FarmingStrategy } from "../../contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy.sol";
-import { IMasterChefV3 } from "../../contracts/private-vault/interfaces/strategies/pancakev3/IMasterChefV3.sol";
+import { IMasterChefV3 } from "../../contracts/common/interfaces/protocols/pancakev3/IMasterChefV3.sol";
 
 contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   // Test constants
@@ -54,11 +54,14 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   // Test addresses
   address public vaultOwner = USER;
   address public admin = 0x1234567890123456789012345678901234567891;
+  address public feeRecipient;
 
   function setUp() public {
     // Create mainnet fork for consistent testing environment
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_301_000);
     vm.selectFork(fork);
+
+    feeRecipient = makeAddr("cakeFeeRecipient");
 
     vm.startPrank(vaultOwner);
 
@@ -96,6 +99,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     vm.prank(admin);
     configManager.setWhitelistTargets(strategiesToAdd, true);
+
+    vm.prank(admin);
+    configManager.setFeeRecipient(feeRecipient);
 
     vm.startPrank(vaultOwner);
 
@@ -373,7 +379,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to unstake LP position from MasterChefV3 (no prank management)
   function _unstakeFromMasterChef(uint256 tokenId) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
+    _unstakeFromMasterChefWithFee(tokenId, 0);
+  }
+
+  function _unstakeFromMasterChefWithFee(uint256 tokenId, uint16 feeBps) internal {
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, feeBps);
 
     (
       address[] memory targets,
@@ -387,7 +397,11 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to claim CAKE rewards from MasterChefV3 (no prank management)
   function _claimMasterChefRewards(uint256 tokenId) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.harvest.selector, tokenId);
+    _claimMasterChefRewardsWithFee(tokenId, 0);
+  }
+
+  function _claimMasterChefRewardsWithFee(uint256 tokenId, uint16 feeBps) internal {
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.harvest.selector, tokenId, feeBps);
 
     (
       address[] memory targets,
@@ -515,7 +529,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare unstake call data
-    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
+    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0);
 
     // Prepare V3Utils increase liquidity call data
     bytes memory increaseLiquidityCallData = abi.encodeWithSelector(
@@ -1063,6 +1077,76 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     vm.stopPrank();
   }
 
+  function test_PancakeV3Farming_HarvestFeeCollection() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 wethAmount = 1 ether;
+    uint256 usdcAmount = 3000 * 1e6;
+    uint256 tokenId = _zapIntoMasterChef(wethAmount, usdcAmount);
+
+    vm.warp(block.timestamp + 7 days);
+
+    uint16 feeBps = 500;
+
+    uint256 vaultBalanceBefore = IERC20(CAKE_TOKEN).balanceOf(address(vaultInstance));
+    uint256 recipientBalanceBefore = IERC20(CAKE_TOKEN).balanceOf(feeRecipient);
+
+    _claimMasterChefRewardsWithFee(tokenId, feeBps);
+
+    uint256 vaultBalanceAfter = IERC20(CAKE_TOKEN).balanceOf(address(vaultInstance));
+    uint256 recipientBalanceAfter = IERC20(CAKE_TOKEN).balanceOf(feeRecipient);
+
+    uint256 recipientDelta =
+      recipientBalanceAfter > recipientBalanceBefore ? recipientBalanceAfter - recipientBalanceBefore : 0;
+    uint256 vaultDelta = vaultBalanceAfter > vaultBalanceBefore ? vaultBalanceAfter - vaultBalanceBefore : 0;
+    uint256 totalHarvested = recipientDelta + vaultDelta;
+
+    if (totalHarvested == 0) {
+      assertEq(recipientDelta, 0);
+    } else {
+      uint256 expectedRecipientDelta = totalHarvested * feeBps / 10_000;
+      assertEq(recipientDelta, expectedRecipientDelta);
+    }
+
+    vm.stopPrank();
+  }
+
+  function test_PancakeV3Farming_WithdrawFeeCollection() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 wethAmount = 1 ether;
+    uint256 usdcAmount = 3000 * 1e6;
+    uint256 tokenId = _zapIntoMasterChef(wethAmount, usdcAmount);
+
+    vm.warp(block.timestamp + 7 days);
+
+    uint16 feeBps = 500;
+
+    uint256 vaultBalanceBefore = IERC20(CAKE_TOKEN).balanceOf(address(vaultInstance));
+    uint256 recipientBalanceBefore = IERC20(CAKE_TOKEN).balanceOf(feeRecipient);
+
+    _unstakeFromMasterChefWithFee(tokenId, feeBps);
+
+    uint256 vaultBalanceAfter = IERC20(CAKE_TOKEN).balanceOf(address(vaultInstance));
+    uint256 recipientBalanceAfter = IERC20(CAKE_TOKEN).balanceOf(feeRecipient);
+
+    uint256 recipientDelta =
+      recipientBalanceAfter > recipientBalanceBefore ? recipientBalanceAfter - recipientBalanceBefore : 0;
+    uint256 vaultDelta = vaultBalanceAfter > vaultBalanceBefore ? vaultBalanceAfter - vaultBalanceBefore : 0;
+    uint256 totalHarvested = recipientDelta + vaultDelta;
+
+    if (totalHarvested == 0) {
+      assertEq(recipientDelta, 0);
+    } else {
+      uint256 expectedRecipientDelta = totalHarvested * feeBps / 10_000;
+      assertEq(recipientDelta, expectedRecipientDelta);
+    }
+
+    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
+
+    vm.stopPrank();
+  }
+
   // Test LP operations while farming (unstake -> add liquidity -> restake)
   function test_PancakeV3Farming_UnstakeOperateRestake() public {
     vm.startPrank(vaultOwner);
@@ -1165,7 +1249,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare unstake, compound, restake multicall
-    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
+    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0);
 
     bytes memory compoundCallData =
       abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
@@ -1235,7 +1319,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 nonExistentTokenId = 999_999;
 
     bytes memory strategyCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, nonExistentTokenId);
+      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, nonExistentTokenId, 0);
 
     (
       address[] memory targets,
@@ -1258,7 +1342,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 nonExistentTokenId = 999_999;
 
     bytes memory strategyCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.harvest.selector, nonExistentTokenId);
+      abi.encodeWithSelector(PancakeV3FarmingStrategy.harvest.selector, nonExistentTokenId, 0);
 
     (
       address[] memory targets,
@@ -1284,7 +1368,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
 
     // Try to unstake without staking first
-    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0);
 
     (
       address[] memory targets,
@@ -1313,7 +1397,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     address unauthorized = 0x9999999999999999999999999999999999999999;
     vm.startPrank(unauthorized);
 
-    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId);
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0);
 
     (
       address[] memory targets,
