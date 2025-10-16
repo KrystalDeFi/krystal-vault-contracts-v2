@@ -14,7 +14,7 @@ import { CollectFee } from "../../libraries/CollectFee.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 
 contract AerodromeFarmingStrategy {
-  uint8 internal constant FARM_REWARD_FEE_TYPE = 1;
+  uint8 internal constant FARM_REWARD_FEE_TYPE = 4;
 
   address public immutable gaugeFactory;
   address public immutable nfpm;

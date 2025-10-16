@@ -111,7 +111,12 @@ async function deployContracts(
       existingContract?.["v4UtilsStrategy"] || contracts?.v4UtilsStrategy?.target,
     ].filter(Boolean);
 
-    await privateConfigManager?.privateConfigManager?.initialize(contractAdmin, whitelistedTargets, whitelistedCallers);
+    await privateConfigManager?.privateConfigManager?.initialize(
+      contractAdmin,
+      whitelistedTargets,
+      whitelistedCallers,
+      commonConfig.feeCollector,
+    );
   }
 
   return contracts;

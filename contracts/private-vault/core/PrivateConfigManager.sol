@@ -13,10 +13,12 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
   bool public override enforceTargetWhitelistForOwners = false;
   address public override feeRecipient;
 
-  function initialize(address _owner, address[] calldata _whitelistTargets, address[] calldata _whitelistCallers)
-    public
-    initializer
-  {
+  function initialize(
+    address _owner,
+    address[] calldata _whitelistTargets,
+    address[] calldata _whitelistCallers,
+    address _feeRecipient
+  ) public initializer {
     __Ownable_init(_owner);
 
     uint256 length = _whitelistTargets.length;
@@ -30,6 +32,8 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
       whitelistCallers[_whitelistCallers[i]] = true;
       i++;
     }
+
+    feeRecipient = _feeRecipient;
   }
 
   function setWhitelistTargets(address[] calldata targets, bool isWhitelisted) external override onlyOwner {
@@ -67,9 +71,8 @@ contract PrivateConfigManager is OwnableUpgradeable, IPrivateConfigManager {
   function setFeeRecipient(address newFeeRecipient) external override onlyOwner {
     require(newFeeRecipient != address(0), "ZeroAddress");
 
-    address previousRecipient = feeRecipient;
-    feeRecipient = newFeeRecipient;
+    emit FeeRecipientUpdated(feeRecipient, newFeeRecipient);
 
-    emit FeeRecipientUpdated(previousRecipient, newFeeRecipient);
+    feeRecipient = newFeeRecipient;
   }
 }

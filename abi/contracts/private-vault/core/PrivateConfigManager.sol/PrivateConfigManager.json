@@ -124,6 +124,11 @@
         "internalType": "address[]",
         "name": "_whitelistCallers",
         "type": "address[]"
+      },
+      {
+        "internalType": "address",
+        "name": "_feeRecipient",
+        "type": "address"
       }
     ],
     "name": "initialize",
