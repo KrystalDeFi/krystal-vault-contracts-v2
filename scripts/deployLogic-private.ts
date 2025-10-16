@@ -42,8 +42,8 @@ export interface PrivateContracts {
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
-  merklStrategy?: MerklStrategy;
-  kyberFairFlowStrategy?: KyberFairFlowStrategy;
+  privateMerklStrategy?: MerklStrategy;
+  privateKyberFairFlowStrategy?: KyberFairFlowStrategy;
 }
 
 export const deploy = async (
@@ -94,6 +94,13 @@ async function deployContracts(
     undefined,
     contracts,
   );
+  const privateMerklStrategy = await deployPrivateMerklStrategyContract(++step, existingContract, undefined, contracts);
+  const privateKyberFairFlowStrategy = await deployPrivateKyberFairFlowStrategyContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
   const v3UtilsStrategy = await deployV3UtilsStrategyContract(++step, existingContract);
   const v4UtilsStrategy = await deployV4UtilsStrategyContract(++step, existingContract);
 
@@ -103,6 +110,8 @@ async function deployContracts(
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
     aerodromeFarmingStrategy: aerodromeFarmingStrategy.aerodromeFarmingStrategy,
     pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
+    privateMerklStrategy: privateMerklStrategy.privateMerklStrategy,
+    privateKyberFairFlowStrategy: privateKyberFairFlowStrategy.privateKyberFairFlowStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
     v4UtilsStrategy: v4UtilsStrategy.v4UtilsStrategy,
   });
@@ -125,6 +134,8 @@ async function deployContracts(
     const whitelistedTargets = [
       existingContract?.["aerodromeFarmingStrategy"] || contracts?.aerodromeFarmingStrategy?.target,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
+      existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
+      existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
       existingContract?.["v3UtilsStrategy"] || contracts?.v3UtilsStrategy?.target,
       existingContract?.["v4UtilsStrategy"] || contracts?.v4UtilsStrategy?.target,
     ].filter(Boolean);
@@ -301,7 +312,7 @@ export const deployPancakeV3FarmingStrategyContract = async (
   };
 };
 
-export const deployMerklStrategyContract = async (
+export const deployPrivateMerklStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   customNetworkConfig?: IConfig,
@@ -309,14 +320,14 @@ export const deployMerklStrategyContract = async (
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let merklStrategy;
+  let privateMerklStrategy;
 
-  if (config.merklStrategy?.enabled) {
-    merklStrategy = (await deployContract(
+  if (config.privateMerklStrategy?.enabled) {
+    privateMerklStrategy = (await deployContract(
       `${step} >>`,
       config.privateMerklStrategy?.autoVerifyContract,
-      "MerklStrategy",
-      existingContract?.["merklStrategy"],
+      "contracts/private-vault/strategies/farm/MerklStrategy.sol:MerklStrategy",
+      existingContract?.["privateMerklStrategy"],
       "contracts/private-vault/strategies/farm/MerklStrategy.sol:MerklStrategy",
       undefined,
       ["address", "address"],
@@ -325,11 +336,11 @@ export const deployMerklStrategyContract = async (
   }
 
   return {
-    merklStrategy,
+    privateMerklStrategy,
   };
 };
 
-export const deployKyberFairFlowStrategyContract = async (
+export const deployPrivateKyberFairFlowStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   customNetworkConfig?: IConfig,
@@ -337,14 +348,14 @@ export const deployKyberFairFlowStrategyContract = async (
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let kyberFairFlowStrategy;
+  let privateKyberFairFlowStrategy;
 
   if (config.privateKyberFairFlowStrategy?.enabled) {
-    kyberFairFlowStrategy = (await deployContract(
+    privateKyberFairFlowStrategy = (await deployContract(
       `${step} >>`,
       config.privateKyberFairFlowStrategy?.autoVerifyContract,
       "KyberFairFlowStrategy",
-      existingContract?.["kyberFairFlowStrategy"],
+      existingContract?.["privateKyberFairFlowStrategy"],
       "contracts/private-vault/strategies/farm/KyberFairFlowStrategy.sol:KyberFairFlowStrategy",
       undefined,
       ["address", "address"],
@@ -353,7 +364,7 @@ export const deployKyberFairFlowStrategyContract = async (
   }
 
   return {
-    kyberFairFlowStrategy,
+    privateKyberFairFlowStrategy,
   };
 };
 

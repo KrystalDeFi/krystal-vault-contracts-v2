@@ -8,7 +8,12 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IPrivateConfigManager } from "../interfaces/core/IPrivateConfigManager.sol";
 
 library CollectFee {
-  uint8 internal constant FARM_REWARD_FEE_TYPE = 4;
+  enum FeeType {
+    PLATFORM,
+    OWNER,
+    GAS,
+    FARM_REWARD
+  }
 
   using SafeERC20 for IERC20;
 
@@ -21,12 +26,12 @@ library CollectFee {
     address indexed token,
     uint256 feeAmount,
     uint16 feeBps,
-    uint8 feeType,
+    FeeType feeType,
     address indexed sender,
     address indexed recipient
   );
 
-  function collect(address recipient, address token, uint256 amount, uint16 feeBps, uint8 feeType)
+  function collect(address recipient, address token, uint256 amount, uint16 feeBps, FeeType feeType)
     internal
     returns (uint256 feeAmount)
   {

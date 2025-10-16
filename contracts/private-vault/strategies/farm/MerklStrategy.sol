@@ -35,7 +35,7 @@ contract MerklStrategy {
     IMerklDistributor(distributor).claim(users, tokens, amounts, proofsArray);
     rewardAmount = IERC20(token).balanceOf(address(this)) - rewardAmount;
     if (rewardAmount > 0 && feeBps > 0) {
-      CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, feeBps, CollectFee.FARM_REWARD_FEE_TYPE);
+      CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, feeBps, CollectFee.FeeType.FARM_REWARD);
     }
 
     emit MerklRewardClaim(distributor, token, rewardAmount);

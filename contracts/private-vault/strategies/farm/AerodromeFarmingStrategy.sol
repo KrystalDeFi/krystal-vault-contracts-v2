@@ -95,7 +95,7 @@ contract AerodromeFarmingStrategy {
     if (feeBps == 0) return;
 
     CollectFee.collect(
-      configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, CollectFee.FARM_REWARD_FEE_TYPE
+      configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, CollectFee.FeeType.FARM_REWARD
     );
   }
 }

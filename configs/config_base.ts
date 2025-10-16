@@ -26,6 +26,14 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateMerklStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateKyberFairFlowStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     privateV3UtilsStrategy: {
       enabled: true,
       autoVerifyContract: true,
@@ -38,6 +46,8 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
     aerodromeGaugeFactory: "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
     pancakeV3MasterChef: "0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3",
+    merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+    uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
   },
 };
 

@@ -29,7 +29,7 @@ contract KyberFairFlowStrategy {
     IUniswapV4KEMHook(uniswapV4KEMHook).claimEgTokens(tokens, amounts);
     reward = IERC20(token).balanceOf(address(this)) - reward;
     if (reward > 0 && feeBps > 0) {
-      CollectFee.collect(configManager.feeRecipient(), token, reward, feeBps, CollectFee.FARM_REWARD_FEE_TYPE);
+      CollectFee.collect(configManager.feeRecipient(), token, reward, feeBps, CollectFee.FeeType.FARM_REWARD);
     }
     emit FairFlowRewardClaim(uniswapV4KEMHook, token, amount);
   }

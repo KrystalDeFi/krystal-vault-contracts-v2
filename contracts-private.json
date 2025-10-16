@@ -2,11 +2,13 @@
   "base_mainnet": {
     "privateVault": "0x35b16fdaf8a3cc7f7dd13c232729fca862e22fa6",
     "privateVaultFactory": "0x8c082a425477e5827268f1749c7d75eba40f22e9",
-    "privateConfigManager": "0x6c21bb89887e2d65392049431b8de8469fd3b385",
+    "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVaultAutomator": "0x052700ce749e0f22f1be3177a9e30710833e32f8",
-    "aerodromeFarmingStrategy": "0x21724380e06927a5c735fc6e64721b42539b1fca",
-    "pancakeV3FarmingStrategy": "0x79dcf9662c39ecba74a369332780ba75b6ebf052",
+    "aerodromeFarmingStrategy": "0x95195576c69f17ae49d6ed84c08a68e0ae4a1a4d",
+    "pancakeV3FarmingStrategy": "0x487887e43ff492ba5bbefd63b2da09395120c4ff",
     "v3UtilsStrategy": "0x5f3b5b105c1d2f015a976993cd775d9d5b45a16c",
-    "v4UtilsStrategy": "0xb598d727ab4d757076f0a99f228982fba77b5980"
+    "v4UtilsStrategy": "0xb598d727ab4d757076f0a99f228982fba77b5980",
+    "privateMerklStrategy": "0x89db907e1ad74de9b3b1cd98356c2291dcd90d28",
+    "privateKyberFairFlowStrategy": "0x5db0ebeca0d9013a06e8798f07588f81db403ab9"
   }
 }

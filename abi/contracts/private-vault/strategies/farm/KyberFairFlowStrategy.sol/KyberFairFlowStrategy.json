@@ -89,7 +89,7 @@
       },
       {
         "indexed": false,
-        "internalType": "uint8",
+        "internalType": "enum CollectFee.FeeType",
         "name": "feeType",
         "type": "uint8"
       },
