@@ -14,8 +14,6 @@ import { CollectFee } from "../../libraries/CollectFee.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 
 contract AerodromeFarmingStrategy {
-  uint8 internal constant FARM_REWARD_FEE_TYPE = 4;
-
   address public immutable gaugeFactory;
   address public immutable nfpm;
   IPrivateConfigManager public immutable configManager;
@@ -96,6 +94,8 @@ contract AerodromeFarmingStrategy {
     uint256 harvestedAmount = balanceAfter - balanceBefore;
     if (feeBps == 0) return;
 
-    CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, FARM_REWARD_FEE_TYPE);
+    CollectFee.collect(
+      configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, CollectFee.FARM_REWARD_FEE_TYPE
+    );
   }
 }

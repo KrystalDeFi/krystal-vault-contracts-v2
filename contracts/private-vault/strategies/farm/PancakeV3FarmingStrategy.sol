@@ -9,8 +9,6 @@ import { CollectFee } from "../../libraries/CollectFee.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 
 contract PancakeV3FarmingStrategy {
-  uint8 internal constant FARM_REWARD_FEE_TYPE = 4;
-
   address public immutable masterChefV3;
   IPrivateConfigManager public immutable configManager;
 
@@ -68,6 +66,8 @@ contract PancakeV3FarmingStrategy {
     uint256 harvestedAmount = balanceAfter - balanceBefore;
     if (feeBps == 0) return;
 
-    CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, FARM_REWARD_FEE_TYPE);
+    CollectFee.collect(
+      configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, CollectFee.FARM_REWARD_FEE_TYPE
+    );
   }
 }

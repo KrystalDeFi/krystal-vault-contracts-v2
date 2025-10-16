@@ -8,6 +8,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IPrivateConfigManager } from "../interfaces/core/IPrivateConfigManager.sol";
 
 library CollectFee {
+  uint8 internal constant FARM_REWARD_FEE_TYPE = 4;
+
   using SafeERC20 for IERC20;
 
   uint256 internal constant BPS_DENOMINATOR = 10_000;
