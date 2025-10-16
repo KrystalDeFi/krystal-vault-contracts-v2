@@ -69,25 +69,39 @@ async function deployContracts(
 ): Promise<PrivateContracts> {
   let step = 0;
 
+  const privateConfigManager = await deployPrivateConfigManagerContract(++step, existingContract);
+
+  const contracts: PrivateContracts = {
+    privateConfigManager: privateConfigManager.privateConfigManager,
+  };
+
   const privateVault = await deployPrivateVaultContract(++step, existingContract);
   const privateVaultFactory = await deployPrivateVaultFactoryContract(++step, existingContract);
-  const privateConfigManager = await deployPrivateConfigManagerContract(++step, existingContract);
   const privateVaultAutomator = await deployPrivateVaultAutomatorContract(++step, existingContract);
-  const aerodromeFarmingStrategy = await deployAerodromeFarmingStrategyContract(++step, existingContract);
-  const pancakeV3FarmingStrategy = await deployPancakeV3FarmingStrategyContract(++step, existingContract);
+  const aerodromeFarmingStrategy = await deployAerodromeFarmingStrategyContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
+  const pancakeV3FarmingStrategy = await deployPancakeV3FarmingStrategyContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
   const v3UtilsStrategy = await deployV3UtilsStrategyContract(++step, existingContract);
   const v4UtilsStrategy = await deployV4UtilsStrategyContract(++step, existingContract);
 
-  const contracts: PrivateContracts = {
+  Object.assign(contracts, {
     privateVault: privateVault.privateVault,
     privateVaultFactory: privateVaultFactory.privateVaultFactory,
-    privateConfigManager: privateConfigManager.privateConfigManager,
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
     aerodromeFarmingStrategy: aerodromeFarmingStrategy.aerodromeFarmingStrategy,
     pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
     v4UtilsStrategy: v4UtilsStrategy.v4UtilsStrategy,
-  };
+  });
 
   // Initialize contracts
   if (networkConfig.privateVaultFactory?.enabled) {
@@ -225,6 +239,7 @@ export const deployAerodromeFarmingStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
@@ -238,8 +253,11 @@ export const deployAerodromeFarmingStrategyContract = async (
       existingContract?.["aerodromeFarmingStrategy"],
       "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
       undefined,
-      ["address"],
-      [config.aerodromeGaugeFactory],
+      ["address", "address"],
+      [
+        config.aerodromeGaugeFactory,
+        existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
+      ],
     )) as AerodromeFarmingStrategy;
   }
 
@@ -252,6 +270,7 @@ export const deployPancakeV3FarmingStrategyContract = async (
   step: number,
   existingContract: Record<string, any> | undefined,
   customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
@@ -265,8 +284,11 @@ export const deployPancakeV3FarmingStrategyContract = async (
       existingContract?.["pancakeV3FarmingStrategy"],
       "contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy.sol:PancakeV3FarmingStrategy",
       undefined,
-      ["address"],
-      [config.pancakeV3MasterChef],
+      ["address", "address"],
+      [
+        config.pancakeV3MasterChef,
+        existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
+      ],
     )) as PancakeV3FarmingStrategy;
   }
 

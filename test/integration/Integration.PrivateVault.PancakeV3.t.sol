@@ -82,7 +82,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     configManager.initialize(
       admin, // owner
       whitelistStrategies,
-      whitelistOwners
+      whitelistOwners,
+      admin
     );
 
     // Deploy V3UtilsStrategy

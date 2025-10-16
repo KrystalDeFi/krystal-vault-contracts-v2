@@ -150,7 +150,7 @@ contract PrivateVaultTest is TestCommon {
     address[] memory whitelistCallers = new address[](1);
     whitelistCallers[0] = VAULT_OWNER;
 
-    configManager.initialize(VAULT_OWNER, whitelistTargets, whitelistCallers);
+    configManager.initialize(VAULT_OWNER, whitelistTargets, whitelistCallers, VAULT_OWNER);
 
     // Deploy mock contracts
     mockStrategy = new MockStrategy();

@@ -105,7 +105,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     whitelistTargets[0] = address(mockStrategy);
     address[] memory whitelistCallers = new address[](0);
 
-    configManager.initialize(ADMIN, whitelistTargets, whitelistCallers);
+    configManager.initialize(ADMIN, whitelistTargets, whitelistCallers, ADMIN);
 
     // Deploy private vault
     privateVault = new PrivateVault();

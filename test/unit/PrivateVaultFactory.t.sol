@@ -135,7 +135,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory whitelistCallers = new address[](1);
     whitelistCallers[0] = FACTORY_OWNER;
 
-    configManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers);
+    configManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers, FACTORY_OWNER);
 
     // Deploy mock contracts
     mockERC20 = new MockERC20();
@@ -771,7 +771,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory whitelistCallers = new address[](1);
     whitelistCallers[0] = FACTORY_OWNER;
 
-    newConfigManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers);
+    newConfigManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers, FACTORY_OWNER);
 
     vm.startBroadcast(FACTORY_OWNER);
 
@@ -800,7 +800,7 @@ contract PrivateVaultFactoryTest is TestCommon {
     address[] memory whitelistCallers = new address[](1);
     whitelistCallers[0] = FACTORY_OWNER;
 
-    newConfigManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers);
+    newConfigManager.initialize(FACTORY_OWNER, whitelistTargets, whitelistCallers, FACTORY_OWNER);
 
     vm.startBroadcast(NON_OWNER);
     vm.expectRevert();
