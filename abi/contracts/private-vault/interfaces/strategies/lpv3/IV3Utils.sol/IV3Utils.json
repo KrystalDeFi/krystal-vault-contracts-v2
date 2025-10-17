@@ -115,6 +115,11 @@
             "internalType": "uint64",
             "name": "protocolFeeX64",
             "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
           }
         ],
         "internalType": "struct IV3Utils.SwapAndIncreaseLiquidityParams",
@@ -207,6 +212,11 @@
           {
             "internalType": "uint64",
             "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
             "type": "uint64"
           },
           {

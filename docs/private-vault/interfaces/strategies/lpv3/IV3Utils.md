@@ -43,6 +43,7 @@ struct Instructions {
   bool unwrap;
   uint64 liquidityFeeX64;
   uint64 performanceFeeX64;
+  uint64 gasFeeX64;
 }
 ```
 
@@ -86,6 +87,7 @@ struct SwapAndMintParams {
   int24 tickLower;
   int24 tickUpper;
   uint64 protocolFeeX64;
+  uint64 gasFeeX64;
   uint256 amount0;
   uint256 amount1;
   uint256 amount2;
@@ -155,6 +157,7 @@ struct SwapAndIncreaseLiquidityParams {
   uint256 amountAddMin0;
   uint256 amountAddMin1;
   uint64 protocolFeeX64;
+  uint64 gasFeeX64;
 }
 ```
 
