@@ -17,33 +17,33 @@ library CollectFee {
 
   using SafeERC20 for IERC20;
 
-  uint256 internal constant BPS_DENOMINATOR = 10_000;
+  uint256 internal constant Q64 = 0x10000000000000000;
 
-  error InvalidFeeBps();
+  error InvalidRewardFee();
   error FeeRecipientNotSet();
 
   event FeeCollect(
     address indexed token,
     uint256 feeAmount,
-    uint16 feeBps,
+    uint64 rewardFeeX64,
     FeeType feeType,
     address indexed sender,
     address indexed recipient
   );
 
-  function collect(address recipient, address token, uint256 amount, uint16 feeBps, FeeType feeType)
+  function collect(address recipient, address token, uint256 amount, uint64 rewardFeeX64, FeeType feeType)
     internal
     returns (uint256 feeAmount)
   {
-    if (amount == 0 || feeBps == 0) return 0;
-    if (feeBps > BPS_DENOMINATOR) revert InvalidFeeBps();
+    if (amount == 0 || rewardFeeX64 == 0) return 0;
+    if (rewardFeeX64 > Q64) revert InvalidRewardFee();
     if (recipient == address(0)) revert FeeRecipientNotSet();
 
-    feeAmount = Math.mulDiv(amount, feeBps, BPS_DENOMINATOR);
+    feeAmount = Math.mulDiv(amount, rewardFeeX64, Q64);
     if (feeAmount == 0) return 0;
 
     IERC20(token).safeTransfer(recipient, feeAmount);
 
-    emit FeeCollect(token, feeAmount, feeBps, feeType, msg.sender, recipient);
+    emit FeeCollect(token, feeAmount, rewardFeeX64, feeType, msg.sender, recipient);
   }
 }

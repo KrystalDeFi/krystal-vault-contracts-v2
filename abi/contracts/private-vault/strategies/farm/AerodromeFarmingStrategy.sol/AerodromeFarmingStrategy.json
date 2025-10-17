@@ -22,7 +22,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidFeeBps",
+    "name": "InvalidRewardFee",
     "type": "error"
   },
   {
@@ -134,9 +134,9 @@
       },
       {
         "indexed": false,
-        "internalType": "uint16",
-        "name": "feeBps",
-        "type": "uint16"
+        "internalType": "uint64",
+        "name": "rewardFeeX64",
+        "type": "uint64"
       },
       {
         "indexed": false,
@@ -207,9 +207,14 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint16",
-        "name": "feeBps",
-        "type": "uint16"
+        "internalType": "uint64",
+        "name": "rewardFeeX64",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "gasFeeX64",
+        "type": "uint64"
       }
     ],
     "name": "harvest",
@@ -238,9 +243,14 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint16",
-        "name": "feeBps",
-        "type": "uint16"
+        "internalType": "uint64",
+        "name": "rewardFeeX64",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "gasFeeX64",
+        "type": "uint64"
       }
     ],
     "name": "withdraw",

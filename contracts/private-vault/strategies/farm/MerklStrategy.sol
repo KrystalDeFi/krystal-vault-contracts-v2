@@ -21,7 +21,13 @@ contract MerklStrategy {
     configManager = IPrivateConfigManager(_configManager);
   }
 
-  function claimMerkleReward(address token, uint256 amount, bytes32[] memory proofs, uint16 feeBps) external {
+  function claimMerkleReward(
+    address token,
+    uint256 amount,
+    bytes32[] memory proofs,
+    uint64 rewardFeeX64,
+    uint64 gasFeeX64
+  ) external {
     address[] memory users = new address[](1);
     users[0] = address(this);
     address[] memory tokens = new address[](1);
@@ -34,8 +40,17 @@ contract MerklStrategy {
     uint256 rewardAmount = IERC20(token).balanceOf(address(this));
     IMerklDistributor(distributor).claim(users, tokens, amounts, proofsArray);
     rewardAmount = IERC20(token).balanceOf(address(this)) - rewardAmount;
-    if (rewardAmount > 0 && feeBps > 0) {
-      CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, feeBps, CollectFee.FeeType.FARM_REWARD);
+    if (rewardAmount > 0) {
+      if (rewardFeeX64 > 0) {
+        CollectFee.collect(
+          configManager.feeRecipient(), token, rewardAmount, rewardFeeX64, CollectFee.FeeType.FARM_REWARD
+        );
+      }
+      if (gasFeeX64 > 0) {
+        CollectFee.collect(
+          configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS
+        );
+      }
     }
 
     emit MerklRewardClaim(distributor, token, rewardAmount);

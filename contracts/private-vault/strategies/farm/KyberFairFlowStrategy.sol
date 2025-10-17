@@ -19,7 +19,7 @@ contract KyberFairFlowStrategy {
     configManager = IPrivateConfigManager(_configManager);
   }
 
-  function claimFairFlowReward(address token, uint256 amount, uint16 feeBps) external {
+  function claimFairFlowReward(address token, uint256 amount, uint64 rewardFeeX64, uint64 gasFeeX64) external {
     address[] memory tokens = new address[](1);
     tokens[0] = token;
     uint256[] memory amounts = new uint256[](1);
@@ -28,8 +28,13 @@ contract KyberFairFlowStrategy {
     uint256 reward = IERC20(token).balanceOf(address(this));
     IUniswapV4KEMHook(uniswapV4KEMHook).claimEgTokens(tokens, amounts);
     reward = IERC20(token).balanceOf(address(this)) - reward;
-    if (reward > 0 && feeBps > 0) {
-      CollectFee.collect(configManager.feeRecipient(), token, reward, feeBps, CollectFee.FeeType.FARM_REWARD);
+    if (reward > 0) {
+      if (rewardFeeX64 > 0) {
+        CollectFee.collect(configManager.feeRecipient(), token, reward, rewardFeeX64, CollectFee.FeeType.FARM_REWARD);
+      }
+      if (gasFeeX64 > 0) {
+        CollectFee.collect(configManager.feeRecipient(), token, reward, gasFeeX64, CollectFee.FeeType.GAS);
+      }
     }
     emit FairFlowRewardClaim(uniswapV4KEMHook, token, amount);
   }

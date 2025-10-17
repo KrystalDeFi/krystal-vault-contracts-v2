@@ -102,6 +102,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   int24 constant TICK_SPACING = 100;
   int24 constant TICK_LOWER = -887_000;
   int24 constant TICK_UPPER = 887_000;
+  uint256 constant Q64 = 0x10000000000000000;
 
   // Contract instances
   PrivateConfigManager public configManager;
@@ -201,6 +202,10 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     callValues[0] = 0;
     dataArray[0] = data;
     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
+  }
+
+  function _bpsToX64(uint256 bps) internal pure returns (uint64) {
+    return uint64((bps * Q64) / 10_000);
   }
 
   // Helper function to deposit tokens (no prank management)
@@ -525,11 +530,12 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to unstake LP position from gauge (no prank management)
   function _unstakeFromGauge(uint256 tokenId) internal {
-    _unstakeFromGaugeWithFee(tokenId, 0);
+    _unstakeFromGaugeWithFee(tokenId, 0, 0);
   }
 
-  function _unstakeFromGaugeWithFee(uint256 tokenId, uint16 feeBps) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, feeBps);
+  function _unstakeFromGaugeWithFee(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, rewardFeeX64, gasFeeX64);
 
     (
       address[] memory targets,
@@ -543,11 +549,12 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to claim AERO rewards from gauge (no prank management)
   function _claimGaugeRewards(uint256 tokenId) internal {
-    _claimGaugeRewardsWithFee(tokenId, 0);
+    _claimGaugeRewardsWithFee(tokenId, 0, 0);
   }
 
-  function _claimGaugeRewardsWithFee(uint256 tokenId, uint16 feeBps) internal {
-    bytes memory strategyCallData = abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId, feeBps);
+  function _claimGaugeRewardsWithFee(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId, rewardFeeX64, gasFeeX64);
 
     (
       address[] memory targets,
@@ -576,7 +583,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // 1. Unstake operation
     allTargets[0] = address(farmingStrategy);
     allCallValues[0] = 0;
-    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, 0);
+    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, 0, 0);
     allCallTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. LP operations
@@ -1108,12 +1115,13 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     vm.warp(block.timestamp + 7 days);
 
-    uint16 feeBps = 500;
+    uint64 rewardFeeX64 = _bpsToX64(500);
+    uint64 gasFeeX64 = _bpsToX64(100);
 
     uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceBefore = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
 
-    _claimGaugeRewardsWithFee(tokenId, feeBps);
+    _claimGaugeRewardsWithFee(tokenId, rewardFeeX64, gasFeeX64);
 
     uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceAfter = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
@@ -1123,7 +1131,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 vaultDelta = vaultBalanceAfter > vaultBalanceBefore ? vaultBalanceAfter - vaultBalanceBefore : 0;
     uint256 totalHarvested = recipientDelta + vaultDelta;
 
-    uint256 expectedRecipientDelta = totalHarvested * feeBps / 10_000;
+    uint256 expectedRewardFee = (totalHarvested * rewardFeeX64) / Q64;
+    uint256 expectedGasFee = (totalHarvested * gasFeeX64) / Q64;
+    uint256 expectedRecipientDelta = expectedRewardFee + expectedGasFee;
     assertEq(recipientDelta, expectedRecipientDelta);
 
     vm.stopPrank();
@@ -1140,12 +1150,13 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     vm.warp(block.timestamp + 7 days);
 
-    uint16 feeBps = 500;
+    uint64 rewardFeeX64 = _bpsToX64(500);
+    uint64 gasFeeX64 = _bpsToX64(100);
 
     uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceBefore = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
 
-    _unstakeFromGaugeWithFee(tokenId, feeBps);
+    _unstakeFromGaugeWithFee(tokenId, rewardFeeX64, gasFeeX64);
 
     uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceAfter = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
@@ -1158,7 +1169,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     if (totalHarvested == 0) {
       assertEq(recipientDelta, 0);
     } else {
-      uint256 expectedRecipientDelta = totalHarvested * feeBps / 10_000;
+      uint256 expectedRewardFee = (totalHarvested * rewardFeeX64) / Q64;
+      uint256 expectedGasFee = (totalHarvested * gasFeeX64) / Q64;
+      uint256 expectedRecipientDelta = expectedRewardFee + expectedGasFee;
       assertEq(recipientDelta, expectedRecipientDelta);
     }
 

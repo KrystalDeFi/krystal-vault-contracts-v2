@@ -37,37 +37,45 @@ contract PancakeV3FarmingStrategy {
     emit PancakeV3FarmingStaked(nfpm, tokenId, masterChefV3, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint16 feeBps) external {
-    _harvest(tokenId, feeBps);
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+    _harvest(tokenId, rewardFeeX64, gasFeeX64);
     IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
 
     emit PancakeV3FarmingUnstaked(tokenId, masterChefV3, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint16 feeBps) external {
-    _harvest(tokenId, feeBps);
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+    _harvest(tokenId, rewardFeeX64, gasFeeX64);
 
     emit PancakeV3FarmingRewardsHarvested(tokenId, masterChefV3, msg.sender);
   }
 
-  function _harvest(uint256 tokenId, uint16 feeBps) internal {
+  function _harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
     address rewardToken = IMasterChefV3(masterChefV3).CAKE();
     uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
 
     IMasterChefV3(masterChefV3).harvest(tokenId, address(this));
 
-    _handleReward(rewardToken, balanceBefore, feeBps);
+    _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
   }
 
-  function _handleReward(address rewardToken, uint256 balanceBefore, uint16 feeBps) internal {
+  function _handleReward(address rewardToken, uint256 balanceBefore, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
     uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
     if (balanceAfter <= balanceBefore) return;
 
     uint256 harvestedAmount = balanceAfter - balanceBefore;
-    if (feeBps == 0) return;
+    if (harvestedAmount == 0) return;
 
-    CollectFee.collect(
-      configManager.feeRecipient(), rewardToken, harvestedAmount, feeBps, CollectFee.FeeType.FARM_REWARD
-    );
+    if (rewardFeeX64 > 0) {
+      CollectFee.collect(
+        configManager.feeRecipient(), rewardToken, harvestedAmount, rewardFeeX64, CollectFee.FeeType.FARM_REWARD
+      );
+    }
+
+    if (gasFeeX64 > 0) {
+      CollectFee.collect(
+        configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS
+      );
+    }
   }
 }
