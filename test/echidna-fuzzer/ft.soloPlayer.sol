@@ -7,15 +7,15 @@ import { Test } from "forge-std/Test.sol";
 
 import "./Player.sol";
 import "./Config.sol";
-import "../../contracts/core/VaultFactory.sol";
-import "../../contracts/core/Vault.sol";
-import "../../contracts/core/ConfigManager.sol";
-import "../../contracts/interfaces/ICommon.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
+import "../../contracts/public-vault/core/VaultFactory.sol";
+import "../../contracts/public-vault/core/Vault.sol";
+import "../../contracts/public-vault/core/ConfigManager.sol";
+import "../../contracts/public-vault/interfaces/ICommon.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { TestCommon } from "../TestCommon.t.sol";

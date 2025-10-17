@@ -2,12 +2,12 @@ pragma solidity ^0.8.0;
 
 import "./Player.sol";
 import "./IHevm.sol";
-import "../../contracts/core/VaultFactory.sol";
-import "../../contracts/core/Vault.sol";
-import "../../contracts/core/ConfigManager.sol";
+import "../../contracts/public-vault/core/VaultFactory.sol";
+import "../../contracts/public-vault/core/Vault.sol";
+import "../../contracts/public-vault/core/ConfigManager.sol";
 
 import "./Config.sol";
-import { IVault } from "../../contracts/interfaces/core/IVault.sol";
+import { IVault } from "../../contracts/public-vault/interfaces/core/IVault.sol";
 
 address constant TOKEN_PRINCIPAL = WETH;
 address constant TOKEN_ANOTHER = VIRTUAL;

@@ -3,18 +3,19 @@ pragma solidity ^0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { console2 } from "forge-std/console2.sol";
-import { KodiakIslandStrategy } from "../../contracts/strategies/kodiak/KodiakIslandStrategy.sol";
-import { IKodiakIslandStrategy } from "../../contracts/interfaces/strategies/kodiak/IKodiakIslandStrategy.sol";
-import { IKodiakIsland } from "../../contracts/interfaces/strategies/kodiak/IKodiakIsland.sol";
+import { KodiakIslandStrategy } from "../../contracts/public-vault/strategies/kodiak/KodiakIslandStrategy.sol";
+import { IKodiakIslandStrategy } from
+  "../../contracts/public-vault/interfaces/strategies/kodiak/IKodiakIslandStrategy.sol";
+import { IKodiakIsland } from "../../contracts/public-vault/interfaces/strategies/kodiak/IKodiakIsland.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { Vault } from "../../contracts/core/Vault.sol";
-import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
-import { IRewardVault } from "../../contracts/interfaces/strategies/kodiak/IRewardVault.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { Vault } from "../../contracts/public-vault/core/Vault.sol";
+import { VaultFactory } from "../../contracts/public-vault/core/VaultFactory.sol";
+import { IRewardVault } from "../../contracts/public-vault/interfaces/strategies/kodiak/IRewardVault.sol";
 
 contract IntegrationKodiakIslandTest is Test {
   // Fork configuration

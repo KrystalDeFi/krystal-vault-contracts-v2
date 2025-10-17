@@ -1,4 +1,39 @@
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  polygon_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6",
+    v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+  },
+};
 
 export const PolygonConfig: Record<string, IConfig> = {
   polygon_mainnet: {
@@ -81,5 +116,6 @@ export const PolygonConfig: Record<string, IConfig> = {
     ],
     swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
     nfpmAddresses: ["0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "0xb7402ee99F0A008e461098AC3A27F4957Df89a40"],
+    ...PrivateConfig.polygon_mainnet,
   },
 };

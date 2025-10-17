@@ -5,9 +5,9 @@ import { console } from "forge-std/console.sol";
 
 import { TestCommon, USER, DAI, USDC, NULL_ADDRESS } from "../TestCommon.t.sol";
 
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
 
 contract ConfigManagerTest is TestCommon {
   ConfigManager public configManager;

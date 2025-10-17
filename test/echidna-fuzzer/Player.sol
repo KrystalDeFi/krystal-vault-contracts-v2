@@ -1,7 +1,7 @@
 pragma solidity ^0.8.0;
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { IConfigManager } from "../../contracts/interfaces/core/IConfigManager.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { IConfigManager } from "../../contracts/public-vault/interfaces/core/IConfigManager.sol";
 import "./Config.sol";
 
 import "forge-std/console.sol"; //forge-test-only
@@ -9,16 +9,16 @@ import { Test } from "forge-std/Test.sol"; //forge-test-only
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import { IStrategy } from "../../contracts/interfaces/strategies/IStrategy.sol";
+import { IStrategy } from "../../contracts/public-vault/interfaces/strategies/IStrategy.sol";
 
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
-import { IVault } from "../../contracts/interfaces/core/IVault.sol";
-import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
+import { IVault } from "../../contracts/public-vault/interfaces/core/IVault.sol";
+import { IVaultFactory } from "../../contracts/public-vault/interfaces/core/IVaultFactory.sol";
 
 contract Player {
   // this config is for the WETH/VIRTUAL pool on ETH mainnet
