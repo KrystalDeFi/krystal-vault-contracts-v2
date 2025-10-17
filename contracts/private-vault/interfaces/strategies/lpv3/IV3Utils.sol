@@ -50,6 +50,7 @@ interface IV3Utils {
     // protocol fees
     uint64 liquidityFeeX64;
     uint64 performanceFeeX64;
+    uint64 gasFeeX64;
   }
   /// @notice Execute instruction by pulling approved NFT instead of direct safeTransferFrom call from owner
   /// @param tokenId Token to process
@@ -74,6 +75,7 @@ interface IV3Utils {
     int24 tickLower;
     int24 tickUpper;
     uint64 protocolFeeX64;
+    uint64 gasFeeX64;
     // how much is provided of token0 and token1
     uint256 amount0;
     uint256 amount1;
@@ -140,6 +142,7 @@ interface IV3Utils {
     uint256 amountAddMin0;
     uint256 amountAddMin1;
     uint64 protocolFeeX64;
+    uint64 gasFeeX64;
   }
 
   /// @notice Does 1 or 2 swaps from swapSourceToken to token0 and token1 and adds as much as possible liquidity to any

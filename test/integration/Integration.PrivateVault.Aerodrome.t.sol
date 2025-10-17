@@ -93,7 +93,7 @@ interface ISwapRouter {
 
 contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   // Test constants
-  address constant V3_UTILS = 0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6; // V3Utils contract on Base
+  address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af; // V3Utils contract on Base
   address constant SWAP_ROUTER = 0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5; // Aerodrome SwapRouter on Base
   address constant GAUGE = 0xF33a96b5932D9E9B9A0eDA447AbD8C9d48d2e0c8; // Gauge contract for WETH/USDC pool
   address constant GAUGE_FACTORY = 0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08;
@@ -118,7 +118,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   function setUp() public {
     // Create mainnet fork for consistent testing environment
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_301_000);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
     vm.selectFork(fork);
 
     vm.startPrank(vaultOwner);
@@ -232,6 +232,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       tickLower: TICK_LOWER,
       tickUpper: TICK_UPPER,
       protocolFeeX64: 0,
+      gasFeeX64: 0,
       amount0: WETH < USDC ? wethAmount / 2 : usdcAmount / 2,
       amount1: WETH < USDC ? usdcAmount / 2 : wethAmount / 2,
       amount2: 0,
@@ -303,7 +304,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare strategy call data
@@ -402,7 +404,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       recipient: address(vaultInstance),
       unwrap: false,
       liquidityFeeX64: 0,
-      performanceFeeX64: 0
+      performanceFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare safeTransferNft call data
@@ -449,6 +452,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       tickLower: TICK_LOWER,
       tickUpper: TICK_UPPER,
       protocolFeeX64: 0,
+      gasFeeX64: 0,
       amount0: WETH < USDC ? wethAmount / 2 : usdcAmount / 2,
       amount1: WETH < USDC ? usdcAmount / 2 : wethAmount / 2,
       amount2: 0,
@@ -624,7 +628,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare operation call data
@@ -780,6 +785,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         tickLower: TICK_LOWER,
         tickUpper: TICK_UPPER,
         protocolFeeX64: 0,
+        gasFeeX64: 0,
         amount0: 1 ether,
         amount1: 3000 * 1e6,
         amount2: 0,
@@ -834,6 +840,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         tickLower: TICK_LOWER,
         tickUpper: TICK_UPPER,
         protocolFeeX64: 0,
+        gasFeeX64: 0,
         amount0: 1 ether,
         amount1: 3000 * 1e6,
         amount2: 0,
@@ -1274,7 +1281,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     bytes memory strategyCallData =
@@ -1333,7 +1341,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     bytes memory strategyCallData =

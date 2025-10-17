@@ -34,7 +34,7 @@ import { IMasterChefV3 } from "../../contracts/common/interfaces/protocols/panca
 
 contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   // Test constants
-  address constant V3_UTILS = 0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6; // V3Utils contract on Base
+  address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af; // V3Utils contract on Base
   address constant SWAP_ROUTER = 0x1b81D678ffb9C0263b24A97847620C99d213eB14; // Pancake V3 SwapRouter on Base
   address constant MASTERCHEF_V3 = 0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3;
   address constant CAKE_TOKEN = 0x3055913c90Fcc1A6CE9a358911721eEb942013A1; // CAKE token on Base
@@ -58,7 +58,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   function setUp() public {
     // Create mainnet fork for consistent testing environment
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_301_000);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
     vm.selectFork(fork);
 
     feeRecipient = makeAddr("cakeFeeRecipient");
@@ -177,6 +177,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       tickLower: TICK_LOWER,
       tickUpper: TICK_UPPER,
       protocolFeeX64: 0,
+      gasFeeX64: 0,
       amount0: WETH < USDC ? wethAmount / 2 : usdcAmount / 2,
       amount1: WETH < USDC ? usdcAmount / 2 : wethAmount / 2,
       amount2: 0,
@@ -248,7 +249,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare strategy call data
@@ -347,7 +349,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       recipient: address(vaultInstance),
       unwrap: false,
       liquidityFeeX64: 0,
-      performanceFeeX64: 0
+      performanceFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare safeTransferNft call data
@@ -440,6 +443,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       tickLower: TICK_LOWER,
       tickUpper: TICK_UPPER,
       protocolFeeX64: 0,
+      gasFeeX64: 0,
       amount0: WETH < USDC ? wethAmount / 2 : usdcAmount / 2,
       amount1: WETH < USDC ? usdcAmount / 2 : wethAmount / 2,
       amount2: 0,
@@ -466,10 +470,6 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       amounts
     );
 
-    // Get the token ID that will be created (last token + 1)
-    uint256 totalSupply = IERC721Enumerable(NFPM).totalSupply();
-    tokenId = IERC721Enumerable(NFPM).tokenByIndex(totalSupply - 1) + 1; // Handle edge case
-
     // Prepare farming strategy call data (use tokenId = 0 to stake the latest NFT)
     bytes memory farmingCallData = abi.encodeWithSelector(
       PancakeV3FarmingStrategy.deposit.selector,
@@ -494,6 +494,10 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Execute both operations in one multicall
     vaultInstance.multicall(targets, callValues, dataArray, callTypes);
+
+    // Get the token ID that were created (last token)
+    uint256 totalSupply = IERC721Enumerable(NFPM).totalSupply();
+    tokenId = IERC721Enumerable(NFPM).tokenByIndex(totalSupply - 1); // Handle edge case
 
     return tokenId;
   }
@@ -529,7 +533,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       swapData1: "",
       amountAddMin0: 0,
       amountAddMin1: 0,
-      protocolFeeX64: 0
+      protocolFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare unstake call data
@@ -688,6 +693,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         tickLower: TICK_LOWER,
         tickUpper: TICK_UPPER,
         protocolFeeX64: 0,
+        gasFeeX64: 0,
         amount0: 1 ether,
         amount1: 3000 * 1e6,
         amount2: 0,
@@ -742,6 +748,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
         tickLower: TICK_LOWER,
         tickUpper: TICK_UPPER,
         protocolFeeX64: 0,
+        gasFeeX64: 0,
         amount0: 1 ether,
         amount1: 3000 * 1e6,
         amount2: 0,
@@ -1249,7 +1256,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       recipient: address(vaultInstance),
       unwrap: false,
       liquidityFeeX64: 0,
-      performanceFeeX64: 0
+      performanceFeeX64: 0,
+      gasFeeX64: 0
     });
 
     // Prepare unstake, compound, restake multicall
