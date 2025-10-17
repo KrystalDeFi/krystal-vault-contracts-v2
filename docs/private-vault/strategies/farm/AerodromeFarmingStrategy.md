@@ -59,24 +59,24 @@ function deposit(uint256 tokenId) external
 ### withdraw
 
 ```solidity
-function withdraw(uint256 tokenId, uint16 feeBps) external
+function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external
 ```
 
 ### harvest
 
 ```solidity
-function harvest(uint256 tokenId, uint16 feeBps) external
+function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external
 ```
 
 ### _harvest
 
 ```solidity
-function _harvest(address clGauge, uint256 tokenId, uint16 feeBps) internal
+function _harvest(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal
 ```
 
 ### _handleReward
 
 ```solidity
-function _handleReward(address rewardToken, uint256 balanceBefore, uint16 feeBps) internal
+function _handleReward(address rewardToken, uint256 balanceBefore, uint64 rewardFeeX64, uint64 gasFeeX64) internal
 ```
 

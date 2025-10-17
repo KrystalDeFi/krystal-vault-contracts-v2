@@ -35,6 +35,6 @@ constructor(address _uniswapV4KEMHook, address _configManager) public
 ### claimFairFlowReward
 
 ```solidity
-function claimFairFlowReward(address token, uint256 amount, uint16 feeBps) external
+function claimFairFlowReward(address token, uint256 amount, uint64 rewardFeeX64, uint64 gasFeeX64) external
 ```
 

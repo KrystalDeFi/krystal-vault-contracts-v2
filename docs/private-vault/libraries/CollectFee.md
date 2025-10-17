@@ -13,16 +13,16 @@ enum FeeType {
 }
 ```
 
-### BPS_DENOMINATOR
+### Q64
 
 ```solidity
-uint256 BPS_DENOMINATOR
+uint256 Q64
 ```
 
-### InvalidFeeBps
+### InvalidRewardFee
 
 ```solidity
-error InvalidFeeBps()
+error InvalidRewardFee()
 ```
 
 ### FeeRecipientNotSet
@@ -34,12 +34,12 @@ error FeeRecipientNotSet()
 ### FeeCollect
 
 ```solidity
-event FeeCollect(address token, uint256 feeAmount, uint16 feeBps, enum CollectFee.FeeType feeType, address sender, address recipient)
+event FeeCollect(address token, uint256 feeAmount, uint64 rewardFeeX64, enum CollectFee.FeeType feeType, address sender, address recipient)
 ```
 
 ### collect
 
 ```solidity
-function collect(address recipient, address token, uint256 amount, uint16 feeBps, enum CollectFee.FeeType feeType) internal returns (uint256 feeAmount)
+function collect(address recipient, address token, uint256 amount, uint64 rewardFeeX64, enum CollectFee.FeeType feeType) internal returns (uint256 feeAmount)
 ```
 
