@@ -1,14 +1,14 @@
 {
   "base_mainnet": {
-    "privateVault": "0x35b16fdaf8a3cc7f7dd13c232729fca862e22fa6",
+    "privateVault": "0xe1076a225bc58960a96d936057f1e16ec1d0cb49",
     "privateVaultFactory": "0x8c082a425477e5827268f1749c7d75eba40f22e9",
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVaultAutomator": "0x052700ce749e0f22f1be3177a9e30710833e32f8",
-    "aerodromeFarmingStrategy": "0x95195576c69f17ae49d6ed84c08a68e0ae4a1a4d",
-    "pancakeV3FarmingStrategy": "0x487887e43ff492ba5bbefd63b2da09395120c4ff",
-    "v3UtilsStrategy": "0x5f3b5b105c1d2f015a976993cd775d9d5b45a16c",
-    "v4UtilsStrategy": "0xb598d727ab4d757076f0a99f228982fba77b5980",
-    "privateMerklStrategy": "0x89db907e1ad74de9b3b1cd98356c2291dcd90d28",
-    "privateKyberFairFlowStrategy": "0x5db0ebeca0d9013a06e8798f07588f81db403ab9"
+    "aerodromeFarmingStrategy": "0xb7084999ad5d30aed12630e440b0ed11427f035a",
+    "pancakeV3FarmingStrategy": "0x259bbf362c5640c8ae43484102c8e7d79059f4e5",
+    "privateMerklStrategy": "0x8ef402f0dda558e6b8f4ed67a96cf50433b3c9c6",
+    "privateKyberFairFlowStrategy": "0xa5948315c15bf42ae08ab68cb5885735c2854f60",
+    "v3UtilsStrategy": "0xf705f56eeca30bf7ef208b3bc96b4d87519d1b7e",
+    "v4UtilsStrategy": "0x8c24a3054abdbe73fef47dc72b57e28b0066931d"
   }
 }

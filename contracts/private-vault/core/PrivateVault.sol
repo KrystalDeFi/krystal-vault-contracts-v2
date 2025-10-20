@@ -139,11 +139,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Sweeps the non-fungible tokens ERC721 to the caller
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
-  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds)
-    external
-    override
-    onlyOwner
-  {
+  function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external override onlyOwner {
     for (uint256 i; i < _tokens.length;) {
       IERC721 token = IERC721(_tokens[i]);
       token.safeTransferFrom(address(this), msg.sender, _tokenIds[i]);
@@ -181,11 +177,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Deposits ERC20 tokens to the vault
   /// @param tokens Array of ERC20 token addresses
   /// @param amounts Array of amounts to deposit
-  function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts)
-    external
-    override
-    onlyOwner
-  {
+  function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts) external override onlyOwner {
     require(tokens.length == amounts.length, InvalidMulticallParams());
 
     for (uint256 i; i < tokens.length;) {
@@ -203,11 +195,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Deposits ERC721 tokens to the vault
   /// @param tokens Array of ERC721 token addresses
   /// @param tokenIds Array of token IDs to deposit
-  function depositErc721Tokens(address[] calldata tokens, uint256[] calldata tokenIds)
-    external
-    override
-    onlyOwner
-  {
+  function depositErc721Tokens(address[] calldata tokens, uint256[] calldata tokenIds) external override onlyOwner {
     require(tokens.length == tokenIds.length, InvalidMulticallParams());
 
     for (uint256 i; i < tokens.length;) {
