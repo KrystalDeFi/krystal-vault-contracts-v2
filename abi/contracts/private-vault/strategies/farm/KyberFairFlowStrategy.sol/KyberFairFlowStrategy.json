@@ -134,7 +134,7 @@
     ],
     "name": "claimFairFlowReward",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {

@@ -53,19 +53,19 @@ function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address ga
 ### deposit
 
 ```solidity
-function deposit(uint256 tokenId) external
+function deposit(uint256 tokenId) external payable
 ```
 
 ### withdraw
 
 ```solidity
-function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external
+function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable
 ```
 
 ### harvest
 
 ```solidity
-function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external
+function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable
 ```
 
 ### _harvest

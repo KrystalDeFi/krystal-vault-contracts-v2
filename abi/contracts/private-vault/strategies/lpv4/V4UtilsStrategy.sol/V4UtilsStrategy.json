@@ -45,7 +45,7 @@
     ],
     "name": "execute",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -68,7 +68,7 @@
     ],
     "name": "safeTransferNft",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {

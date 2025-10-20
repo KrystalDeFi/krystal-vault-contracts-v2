@@ -31,6 +31,6 @@ constructor(address _distributor, address _configManager) public
 ### claimMerkleReward
 
 ```solidity
-function claimMerkleReward(address token, uint256 amount, bytes32[] proofs, uint64 rewardFeeX64, uint64 gasFeeX64) external
+function claimMerkleReward(address token, uint256 amount, bytes32[] proofs, uint64 rewardFeeX64, uint64 gasFeeX64) external payable
 ```
 
