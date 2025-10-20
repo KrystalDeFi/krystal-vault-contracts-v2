@@ -15,7 +15,7 @@ contract V4UtilsStrategy {
     v4UtilsRouter = _v4UtilsRouter;
   }
 
-  function safeTransferNft(address posm, uint256 tokenId, bytes calldata instruction) external {
+  function safeTransferNft(address posm, uint256 tokenId, bytes calldata instruction) external payable {
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
   }
 
@@ -25,7 +25,7 @@ contract V4UtilsStrategy {
     uint256 ethValue,
     address[] calldata tokens,
     uint256[] calldata approveAmounts
-  ) external {
+  ) external payable {
     require(tokens.length == approveAmounts.length);
     for (uint256 i; i < tokens.length; i++) {
       if (approveAmounts[i] > 0) IERC20(tokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);

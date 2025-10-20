@@ -49,7 +49,7 @@ contract AerodromeFarmingStrategy {
     require(gauge != address(0), "Gauge not found");
   }
 
-  function deposit(uint256 tokenId) external {
+  function deposit(uint256 tokenId) external payable {
     if (tokenId == 0) {
       // deposit the last created token
       IERC721Enumerable nfpmEnum = IERC721Enumerable(nfpm);
@@ -63,7 +63,7 @@ contract AerodromeFarmingStrategy {
     emit AerodromeFarmingStaked(nfpm, tokenId, clGauge, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
     address clGauge = _getGaugeFromTokenId(tokenId);
     _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64);
     ICLGauge(clGauge).withdraw(tokenId);
@@ -71,7 +71,7 @@ contract AerodromeFarmingStrategy {
     emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
     address clGauge = _getGaugeFromTokenId(tokenId);
     _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64);
 
@@ -87,12 +87,7 @@ contract AerodromeFarmingStrategy {
     _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
   }
 
-  function _handleReward(
-    address rewardToken,
-    uint256 balanceBefore,
-    uint64 rewardFeeX64,
-    uint64 gasFeeX64
-  ) internal {
+  function _handleReward(address rewardToken, uint256 balanceBefore, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
     uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
     if (balanceAfter <= balanceBefore) return;
 
@@ -106,9 +101,7 @@ contract AerodromeFarmingStrategy {
     }
 
     if (gasFeeX64 > 0) {
-      CollectFee.collect(
-        configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS
-      );
+      CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS);
     }
   }
 }

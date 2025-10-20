@@ -25,7 +25,7 @@ contract PancakeV3FarmingStrategy {
     configManager = IPrivateConfigManager(_configManager);
   }
 
-  function deposit(uint256 tokenId) external {
+  function deposit(uint256 tokenId) external payable {
     address nfpm = IMasterChefV3(masterChefV3).nonfungiblePositionManager();
     if (tokenId == 0) {
       uint256 totalSupply = IERC721Enumerable(nfpm).totalSupply();
@@ -37,14 +37,14 @@ contract PancakeV3FarmingStrategy {
     emit PancakeV3FarmingStaked(nfpm, tokenId, masterChefV3, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
     _harvest(tokenId, rewardFeeX64, gasFeeX64);
     IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
 
     emit PancakeV3FarmingUnstaked(tokenId, masterChefV3, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
     _harvest(tokenId, rewardFeeX64, gasFeeX64);
 
     emit PancakeV3FarmingRewardsHarvested(tokenId, masterChefV3, msg.sender);
@@ -73,9 +73,7 @@ contract PancakeV3FarmingStrategy {
     }
 
     if (gasFeeX64 > 0) {
-      CollectFee.collect(
-        configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS
-      );
+      CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS);
     }
   }
 }

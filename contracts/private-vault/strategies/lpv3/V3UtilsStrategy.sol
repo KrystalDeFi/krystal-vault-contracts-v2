@@ -15,7 +15,7 @@ contract V3UtilsStrategy {
     v3utils = _v3utils;
   }
 
-  function safeTransferNft(address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) external {
+  function safeTransferNft(address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) external payable {
     instructions.recipient = address(this);
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
   }

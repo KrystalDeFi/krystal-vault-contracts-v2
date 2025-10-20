@@ -215,7 +215,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
   }
 
   // Helper function to create LP position (no prank management)
-  function _createLPPosition(uint256 wethAmount, uint256 usdcAmount) internal returns (uint256 tokenId) {
+  function _createLPPosition(uint256 wethAmount, uint256 usdcAmount, bool useNative) internal returns (uint256 tokenId) {
     // Deposit tokens to vault first
     _depositTokens(wethAmount, usdcAmount);
 
@@ -271,8 +271,10 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       IPrivateCommon.CallType[] memory callTypes
     ) = _createMulticallData(address(v3UtilsStrategy), strategyCallData);
 
+    uint256 nativeValue = 0;
+    if (useNative) nativeValue = wethAmount;
     // Execute strategy through vault multicall
-    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
+    vaultInstance.multicall{ value: nativeValue }(targets, callValues, dataArray, callTypes);
 
     // Return the token ID of the created position
     return IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vaultInstance), 0);
@@ -707,7 +709,30 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // Record NFT count before
     uint256 nftCountBefore = IERC721(NFPM).balanceOf(address(vaultInstance));
 
-    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, false);
+
+    // Verify NFT was received
+    uint256 nftCountAfter = IERC721(NFPM).balanceOf(address(vaultInstance));
+    assertEq(nftCountAfter, nftCountBefore + 1);
+
+    // Verify the token ID is valid
+    assertGt(tokenId, 0);
+    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
+
+    vm.stopPrank();
+  }
+
+  // Test V3UtilsStrategy swapAndMint functionality
+  function test_V3UtilsStrategy_SwapAndMintFromWalletNative() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 wethAmount = 1 ether;
+    uint256 usdcAmount = 3000 * 1e6;
+
+    // Record NFT count before
+    uint256 nftCountBefore = IERC721(NFPM).balanceOf(address(vaultInstance));
+
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, true);
 
     // Verify NFT was received
     uint256 nftCountAfter = IERC721(NFPM).balanceOf(address(vaultInstance));
@@ -727,7 +752,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // First create a position
     uint256 wethAmount = 1 ether;
     uint256 usdcAmount = 3000 * 1e6;
-    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, false);
 
     // Get position info before increase
     (,,,,,,, uint128 liquidityBefore,,,,) = INFPM(NFPM).positions(tokenId);
@@ -751,7 +776,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // Create a position first
     uint256 wethAmount = 1 ether;
     uint256 usdcAmount = 3000 * 1e6;
-    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, false);
 
     // Verify NFT is in vault before
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
@@ -890,7 +915,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // 1. Create initial LP position
     uint256 wethAmount = 1 ether;
     uint256 usdcAmount = 3000 * 1e6;
-    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, false);
 
     // 2. Add more liquidity
     uint256 additionalWethAmount = 0.5 ether;
@@ -952,7 +977,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // First create an LP position
     uint256 wethAmount = 1 ether;
     uint256 usdcAmount = 3000 * 1e6;
-    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
+    uint256 tokenId = _createLPPosition(wethAmount, usdcAmount, false);
 
     // Verify vault owns the NFT initially
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));

@@ -27,7 +27,7 @@ contract MerklStrategy {
     bytes32[] memory proofs,
     uint64 rewardFeeX64,
     uint64 gasFeeX64
-  ) external {
+  ) external payable {
     address[] memory users = new address[](1);
     users[0] = address(this);
     address[] memory tokens = new address[](1);
@@ -47,9 +47,7 @@ contract MerklStrategy {
         );
       }
       if (gasFeeX64 > 0) {
-        CollectFee.collect(
-          configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS
-        );
+        CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS);
       }
     }
 

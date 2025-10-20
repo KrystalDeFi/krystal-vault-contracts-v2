@@ -545,8 +545,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare unstake call data
-    bytes memory unstakeCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
+    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
 
     // Prepare V3Utils increase liquidity call data
     bytes memory increaseLiquidityCallData = abi.encodeWithSelector(
@@ -1275,8 +1274,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare unstake, compound, restake multicall
-    bytes memory unstakeCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
+    bytes memory unstakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
 
     bytes memory compoundCallData =
       abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
@@ -1395,8 +1393,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 tokenId = _createLPPosition(wethAmount, usdcAmount);
 
     // Try to unstake without staking first
-    bytes memory strategyCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
 
     (
       address[] memory targets,
@@ -1425,8 +1422,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     address unauthorized = 0x9999999999999999999999999999999999999999;
     vm.startPrank(unauthorized);
 
-    bytes memory strategyCallData =
-      abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
+    bytes memory strategyCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0);
 
     (
       address[] memory targets,

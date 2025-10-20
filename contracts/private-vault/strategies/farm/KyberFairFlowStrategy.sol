@@ -19,7 +19,7 @@ contract KyberFairFlowStrategy {
     configManager = IPrivateConfigManager(_configManager);
   }
 
-  function claimFairFlowReward(address token, uint256 amount, uint64 rewardFeeX64, uint64 gasFeeX64) external {
+  function claimFairFlowReward(address token, uint256 amount, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
     address[] memory tokens = new address[](1);
     tokens[0] = token;
     uint256[] memory amounts = new uint256[](1);
