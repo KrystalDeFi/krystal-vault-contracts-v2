@@ -112,7 +112,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
 
   /// @notice Sweep native token to the caller
   /// @param amount Amount of native token to sweep
-  function sweepNativeToken(uint256 amount) external override nonReentrant onlyOwner {
+  function sweepNativeToken(uint256 amount) external override onlyOwner {
     (bool success,) = msg.sender.call{ value: amount }("");
     require(success, "Failed to send native token");
 
@@ -122,7 +122,7 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
   /// @param amounts Amounts of tokens to sweep
-  function sweepToken(address[] calldata tokens, uint256[] calldata amounts) external override nonReentrant onlyOwner {
+  function sweepToken(address[] calldata tokens, uint256[] calldata amounts) external override onlyOwner {
     for (uint256 i; i < tokens.length;) {
       IERC20 token = IERC20(tokens[i]);
       uint256 amount = amounts[i];
@@ -142,7 +142,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds)
     external
     override
-    nonReentrant
     onlyOwner
   {
     for (uint256 i; i < _tokens.length;) {
@@ -164,7 +163,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
     external
     override
-    nonReentrant
     onlyOwner
   {
     for (uint256 i; i < _tokens.length;) {
@@ -186,7 +184,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function depositErc20Tokens(address[] calldata tokens, uint256[] calldata amounts)
     external
     override
-    nonReentrant
     onlyOwner
   {
     require(tokens.length == amounts.length, InvalidMulticallParams());
@@ -209,7 +206,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function depositErc721Tokens(address[] calldata tokens, uint256[] calldata tokenIds)
     external
     override
-    nonReentrant
     onlyOwner
   {
     require(tokens.length == tokenIds.length, InvalidMulticallParams());
@@ -232,7 +228,6 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   function depositErc1155Tokens(address[] calldata tokens, uint256[] calldata tokenIds, uint256[] calldata amounts)
     external
     override
-    nonReentrant
     onlyOwner
   {
     require(tokens.length == tokenIds.length, InvalidMulticallParams());
