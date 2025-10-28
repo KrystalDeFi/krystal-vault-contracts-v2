@@ -38,6 +38,33 @@
   },
   {
     "inputs": [],
+    "name": "ECDSAInvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureLength",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureS",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EnforcedPause",
     "type": "error"
   },
@@ -212,6 +239,19 @@
   },
   {
     "inputs": [],
+    "name": "DOMAIN_SEPARATOR",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "OPERATOR_ROLE_HASH",
     "outputs": [
       {
@@ -276,6 +316,49 @@
       {
         "internalType": "bytes",
         "name": "signature",
+        "type": "bytes"
+      }
+    ],
+    "name": "executeMulticall",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IPrivateVault",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "callValues",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "data",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "enum IPrivateCommon.CallType[]",
+        "name": "callTypes",
+        "type": "uint8[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "abiEncodedUserOrder",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "orderSignature",
         "type": "bytes"
       }
     ],

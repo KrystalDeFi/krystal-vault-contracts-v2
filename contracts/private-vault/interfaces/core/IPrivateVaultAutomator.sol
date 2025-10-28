@@ -21,6 +21,16 @@ interface IPrivateVaultAutomator is IPrivateCommon {
     bytes memory signature
   ) external;
 
+  function executeMulticall(
+    IPrivateVault vault,
+    address[] calldata targets,
+    uint256[] calldata callValues,
+    bytes[] calldata data,
+    CallType[] calldata callTypes,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external;
+
   function cancelOrder(bytes32 hash, bytes memory signature) external;
 
   function isOrderCancelled(bytes memory signature) external view returns (bool);

@@ -8,8 +8,7 @@ import { VaultAutomatorLpStrategy } from "../helpers/VaultAutomatorLpStrategy.so
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
-import { StructHash as LpUniV3StructHash } from
-  "../../contracts/public-vault/libraries/strategies/LpUniV3StructHash.sol";
+import { StructHash as LpUniV3StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";

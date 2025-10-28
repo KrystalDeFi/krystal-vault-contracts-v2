@@ -113,6 +113,49 @@
   {
     "inputs": [
       {
+        "internalType": "contract IPrivateVault",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "callValues",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "data",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "enum IPrivateCommon.CallType[]",
+        "name": "callTypes",
+        "type": "uint8[]"
+      },
+      {
+        "internalType": "bytes",
+        "name": "abiEncodedUserOrder",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "orderSignature",
+        "type": "bytes"
+      }
+    ],
+    "name": "executeMulticall",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "operator",
         "type": "address"

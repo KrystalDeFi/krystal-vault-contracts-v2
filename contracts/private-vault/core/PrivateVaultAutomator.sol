@@ -5,15 +5,17 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
+import "../../common/strategies/CustomEIP712.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract PrivateVaultAutomator is AccessControl, Pausable, IPrivateVaultAutomator {
+contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
 
-  constructor(address _owner, address[] memory _operators) {
+  constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "5.0") {
     _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     _grantRole(OPERATOR_ROLE_HASH, _owner);
     for (uint256 i = 0; i < _operators.length; i++) {
@@ -21,6 +23,14 @@ contract PrivateVaultAutomator is AccessControl, Pausable, IPrivateVaultAutomato
     }
   }
 
+  // @notice Execute a multicall with hash and signature verification
+  /// @param vault Vault
+  /// @param targets Targets to call
+  /// @param callValues Call values
+  /// @param data Data to pass to the calls
+  /// @param callTypes Call types
+  /// @param hash Hash of the data to be signed
+  /// @param signature Signature of the order
   function executeMulticall(
     IPrivateVault vault,
     address[] calldata targets,
@@ -34,6 +44,27 @@ contract PrivateVaultAutomator is AccessControl, Pausable, IPrivateVaultAutomato
     vault.multicall(targets, callValues, data, callTypes);
   }
 
+  /// @notice Execute a multicall with EIP-712 signature verification
+  /// @param vault Vault
+  /// @param targets Targets to call
+  /// @param callValues Call values
+  /// @param data Data to pass to the calls
+  /// @param callTypes Call types
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
+  function executeMulticall(
+    IPrivateVault vault,
+    address[] calldata targets,
+    uint256[] calldata callValues,
+    bytes[] calldata data,
+    CallType[] calldata callTypes,
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
+  ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    vault.multicall(targets, callValues, data, callTypes);
+  }
+
   /// @dev Validate the order
   /// @param hash Hash of the data to be signed
   /// @param signature Signature of the order
@@ -41,6 +72,16 @@ contract PrivateVaultAutomator is AccessControl, Pausable, IPrivateVaultAutomato
   function _validateOrder(bytes32 hash, bytes memory signature, address actor) internal view {
     require(SignatureChecker.isValidSignatureNow(actor, hash, signature), InvalidSignature());
     require(!_cancelledOrder[keccak256(signature)], OrderCancelled());
+  }
+
+  /// @dev Validate the order
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
+  /// @param actor Actor of the order
+  function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
+    address userAddress = _recover(abiEncodedUserOrder, orderSignature);
+    require(userAddress == actor, InvalidSignature());
+    require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
   }
 
   /// @notice Cancel an order
