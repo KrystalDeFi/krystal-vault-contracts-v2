@@ -20,6 +20,38 @@ constructor(address _owner, address[] _operators) public
 function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes32 hash, bytes signature) external
 ```
 
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | contract IPrivateVault | Vault |
+| targets | address[] | Targets to call |
+| callValues | uint256[] | Call values |
+| data | bytes[] | Data to pass to the calls |
+| callTypes | enum IPrivateCommon.CallType[] | Call types |
+| hash | bytes32 | Hash of the data to be signed |
+| signature | bytes | Signature of the order |
+
+### executeMulticall
+
+```solidity
+function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
+Execute a multicall with EIP-712 signature verification
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| vault | contract IPrivateVault | Vault |
+| targets | address[] | Targets to call |
+| callValues | uint256[] | Call values |
+| data | bytes[] | Data to pass to the calls |
+| callTypes | enum IPrivateCommon.CallType[] | Call types |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
+
 ### _validateOrder
 
 ```solidity
@@ -34,6 +66,22 @@ _Validate the order_
 | ---- | ---- | ----------- |
 | hash | bytes32 | Hash of the data to be signed |
 | signature | bytes | Signature of the order |
+| actor | address | Actor of the order |
+
+### _validateOrder
+
+```solidity
+function _validateOrder(bytes abiEncodedUserOrder, bytes orderSignature, address actor) internal view
+```
+
+_Validate the order_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
 | actor | address | Actor of the order |
 
 ### cancelOrder

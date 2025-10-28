@@ -26,6 +26,12 @@ event CancelOrder(address user, bytes32 hash, bytes signature)
 function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes32 hash, bytes signature) external
 ```
 
+### executeMulticall
+
+```solidity
+function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
+```
+
 ### cancelOrder
 
 ```solidity
