@@ -113,6 +113,9 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Sweep native token to the caller
   /// @param amount Amount of native token to sweep
   function sweepNativeToken(uint256 amount) external override onlyOwner {
+    uint256 balance = address(this).balance;
+    if (amount > balance) amount = balance;
+
     (bool success,) = msg.sender.call{ value: amount }("");
     require(success, "Failed to send native token");
 
@@ -122,11 +125,12 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @notice Sweeps the tokens to the caller
   /// @param tokens Tokens to sweep
   /// @param amounts Amounts of tokens to sweep
-  function sweepToken(address[] calldata tokens, uint256[] calldata amounts) external override onlyOwner {
+  function sweepToken(address[] calldata tokens, uint256[] memory amounts) external override onlyOwner {
     for (uint256 i; i < tokens.length;) {
       IERC20 token = IERC20(tokens[i]);
-      uint256 amount = amounts[i];
-      token.safeTransfer(msg.sender, amount);
+      uint256 balance = token.balanceOf(address(this));
+      if (amounts[i] > balance) amounts[i] = balance;
+      token.safeTransfer(msg.sender, amounts[i]);
 
       unchecked {
         i++;
@@ -156,15 +160,16 @@ contract PrivateVault is Initializable, ReentrancyGuard, ERC721Holder, ERC1155Ho
   /// @param _tokens Tokens to sweep
   /// @param _tokenIds Token IDs to sweep
   /// @param _amounts Amounts of tokens to sweep
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts)
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] memory _amounts)
     external
     override
     onlyOwner
   {
     for (uint256 i; i < _tokens.length;) {
       IERC1155 token = IERC1155(_tokens[i]);
-      uint256 amount = _amounts[i];
-      token.safeTransferFrom(address(this), msg.sender, _tokenIds[i], amount, "");
+      uint256 balance = token.balanceOf(address(this), _tokenIds[i]);
+      if (_amounts[i] > balance) _amounts[i] = balance;
+      token.safeTransferFrom(address(this), msg.sender, _tokenIds[i], _amounts[i], "");
 
       unchecked {
         i++;

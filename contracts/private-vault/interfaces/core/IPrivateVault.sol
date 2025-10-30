@@ -50,11 +50,11 @@ interface IPrivateVault is IPrivateCommon {
 
   function sweepNativeToken(uint256 amount) external;
 
-  function sweepToken(address[] calldata tokens, uint256[] calldata amounts) external;
+  function sweepToken(address[] calldata tokens, uint256[] memory amounts) external;
 
   function sweepERC721(address[] calldata _tokens, uint256[] calldata _tokenIds) external;
 
-  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] calldata _amounts) external;
+  function sweepERC1155(address[] calldata _tokens, uint256[] calldata _tokenIds, uint256[] memory _amounts) external;
 
   function grantAdminRole(address _address) external;
 
