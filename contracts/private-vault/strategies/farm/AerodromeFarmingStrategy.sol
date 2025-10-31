@@ -67,22 +67,25 @@ contract AerodromeFarmingStrategy {
     emit AerodromeFarmingStaked(nfpm, tokenId, clGauge, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient)
+    external
+    payable
+  {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
+    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
     ICLGauge(clGauge).withdraw(tokenId);
 
     emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient) external payable {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
+    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
 
     emit AerodromeFarmingRewardsHarvested(tokenId, clGauge, msg.sender);
   }
 
-  function _harvest(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient)
+  function _harvest(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient)
     internal
     returns (uint256 harvestedAmount)
   {
@@ -92,9 +95,9 @@ contract AerodromeFarmingStrategy {
     ICLGauge(clGauge).getReward(tokenId);
 
     harvestedAmount = _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
-    if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
-      require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
-      if (harvestedAmount > 0) IERC20(rewardToken).safeTransfer(rewardRecipient, harvestedAmount);
+    if (vaultOwnerAsRecipient && harvestedAmount > 0) {
+      address rewardRecipient = IPrivateVault(address(this)).vaultOwner();
+      IERC20(rewardToken).safeTransfer(rewardRecipient, harvestedAmount);
     }
   }
 

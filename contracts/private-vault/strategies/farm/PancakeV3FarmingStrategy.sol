@@ -41,18 +41,21 @@ contract PancakeV3FarmingStrategy {
     emit PancakeV3FarmingStaked(nfpm, tokenId, masterChefV3, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
-    _harvest(tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient)
+    external
+    payable
+  {
+    _harvest(tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
     IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
     emit PancakeV3FarmingUnstaked(tokenId, masterChefV3, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
-    _harvest(tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient) external payable {
+    _harvest(tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
     emit PancakeV3FarmingRewardsHarvested(tokenId, masterChefV3, msg.sender);
   }
 
-  function _harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient)
+  function _harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, bool vaultOwnerAsRecipient)
     internal
     returns (uint256 harvestedAmount)
   {
@@ -62,11 +65,9 @@ contract PancakeV3FarmingStrategy {
     IMasterChefV3(masterChefV3).harvest(tokenId, address(this));
 
     harvestedAmount = _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
-    if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
-      require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
-      if (harvestedAmount > 0) {
-        IERC20(IMasterChefV3(masterChefV3).CAKE()).safeTransfer(rewardRecipient, harvestedAmount);
-      }
+    if (vaultOwnerAsRecipient && harvestedAmount > 0) {
+      address rewardRecipient = IPrivateVault(address(this)).vaultOwner();
+      IERC20(rewardToken).safeTransfer(rewardRecipient, harvestedAmount);
     }
   }
 

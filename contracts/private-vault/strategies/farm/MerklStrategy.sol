@@ -31,7 +31,7 @@ contract MerklStrategy {
     bytes32[] memory proofs,
     uint64 rewardFeeX64,
     uint64 gasFeeX64,
-    address rewardRecipient
+    bool vaultOwnerAsRecipient
   ) external payable {
     address[] memory users = new address[](1);
     users[0] = address(this);
@@ -57,8 +57,8 @@ contract MerklStrategy {
           CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS);
       }
       rewardAmount -= feeAmount;
-      if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
-        require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+      if (vaultOwnerAsRecipient && rewardAmount > 0) {
+        address rewardRecipient = IPrivateVault(address(this)).vaultOwner();
         IERC20(token).safeTransfer(rewardRecipient, rewardAmount);
       }
     }

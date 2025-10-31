@@ -28,7 +28,7 @@ contract KyberFairFlowStrategy {
     uint256 amount,
     uint64 rewardFeeX64,
     uint64 gasFeeX64,
-    address rewardRecipient
+    bool vaultOwnerAsRecipient
   ) external payable {
     address[] memory tokens = new address[](1);
     tokens[0] = token;
@@ -48,8 +48,8 @@ contract KyberFairFlowStrategy {
         feeAmount += CollectFee.collect(configManager.feeRecipient(), token, reward, gasFeeX64, CollectFee.FeeType.GAS);
       }
       reward -= feeAmount;
-      if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
-        require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+      if (vaultOwnerAsRecipient && reward > 0) {
+        address rewardRecipient = IPrivateVault(address(this)).vaultOwner();
         IERC20(token).safeTransfer(rewardRecipient, reward);
       }
     }

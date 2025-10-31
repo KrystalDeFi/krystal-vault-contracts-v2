@@ -23,18 +23,19 @@ contract V4UtilsStrategy {
     uint256 tokenId,
     bytes calldata instruction,
     address[] calldata withdrawTokens,
-    address recipient
+    bool vaultOwnerAsRecipient
   ) external payable {
     uint256[] memory amountsBefore;
-    if (recipient != address(0) && recipient != address(this) && withdrawTokens.length > 0) {
-      require(recipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+    address recipient;
+    if (vaultOwnerAsRecipient && withdrawTokens.length > 0) {
+      recipient = IPrivateVault(address(this)).vaultOwner();
       amountsBefore = new uint256[](withdrawTokens.length);
       for (uint256 i; i < withdrawTokens.length; i++) {
         amountsBefore[i] = IERC20(withdrawTokens[i]).balanceOf(address(this));
       }
     }
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
-    if (recipient != address(0) && recipient != address(this) && withdrawTokens.length > 0) {
+    if (vaultOwnerAsRecipient && withdrawTokens.length > 0) {
       for (uint256 i; i < withdrawTokens.length; i++) {
         uint256 amount = IERC20(withdrawTokens[i]).balanceOf(address(this)) - amountsBefore[i];
         if (amount > 0) IERC20(withdrawTokens[i]).safeTransfer(recipient, amount);
