@@ -19,6 +19,17 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "posm",
         "type": "address"
       },
@@ -64,6 +75,16 @@
         "internalType": "bytes",
         "name": "instruction",
         "type": "bytes"
+      },
+      {
+        "internalType": "address[]",
+        "name": "withdrawTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
       }
     ],
     "name": "safeTransferNft",

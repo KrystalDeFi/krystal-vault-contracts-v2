@@ -215,6 +215,11 @@
         "internalType": "uint64",
         "name": "gasFeeX64",
         "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "rewardRecipient",
+        "type": "address"
       }
     ],
     "name": "harvest",
@@ -251,6 +256,11 @@
         "internalType": "uint64",
         "name": "gasFeeX64",
         "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "rewardRecipient",
+        "type": "address"
       }
     ],
     "name": "withdraw",
