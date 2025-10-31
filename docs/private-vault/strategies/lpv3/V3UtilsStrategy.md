@@ -23,13 +23,13 @@ function safeTransferNft(address _nfpm, uint256 tokenId, struct IV3Utils.Instruc
 ### swapAndMint
 
 ```solidity
-function swapAndMint(struct IV3Utils.SwapAndMintParams params, uint256 ethValue, address[] tokens, uint256[] amounts) external payable returns (struct IV3Utils.SwapAndMintResult)
+function swapAndMint(struct IV3Utils.SwapAndMintParams params, uint256 ethValue, address[] tokens, uint256[] amounts, bool returnLeftOverToOwner) external payable returns (struct IV3Utils.SwapAndMintResult result)
 ```
 
 ### swapAndIncreaseLiquidity
 
 ```solidity
-function swapAndIncreaseLiquidity(struct IV3Utils.SwapAndIncreaseLiquidityParams params, uint256 ethValue, address[] tokens, uint256[] amounts) external payable returns (struct IV3Utils.SwapAndIncreaseLiquidityResult)
+function swapAndIncreaseLiquidity(struct IV3Utils.SwapAndIncreaseLiquidityParams params, uint256 ethValue, address[] tokens, uint256[] amounts, bool returnLeftOverToOwner) external payable returns (struct IV3Utils.SwapAndIncreaseLiquidityResult result)
 ```
 
 ### _approveTokens

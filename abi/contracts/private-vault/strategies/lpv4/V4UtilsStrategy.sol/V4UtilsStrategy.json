@@ -52,6 +52,11 @@
         "internalType": "uint256[]",
         "name": "approveAmounts",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "returnLeftOverToOwner",
+        "type": "bool"
       }
     ],
     "name": "execute",

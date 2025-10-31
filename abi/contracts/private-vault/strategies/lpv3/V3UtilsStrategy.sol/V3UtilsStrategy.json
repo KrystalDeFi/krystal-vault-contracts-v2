@@ -19,6 +19,17 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_nfpm",
         "type": "address"
       },
@@ -273,6 +284,11 @@
         "internalType": "uint256[]",
         "name": "amounts",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "returnLeftOverToOwner",
+        "type": "bool"
       }
     ],
     "name": "swapAndIncreaseLiquidity",
@@ -306,7 +322,7 @@
           }
         ],
         "internalType": "struct IV3Utils.SwapAndIncreaseLiquidityResult",
-        "name": "",
+        "name": "result",
         "type": "tuple"
       }
     ],
@@ -461,6 +477,11 @@
         "internalType": "uint256[]",
         "name": "amounts",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "returnLeftOverToOwner",
+        "type": "bool"
       }
     ],
     "name": "swapAndMint",
@@ -489,7 +510,7 @@
           }
         ],
         "internalType": "struct IV3Utils.SwapAndMintResult",
-        "name": "",
+        "name": "result",
         "type": "tuple"
       }
     ],
