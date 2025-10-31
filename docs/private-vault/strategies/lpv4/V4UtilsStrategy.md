@@ -17,7 +17,7 @@ constructor(address _v4UtilsRouter) public
 ### safeTransferNft
 
 ```solidity
-function safeTransferNft(address posm, uint256 tokenId, bytes instruction, address[] withdrawTokens, address recipient) external payable
+function safeTransferNft(address posm, uint256 tokenId, bytes instruction, address[] withdrawTokens, bool vaultOwnerAsRecipient) external payable
 ```
 
 ### execute

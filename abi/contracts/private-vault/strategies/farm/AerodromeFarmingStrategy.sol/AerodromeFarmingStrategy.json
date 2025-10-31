@@ -217,9 +217,9 @@
         "type": "uint64"
       },
       {
-        "internalType": "address",
-        "name": "rewardRecipient",
-        "type": "address"
+        "internalType": "bool",
+        "name": "vaultOwnerAsRecipient",
+        "type": "bool"
       }
     ],
     "name": "harvest",
@@ -258,9 +258,9 @@
         "type": "uint64"
       },
       {
-        "internalType": "address",
-        "name": "rewardRecipient",
-        "type": "address"
+        "internalType": "bool",
+        "name": "vaultOwnerAsRecipient",
+        "type": "bool"
       }
     ],
     "name": "withdraw",

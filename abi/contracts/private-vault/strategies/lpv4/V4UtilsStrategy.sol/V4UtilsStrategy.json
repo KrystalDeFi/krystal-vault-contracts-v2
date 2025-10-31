@@ -82,9 +82,9 @@
         "type": "address[]"
       },
       {
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
+        "internalType": "bool",
+        "name": "vaultOwnerAsRecipient",
+        "type": "bool"
       }
     ],
     "name": "safeTransferNft",
