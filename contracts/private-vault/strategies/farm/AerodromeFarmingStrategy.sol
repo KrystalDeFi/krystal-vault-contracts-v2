@@ -12,8 +12,12 @@ import { ICLFactory } from "../../../common/interfaces/protocols/aerodrome/ICLFa
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CollectFee } from "../../libraries/CollectFee.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
+import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract AerodromeFarmingStrategy {
+  using SafeERC20 for IERC20;
+
   address public immutable gaugeFactory;
   address public immutable nfpm;
   IPrivateConfigManager public immutable configManager;
@@ -63,45 +67,59 @@ contract AerodromeFarmingStrategy {
     emit AerodromeFarmingStaked(nfpm, tokenId, clGauge, msg.sender);
   }
 
-  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
+  function withdraw(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64);
+    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
     ICLGauge(clGauge).withdraw(tokenId);
 
     emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
   }
 
-  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
+  function harvest(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient) external payable {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64);
+    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
 
     emit AerodromeFarmingRewardsHarvested(tokenId, clGauge, msg.sender);
   }
 
-  function _harvest(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+  function _harvest(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64, address rewardRecipient)
+    internal
+    returns (uint256 harvestedAmount)
+  {
     address rewardToken = ICLGauge(clGauge).rewardToken();
     uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
 
     ICLGauge(clGauge).getReward(tokenId);
 
-    _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
+    harvestedAmount = _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
+    if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
+      require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+      if (harvestedAmount > 0) IERC20(rewardToken).safeTransfer(rewardRecipient, harvestedAmount);
+    }
   }
 
-  function _handleReward(address rewardToken, uint256 balanceBefore, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+  function _handleReward(address rewardToken, uint256 balanceBefore, uint64 rewardFeeX64, uint64 gasFeeX64)
+    internal
+    returns (uint256 harvestedAmount)
+  {
     uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
-    if (balanceAfter <= balanceBefore) return;
+    if (balanceAfter <= balanceBefore) return 0;
 
-    uint256 harvestedAmount = balanceAfter - balanceBefore;
-    if (harvestedAmount == 0) return;
+    harvestedAmount = balanceAfter - balanceBefore;
+    if (harvestedAmount == 0) return 0;
+    uint256 feeAmount;
 
     if (rewardFeeX64 > 0) {
-      CollectFee.collect(
+      feeAmount += CollectFee.collect(
         configManager.feeRecipient(), rewardToken, harvestedAmount, rewardFeeX64, CollectFee.FeeType.FARM_REWARD
       );
     }
 
     if (gasFeeX64 > 0) {
-      CollectFee.collect(configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS);
+      feeAmount += CollectFee.collect(
+        configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS
+      );
     }
+    harvestedAmount -= feeAmount;
   }
 }

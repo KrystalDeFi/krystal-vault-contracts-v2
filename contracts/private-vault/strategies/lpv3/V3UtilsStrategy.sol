@@ -5,6 +5,7 @@ import { IV3Utils } from "../../interfaces/strategies/lpv3/IV3Utils.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../libraries/SafeApprovalLib.sol";
+import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
 
 contract V3UtilsStrategy {
   using SafeApprovalLib for IERC20;
@@ -16,7 +17,9 @@ contract V3UtilsStrategy {
   }
 
   function safeTransferNft(address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) external payable {
-    instructions.recipient = address(this);
+    require(
+      instructions.recipient == address(this) || instructions.recipient == IPrivateVault(address(this)).vaultOwner()
+    );
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
   }
 

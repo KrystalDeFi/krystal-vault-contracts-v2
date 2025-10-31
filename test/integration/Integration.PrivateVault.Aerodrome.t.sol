@@ -532,12 +532,17 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to unstake LP position from gauge (no prank management)
   function _unstakeFromGauge(uint256 tokenId) internal {
-    _unstakeFromGaugeWithFee(tokenId, 0, 0);
+    _unstakeFromGaugeWithFee(tokenId, 0, 0, address(0));
   }
 
-  function _unstakeFromGaugeWithFee(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+  function _unstakeFromGaugeWithFee(
+    uint256 tokenId,
+    uint64 rewardFeeX64,
+    uint64 gasFeeX64,
+    address rewardRecipient
+  ) internal {
     bytes memory strategyCallData =
-      abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, rewardFeeX64, gasFeeX64);
+      abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
 
     (
       address[] memory targets,
@@ -551,12 +556,17 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
   // Helper function to claim AERO rewards from gauge (no prank management)
   function _claimGaugeRewards(uint256 tokenId) internal {
-    _claimGaugeRewardsWithFee(tokenId, 0, 0);
+    _claimGaugeRewardsWithFee(tokenId, 0, 0, address(0));
   }
 
-  function _claimGaugeRewardsWithFee(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
+  function _claimGaugeRewardsWithFee(
+    uint256 tokenId,
+    uint64 rewardFeeX64,
+    uint64 gasFeeX64,
+    address rewardRecipient
+  ) internal {
     bytes memory strategyCallData =
-      abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId, rewardFeeX64, gasFeeX64);
+      abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId, rewardFeeX64, gasFeeX64, rewardRecipient);
 
     (
       address[] memory targets,
@@ -585,7 +595,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     // 1. Unstake operation
     allTargets[0] = address(farmingStrategy);
     allCallValues[0] = 0;
-    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, 0, 0);
+    allData[0] = abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, 0, 0, address(0));
     allCallTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. LP operations
@@ -1146,7 +1156,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceBefore = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
 
-    _claimGaugeRewardsWithFee(tokenId, rewardFeeX64, gasFeeX64);
+    _claimGaugeRewardsWithFee(tokenId, rewardFeeX64, gasFeeX64, address(0));
 
     uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceAfter = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
@@ -1181,7 +1191,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceBefore = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
 
-    _unstakeFromGaugeWithFee(tokenId, rewardFeeX64, gasFeeX64);
+    _unstakeFromGaugeWithFee(tokenId, rewardFeeX64, gasFeeX64, address(0));
 
     uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
     uint256 recipientBalanceAfter = IERC20(AERO_TOKEN).balanceOf(feeRecipient);
@@ -1202,6 +1212,115 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     assertFalse(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
+
+    vm.stopPrank();
+  }
+
+  function test_HarvestToVaultOwner() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 tokenId = _zapIntoGauge(1 ether, 3000 * 1e6);
+    vm.warp(block.timestamp + 7 days);
+
+    uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
+    uint256 ownerBalanceBefore = IERC20(AERO_TOKEN).balanceOf(vaultOwner);
+
+    _claimGaugeRewardsWithFee(tokenId, 0, 0, vaultOwner);
+
+    uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
+    uint256 ownerBalanceAfter = IERC20(AERO_TOKEN).balanceOf(vaultOwner);
+
+    uint256 ownerDelta = ownerBalanceAfter > ownerBalanceBefore ? ownerBalanceAfter - ownerBalanceBefore : 0;
+    uint256 vaultDelta = vaultBalanceAfter > vaultBalanceBefore ? vaultBalanceAfter - vaultBalanceBefore : 0;
+    uint256 totalHarvested = ownerDelta + vaultDelta;
+
+    if (totalHarvested == 0) {
+      assertEq(ownerDelta, 0);
+      assertEq(vaultDelta, 0);
+    } else {
+      assertEq(vaultDelta, 0);
+      assertEq(ownerDelta, totalHarvested);
+    }
+
+    vm.stopPrank();
+  }
+
+  function test_WithdrawToVaultOwner() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 tokenId = _zapIntoGauge(1 ether, 3000 * 1e6);
+    vm.warp(block.timestamp + 7 days);
+
+    address expectedGauge = getExpectedGaugeFromTokenId(tokenId);
+
+    uint256 vaultBalanceBefore = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
+    uint256 ownerBalanceBefore = IERC20(AERO_TOKEN).balanceOf(vaultOwner);
+
+    _unstakeFromGaugeWithFee(tokenId, 0, 0, vaultOwner);
+
+    uint256 vaultBalanceAfter = IERC20(AERO_TOKEN).balanceOf(address(vaultInstance));
+    uint256 ownerBalanceAfter = IERC20(AERO_TOKEN).balanceOf(vaultOwner);
+
+    uint256 ownerDelta = ownerBalanceAfter > ownerBalanceBefore ? ownerBalanceAfter - ownerBalanceBefore : 0;
+    uint256 vaultDelta = vaultBalanceAfter > vaultBalanceBefore ? vaultBalanceAfter - vaultBalanceBefore : 0;
+    uint256 totalHarvested = ownerDelta + vaultDelta;
+
+    if (totalHarvested == 0) {
+      assertEq(ownerDelta, 0);
+      assertEq(vaultDelta, 0);
+    } else {
+      assertEq(vaultDelta, 0);
+      assertEq(ownerDelta, totalHarvested);
+    }
+
+    assertFalse(ICLGauge(expectedGauge).stakedContains(address(vaultInstance), tokenId));
+    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vaultInstance));
+
+    vm.stopPrank();
+  }
+
+  function test_Error_InvalidRewardRecipientOnHarvest() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 tokenId = _zapIntoGauge(1 ether, 3000 * 1e6);
+    vm.warp(block.timestamp + 1 days);
+
+    address invalidRecipient = makeAddr("invalidGaugeHarvestRecipient");
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(AerodromeFarmingStrategy.harvest.selector, tokenId, 0, 0, invalidRecipient);
+
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
+
+    vm.expectRevert("Invalid recipient");
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
+
+    vm.stopPrank();
+  }
+
+  function test_Error_InvalidRewardRecipientOnWithdraw() public {
+    vm.startPrank(vaultOwner);
+
+    uint256 tokenId = _zapIntoGauge(1 ether, 3000 * 1e6);
+    vm.warp(block.timestamp + 1 days);
+
+    address invalidRecipient = makeAddr("invalidGaugeWithdrawRecipient");
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(AerodromeFarmingStrategy.withdraw.selector, tokenId, 0, 0, invalidRecipient);
+
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory dataArray,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData(address(farmingStrategy), strategyCallData);
+
+    vm.expectRevert("Invalid recipient");
+    vaultInstance.multicall(targets, callValues, dataArray, callTypes);
 
     vm.stopPrank();
   }

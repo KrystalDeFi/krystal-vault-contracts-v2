@@ -5,8 +5,12 @@ import { IUniswapV4KEMHook } from "../../../common/interfaces/protocols/kyber/IU
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 import { CollectFee } from "../../libraries/CollectFee.sol";
+import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract KyberFairFlowStrategy {
+  using SafeERC20 for IERC20;
+
   address public immutable uniswapV4KEMHook;
   IPrivateConfigManager public immutable configManager;
 
@@ -19,7 +23,13 @@ contract KyberFairFlowStrategy {
     configManager = IPrivateConfigManager(_configManager);
   }
 
-  function claimFairFlowReward(address token, uint256 amount, uint64 rewardFeeX64, uint64 gasFeeX64) external payable {
+  function claimFairFlowReward(
+    address token,
+    uint256 amount,
+    uint64 rewardFeeX64,
+    uint64 gasFeeX64,
+    address rewardRecipient
+  ) external payable {
     address[] memory tokens = new address[](1);
     tokens[0] = token;
     uint256[] memory amounts = new uint256[](1);
@@ -29,11 +39,18 @@ contract KyberFairFlowStrategy {
     IUniswapV4KEMHook(uniswapV4KEMHook).claimEgTokens(tokens, amounts);
     reward = IERC20(token).balanceOf(address(this)) - reward;
     if (reward > 0) {
+      uint256 feeAmount;
       if (rewardFeeX64 > 0) {
-        CollectFee.collect(configManager.feeRecipient(), token, reward, rewardFeeX64, CollectFee.FeeType.FARM_REWARD);
+        feeAmount +=
+          CollectFee.collect(configManager.feeRecipient(), token, reward, rewardFeeX64, CollectFee.FeeType.FARM_REWARD);
       }
       if (gasFeeX64 > 0) {
-        CollectFee.collect(configManager.feeRecipient(), token, reward, gasFeeX64, CollectFee.FeeType.GAS);
+        feeAmount += CollectFee.collect(configManager.feeRecipient(), token, reward, gasFeeX64, CollectFee.FeeType.GAS);
+      }
+      reward -= feeAmount;
+      if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
+        require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+        IERC20(token).safeTransfer(rewardRecipient, reward);
       }
     }
     emit FairFlowRewardClaim(uniswapV4KEMHook, token, amount);

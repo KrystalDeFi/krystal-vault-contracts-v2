@@ -5,12 +5,16 @@ import { IMerklDistributor } from "../../../common/interfaces/protocols/merkl/IM
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManager.sol";
 import { CollectFee } from "../../libraries/CollectFee.sol";
+import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title MerklStrategy
  * @notice Strategy for handling Merkl rewards for LP positions
  */
 contract MerklStrategy {
+  using SafeERC20 for IERC20;
+
   address public immutable distributor;
   IPrivateConfigManager public immutable configManager;
 
@@ -26,7 +30,8 @@ contract MerklStrategy {
     uint256 amount,
     bytes32[] memory proofs,
     uint64 rewardFeeX64,
-    uint64 gasFeeX64
+    uint64 gasFeeX64,
+    address rewardRecipient
   ) external payable {
     address[] memory users = new address[](1);
     users[0] = address(this);
@@ -41,13 +46,20 @@ contract MerklStrategy {
     IMerklDistributor(distributor).claim(users, tokens, amounts, proofsArray);
     rewardAmount = IERC20(token).balanceOf(address(this)) - rewardAmount;
     if (rewardAmount > 0) {
+      uint256 feeAmount;
       if (rewardFeeX64 > 0) {
-        CollectFee.collect(
+        feeAmount += CollectFee.collect(
           configManager.feeRecipient(), token, rewardAmount, rewardFeeX64, CollectFee.FeeType.FARM_REWARD
         );
       }
       if (gasFeeX64 > 0) {
-        CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS);
+        feeAmount +=
+          CollectFee.collect(configManager.feeRecipient(), token, rewardAmount, gasFeeX64, CollectFee.FeeType.GAS);
+      }
+      rewardAmount -= feeAmount;
+      if (rewardRecipient != address(0) && rewardRecipient != address(this)) {
+        require(rewardRecipient == IPrivateVault(address(this)).vaultOwner(), "Invalid recipient");
+        IERC20(token).safeTransfer(rewardRecipient, rewardAmount);
       }
     }
 
