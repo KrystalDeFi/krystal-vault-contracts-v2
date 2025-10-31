@@ -26,20 +26,24 @@ contract V4UtilsStrategy {
     bool vaultOwnerAsRecipient
   ) external payable {
     uint256[] memory amountsBefore;
-    address recipient;
+    uint256 nativeBefore;
     if (vaultOwnerAsRecipient && withdrawTokens.length > 0) {
-      recipient = IPrivateVault(address(this)).vaultOwner();
       amountsBefore = new uint256[](withdrawTokens.length);
       for (uint256 i; i < withdrawTokens.length; i++) {
         amountsBefore[i] = IERC20(withdrawTokens[i]).balanceOf(address(this));
       }
+      nativeBefore = address(this).balance - msg.value;
     }
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
     if (vaultOwnerAsRecipient && withdrawTokens.length > 0) {
+      address recipient = IPrivateVault(address(this)).vaultOwner();
       for (uint256 i; i < withdrawTokens.length; i++) {
         uint256 amount = IERC20(withdrawTokens[i]).balanceOf(address(this)) - amountsBefore[i];
         if (amount > 0) IERC20(withdrawTokens[i]).safeTransfer(recipient, amount);
       }
+      uint256 nativeAmount = address(this).balance - nativeBefore;
+      (bool success,) = recipient.call{ value: nativeAmount }("");
+      require(success, "Failed to send native token");
     }
   }
 
@@ -48,13 +52,31 @@ contract V4UtilsStrategy {
     bytes calldata params,
     uint256 ethValue,
     address[] calldata tokens,
-    uint256[] calldata approveAmounts
+    uint256[] calldata approveAmounts,
+    bool returnLeftOverToOwner
   ) external payable {
     require(tokens.length == approveAmounts.length);
+    uint256[] memory amountsBefore;
+    uint256 nativeBefore;
+    if (returnLeftOverToOwner) {
+      amountsBefore = new uint256[](tokens.length);
+      nativeBefore = address(this).balance - msg.value;
+    }
     for (uint256 i; i < tokens.length; i++) {
       if (approveAmounts[i] > 0) IERC20(tokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
+      if (returnLeftOverToOwner) amountsBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
     }
 
     IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
+    if (returnLeftOverToOwner) {
+      address recipient = IPrivateVault(address(this)).vaultOwner();
+      for (uint256 i; i < tokens.length; i++) {
+        uint256 amount = IERC20(tokens[i]).balanceOf(address(this)) - amountsBefore[i];
+        if (amount > 0) IERC20(tokens[i]).safeTransfer(recipient, amount);
+      }
+      uint256 nativeAmount = address(this).balance - nativeBefore;
+      (bool success,) = recipient.call{ value: nativeAmount }("");
+      require(success, "Failed to send native token");
+    }
   }
 }

@@ -256,13 +256,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare strategy call data
-    bytes memory strategyCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndMint.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -316,13 +311,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare strategy call data
-    bytes memory strategyCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndIncreaseLiquidity.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -479,7 +469,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     targets[0] = address(v3UtilsStrategy);
     callValues[0] = 0;
-    dataArray[0] = abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts);
+    dataArray[0] = abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts, false);
     callTypes[0] = IPrivateCommon.CallType.DELEGATECALL;
 
     // 2. Stake in gauge (using tokenId = 0 to auto-select the last created token)
@@ -649,7 +639,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Prepare operation call data
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -842,7 +832,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       }),
       0 ether,
       new address[](0),
-      new uint256[](0)
+      new uint256[](0),
+      false
     );
 
     (
@@ -897,7 +888,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       }),
       0 ether,
       new address[](0),
-      new uint256[](0)
+      new uint256[](0),
+      false
     );
 
     (
@@ -1393,7 +1385,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -1453,7 +1445,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts);
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,

@@ -201,13 +201,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare strategy call data
-    bytes memory strategyCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndMint.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -259,13 +254,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare strategy call data
-    bytes memory strategyCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndIncreaseLiquidity.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory strategyCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     (
       address[] memory targets,
@@ -481,13 +471,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare V3Utils strategy call data
-    bytes memory v3UtilsCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndMint.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory v3UtilsCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndMint.selector, params, 0 ether, tokens, amounts, false);
 
     // Prepare farming strategy call data (use tokenId = 0 to stake the latest NFT)
     bytes memory farmingCallData = abi.encodeWithSelector(
@@ -561,13 +546,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0, false);
 
     // Prepare V3Utils increase liquidity call data
-    bytes memory increaseLiquidityCallData = abi.encodeWithSelector(
-      V3UtilsStrategy.swapAndIncreaseLiquidity.selector,
-      params,
-      0 ether, // ethValue
-      tokens,
-      amounts
-    );
+    bytes memory increaseLiquidityCallData =
+      abi.encodeWithSelector(V3UtilsStrategy.swapAndIncreaseLiquidity.selector, params, 0 ether, tokens, amounts, false);
 
     // Prepare restake call data
     bytes memory restakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.deposit.selector, tokenId);
@@ -732,7 +712,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       }),
       0 ether,
       new address[](0),
-      new uint256[](0)
+      new uint256[](0),
+      false
     );
 
     (
@@ -787,7 +768,8 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       }),
       0 ether,
       new address[](0),
-      new uint256[](0)
+      new uint256[](0),
+      false
     );
 
     (
