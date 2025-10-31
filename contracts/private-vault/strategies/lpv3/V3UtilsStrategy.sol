@@ -47,12 +47,14 @@ contract V3UtilsStrategy {
     if (returnLeftOverToOwner) {
       address recipient = IPrivateVault(address(this)).vaultOwner();
       for (uint256 i; i < tokens.length; i++) {
-        uint256 amount = IERC20(tokens[i]).balanceOf(address(this)) - amountsBefore[i];
-        if (amount > 0) IERC20(tokens[i]).safeTransfer(recipient, amount);
+        uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
+        if (balanceAfter > amountsBefore[i]) IERC20(tokens[i]).safeTransfer(recipient, balanceAfter - amountsBefore[i]);
       }
-      uint256 nativeAmount = address(this).balance - nativeBefore;
-      (bool success,) = recipient.call{ value: nativeAmount }("");
-      require(success, "Failed to send native token");
+      uint256 nativeAfter = address(this).balance;
+      if (nativeAfter > nativeBefore) {
+        (bool success,) = recipient.call{ value: nativeAfter - nativeBefore }("");
+        require(success, "Failed to send native token");
+      }
     }
   }
 
@@ -79,12 +81,14 @@ contract V3UtilsStrategy {
     if (returnLeftOverToOwner) {
       address recipient = IPrivateVault(address(this)).vaultOwner();
       for (uint256 i; i < tokens.length; i++) {
-        uint256 amount = IERC20(tokens[i]).balanceOf(address(this)) - amountsBefore[i];
-        if (amount > 0) IERC20(tokens[i]).safeTransfer(recipient, amount);
+        uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
+        if (balanceAfter > amountsBefore[i]) IERC20(tokens[i]).safeTransfer(recipient, balanceAfter - amountsBefore[i]);
       }
-      uint256 nativeAmount = address(this).balance - nativeBefore;
-      (bool success,) = recipient.call{ value: nativeAmount }("");
-      require(success, "Failed to send native token");
+      uint256 nativeAfter = address(this).balance;
+      if (nativeAfter > nativeBefore) {
+        (bool success,) = recipient.call{ value: nativeAfter - nativeBefore }("");
+        require(success, "Failed to send native token");
+      }
     }
   }
 
