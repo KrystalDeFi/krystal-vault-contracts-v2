@@ -88,7 +88,7 @@
       },
       {
         "internalType": "bool",
-        "name": "vaultOwnerAsRecipient",
+        "name": "skimSurplusToVaultOwner",
         "type": "bool"
       }
     ],
