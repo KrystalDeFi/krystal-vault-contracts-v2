@@ -159,6 +159,11 @@
         "internalType": "struct IV3Utils.Instructions",
         "name": "instructions",
         "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "vaultOwnerAsRecipient",
+        "type": "bool"
       }
     ],
     "name": "safeTransferNft",
