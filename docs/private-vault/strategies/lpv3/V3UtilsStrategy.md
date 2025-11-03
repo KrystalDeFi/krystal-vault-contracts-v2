@@ -17,7 +17,7 @@ constructor(address _v3utils) public
 ### safeTransferNft
 
 ```solidity
-function safeTransferNft(address _nfpm, uint256 tokenId, struct IV3Utils.Instructions instructions, bool vaultOwnerAsRecipient) external payable
+function safeTransferNft(address _nfpm, uint256 tokenId, struct IV3Utils.Instructions instructions, address[] withdrawTokens, bool skimSurplusToVaultOwner) external payable
 ```
 
 ### swapAndMint
