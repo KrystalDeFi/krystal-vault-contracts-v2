@@ -349,8 +349,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     });
 
     // Prepare safeTransferNft call data
-    bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, false);
+    bytes memory strategyCallData = abi.encodeWithSelector(
+      V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, new address[](0), false
+    );
 
     (
       address[] memory targets,
@@ -1332,8 +1333,9 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     bytes memory unstakeCallData =
       abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0, false);
 
-    bytes memory compoundCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, false);
+    bytes memory compoundCallData = abi.encodeWithSelector(
+      V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, new address[](0), false
+    );
 
     bytes memory restakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.deposit.selector, tokenId);
 

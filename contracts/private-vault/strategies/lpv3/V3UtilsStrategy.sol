@@ -7,6 +7,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../libraries/SafeApprovalLib.sol";
 import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SkimLib } from "../../libraries/SkimLib.sol";
 
 contract V3UtilsStrategy {
   using SafeApprovalLib for IERC20;
@@ -22,11 +23,18 @@ contract V3UtilsStrategy {
     address _nfpm,
     uint256 tokenId,
     IV3Utils.Instructions memory instructions,
-    bool vaultOwnerAsRecipient
+    address[] calldata withdrawTokens,
+    bool skimSurplusToVaultOwner
   ) external payable {
-    if (vaultOwnerAsRecipient) instructions.recipient = IPrivateVault(address(this)).vaultOwner();
-    else instructions.recipient = address(this);
+    uint256[] memory amountsBefore;
+    uint256 nativeBalanceBefore;
+    if (skimSurplusToVaultOwner) (amountsBefore, nativeBalanceBefore) = SkimLib.snapshotBalances(withdrawTokens);
+
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (skimSurplusToVaultOwner) {
+      SkimLib.skimSurplus(amountsBefore, nativeBalanceBefore, withdrawTokens, IPrivateVault(address(this)).vaultOwner());
+    }
   }
 
   function swapAndMint(
@@ -38,27 +46,15 @@ contract V3UtilsStrategy {
   ) external payable returns (IV3Utils.SwapAndMintResult memory result) {
     params.recipient = address(this);
     _approveTokens(tokens, amounts, v3utils);
+
     uint256[] memory amountsBefore;
     uint256 nativeBefore;
-    if (returnLeftOverToOwner) {
-      amountsBefore = new uint256[](tokens.length);
-      for (uint256 i; i < tokens.length; i++) {
-        amountsBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
-      }
-      nativeBefore = address(this).balance - msg.value;
-    }
+    if (returnLeftOverToOwner) (amountsBefore, nativeBefore) = SkimLib.snapshotBalances(tokens);
+
     result = IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
+
     if (returnLeftOverToOwner) {
-      address recipient = IPrivateVault(address(this)).vaultOwner();
-      for (uint256 i; i < tokens.length; i++) {
-        uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
-        if (balanceAfter > amountsBefore[i]) IERC20(tokens[i]).safeTransfer(recipient, balanceAfter - amountsBefore[i]);
-      }
-      uint256 nativeAfter = address(this).balance;
-      if (nativeAfter > nativeBefore) {
-        (bool success,) = recipient.call{ value: nativeAfter - nativeBefore }("");
-        require(success, "Failed to send native token");
-      }
+      SkimLib.skimSurplus(amountsBefore, nativeBefore, tokens, IPrivateVault(address(this)).vaultOwner());
     }
   }
 
@@ -71,28 +67,15 @@ contract V3UtilsStrategy {
   ) external payable returns (IV3Utils.SwapAndIncreaseLiquidityResult memory result) {
     params.recipient = address(this);
     _approveTokens(tokens, amounts, v3utils);
+
     uint256[] memory amountsBefore;
     uint256 nativeBefore;
-    if (returnLeftOverToOwner) {
-      amountsBefore = new uint256[](tokens.length);
-      for (uint256 i; i < tokens.length; i++) {
-        amountsBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
-      }
-      nativeBefore = address(this).balance - msg.value;
-    }
+    if (returnLeftOverToOwner) (amountsBefore, nativeBefore) = SkimLib.snapshotBalances(tokens);
 
     result = IV3Utils(v3utils).swapAndIncreaseLiquidity{ value: ethValue }(params);
+
     if (returnLeftOverToOwner) {
-      address recipient = IPrivateVault(address(this)).vaultOwner();
-      for (uint256 i; i < tokens.length; i++) {
-        uint256 balanceAfter = IERC20(tokens[i]).balanceOf(address(this));
-        if (balanceAfter > amountsBefore[i]) IERC20(tokens[i]).safeTransfer(recipient, balanceAfter - amountsBefore[i]);
-      }
-      uint256 nativeAfter = address(this).balance;
-      if (nativeAfter > nativeBefore) {
-        (bool success,) = recipient.call{ value: nativeAfter - nativeBefore }("");
-        require(success, "Failed to send native token");
-      }
+      SkimLib.skimSurplus(amountsBefore, nativeBefore, tokens, IPrivateVault(address(this)).vaultOwner());
     }
   }
 
