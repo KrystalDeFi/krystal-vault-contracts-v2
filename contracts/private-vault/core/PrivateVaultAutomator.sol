@@ -9,6 +9,7 @@ import "../../common/strategies/CustomEIP712.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
@@ -29,7 +30,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
   /// @param callValues Call values
   /// @param data Data to pass to the calls
   /// @param callTypes Call types
-  /// @param hash Hash of the data to be signed
+  /// @param message Hash of the data to be signed
   /// @param signature Signature of the order
   function executeMulticall(
     IPrivateVault vault,
@@ -37,9 +38,11 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes,
-    bytes32 hash,
+    string calldata message,
     bytes memory signature
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+    string memory addressStr = Strings.toHexString(uint256(uint160(address(vault))));
+    bytes32 hash = keccak256(abi.encodePacked(message, addressStr));
     _validateOrder(hash, signature, vault.vaultOwner());
     vault.multicall(targets, callValues, data, callTypes);
   }
