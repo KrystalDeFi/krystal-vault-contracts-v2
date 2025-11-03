@@ -436,13 +436,6 @@ contract PrivateVaultTest is TestCommon {
     vm.stopBroadcast();
   }
 
-  // function test_sweepNativeToken_insufficient_balance() public {
-  //   vm.startBroadcast(VAULT_OWNER);
-  //   vm.expectRevert("Failed to send native token");
-  //   privateVault.sweepNativeToken(1 ether);
-  //   vm.stopBroadcast();
-  // }
-
   // ============ SWEEP TOKEN TESTS ============
 
   function test_sweepToken_success() public {

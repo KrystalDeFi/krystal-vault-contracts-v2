@@ -350,7 +350,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
 
     // Prepare safeTransferNft call data
     bytes memory strategyCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
+      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, false);
 
     (
       address[] memory targets,
@@ -1333,7 +1333,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
       abi.encodeWithSelector(PancakeV3FarmingStrategy.withdraw.selector, tokenId, 0, 0, false);
 
     bytes memory compoundCallData =
-      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions);
+      abi.encodeWithSelector(V3UtilsStrategy.safeTransferNft.selector, NFPM, tokenId, instructions, false);
 
     bytes memory restakeCallData = abi.encodeWithSelector(PancakeV3FarmingStrategy.deposit.selector, tokenId);
 
