@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
-import "../../common/strategies/CustomEIP712.sol";
+import "./CustomEIP712.sol";
 import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
