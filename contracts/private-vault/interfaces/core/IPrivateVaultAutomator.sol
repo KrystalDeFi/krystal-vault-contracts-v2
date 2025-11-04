@@ -17,7 +17,7 @@ interface IPrivateVaultAutomator is IPrivateCommon {
     uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes,
-    bytes32 hash,
+    string calldata message,
     bytes memory signature
   ) external;
 

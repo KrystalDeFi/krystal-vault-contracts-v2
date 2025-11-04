@@ -95,9 +95,9 @@
         "type": "uint8[]"
       },
       {
-        "internalType": "bytes32",
-        "name": "hash",
-        "type": "bytes32"
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
       },
       {
         "internalType": "bytes",
