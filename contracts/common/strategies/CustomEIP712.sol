@@ -2,7 +2,8 @@
 // modified version of @openzeppelin
 pragma solidity ^0.8.28;
 
-import "../libraries/strategies/LpUniV3StructHash.sol";
+import { StructHash as OrderStructHash } from "../libraries/strategies/LpUniV3StructHash.sol";
+import "../libraries/strategies/AgentAllowanceStructHash.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 abstract contract CustomEIP712 {
@@ -16,12 +17,22 @@ abstract contract CustomEIP712 {
       keccak256(abi.encode(TYPE_HASH, keccak256(bytes(name)), keccak256(bytes(version)), block.chainid, address(this)));
   }
 
+  function _recover(bytes memory order, bytes memory signature) internal view returns (address) {
+    bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(order));
+    return ECDSA.recover(digest, signature);
+  }
+
   /// @dev Recover signer of EIP712 signature
   /// @param order ABI encoded order
   /// @param signature Signature of the order
   /// @return Signer of the order
-  function _recover(bytes memory order, bytes memory signature) internal view returns (address) {
-    bytes32 digest = _hashTypedDataV4(StructHash._hash(order));
+  function _recoverOrder(bytes memory order, bytes memory signature) internal view returns (address) {
+    bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(order));
+    return ECDSA.recover(digest, signature);
+  }
+
+  function _recoverAgentAllowance(bytes memory agentAllownance, bytes memory signature) internal view returns (address) {
+    bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(agentAllownance));
     return ECDSA.recover(digest, signature);
   }
 
