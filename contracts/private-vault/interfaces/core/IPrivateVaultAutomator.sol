@@ -11,17 +11,17 @@ interface IPrivateVaultAutomator is IPrivateCommon {
 
   event CancelOrder(address user, bytes32 hash, bytes signature);
 
-  function executeMulticall(
+  function executeMulticallWithAgentAllowance(
     IPrivateVault vault,
     address[] calldata targets,
     uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes,
-    string calldata message,
+    bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external;
 
-  function executeMulticall(
+  function executeMulticallWithUserOrder(
     IPrivateVault vault,
     address[] calldata targets,
     uint256[] calldata callValues,

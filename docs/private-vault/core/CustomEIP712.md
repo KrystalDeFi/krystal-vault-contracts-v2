@@ -14,10 +14,10 @@ bytes32 DOMAIN_SEPARATOR
 constructor(string name, string version) internal
 ```
 
-### _recover
+### _recoverOrder
 
 ```solidity
-function _recover(bytes order, bytes signature) internal view returns (address)
+function _recoverOrder(bytes order, bytes signature) internal view returns (address)
 ```
 
 _Recover signer of EIP712 signature_
@@ -34,6 +34,12 @@ _Recover signer of EIP712 signature_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | address | Signer of the order |
+
+### _recoverAgentAllowance
+
+```solidity
+function _recoverAgentAllowance(bytes agentAllownance, bytes signature) internal view returns (address)
+```
 
 ### _hashTypedDataV4
 

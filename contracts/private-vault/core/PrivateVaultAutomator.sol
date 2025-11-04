@@ -5,7 +5,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
-import "../../common/strategies/CustomEIP712.sol";
+import "./CustomEIP712.sol";
+import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -24,26 +25,24 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     }
   }
 
-  // @notice Execute a multicall with hash and signature verification
+  // @notice Execute a multicall with AgentAllowance signature
   /// @param vault Vault
   /// @param targets Targets to call
   /// @param callValues Call values
   /// @param data Data to pass to the calls
   /// @param callTypes Call types
-  /// @param message Hash of the data to be signed
+  /// @param abiEncodedAgentAllowance abi-encoded AgentAllowance
   /// @param signature Signature of the order
-  function executeMulticall(
+  function executeMulticallWithAgentAllowance(
     IPrivateVault vault,
     address[] calldata targets,
     uint256[] calldata callValues,
     bytes[] calldata data,
     CallType[] calldata callTypes,
-    string calldata message,
+    bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    string memory addressStr = Strings.toHexString(uint256(uint160(address(vault))));
-    bytes32 hash = keccak256(abi.encodePacked(message, addressStr));
-    _validateOrder(hash, signature, vault.vaultOwner());
+    _validateAgentAllowance(abiEncodedAgentAllowance, signature, address(vault));
     vault.multicall(targets, callValues, data, callTypes);
   }
 
@@ -55,7 +54,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
   /// @param callTypes Call types
   /// @param abiEncodedUserOrder ABI encoded user order
   /// @param orderSignature Signature of the order
-  function executeMulticall(
+  function executeMulticallWithUserOrder(
     IPrivateVault vault,
     address[] calldata targets,
     uint256[] calldata callValues,
@@ -68,12 +67,16 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     vault.multicall(targets, callValues, data, callTypes);
   }
 
-  /// @dev Validate the order
-  /// @param hash Hash of the data to be signed
-  /// @param signature Signature of the order
-  /// @param actor Actor of the order
-  function _validateOrder(bytes32 hash, bytes memory signature, address actor) internal view {
-    require(SignatureChecker.isValidSignatureNow(actor, hash, signature), InvalidSignature());
+  function _validateAgentAllowance(bytes memory abiEncodedAgentAllowance, bytes memory signature, address vault)
+    internal
+    view
+  {
+    AgentAllowanceStructHash.AgentAllowance memory agentAllowance =
+      abi.decode(abiEncodedAgentAllowance, (AgentAllowanceStructHash.AgentAllowance));
+    require(agentAllowance.vault == address(vault), InvalidSignature());
+    require(agentAllowance.expirationTime >= block.timestamp, InvalidSignature());
+    address actor = _recoverAgentAllowance(abiEncodedAgentAllowance, signature);
+    require(actor == IPrivateVault(vault).vaultOwner(), InvalidSignature());
     require(!_cancelledOrder[keccak256(signature)], OrderCancelled());
   }
 
@@ -82,7 +85,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
   /// @param orderSignature Signature of the order
   /// @param actor Actor of the order
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
-    address userAddress = _recover(abiEncodedUserOrder, orderSignature);
+    address userAddress = _recoverOrder(abiEncodedUserOrder, orderSignature);
     require(userAddress == actor, InvalidSignature());
     require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
   }
@@ -91,7 +94,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
   /// @param hash Hash of the data to be signed
   /// @param signature Signature of the order
   function cancelOrder(bytes32 hash, bytes memory signature) external {
-    _validateOrder(hash, signature, msg.sender);
+    require(ECDSA.recover(hash, signature) == msg.sender, InvalidSignature());
     _cancelledOrder[keccak256(signature)] = true;
     emit CancelOrder(msg.sender, hash, signature);
   }

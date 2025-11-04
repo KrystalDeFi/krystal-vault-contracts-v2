@@ -12,6 +12,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 // Mock strategy contract for testing
@@ -136,15 +137,30 @@ contract PrivateVaultAutomatorTest is TestCommon {
   }
 
   // ============ HELPER FUNCTIONS ============
-  uint256 nonce;
+  uint256 nonce = 0;
 
-  function _createAutomationMessage(address vault) internal returns (string memory message, bytes32 hash) {
-    string memory addressStr = Strings.toHexString(uint256(uint160(address(vault))));
-    nonce += 1;
-    string memory nonceStr = Strings.toString(nonce);
+  function _createAutomationAgentAllowance(address vault)
+    internal
+    returns (bytes memory abiEncodedAllowance, bytes32 hash)
+  {
+    nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance =
+      AgentAllowanceStructHash.AgentAllowance(vault, uint64(block.timestamp + nonce), uint64(block.timestamp + 3600));
+    abiEncodedAllowance = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(abiEncodedAllowance);
+    // Create the domain separator manually
+    bytes32 domainSeparator = keccak256(
+      abi.encode(
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+        keccak256("V3AutomationOrder"),
+        keccak256("5.0"),
+        block.chainid,
+        address(automator)
+      )
+    );
 
-    message = string.concat(nonceStr, "Allowance message for agent to execute tx on vault: \n");
-    hash = keccak256(abi.encodePacked(message, addressStr));
+    // Create the final digest
+    hash = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
   }
 
   function _createAutomationOrder(address strategy, uint256 nonce, uint256 deadline) internal pure returns (bytes32) {
@@ -255,7 +271,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // but it demonstrates that the EIP712 executeMulticall function exists and can be called
     vm.startPrank(OPERATOR);
     vm.expectRevert(); // Expect revert due to invalid order structure
-    automator.executeMulticall(
+    automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, signature
     );
     vm.stopPrank();
@@ -263,7 +279,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_success() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
@@ -277,8 +293,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
 
@@ -303,7 +319,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute with invalid signature
     vm.startPrank(OPERATOR);
     vm.expectRevert(); // Expect revert due to invalid order structure or signature
-    automator.executeMulticall(
+    automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, invalidSignature
     );
     vm.stopPrank();
@@ -311,7 +327,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_fail_unauthorizedOperator() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
@@ -326,15 +342,15 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute as non-operator
     vm.startPrank(NON_OPERATOR);
     vm.expectRevert();
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
   }
 
   function test_executeMulticall_fail_invalidSignature() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory invalidSignature = _signMessage(hash, OPERATOR_PRIVATE_KEY); // Wrong signer
 
     // Prepare multicall data
@@ -349,8 +365,14 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute with invalid signature
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, invalidSignature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)),
+      targets,
+      callValues,
+      data,
+      callTypes,
+      abiEncodedAgentAllowance,
+      invalidSignature
     );
     vm.stopPrank();
   }
@@ -380,7 +402,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute cancelled order
     vm.startPrank(OPERATOR);
     vm.expectRevert(); // Expect revert due to invalid order structure or cancelled order
-    automator.executeMulticall(
+    automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, signature
     );
     vm.stopPrank();
@@ -388,7 +410,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_fail_cancelledOrder() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Cancel the order first
@@ -408,8 +430,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute cancelled order
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
   }
@@ -436,7 +458,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute when paused
     vm.startPrank(OPERATOR);
     vm.expectRevert(Pausable.EnforcedPause.selector);
-    automator.executeMulticall(
+    automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, signature
     );
     vm.stopPrank();
@@ -449,7 +471,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data
@@ -464,15 +486,15 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Try to execute when paused
     vm.startPrank(OPERATOR);
     vm.expectRevert(Pausable.EnforcedPause.selector);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
   }
 
   function test_executeMulticall_multipleCalls() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data with multiple calls
@@ -494,8 +516,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
 
@@ -741,7 +763,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_emptyTargets() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare empty multicall data
@@ -752,8 +774,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
 
@@ -762,7 +784,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_zeroAddressTarget() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Prepare multicall data with zero address target
@@ -780,8 +802,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
     // Execute multicall as operator
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
 
@@ -790,7 +812,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_executeMulticall_strategyCallFails() public {
     // Create automation order
-    (string memory message, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
     // Make strategy fail
@@ -808,19 +830,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Execute multicall as operator - should fail due to strategy failure
     vm.startPrank(OPERATOR);
     vm.expectRevert();
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
   }
 
   function test_executeMulticall_differentOrderHash() public {
     // Create automation order
-    (, bytes32 hash) = _createAutomationMessage(address(privateVault));
+    (, bytes32 hash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
 
-    // Use different order hash
-    string memory differentMessage = "Different message";
+    // Use different allowance
+    bytes memory differentMessage = abi.encode(AgentAllowanceStructHash.AgentAllowance(address(privateVault), 0, 0));
 
     // Prepare multicall data
     (
@@ -834,7 +856,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // Execute multicall as operator with different hash
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
-    automator.executeMulticall(
+    automator.executeMulticallWithAgentAllowance(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, differentMessage, signature
     );
     vm.stopPrank();
@@ -844,7 +866,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
 
   function test_fullAutomationFlow() public {
     // 1. Vault owner creates automation order
-    (string memory message, bytes32 orderHash) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance, bytes32 orderHash) = _createAutomationAgentAllowance(address(privateVault));
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // 2. Verify order is not cancelled
@@ -860,8 +882,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
 
@@ -879,16 +901,18 @@ contract PrivateVaultAutomatorTest is TestCommon {
     // 7. Try to execute again - should fail
     vm.startPrank(OPERATOR);
     vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message, signature
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance, signature
     );
     vm.stopPrank();
   }
 
   function test_multipleOrdersSameStrategy() public {
     // Create multiple orders for the same strategy
-    (string memory message1, bytes32 orderHash1) = _createAutomationMessage(address(privateVault));
-    (string memory message2, bytes32 orderHash2) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance1, bytes32 orderHash1) =
+      _createAutomationAgentAllowance(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance2, bytes32 orderHash2) =
+      _createAutomationAgentAllowance(address(privateVault));
 
     bytes memory signature1 = _signMessage(orderHash1, VAULT_OWNER_PRIVATE_KEY);
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
@@ -903,8 +927,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message1, signature1
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance1, signature1
     );
     vm.stopPrank();
 
@@ -919,8 +943,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 100);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message2, signature2
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance2, signature2
     );
     vm.stopPrank();
 
@@ -937,8 +961,10 @@ contract PrivateVaultAutomatorTest is TestCommon {
     configManager.setWhitelistTargets(strategies, true);
     vm.stopPrank();
 
-    (string memory message1, bytes32 orderHash1) = _createAutomationMessage(address(privateVault));
-    (string memory message2, bytes32 orderHash2) = _createAutomationMessage(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance1, bytes32 orderHash1) =
+      _createAutomationAgentAllowance(address(privateVault));
+    (bytes memory abiEncodedAgentAllowance2, bytes32 orderHash2) =
+      _createAutomationAgentAllowance(address(privateVault));
 
     bytes memory signature1 = _signMessage(orderHash1, VAULT_OWNER_PRIVATE_KEY);
     bytes memory signature2 = _signMessage(orderHash2, VAULT_OWNER_PRIVATE_KEY);
@@ -953,8 +979,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     targets[0] = address(mockStrategy);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message1, signature1
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance1, signature1
     );
     vm.stopPrank();
 
@@ -965,8 +991,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
     data[0] = abi.encodeWithSelector(MockStrategy.setValue.selector, 200);
 
     vm.startPrank(OPERATOR);
-    automator.executeMulticall(
-      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, message2, signature2
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedAgentAllowance2, signature2
     );
     vm.stopPrank();
 
