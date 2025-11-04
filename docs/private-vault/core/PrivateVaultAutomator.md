@@ -14,10 +14,10 @@ bytes32 OPERATOR_ROLE_HASH
 constructor(address _owner, address[] _operators) public
 ```
 
-### executeMulticall
+### executeMulticallWithAgentAllowance
 
 ```solidity
-function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, string message, bytes signature) external
+function executeMulticallWithAgentAllowance(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedAgentAllowance, bytes signature) external
 ```
 
 #### Parameters
@@ -29,13 +29,13 @@ function executeMulticall(contract IPrivateVault vault, address[] targets, uint2
 | callValues | uint256[] | Call values |
 | data | bytes[] | Data to pass to the calls |
 | callTypes | enum IPrivateCommon.CallType[] | Call types |
-| message | string | Hash of the data to be signed |
+| abiEncodedAgentAllowance | bytes | abi-encoded AgentAllowance |
 | signature | bytes | Signature of the order |
 
-### executeMulticall
+### executeMulticallWithUserOrder
 
 ```solidity
-function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeMulticallWithUserOrder(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 Execute a multicall with EIP-712 signature verification
@@ -52,21 +52,11 @@ Execute a multicall with EIP-712 signature verification
 | abiEncodedUserOrder | bytes | ABI encoded user order |
 | orderSignature | bytes | Signature of the order |
 
-### _validateOrder
+### _validateAgentAllowance
 
 ```solidity
-function _validateOrder(bytes32 hash, bytes signature, address actor) internal view
+function _validateAgentAllowance(bytes abiEncodedAgentAllowance, bytes signature, address vault) internal view
 ```
-
-_Validate the order_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| hash | bytes32 | Hash of the data to be signed |
-| signature | bytes | Signature of the order |
-| actor | address | Actor of the order |
 
 ### _validateOrder
 

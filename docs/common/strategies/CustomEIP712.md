@@ -20,6 +20,12 @@ constructor(string name, string version) internal
 function _recover(bytes order, bytes signature) internal view returns (address)
 ```
 
+### _recoverOrder
+
+```solidity
+function _recoverOrder(bytes order, bytes signature) internal view returns (address)
+```
+
 _Recover signer of EIP712 signature_
 
 #### Parameters
@@ -34,6 +40,12 @@ _Recover signer of EIP712 signature_
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | [0] | address | Signer of the order |
+
+### _recoverAgentAllowance
+
+```solidity
+function _recoverAgentAllowance(bytes agentAllownance, bytes signature) internal view returns (address)
+```
 
 ### _hashTypedDataV4
 

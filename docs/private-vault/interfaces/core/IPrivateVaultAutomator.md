@@ -20,16 +20,16 @@ error OrderCancelled()
 event CancelOrder(address user, bytes32 hash, bytes signature)
 ```
 
-### executeMulticall
+### executeMulticallWithAgentAllowance
 
 ```solidity
-function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, string message, bytes signature) external
+function executeMulticallWithAgentAllowance(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedAgentAllowance, bytes signature) external
 ```
 
-### executeMulticall
+### executeMulticallWithUserOrder
 
 ```solidity
-function executeMulticall(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeMulticallWithUserOrder(contract IPrivateVault vault, address[] targets, uint256[] callValues, bytes[] data, enum IPrivateCommon.CallType[] callTypes, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 ### cancelOrder

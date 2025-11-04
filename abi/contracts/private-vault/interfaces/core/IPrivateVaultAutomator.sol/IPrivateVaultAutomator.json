@@ -95,9 +95,9 @@
         "type": "uint8[]"
       },
       {
-        "internalType": "string",
-        "name": "message",
-        "type": "string"
+        "internalType": "bytes",
+        "name": "abiEncodedAgentAllowance",
+        "type": "bytes"
       },
       {
         "internalType": "bytes",
@@ -105,7 +105,7 @@
         "type": "bytes"
       }
     ],
-    "name": "executeMulticall",
+    "name": "executeMulticallWithAgentAllowance",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -148,7 +148,7 @@
         "type": "bytes"
       }
     ],
-    "name": "executeMulticall",
+    "name": "executeMulticallWithUserOrder",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
