@@ -14,12 +14,6 @@ bytes32 DOMAIN_SEPARATOR
 constructor(string name, string version) internal
 ```
 
-### _recover
-
-```solidity
-function _recover(bytes order, bytes signature) internal view returns (address)
-```
-
 ### _recoverOrder
 
 ```solidity
