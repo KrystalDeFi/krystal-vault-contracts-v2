@@ -569,7 +569,7 @@ export const deployLpStrategyContract = async (
     lpStrategy = (await deployContract(
       `${step} >>`,
       config.lpStrategy?.autoVerifyContract,
-      "LpStrategy",
+      "contracts/public-vault/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
       existingContract?.["lpStrategy"],
       "contracts/public-vault/strategies/lpUniV3/LpStrategy.sol:LpStrategy",
       undefined,
