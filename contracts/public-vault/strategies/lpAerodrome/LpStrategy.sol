@@ -153,7 +153,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     address tokenOut,
     uint256 amountTokenOutMin,
     VaultConfig calldata vaultConfig,
-    FeeConfig calldata feeConfig
+    FeeConfig memory feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).collect(
       INFPM.CollectParams(asset.tokenId, address(this), type(uint128).max, type(uint128).max)
@@ -601,8 +601,24 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
 
     address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
     {
-      (uint256 fee0, uint256 fee1) =
-        _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool, allowDeposit);
+      // Take only performance fees from earned fees (exclude gas fee)
+      (uint256 fee0, uint256 fee1) = _takeFees(
+        token0,
+        amount0Collected,
+        token1,
+        amount1Collected,
+        FeeConfig({
+          vaultOwnerFeeBasisPoint: feeConfig.vaultOwnerFeeBasisPoint,
+          vaultOwner: feeConfig.vaultOwner,
+          platformFeeBasisPoint: feeConfig.platformFeeBasisPoint,
+          platformFeeRecipient: feeConfig.platformFeeRecipient,
+          gasFeeX64: 0,
+          gasFeeRecipient: address(0)
+        }),
+        principalToken,
+        pool,
+        allowDeposit
+      );
       amount0Collected -= fee0;
       amount1Collected -= fee1;
     }
@@ -614,6 +630,30 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
 
       (uint256 posAmount0, uint256 posAmount1) =
         nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
+
+      if (feeConfig.gasFeeX64 > 0 && feeConfig.gasFeeRecipient != address(0)) {
+        // Take gas fee from principal liquidity being withdrawn
+        (uint256 gasFee0, uint256 gasFee1) = _takeFees(
+          token0,
+          posAmount0,
+          token1,
+          posAmount1,
+          FeeConfig({
+            vaultOwnerFeeBasisPoint: 0,
+            vaultOwner: address(0),
+            platformFeeBasisPoint: 0,
+            platformFeeRecipient: address(0),
+            gasFeeX64: feeConfig.gasFeeX64,
+            gasFeeRecipient: feeConfig.gasFeeRecipient
+          }),
+          principalToken,
+          pool,
+          allowDeposit
+        );
+        posAmount0 -= gasFee0;
+        posAmount1 -= gasFee1;
+      }
+
       amount0Collected += posAmount0;
       amount1Collected += posAmount1;
     }
@@ -653,7 +693,20 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     if (!params.compoundFee) {
       address principalToken = vaultConfig.principalToken;
       uint256 compoundFeeAmountOutMin = params.compoundFeeAmountOutMin;
-      returnAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, vaultConfig, feeConfig);
+      returnAssets = _harvest(
+        asset0,
+        principalToken,
+        compoundFeeAmountOutMin,
+        vaultConfig,
+        FeeConfig({
+          vaultOwnerFeeBasisPoint: feeConfig.vaultOwnerFeeBasisPoint,
+          vaultOwner: feeConfig.vaultOwner,
+          platformFeeBasisPoint: feeConfig.platformFeeBasisPoint,
+          platformFeeRecipient: feeConfig.platformFeeRecipient,
+          gasFeeX64: 0,
+          gasFeeRecipient: address(0)
+        })
+      );
       collected0 = returnAssets[0].amount;
       collected1 = returnAssets[1].amount;
     }
