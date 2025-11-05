@@ -138,7 +138,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     VaultConfig calldata vaultConfig,
     FeeConfig calldata feeConfig
   ) external payable returns (AssetLib.Asset[] memory) {
-    _checkAssetStrategy(asset.strategy);
     return _harvest(asset, tokenOut, amountTokenOutMin, vaultConfig, feeConfig);
   }
 
@@ -154,7 +153,7 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     address tokenOut,
     uint256 amountTokenOutMin,
     VaultConfig calldata vaultConfig,
-    FeeConfig calldata feeConfig
+    FeeConfig memory feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     (uint256 principalAmount, uint256 swapAmount) = INFPM(asset.token).collect(
       INFPM.CollectParams(asset.tokenId, address(this), type(uint128).max, type(uint128).max)
@@ -257,7 +256,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     VaultConfig calldata config,
     FeeConfig calldata feeConfig
   ) external payable returns (AssetLib.Asset[] memory returnAssets) {
-    _checkAssetStrategy(existingAsset.strategy);
     if (shares > totalSupply) shares = totalSupply;
 
     INFPM nfpm = INFPM(existingAsset.token);
@@ -509,7 +507,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     returns (AssetLib.Asset[] memory returnAssets)
   {
     AssetLib.Asset memory lpAsset = assets[2];
-    _checkAssetStrategy(lpAsset.strategy);
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
 
     (AssetLib.Asset memory token0, AssetLib.Asset memory token1) =
@@ -545,7 +542,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    _checkAssetStrategy(assets[0].strategy);
     address principalToken = vaultConfig.principalToken;
     AssetLib.Asset memory lpAsset = assets[0];
     if (lpAsset.strategy != thisAddress) lpAsset.strategy = thisAddress;
@@ -605,8 +601,24 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
 
     address pool = ICLFactory(nfpm.factory()).getPool(token0, token1, tickSpacing);
     {
-      (uint256 fee0, uint256 fee1) =
-        _takeFees(token0, amount0Collected, token1, amount1Collected, feeConfig, principalToken, pool, allowDeposit);
+      // Take only performance fees from earned fees (exclude gas fee)
+      (uint256 fee0, uint256 fee1) = _takeFees(
+        token0,
+        amount0Collected,
+        token1,
+        amount1Collected,
+        FeeConfig({
+          vaultOwnerFeeBasisPoint: feeConfig.vaultOwnerFeeBasisPoint,
+          vaultOwner: feeConfig.vaultOwner,
+          platformFeeBasisPoint: feeConfig.platformFeeBasisPoint,
+          platformFeeRecipient: feeConfig.platformFeeRecipient,
+          gasFeeX64: 0,
+          gasFeeRecipient: address(0)
+        }),
+        principalToken,
+        pool,
+        allowDeposit
+      );
       amount0Collected -= fee0;
       amount1Collected -= fee1;
     }
@@ -618,6 +630,30 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
 
       (uint256 posAmount0, uint256 posAmount1) =
         nfpm.collect(INFPM.CollectParams(tokenId, address(this), type(uint128).max, type(uint128).max));
+
+      if (feeConfig.gasFeeX64 > 0 && feeConfig.gasFeeRecipient != address(0)) {
+        // Take gas fee from principal liquidity being withdrawn
+        (uint256 gasFee0, uint256 gasFee1) = _takeFees(
+          token0,
+          posAmount0,
+          token1,
+          posAmount1,
+          FeeConfig({
+            vaultOwnerFeeBasisPoint: 0,
+            vaultOwner: address(0),
+            platformFeeBasisPoint: 0,
+            platformFeeRecipient: address(0),
+            gasFeeX64: feeConfig.gasFeeX64,
+            gasFeeRecipient: feeConfig.gasFeeRecipient
+          }),
+          principalToken,
+          pool,
+          allowDeposit
+        );
+        posAmount0 -= gasFee0;
+        posAmount1 -= gasFee1;
+      }
+
       amount0Collected += posAmount0;
       amount1Collected += posAmount1;
     }
@@ -642,7 +678,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    _checkAssetStrategy(assets[0].strategy);
 
     AssetLib.Asset calldata asset0 = assets[0];
     ICLPool pool = _getPoolForPosition(INFPM(asset0.token), asset0.tokenId);
@@ -658,7 +693,20 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     if (!params.compoundFee) {
       address principalToken = vaultConfig.principalToken;
       uint256 compoundFeeAmountOutMin = params.compoundFeeAmountOutMin;
-      returnAssets = _harvest(asset0, principalToken, compoundFeeAmountOutMin, vaultConfig, feeConfig);
+      returnAssets = _harvest(
+        asset0,
+        principalToken,
+        compoundFeeAmountOutMin,
+        vaultConfig,
+        FeeConfig({
+          vaultOwnerFeeBasisPoint: feeConfig.vaultOwnerFeeBasisPoint,
+          vaultOwner: feeConfig.vaultOwner,
+          platformFeeBasisPoint: feeConfig.platformFeeBasisPoint,
+          platformFeeRecipient: feeConfig.platformFeeRecipient,
+          gasFeeX64: 0,
+          gasFeeRecipient: address(0)
+        })
+      );
       collected0 = returnAssets[0].amount;
       collected1 = returnAssets[1].amount;
     }
@@ -748,7 +796,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
     FeeConfig calldata feeConfig
   ) internal returns (AssetLib.Asset[] memory returnAssets) {
     require(assets.length == 1, InvalidNumberOfAssets());
-    _checkAssetStrategy(assets[0].strategy);
 
     AssetLib.Asset calldata asset0 = assets[0];
 
@@ -849,8 +896,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
   /// @param asset The asset to revalidate
   /// @param config The vault configuration
   function revalidate(AssetLib.Asset calldata asset, VaultConfig calldata config) external view {
-    _checkAssetStrategy(asset.strategy);
-
     (,, address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper,,,,,) =
       INFPM(asset.token).positions(asset.tokenId);
     validator.validateConfig(INFPM(asset.token), tickSpacing, token0, token1, tickLower, tickUpper, config);
@@ -982,19 +1027,6 @@ contract LpStrategy is ReentrancyGuard, IAerodromeLpStrategy, ERC721Holder {
       pool,
       validatePriceSanity ? address(validator) : address(0)
     );
-  }
-
-  /// @dev some tokens require allowance == 0 to approve new amount
-
-  /// @dev check old lp strategy for backward compatibility
-  /// This was implemented as a migration method since old lp strategies have a bug
-  function _checkAssetStrategy(address strategy) internal view {
-    address[1] memory oldStrategies = [thisAddress];
-    uint256 length = oldStrategies.length;
-    for (uint256 i = 0; i < length; i++) {
-      if (strategy == oldStrategies[i]) return;
-    }
-    revert InvalidStrategy();
   }
 
   /// @notice Fallback function to receive Ether. This is required for the contract to accept ETH transfers.

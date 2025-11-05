@@ -510,11 +510,11 @@ contract LpStrategyTest is TestCommon {
 
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
-      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_439_552_697_973, "vault owner fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_450_791_158_898, "vault owner fee 0");
       assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0, "vault owner fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_879_105_395_949, "platform fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_901_582_317_797, "platform fee 0");
       assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0, "platform fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 649_318_658_093_924, "gas fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 245_098_565_173_064_678, "gas fee 0");
       assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0, "gas fee 1");
     }
   }

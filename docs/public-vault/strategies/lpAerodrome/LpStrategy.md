@@ -522,15 +522,6 @@ _Gets the fee growth inside the position_
 function _takeFees(address token0, uint256 amount0, address token1, uint256 amount1, struct ICommon.FeeConfig feeConfig, address principalToken, address pool, bool validatePriceSanity) internal returns (uint256, uint256)
 ```
 
-### _checkAssetStrategy
-
-```solidity
-function _checkAssetStrategy(address strategy) internal view
-```
-
-_check old lp strategy for backward compatibility
-This was implemented as a migration method since old lp strategies have a bug_
-
 ### receive
 
 ```solidity
