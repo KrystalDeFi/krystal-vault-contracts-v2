@@ -30,6 +30,7 @@ contract V3UtilsStrategy {
     uint256 nativeBalanceBefore;
     if (skimSurplusToVaultOwner) (amountsBefore, nativeBalanceBefore) = SkimLib.snapshotBalances(withdrawTokens);
 
+    instructions.recipient = address(this);
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (skimSurplusToVaultOwner) {
