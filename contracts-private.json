@@ -8,7 +8,7 @@
     "pancakeV3FarmingStrategy": "0x5f8e7e03bfd8fb868c2777b2fa95eb59ce03f439",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
-    "v3UtilsStrategy": "0x1905de9f70bc13693b665c09cbf6fa4a6cf1c17f",
+    "v3UtilsStrategy": "0x3d9114ea5965000ac702faffcc77f7626d93aa7b",
     "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
   }
 }
