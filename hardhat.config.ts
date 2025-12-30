@@ -91,17 +91,25 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      mainnet: ETHERSCAN_APIKEY || "",
+      mainnet: ETHERSCAN_V2_APIKEY || "",
       base: ETHERSCAN_V2_APIKEY || "",
-      optimisticEthereum: OPTIMISM_APIKEY || "",
-      bsc: BSCSCAN_APIKEY || "",
-      polygon: POLYGONSCAN_APIKEY || "",
-      arbitrumOne: ARBISCAN_APIKEY || "",
+      optimisticEthereum: ETHERSCAN_V2_APIKEY || "",
+      bsc: ETHERSCAN_V2_APIKEY || "",
+      polygon: ETHERSCAN_V2_APIKEY || "",
+      arbitrum: ETHERSCAN_V2_APIKEY || "",
       ronin: RONINSCAN_APIKEY || "",
-      berachain: BERASCAN_APIKEY || "",
+      berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
     },
     customChains: [
+      {
+        network: "mainnet",
+        chainId: 1,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=1",
+          browserURL: "https://etherscan.io",
+        },
+      },
       {
         network: "base",
         chainId: 8453,
@@ -111,10 +119,42 @@ const config: HardhatUserConfig = {
         },
       },
       {
+        network: "polygon",
+        chainId: 137,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=137",
+          browserURL: "https://polygonscan.com",
+        },
+      },
+      {
+        network: "arbitrum",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=42161",
+          browserURL: "https://arbiscan.io",
+        },
+      },
+      {
+        network: "bsc",
+        chainId: 56,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=56",
+          browserURL: "https://bscscan.com",
+        },
+      },
+      {
+        network: "optimism",
+        chainId: 10,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=10",
+          browserURL: "https://optimistic.etherscan.io",
+        },
+      },
+      {
         network: "berachain",
         chainId: 80094,
         urls: {
-          apiURL: "https://api.berascan.com/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=80094",
           browserURL: "https://berascan.com",
         },
       },
@@ -139,7 +179,7 @@ const config: HardhatUserConfig = {
   sourcify: {
     enabled: true,
     // Optional: specify a different Sourcify server
-    apiUrl: "https://sourcify.roninchain.com/server",
+    apiUrl: "https://sourcify.roninchain.com/server/",
   },
   typechain: {
     outDir: "typechain-types",

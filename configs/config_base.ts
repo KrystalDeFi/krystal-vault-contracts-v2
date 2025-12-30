@@ -1,4 +1,84 @@
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigAerodrome, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  base_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privatePancakeV3FarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateMerklStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateKyberFairFlowStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "0xb0717286fca964cb7315a95a003e1c3f0313b6de",
+    v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
+    aerodromeGaugeFactory: "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
+    pancakeV3MasterChef: "0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3",
+    merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+    uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
+  },
+};
+
+const AerodromeConfig: Record<string, IConfigAerodrome> = {
+  base_mainnet: {
+    lpStrategyAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    lpValidatorAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    rewardSwapper: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    farmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    vaultAutomatorAerodrome: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    aerodromeNfpmAddresses: ["0x827922686190790b37229fd06084350E74485b72"],
+    aerodromeGaugeFactories: [
+      "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08", // Aerodrome CLGaugeFactory on Base
+    ],
+  },
+};
 
 export const BaseConfig: Record<string, IConfig> = {
   base_mainnet: {
@@ -47,28 +127,6 @@ export const BaseConfig: Record<string, IConfig> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    // Aerodrome contracts
-    lpStrategyAerodrome: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    lpValidatorAerodrome: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    rewardSwapper: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    farmingStrategyValidator: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    farmingStrategy: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    // -------------------
     wrapToken: "0x4200000000000000000000000000000000000006",
     typedTokens: [
       "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // USDC
@@ -103,9 +161,7 @@ export const BaseConfig: Record<string, IConfig> = {
       "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
       "0x80C7DD17B01855a6D2347444a0FCC36136a314de",
     ],
-    aerodromeNfpmAddresses: ["0x827922686190790b37229fd06084350E74485b72"],
-    aerodromeGaugeFactories: [
-      "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08", // Aerodrome CLGaugeFactory on Base
-    ],
+    ...AerodromeConfig.base_mainnet,
+    ...PrivateConfig.base_mainnet,
   },
 };

@@ -8,22 +8,22 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { TestCommon, USER, WETH, DAI, USDC, NFPM } from "../TestCommon.t.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
-import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
-import { Vault } from "../../contracts/core/Vault.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { VaultFactory } from "../../contracts/public-vault/core/VaultFactory.sol";
+import { IVaultFactory } from "../../contracts/public-vault/interfaces/core/IVaultFactory.sol";
+import { Vault } from "../../contracts/public-vault/core/Vault.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
 
 contract VaultFactoryTest is TestCommon {
   ConfigManager public configManager;
@@ -280,5 +280,77 @@ contract VaultFactoryTest is TestCommon {
 
     uint256 allocatedValue = lpStrategy.valueOf(vaultAssets[1], principalToken);
     assertApproxEqRel(allocatedValue, 0.8 ether, TOLERANCE);
+  }
+
+  // ============ IS VAULT OPTIMIZATION TESTS ============
+
+  function test_isVault_optimization_large_number_of_vaults() public {
+    console.log("==== test_isVault_optimization_large_number_of_vaults ====");
+
+    // Create multiple vaults to test the optimization
+    address[] memory createdVaults = new address[](10);
+
+    for (uint256 i = 0; i < 10; i++) {
+      IERC20(WETH).approve(address(vaultFactory), 1 ether);
+
+      ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+        vaultOwnerFeeBasisPoint: 0,
+        name: string(abi.encodePacked("Test Vault ", i)),
+        symbol: string(abi.encodePacked("TV", i)),
+        principalTokenAmount: 1 ether,
+        config: ICommon.VaultConfig({
+          allowDeposit: false,
+          rangeStrategyType: 0,
+          tvlStrategyType: 0,
+          principalToken: WETH,
+          supportedAddresses: new address[](0)
+        })
+      });
+
+      createdVaults[i] = vaultFactory.createVault(params);
+    }
+
+    // Test that all created vaults are recognized
+    for (uint256 i = 0; i < 10; i++) {
+      assertTrue(vaultFactory.isVault(createdVaults[i]), "Created vault should be recognized");
+    }
+
+    // Test that random addresses are not recognized
+    address randomAddress1 = address(0x1234567890123456789012345678901234567890);
+    address randomAddress2 = address(0x9876543210987654321098765432109876543210);
+
+    assertFalse(vaultFactory.isVault(randomAddress1), "Random address should not be recognized");
+    assertFalse(vaultFactory.isVault(randomAddress2), "Random address should not be recognized");
+    assertFalse(vaultFactory.isVault(address(0)), "Zero address should not be recognized");
+  }
+
+  function test_isVault_optimization_mapping_consistency() public {
+    console.log("==== test_isVault_optimization_mapping_consistency ====");
+
+    // Create a vault
+    IERC20(WETH).approve(address(vaultFactory), 1 ether);
+
+    ICommon.VaultCreateParams memory params = ICommon.VaultCreateParams({
+      vaultOwnerFeeBasisPoint: 0,
+      name: "Consistency Test Vault",
+      symbol: "CTV",
+      principalTokenAmount: 1 ether,
+      config: ICommon.VaultConfig({
+        allowDeposit: false,
+        rangeStrategyType: 0,
+        tvlStrategyType: 0,
+        principalToken: WETH,
+        supportedAddresses: new address[](0)
+      })
+    });
+
+    address vaultAddress = vaultFactory.createVault(params);
+
+    // Test that the mapping is set correctly
+    assertTrue(vaultFactory.isVaultAddress(vaultAddress), "isVaultAddress mapping should be set");
+    assertTrue(vaultFactory.isVault(vaultAddress), "isVault should return true for created vault");
+
+    // Test that the vault is in allVaults array
+    assertEq(vaultFactory.allVaults(0), vaultAddress, "Vault should be in allVaults array");
   }
 }

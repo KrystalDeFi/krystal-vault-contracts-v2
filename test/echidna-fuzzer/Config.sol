@@ -7,7 +7,7 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
 // addresses on ethereum mainnet
 address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;

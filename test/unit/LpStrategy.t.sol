@@ -10,19 +10,19 @@ import { INonfungiblePositionManager as INFPM } from
 
 import { TestCommon, IV3SwapRouter, WETH, DAI, USER, USDC, NFPM, PLATFORM_WALLET } from "../TestCommon.t.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract LpStrategyTest is TestCommon {
   LpStrategy public lpStrategy;
@@ -510,11 +510,11 @@ contract LpStrategyTest is TestCommon {
 
       returnAssets = lpStrategy.convert(assets, vaultConfig, publicFeeConfig, abi.encode(instruction));
 
-      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_439_552_697_973, "vault owner fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockVaultOwner), 216_450_791_158_898, "vault owner fee 0");
       assertEq(IERC20(DAI).balanceOf(mockVaultOwner), 0, "vault owner fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_879_105_395_949, "platform fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockPlatformWallet), 432_901_582_317_797, "platform fee 0");
       assertEq(IERC20(DAI).balanceOf(mockPlatformWallet), 0, "platform fee 1");
-      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 649_318_658_093_924, "gas fee 0");
+      assertEq(IERC20(WETH).balanceOf(mockGasFeeRecipient), 245_098_565_173_064_678, "gas fee 0");
       assertEq(IERC20(DAI).balanceOf(mockGasFeeRecipient), 0, "gas fee 1");
     }
   }

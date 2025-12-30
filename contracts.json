@@ -7,7 +7,7 @@
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
+    "lpStrategy": "0x851ee187bc85152708d38a421d48733f1490a8e3",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
@@ -19,14 +19,15 @@
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
+    "lpStrategy": "0x851ee187bc85152708d38a421d48733f1490a8e3",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0",
     "lpValidatorAerodrome": "0xb0940938c6030d50e5e89069c098e216cde3a5c2",
     "farmingStrategyValidator": "0x91779fd92fcc19c19f7578c33b80c92b6d725187",
     "rewardSwapper": "0x0e23655e8f39e4d59125f52cf542b826e8b2836e",
-    "lpStrategyAerodrome": "0xfac58351331cf9fd2b8160efd6229759a689b3d6",
-    "farmingStrategy": "0xb9da681f459c2802abfdc3296301ccf19f4bc772"
+    "lpStrategyAerodrome": "0x32d78c8bd929a9426e5dd05f81769b8d7808c19d",
+    "vaultAutomatorAerodrome": "0x6f9b3fde674746b153276efa985ae911f3f3e4ec",
+    "farmingStrategy": "0xc460c288233b147f4f3e4e52fb82ecf51b275ea1"
   },
   "bsc_mainnet": {
     "vault": "0x964b88db9c467c34e8d5d2b1b833e8e6ae46198a",
@@ -36,7 +37,7 @@
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
+    "lpStrategy": "0x851ee187bc85152708d38a421d48733f1490a8e3",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
@@ -48,7 +49,7 @@
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
+    "lpStrategy": "0x851ee187bc85152708d38a421d48733f1490a8e3",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
@@ -60,7 +61,7 @@
     "lpValidator": "0xe2098b96227ec9ab5be2b6a58669aceb77e387e4",
     "lpFeeTaker": "0x33f301f2defe4b313f2150e9a31b8010a1a1c15a",
     "merklAutomator": "0x2047f3c6a3a3c6f65c21216d4ac8717b6523b80e",
-    "lpStrategy": "0x1e4414d018bb2ebf5d2b08d02397e1325ad14af5",
+    "lpStrategy": "0x0b2a9e2f28b6bb4b9aa55eb775c9e03c718c3c15",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
@@ -72,7 +73,7 @@
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
     "merklAutomator": "0x90badae0a260a126587b220fbdeacfcd20757bb0",
-    "lpStrategy": "0x1769e46f7be34412db3704908753ad704022599b",
+    "lpStrategy": "0x851ee187bc85152708d38a421d48733f1490a8e3",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x34c197554d32b59d9a3d1a358fc9a86e69d4cec0"
   },
@@ -83,7 +84,7 @@
     "configManager": "0x46ba78754baae4219071a250f43d38e27a91338a",
     "lpValidator": "0xc06be42e0a4eb1010ae41eef27a5ce2207023cd8",
     "lpFeeTaker": "0xc1ec78f70680342930f52707d1f653d492bcd603",
-    "lpStrategy": "0x75954a29a2b26dea3358d59c037edf0dc4d1c4a9",
+    "lpStrategy": "0xc0cd2466a059fb4b44e810492a3445d70ef6e30e",
     "vaultFactory": "0x54654bba3fe24f1fc463d31fdb5602b8b0af7dc0",
     "kodiakIslandStrategy": "0x9c0fc30b1e9c609e824d3bc7611832f84b79ce1b"
   },
@@ -95,7 +96,7 @@
     "lpValidator": "0xc79006f85360010790903f00bec264b0b782e85c",
     "lpFeeTaker": "0xa795d9d4Aa65B3DdC577Ad2c907Dc7b62de725a8",
     "merklAutomator": "0x74894d2c2ee68883b464ee855c39418a16e5d3b5",
-    "lpStrategy": "0x1f10503b156c45a970090197ef62dbd133f56086",
+    "lpStrategy": "0x009f18e14b4ac0731e4cc6eb2834d107b52daafa",
     "vaultFactory": "0x87077592b446e9207c544c5614e19b56bc6970d5",
     "merklStrategy": "0x9f6fd6f112f09e0b1a96cdaf6b62bb07659ce3ef"
   }

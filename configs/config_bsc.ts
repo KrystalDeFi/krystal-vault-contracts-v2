@@ -1,4 +1,40 @@
-import { IConfig } from "./interfaces";
+import { IConfig, IConfigPrivate } from "./interfaces";
+
+const PrivateConfig: Record<string, IConfigPrivate> = {
+  bsc_mainnet: {
+    privateVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV3UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateV4UtilsStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v3UtilsAddress: "0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6",
+    v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+    pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
+  },
+};
 
 export const BscConfig: Record<string, IConfig> = {
   bsc_mainnet: {
@@ -93,5 +129,6 @@ export const BscConfig: Record<string, IConfig> = {
       "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
       "0xF70c086618dcf2b1A461311275e00D6B722ef914",
     ],
+    ...PrivateConfig.bsc_mainnet,
   },
 };

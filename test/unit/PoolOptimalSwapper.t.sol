@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon, IV3SwapRouter, WETH, DAI, USER, USDC, NFPM, PLATFORM_WALLET } from "../TestCommon.t.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { IOptimalSwapper } from "../../contracts/interfaces/core/IOptimalSwapper.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { IOptimalSwapper } from "../../contracts/public-vault/interfaces/core/IOptimalSwapper.sol";
 import "forge-std/console.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { OptimalSwap } from "../../contracts/libraries/OptimalSwap.sol";
+import { OptimalSwap } from "../../contracts/public-vault/libraries/OptimalSwap.sol";
 
 contract PoolOptimalSwapperTest is TestCommon {
   function testOptimalSwap() public {

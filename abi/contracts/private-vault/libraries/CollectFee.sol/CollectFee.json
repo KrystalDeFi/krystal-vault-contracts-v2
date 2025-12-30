@@ -1,0 +1,55 @@
+[
+  {
+    "inputs": [],
+    "name": "FeeRecipientNotSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRewardFee",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "feeAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "rewardFeeX64",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum CollectFee.FeeType",
+        "name": "feeType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "FeeCollect",
+    "type": "event"
+  }
+]

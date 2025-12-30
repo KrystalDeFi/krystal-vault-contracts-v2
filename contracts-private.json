@@ -1,0 +1,14 @@
+{
+  "base_mainnet": {
+    "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
+    "privateVaultFactory": "0x8c082a425477e5827268f1749c7d75eba40f22e9",
+    "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
+    "privateVaultAutomator": "0x6217ee0e6613b838138f614728bc15611817639a",
+    "aerodromeFarmingStrategy": "0xe8b3f065158cf2a581d529875506217e6abbf0af",
+    "pancakeV3FarmingStrategy": "0x5f8e7e03bfd8fb868c2777b2fa95eb59ce03f439",
+    "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
+    "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
+    "v3UtilsStrategy": "0x3d9114ea5965000ac702faffcc77f7626d93aa7b",
+    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+  }
+}

@@ -7,24 +7,24 @@ import { VaultAutomatorLpStrategy } from "../helpers/VaultAutomatorLpStrategy.so
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { AssetLib } from "../../contracts/libraries/AssetLib.sol";
-import { StructHash as LpUniV3StructHash } from "../../contracts/libraries/strategies/LpUniV3StructHash.sol";
+import { AssetLib } from "../../contracts/public-vault/libraries/AssetLib.sol";
+import { StructHash as LpUniV3StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 
-import { ICommon } from "../../contracts/interfaces/ICommon.sol";
-import { PoolOptimalSwapper } from "../../contracts/core/PoolOptimalSwapper.sol";
-import { ConfigManager } from "../../contracts/core/ConfigManager.sol";
-import { LpStrategy } from "../../contracts/strategies/lpUniV3/LpStrategy.sol";
-import { LpValidator } from "../../contracts/strategies/lpUniV3/LpValidator.sol";
-import { ILpStrategy } from "../../contracts/interfaces/strategies/ILpStrategy.sol";
-import { ILpValidator } from "../../contracts/interfaces/strategies/ILpValidator.sol";
-import { VaultFactory } from "../../contracts/core/VaultFactory.sol";
-import { IVaultFactory } from "../../contracts/interfaces/core/IVaultFactory.sol";
-import { IVault } from "../../contracts/interfaces/core/IVault.sol";
-import { Vault } from "../../contracts/core/Vault.sol";
-import { VaultAutomator } from "../../contracts/strategies/lpUniV3/VaultAutomator.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { PoolOptimalSwapper } from "../../contracts/public-vault/core/PoolOptimalSwapper.sol";
+import { ConfigManager } from "../../contracts/public-vault/core/ConfigManager.sol";
+import { LpStrategy } from "../../contracts/public-vault/strategies/lpUniV3/LpStrategy.sol";
+import { LpValidator } from "../../contracts/public-vault/strategies/lpUniV3/LpValidator.sol";
+import { ILpStrategy } from "../../contracts/public-vault/interfaces/strategies/ILpStrategy.sol";
+import { ILpValidator } from "../../contracts/public-vault/interfaces/strategies/ILpValidator.sol";
+import { VaultFactory } from "../../contracts/public-vault/core/VaultFactory.sol";
+import { IVaultFactory } from "../../contracts/public-vault/interfaces/core/IVaultFactory.sol";
+import { IVault } from "../../contracts/public-vault/interfaces/core/IVault.sol";
+import { Vault } from "../../contracts/public-vault/core/Vault.sol";
+import { VaultAutomator } from "../../contracts/public-vault/strategies/lpUniV3/VaultAutomator.sol";
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import { LpFeeTaker } from "../../contracts/strategies/lpUniV3/LpFeeTaker.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 contract VaultAutomatorTest is TestCommon {
   LpUniV3StructHash.Order emptyUserConfig;

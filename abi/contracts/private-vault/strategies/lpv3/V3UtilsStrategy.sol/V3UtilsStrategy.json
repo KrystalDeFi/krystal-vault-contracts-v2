@@ -1,0 +1,543 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_v3utils",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum IV3Utils.WhatToDo",
+            "name": "whatToDo",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "protocol",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "targetToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountRemoveMin0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountRemoveMin1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut0Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData0",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut1Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData1",
+            "type": "bytes"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickLower",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickUpper",
+            "type": "int24"
+          },
+          {
+            "internalType": "bool",
+            "name": "compoundFees",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint128",
+            "name": "liquidity",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "unwrap",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint64",
+            "name": "liquidityFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "performanceFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct IV3Utils.Instructions",
+        "name": "instructions",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address[]",
+        "name": "withdrawTokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "skimSurplusToVaultOwner",
+        "type": "bool"
+      }
+    ],
+    "name": "safeTransferNft",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint8",
+            "name": "protocol",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpm",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount2",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "swapSourceToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut0Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData0",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut1Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData1",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct IV3Utils.SwapAndIncreaseLiquidityParams",
+        "name": "params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "ethValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "tokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "returnLeftOverToOwner",
+        "type": "bool"
+      }
+    ],
+    "name": "swapAndIncreaseLiquidity",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint128",
+            "name": "liquidity",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "added0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "added1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "feeAmount0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "feeAmount1",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IV3Utils.SwapAndIncreaseLiquidityResult",
+        "name": "result",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint8",
+            "name": "protocol",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpm",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token0",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token1",
+            "type": "address"
+          },
+          {
+            "internalType": "uint24",
+            "name": "fee",
+            "type": "uint24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickSpacing",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickLower",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickUpper",
+            "type": "int24"
+          },
+          {
+            "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount2",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "swapSourceToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut0Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData0",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountOut1Min",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "swapData1",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountAddMin1",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "poolDeployer",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IV3Utils.SwapAndMintParams",
+        "name": "params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "ethValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "tokens",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "returnLeftOverToOwner",
+        "type": "bool"
+      }
+    ],
+    "name": "swapAndMint",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint128",
+            "name": "liquidity",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "added0",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "added1",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IV3Utils.SwapAndMintResult",
+        "name": "result",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "v3utils",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
