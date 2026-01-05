@@ -266,6 +266,21 @@ contract WithdrawableTest is TestCommon {
     withdrawable.sweepERC20(tokens, amounts);
   }
 
+  function test_sweepERC20_array_length_mismatch() public {
+    uint256 amount = 1000;
+    mockERC20.mint(address(withdrawable), amount);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC20);
+    tokens[1] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(OWNER);
+    vm.expectRevert(Withdrawable.ArrayLengthMismatch.selector);
+    withdrawable.sweepERC20(tokens, amounts);
+  }
+
   // ========== sweepERC721 Tests ==========
 
   function test_sweepERC721_success() public {
@@ -333,6 +348,21 @@ contract WithdrawableTest is TestCommon {
 
     vm.prank(NON_OWNER);
     vm.expectRevert();
+    withdrawable.sweepERC721(tokens, tokenIds);
+  }
+
+  function test_sweepERC721_array_length_mismatch() public {
+    uint256 tokenId = 1;
+    mockERC721.mint(address(withdrawable), tokenId);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC721);
+    tokens[1] = address(mockERC721);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.prank(OWNER);
+    vm.expectRevert(Withdrawable.ArrayLengthMismatch.selector);
     withdrawable.sweepERC721(tokens, tokenIds);
   }
 
@@ -449,6 +479,44 @@ contract WithdrawableTest is TestCommon {
 
     vm.prank(NON_OWNER);
     vm.expectRevert();
+    withdrawable.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
+  function test_sweepERC1155_array_length_mismatch_tokens_tokenIds() public {
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+    mockERC1155.mint(address(withdrawable), tokenId, amount);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC1155);
+    tokens[1] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount;
+    amounts[1] = amount;
+
+    vm.prank(OWNER);
+    vm.expectRevert(Withdrawable.ArrayLengthMismatch.selector);
+    withdrawable.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
+  function test_sweepERC1155_array_length_mismatch_tokens_amounts() public {
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+    mockERC1155.mint(address(withdrawable), tokenId, amount);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC1155);
+    tokens[1] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](2);
+    tokenIds[0] = tokenId;
+    tokenIds[1] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(OWNER);
+    vm.expectRevert(Withdrawable.ArrayLengthMismatch.selector);
     withdrawable.sweepERC1155(tokens, tokenIds, amounts);
   }
 }

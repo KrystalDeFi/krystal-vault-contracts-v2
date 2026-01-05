@@ -14,6 +14,8 @@ import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 abstract contract Withdrawable {
   using SafeERC20 for IERC20;
 
+  error ArrayLengthMismatch();
+
   /// @dev Modifier to check if the caller has permission to withdraw
   /// @dev Must be implemented by the child contract
   modifier onlyWithdrawer() {
@@ -31,7 +33,7 @@ abstract contract Withdrawable {
     uint256 balance = address(this).balance;
     if (amount > balance) amount = balance;
 
-    (bool success,) = msg.sender.call{ value: amount }("");
+    (bool success, ) = msg.sender.call{ value: amount }("");
     require(success, "Failed to send native token");
   }
 
@@ -39,7 +41,9 @@ abstract contract Withdrawable {
   /// @param tokens Tokens to sweep
   /// @param amounts Amounts of tokens to sweep
   function sweepERC20(address[] calldata tokens, uint256[] memory amounts) external onlyWithdrawer {
-    for (uint256 i; i < tokens.length;) {
+    if (tokens.length != amounts.length) revert ArrayLengthMismatch();
+
+    for (uint256 i; i < tokens.length; ) {
       require(tokens[i] != address(0), "ZeroAddress");
       IERC20 token = IERC20(tokens[i]);
       uint256 balance = token.balanceOf(address(this));
@@ -56,7 +60,9 @@ abstract contract Withdrawable {
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
   function sweepERC721(address[] calldata tokens, uint256[] calldata tokenIds) external onlyWithdrawer {
-    for (uint256 i; i < tokens.length;) {
+    if (tokens.length != tokenIds.length) revert ArrayLengthMismatch();
+
+    for (uint256 i; i < tokens.length; ) {
       require(tokens[i] != address(0), "ZeroAddress");
       IERC721 token = IERC721(tokens[i]);
       token.safeTransferFrom(address(this), msg.sender, tokenIds[i]);
@@ -71,11 +77,15 @@ abstract contract Withdrawable {
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
   /// @param amounts Amounts of tokens to sweep
-  function sweepERC1155(address[] calldata tokens, uint256[] calldata tokenIds, uint256[] memory amounts)
-    external
-    onlyWithdrawer
-  {
-    for (uint256 i; i < tokens.length;) {
+  function sweepERC1155(
+    address[] calldata tokens,
+    uint256[] calldata tokenIds,
+    uint256[] memory amounts
+  ) external onlyWithdrawer {
+    if (tokens.length != tokenIds.length) revert ArrayLengthMismatch();
+    if (tokens.length != amounts.length) revert ArrayLengthMismatch();
+
+    for (uint256 i; i < tokens.length; ) {
       require(tokens[i] != address(0), "ZeroAddress");
       IERC1155 token = IERC1155(tokens[i]);
       uint256 balance = token.balanceOf(address(this), tokenIds[i]);
