@@ -12,7 +12,7 @@ import "../interfaces/core/IPrivateVaultFactory.sol";
 import "../interfaces/core/IPrivateVault.sol";
 import "../../common/Withdrawable.sol";
 
-contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivateVaultFactory, Withdrawable {
+contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdrawable, IPrivateVaultFactory {
   using SafeERC20 for IERC20;
 
   address public configManager;
@@ -64,7 +64,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     IPrivateVault(vault).initialize(msg.sender, configManager, name);
 
     if (msg.value > 0) {
-      (bool success,) = vault.call{ value: msg.value }("");
+      (bool success, ) = vault.call{ value: msg.value }("");
       require(success, "Failed to send native token");
     }
 

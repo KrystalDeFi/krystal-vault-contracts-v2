@@ -14,7 +14,7 @@ import "../interfaces/IWETH9.sol";
 import "../../common/Withdrawable.sol";
 
 /// @title VaultFactory
-contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory, Withdrawable {
+contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdrawable, IVaultFactory {
   using SafeERC20 for IERC20;
 
   address public override WETH;
@@ -26,10 +26,12 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory,
   address[] public allVaults;
   mapping(address => bool) public isVaultAddress;
 
-  function initialize(address _owner, address _weth, address _configManager, address _vaultImplementation)
-    external
-    initializer
-  {
+  function initialize(
+    address _owner,
+    address _weth,
+    address _configManager,
+    address _vaultImplementation
+  ) external initializer {
     require(
       _owner != address(0) && _weth != address(0) && _configManager != address(0) && _vaultImplementation != address(0),
       ZeroAddress()
@@ -46,13 +48,9 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory,
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
-  function createVault(VaultCreateParams memory params)
-    external
-    payable
-    override
-    whenNotPaused
-    returns (address vault)
-  {
+  function createVault(
+    VaultCreateParams memory params
+  ) external payable override whenNotPaused returns (address vault) {
     vault = _createVault(params);
     IVault(vault).transferOwnership(_msgSender());
   }
@@ -77,7 +75,8 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory,
 
   function _createVault(VaultCreateParams memory params) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "3.0"))
+      vaultImplementation,
+      keccak256(abi.encodePacked(params.name, params.symbol, _msgSender(), "3.0"))
     );
 
     address sender = _msgSender();

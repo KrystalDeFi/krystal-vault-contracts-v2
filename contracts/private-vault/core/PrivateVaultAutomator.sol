@@ -3,8 +3,6 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
 import "./CustomEIP712.sol";
@@ -15,9 +13,7 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator, Withdrawable {
-  using SafeERC20 for IERC20;
-
+contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
@@ -72,12 +68,15 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     vault.multicall(targets, callValues, data, callTypes);
   }
 
-  function _validateAgentAllowance(bytes memory abiEncodedAgentAllowance, bytes memory signature, address vault)
-    internal
-    view
-  {
-    AgentAllowanceStructHash.AgentAllowance memory agentAllowance =
-      abi.decode(abiEncodedAgentAllowance, (AgentAllowanceStructHash.AgentAllowance));
+  function _validateAgentAllowance(
+    bytes memory abiEncodedAgentAllowance,
+    bytes memory signature,
+    address vault
+  ) internal view {
+    AgentAllowanceStructHash.AgentAllowance memory agentAllowance = abi.decode(
+      abiEncodedAgentAllowance,
+      (AgentAllowanceStructHash.AgentAllowance)
+    );
     require(agentAllowance.vault == address(vault), InvalidSignature());
     require(agentAllowance.expirationTime >= block.timestamp, InvalidSignature());
     address actor = _recoverAgentAllowance(abiEncodedAgentAllowance, signature);
@@ -138,7 +137,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     _checkRole(DEFAULT_ADMIN_ROLE);
   }
 
-  receive() external payable { }
+  receive() external payable {}
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
     return super.supportsInterface(interfaceId);

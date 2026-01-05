@@ -4,8 +4,6 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/IMerklStrategy.sol";
@@ -16,9 +14,7 @@ import "../../../common/Withdrawable.sol";
  * @title MerklAutomator
  * @notice Contract that allows anyone to trigger Merkl reward claims through vault allocation
  */
-contract MerklAutomator is Ownable, Pausable, IMerklAutomator, Withdrawable {
-  using SafeERC20 for IERC20;
-
+contract MerklAutomator is Ownable, Pausable, Withdrawable, IMerklAutomator {
   IConfigManager public configManager;
 
   constructor(address _owner, address _configManager) Ownable(_owner) {
@@ -43,9 +39,14 @@ contract MerklAutomator is Ownable, Pausable, IMerklAutomator, Withdrawable {
   ) external whenNotPaused {
     require(inputAssets.length == 0, InvalidAssetStrategy());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
-    require(instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap), InvalidInstructionType());
-    IMerklStrategy.ClaimAndSwapParams memory claimParams =
-      abi.decode(instruction.params, (IMerklStrategy.ClaimAndSwapParams));
+    require(
+      instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      InvalidInstructionType()
+    );
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = abi.decode(
+      instruction.params,
+      (IMerklStrategy.ClaimAndSwapParams)
+    );
 
     // Verify the signer is whitelisted
     bytes32 messageHash = keccak256(
