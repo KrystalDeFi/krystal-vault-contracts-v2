@@ -1091,4 +1091,343 @@ contract PrivateVaultFactoryTest is TestCommon {
       assertFalse(factory.isVault(randomAddress), "Random addresses should not be recognized");
     }
   }
+
+  // ============ SWEEP TESTS ============
+
+  function test_sweepNativeToken_success() public {
+    uint256 amount = 1 ether;
+
+    // Send native tokens to factory
+    vm.deal(address(factory), amount);
+
+    uint256 ownerBalanceBefore = FACTORY_OWNER.balance;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepNativeToken(amount);
+    vm.stopBroadcast();
+
+    assertEq(FACTORY_OWNER.balance, ownerBalanceBefore + amount);
+    assertEq(address(factory).balance, 0);
+  }
+
+  function test_sweepNativeToken_partial_amount() public {
+    uint256 factoryBalance = 0.5 ether;
+    uint256 sweepAmount = 1 ether; // More than balance
+
+    // Send native tokens to factory
+    vm.deal(address(factory), factoryBalance);
+
+    uint256 ownerBalanceBefore = FACTORY_OWNER.balance;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepNativeToken(sweepAmount);
+    vm.stopBroadcast();
+
+    // Should sweep only the available balance
+    assertEq(FACTORY_OWNER.balance, ownerBalanceBefore + factoryBalance);
+    assertEq(address(factory).balance, 0);
+  }
+
+  function test_sweepNativeToken_unauthorized() public {
+    uint256 amount = 1 ether;
+    vm.deal(address(factory), amount);
+
+    vm.startBroadcast(NON_OWNER);
+    vm.expectRevert();
+    factory.sweepNativeToken(amount);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC20_success() public {
+    uint256 amount = 1000;
+
+    // Mint tokens to factory
+    mockERC20.mint(address(factory), amount);
+
+    uint256 ownerBalanceBefore = mockERC20.balanceOf(FACTORY_OWNER);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC20(tokens, amounts);
+    vm.stopBroadcast();
+
+    assertEq(mockERC20.balanceOf(FACTORY_OWNER), ownerBalanceBefore + amount);
+    assertEq(mockERC20.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC20_multiple_tokens() public {
+    MockERC20 mockERC20_2 = new MockERC20();
+    uint256 amount1 = 1000;
+    uint256 amount2 = 2000;
+
+    // Mint tokens to factory
+    mockERC20.mint(address(factory), amount1);
+    mockERC20_2.mint(address(factory), amount2);
+
+    uint256 ownerBalanceBefore1 = mockERC20.balanceOf(FACTORY_OWNER);
+    uint256 ownerBalanceBefore2 = mockERC20_2.balanceOf(FACTORY_OWNER);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC20);
+    tokens[1] = address(mockERC20_2);
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount1;
+    amounts[1] = amount2;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC20(tokens, amounts);
+    vm.stopBroadcast();
+
+    assertEq(mockERC20.balanceOf(FACTORY_OWNER), ownerBalanceBefore1 + amount1);
+    assertEq(mockERC20_2.balanceOf(FACTORY_OWNER), ownerBalanceBefore2 + amount2);
+    assertEq(mockERC20.balanceOf(address(factory)), 0);
+    assertEq(mockERC20_2.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC20_partial_amount() public {
+    uint256 factoryBalance = 500;
+    uint256 sweepAmount = 1000; // More than balance
+
+    // Mint tokens to factory
+    mockERC20.mint(address(factory), factoryBalance);
+
+    uint256 ownerBalanceBefore = mockERC20.balanceOf(FACTORY_OWNER);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = sweepAmount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC20(tokens, amounts);
+    vm.stopBroadcast();
+
+    // Should sweep only the available balance
+    assertEq(mockERC20.balanceOf(FACTORY_OWNER), ownerBalanceBefore + factoryBalance);
+    assertEq(mockERC20.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC20_zero_token() public {
+    uint256 amount = 1000;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    vm.expectRevert("ZeroAddress");
+    factory.sweepERC20(tokens, amounts);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC20_unauthorized() public {
+    uint256 amount = 1000;
+    mockERC20.mint(address(factory), amount);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(NON_OWNER);
+    vm.expectRevert();
+    factory.sweepERC20(tokens, amounts);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC721_success() public {
+    uint256 tokenId = 1;
+
+    // Mint NFT to factory
+    mockERC721.mint(address(factory), tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC721);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC721(tokens, tokenIds);
+    vm.stopBroadcast();
+
+    assertEq(mockERC721.ownerOf(tokenId), FACTORY_OWNER);
+    assertEq(mockERC721.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC721_multiple_tokens() public {
+    uint256 tokenId1 = 1;
+    uint256 tokenId2 = 2;
+
+    // Mint NFTs to factory
+    mockERC721.mint(address(factory), tokenId1);
+    mockERC721.mint(address(factory), tokenId2);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC721);
+    tokens[1] = address(mockERC721);
+    uint256[] memory tokenIds = new uint256[](2);
+    tokenIds[0] = tokenId1;
+    tokenIds[1] = tokenId2;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC721(tokens, tokenIds);
+    vm.stopBroadcast();
+
+    assertEq(mockERC721.ownerOf(tokenId1), FACTORY_OWNER);
+    assertEq(mockERC721.ownerOf(tokenId2), FACTORY_OWNER);
+    assertEq(mockERC721.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC721_zero_token() public {
+    uint256 tokenId = 1;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    vm.expectRevert("ZeroAddress");
+    factory.sweepERC721(tokens, tokenIds);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC721_unauthorized() public {
+    uint256 tokenId = 1;
+    mockERC721.mint(address(factory), tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC721);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.startBroadcast(NON_OWNER);
+    vm.expectRevert();
+    factory.sweepERC721(tokens, tokenIds);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC1155_success() public {
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+
+    // Mint ERC1155 tokens to factory
+    mockERC1155.mint(address(factory), tokenId, amount);
+
+    uint256 ownerBalanceBefore = mockERC1155.balanceOf(FACTORY_OWNER, tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+    vm.stopBroadcast();
+
+    assertEq(mockERC1155.balanceOf(FACTORY_OWNER, tokenId), ownerBalanceBefore + amount);
+    assertEq(mockERC1155.balanceOf(address(factory), tokenId), 0);
+  }
+
+  function test_sweepERC1155_multiple_tokens() public {
+    MockERC1155 mockERC1155_2 = new MockERC1155();
+    uint256 tokenId1 = 1;
+    uint256 tokenId2 = 2;
+    uint256 amount1 = 100;
+    uint256 amount2 = 200;
+
+    // Mint ERC1155 tokens to factory
+    mockERC1155.mint(address(factory), tokenId1, amount1);
+    mockERC1155_2.mint(address(factory), tokenId2, amount2);
+
+    uint256 ownerBalanceBefore1 = mockERC1155.balanceOf(FACTORY_OWNER, tokenId1);
+    uint256 ownerBalanceBefore2 = mockERC1155_2.balanceOf(FACTORY_OWNER, tokenId2);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC1155);
+    tokens[1] = address(mockERC1155_2);
+    uint256[] memory tokenIds = new uint256[](2);
+    tokenIds[0] = tokenId1;
+    tokenIds[1] = tokenId2;
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount1;
+    amounts[1] = amount2;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+    vm.stopBroadcast();
+
+    assertEq(mockERC1155.balanceOf(FACTORY_OWNER, tokenId1), ownerBalanceBefore1 + amount1);
+    assertEq(mockERC1155_2.balanceOf(FACTORY_OWNER, tokenId2), ownerBalanceBefore2 + amount2);
+    assertEq(mockERC1155.balanceOf(address(factory), tokenId1), 0);
+    assertEq(mockERC1155_2.balanceOf(address(factory), tokenId2), 0);
+  }
+
+  function test_sweepERC1155_partial_amount() public {
+    uint256 tokenId = 1;
+    uint256 factoryBalance = 50;
+    uint256 sweepAmount = 100; // More than balance
+
+    // Mint ERC1155 tokens to factory
+    mockERC1155.mint(address(factory), tokenId, factoryBalance);
+
+    uint256 ownerBalanceBefore = mockERC1155.balanceOf(FACTORY_OWNER, tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = sweepAmount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+    vm.stopBroadcast();
+
+    // Should sweep only the available balance
+    assertEq(mockERC1155.balanceOf(FACTORY_OWNER, tokenId), ownerBalanceBefore + factoryBalance);
+    assertEq(mockERC1155.balanceOf(address(factory), tokenId), 0);
+  }
+
+  function test_sweepERC1155_zero_token() public {
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(FACTORY_OWNER);
+    vm.expectRevert("ZeroAddress");
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+    vm.stopBroadcast();
+  }
+
+  function test_sweepERC1155_unauthorized() public {
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+    mockERC1155.mint(address(factory), tokenId, amount);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startBroadcast(NON_OWNER);
+    vm.expectRevert();
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+    vm.stopBroadcast();
+  }
 }

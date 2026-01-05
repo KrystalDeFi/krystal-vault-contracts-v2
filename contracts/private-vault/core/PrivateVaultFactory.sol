@@ -3,8 +3,6 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -12,8 +10,9 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 
 import "../interfaces/core/IPrivateVaultFactory.sol";
 import "../interfaces/core/IPrivateVault.sol";
+import "../../common/Withdrawable.sol";
 
-contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivateVaultFactory {
+contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivateVaultFactory, Withdrawable {
   using SafeERC20 for IERC20;
 
   address public configManager;
@@ -34,7 +33,7 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
     vaultImplementation = _vaultImplementation;
   }
 
-  function createVault(string calldata name) external payable override whenNotPaused returns (address vault) {
+  function createVault(string calldata name) external override whenNotPaused returns (address vault) {
     vault = Clones.cloneDeterministic(vaultImplementation, keccak256(abi.encodePacked(msg.sender, name)));
 
     IPrivateVault(vault).initialize(msg.sender, configManager, name);
@@ -120,5 +119,10 @@ contract PrivateVaultFactory is OwnableUpgradeable, PausableUpgradeable, IPrivat
   /// @param vault Address of the vault to check
   function isVault(address vault) external view override returns (bool) {
     return isVaultAddress[vault];
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkOwner();
   }
 }

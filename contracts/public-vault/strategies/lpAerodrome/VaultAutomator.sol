@@ -14,12 +14,21 @@ import "../CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
 import "../../interfaces/strategies/aerodrome/IFarmingStrategy.sol";
 import "../../interfaces/strategies/aerodrome/IAerodromeLpStrategy.sol";
+import "../../../common/Withdrawable.sol";
 
 /**
  * @title VaultAutomator
  * @notice Contract that automates vault operations for liquidity provision and management
  */
-contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, ERC1155Holder, IVaultAutomator {
+contract VaultAutomator is
+  CustomEIP712,
+  AccessControl,
+  Pausable,
+  ERC721Holder,
+  ERC1155Holder,
+  IVaultAutomator,
+  Withdrawable
+{
   using SafeERC20 for IERC20;
 
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
@@ -214,6 +223,11 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
   /// @notice Unpause the contract
   function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _unpause();
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkRole(DEFAULT_ADMIN_ROLE);
   }
 
   receive() external payable { }

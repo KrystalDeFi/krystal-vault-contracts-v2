@@ -4,16 +4,21 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/IMerklStrategy.sol";
 import "../../interfaces/strategies/IMerklAutomator.sol";
+import "../../../common/Withdrawable.sol";
 
 /**
  * @title MerklAutomator
  * @notice Contract that allows anyone to trigger Merkl reward claims through vault allocation
  */
-contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
+contract MerklAutomator is Ownable, Pausable, IMerklAutomator, Withdrawable {
+  using SafeERC20 for IERC20;
+
   IConfigManager public configManager;
 
   constructor(address _owner, address _configManager) Ownable(_owner) {
@@ -70,5 +75,10 @@ contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
   /// @notice Unpause the contract
   function unpause() external onlyOwner {
     _unpause();
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkOwner();
   }
 }

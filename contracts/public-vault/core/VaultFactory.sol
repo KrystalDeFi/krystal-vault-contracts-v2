@@ -11,9 +11,10 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "../interfaces/core/IVaultFactory.sol";
 import "../interfaces/core/IVault.sol";
 import "../interfaces/IWETH9.sol";
+import "../../common/Withdrawable.sol";
 
 /// @title VaultFactory
-contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory {
+contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory, Withdrawable {
   using SafeERC20 for IERC20;
 
   address public override WETH;
@@ -45,7 +46,13 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   /// @notice Create a new vault
   /// @param params Vault creation parameters
   /// @return vault Address of the new vault
-  function createVault(VaultCreateParams memory params) external payable override whenNotPaused returns (address vault) {
+  function createVault(VaultCreateParams memory params)
+    external
+    payable
+    override
+    whenNotPaused
+    returns (address vault)
+  {
     vault = _createVault(params);
     IVault(vault).transferOwnership(_msgSender());
   }
@@ -124,5 +131,10 @@ contract VaultFactory is OwnableUpgradeable, PausableUpgradeable, IVaultFactory 
   /// @param vault Address of the vault to check
   function isVault(address vault) external view override returns (bool) {
     return isVaultAddress[vault];
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkOwner();
   }
 }

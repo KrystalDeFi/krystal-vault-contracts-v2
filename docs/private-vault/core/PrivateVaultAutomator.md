@@ -153,6 +153,16 @@ function unpause() external
 
 Unpause the contract
 
+### _checkWithdrawPermission
+
+```solidity
+function _checkWithdrawPermission() internal view
+```
+
+Check if the caller has permission to withdraw
+
+_Must be implemented by the child contract_
+
 ### receive
 
 ```solidity

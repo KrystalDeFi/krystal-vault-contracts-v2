@@ -3,16 +3,21 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/core/IPrivateVaultAutomator.sol";
 import "./CustomEIP712.sol";
 import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
+import "../../common/Withdrawable.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator {
+contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator, Withdrawable {
+  using SafeERC20 for IERC20;
+
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
@@ -126,6 +131,11 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
   /// @notice Unpause the contract
   function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _unpause();
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkRole(DEFAULT_ADMIN_ROLE);
   }
 
   receive() external payable { }

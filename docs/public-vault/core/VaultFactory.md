@@ -151,3 +151,13 @@ Check if a vault created by this factory
 | ---- | ---- | ----------- |
 | vault | address | Address of the vault to check |
 
+### _checkWithdrawPermission
+
+```solidity
+function _checkWithdrawPermission() internal view
+```
+
+Check if the caller has permission to withdraw
+
+_Must be implemented by the child contract_
+
