@@ -186,6 +186,7 @@ contract VaultFactoryTest is TestCommon {
   function test_createVault() public {
     console.log("==== test_createVault ====");
 
+    vm.startBroadcast(USER);
     IERC20(WETH).approve(address(vaultFactory), 1 ether);
 
     // Error pass
@@ -260,6 +261,8 @@ contract VaultFactoryTest is TestCommon {
     assertEq(firstAsset.amount, 1 ether);
     assertEq(firstAsset.strategy, address(0));
     assertEq(firstAsset.tokenId, 0);
+
+    vm.stopBroadcast();
   }
 
   function test_updateVaultFactoryConfig() public {
@@ -274,8 +277,10 @@ contract VaultFactoryTest is TestCommon {
     address newConfigManager = USER;
     address newVaultImplementation = USER;
 
+    vm.startBroadcast(USER);
     vaultFactory.setConfigManager(newConfigManager);
     vaultFactory.setVaultImplementation(newVaultImplementation);
+    vm.stopBroadcast();
 
     address updatedConfigManager = vaultFactory.configManager();
     address updatedVaultImplementation = vaultFactory.vaultImplementation();
@@ -289,6 +294,8 @@ contract VaultFactoryTest is TestCommon {
 
   function test_createVaultAndAllocate() public {
     console.log("==== test_createVaultAndAllocate ====");
+
+    vm.startBroadcast(USER);
 
     AssetLib.Asset[] memory assets = new AssetLib.Asset[](1);
     assets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WETH, 0, 0.8 ether);
@@ -375,6 +382,8 @@ contract VaultFactoryTest is TestCommon {
 
     uint256 allocatedValue = lpStrategy.valueOf(vaultAssets[1], principalToken);
     assertApproxEqRel(allocatedValue, 0.8 ether, TOLERANCE);
+
+    vm.stopBroadcast();
   }
 
   // ============ IS VAULT OPTIMIZATION TESTS ============
@@ -385,6 +394,7 @@ contract VaultFactoryTest is TestCommon {
     // Create multiple vaults to test the optimization
     address[] memory createdVaults = new address[](10);
 
+    vm.startBroadcast(USER);
     for (uint256 i = 0; i < 10; i++) {
       IERC20(WETH).approve(address(vaultFactory), 1 ether);
 
@@ -404,6 +414,7 @@ contract VaultFactoryTest is TestCommon {
 
       createdVaults[i] = vaultFactory.createVault(params);
     }
+    vm.stopBroadcast();
 
     // Test that all created vaults are recognized
     for (uint256 i = 0; i < 10; i++) {
@@ -422,6 +433,7 @@ contract VaultFactoryTest is TestCommon {
   function test_isVault_optimization_mapping_consistency() public {
     console.log("==== test_isVault_optimization_mapping_consistency ====");
 
+    vm.startBroadcast(USER);
     // Create a vault
     IERC20(WETH).approve(address(vaultFactory), 1 ether);
 
@@ -440,6 +452,7 @@ contract VaultFactoryTest is TestCommon {
     });
 
     address vaultAddress = vaultFactory.createVault(params);
+    vm.stopBroadcast();
 
     // Test that the mapping is set correctly
     assertTrue(vaultFactory.isVaultAddress(vaultAddress), "isVaultAddress mapping should be set");
