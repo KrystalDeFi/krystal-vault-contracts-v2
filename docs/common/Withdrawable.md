@@ -6,6 +6,12 @@ Abstract contract providing sweep functions for native tokens, ERC20, ERC721, an
 
 _Child contracts must implement the `_checkWithdrawPermission` modifier to enforce access control_
 
+### ArrayLengthMismatch
+
+```solidity
+error ArrayLengthMismatch()
+```
+
 ### onlyWithdrawer
 
 ```solidity
