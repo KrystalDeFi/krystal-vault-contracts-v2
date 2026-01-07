@@ -69,6 +69,68 @@ contract MockERC20 {
   }
 }
 
+// Mock ERC721 token for testing
+contract MockERC721 {
+  mapping(uint256 => address) private _owners;
+  mapping(address => uint256) public balanceOf;
+
+  function mint(address to, uint256 tokenId) external {
+    require(_owners[tokenId] == address(0), "Token already minted");
+    _owners[tokenId] = to;
+    balanceOf[to]++;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    address owner = _owners[tokenId];
+    require(owner != address(0), "Token does not exist");
+    return owner;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(_owners[tokenId] == from, "Not the owner");
+    _owners[tokenId] = to;
+    balanceOf[from]--;
+    balanceOf[to]++;
+    // Skip receiver callback for simplicity in tests
+  }
+
+  function approve(address, uint256) external pure returns (bool) {
+    return true;
+  }
+
+  function getApproved(uint256) external pure returns (address) {
+    return address(0);
+  }
+
+  function setApprovalForAll(address, bool) external pure { }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
+}
+
+// Mock ERC1155 token for testing
+contract MockERC1155 {
+  mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+  function mint(address to, uint256 tokenId, uint256 amount) external {
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes calldata) external {
+    require(balanceOf[from][tokenId] >= amount, "Insufficient balance");
+    balanceOf[from][tokenId] -= amount;
+    balanceOf[to][tokenId] += amount;
+    // Skip receiver callback for simplicity in tests
+  }
+
+  function setApprovalForAll(address, bool) external pure { }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
+}
+
 // Helper contract to expose EIP712 methods for testing
 contract PrivateVaultAutomatorHelper is PrivateVaultAutomator {
   constructor(address _owner, address[] memory _operators) PrivateVaultAutomator(_owner, _operators) { }
@@ -84,6 +146,8 @@ contract PrivateVaultAutomatorTest is TestCommon {
   PrivateConfigManager public configManager;
   MockStrategy public mockStrategy;
   MockERC20 public mockERC20;
+  MockERC721 public mockERC721;
+  MockERC1155 public mockERC1155;
 
   // Test addresses
   address public constant OPERATOR = 0x1234567890123456789012345678901234567891;
@@ -999,4 +1063,131 @@ contract PrivateVaultAutomatorTest is TestCommon {
     assertEq(strategy2.getValue(), 200);
     assertEq(mockStrategy.getValue(), 42); // First strategy unchanged
   }
+
+  // ========== Sweep Tests ==========
+
+  function test_sweepNativeToken_success() public {
+    uint256 amount = 1 ether;
+    vm.deal(address(automator), amount);
+
+    uint256 adminBalanceBefore = ADMIN.balance;
+
+    vm.startPrank(ADMIN);
+    automator.sweepNativeToken(amount);
+    vm.stopPrank();
+
+    assertEq(ADMIN.balance, adminBalanceBefore + amount);
+    assertEq(address(automator).balance, 0);
+  }
+
+  function test_sweepNativeToken_partial_amount() public {
+    uint256 automatorBalance = 0.5 ether;
+    uint256 sweepAmount = 1 ether; // More than balance
+
+    vm.deal(address(automator), automatorBalance);
+
+    uint256 adminBalanceBefore = ADMIN.balance;
+
+    vm.startPrank(ADMIN);
+    automator.sweepNativeToken(sweepAmount);
+    vm.stopPrank();
+
+    // Should sweep only the available balance
+    assertEq(ADMIN.balance, adminBalanceBefore + automatorBalance);
+    assertEq(address(automator).balance, 0);
+  }
+
+  function test_sweepNativeToken_unauthorized() public {
+    uint256 amount = 1 ether;
+    vm.deal(address(automator), amount);
+
+    vm.startPrank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepNativeToken(amount);
+    vm.stopPrank();
+  }
+
+  function test_sweepERC20_success() public {
+    uint256 amount = 1000;
+
+    // Mint tokens to automator
+    mockERC20.mint(address(automator), amount);
+
+    uint256 adminBalanceBefore = mockERC20.balanceOf(ADMIN);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startPrank(ADMIN);
+    automator.sweepERC20(tokens, amounts);
+    vm.stopPrank();
+
+    assertEq(mockERC20.balanceOf(ADMIN), adminBalanceBefore + amount);
+    assertEq(mockERC20.balanceOf(address(automator)), 0);
+  }
+
+  function test_sweepERC20_multiple_tokens() public {
+    MockERC20 mockERC20_2 = new MockERC20();
+    uint256 amount1 = 1000;
+    uint256 amount2 = 2000;
+
+    // Mint tokens to automator
+    mockERC20.mint(address(automator), amount1);
+    mockERC20_2.mint(address(automator), amount2);
+
+    uint256 adminBalanceBefore1 = mockERC20.balanceOf(ADMIN);
+    uint256 adminBalanceBefore2 = mockERC20_2.balanceOf(ADMIN);
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(mockERC20);
+    tokens[1] = address(mockERC20_2);
+    uint256[] memory amounts = new uint256[](2);
+    amounts[0] = amount1;
+    amounts[1] = amount2;
+
+    vm.startPrank(ADMIN);
+    automator.sweepERC20(tokens, amounts);
+    vm.stopPrank();
+
+    assertEq(mockERC20.balanceOf(ADMIN), adminBalanceBefore1 + amount1);
+    assertEq(mockERC20_2.balanceOf(ADMIN), adminBalanceBefore2 + amount2);
+    assertEq(mockERC20.balanceOf(address(automator)), 0);
+    assertEq(mockERC20_2.balanceOf(address(automator)), 0);
+  }
+
+  function test_sweepERC20_zero_token() public {
+    uint256 amount = 1000;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startPrank(ADMIN);
+    vm.expectRevert("ZeroAddress");
+    automator.sweepERC20(tokens, amounts);
+    vm.stopPrank();
+  }
+
+  function test_sweepERC20_unauthorized() public {
+    uint256 amount = 1000;
+    mockERC20.mint(address(automator), amount);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.startPrank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepERC20(tokens, amounts);
+    vm.stopPrank();
+  }
+
+  // Note: PrivateVaultAutomator doesn't implement ERC721Holder/ERC1155Holder,
+  // so it cannot receive ERC721/ERC1155 tokens. Sweep tests for these token types
+  // are skipped for this contract. The sweep functions are still available
+  // in case tokens are sent via other means, but we cannot test them here.
 }

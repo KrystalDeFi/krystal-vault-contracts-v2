@@ -13,12 +13,21 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "../CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
+import "../../../common/Withdrawable.sol";
 
 /**
  * @title VaultAutomator
  * @notice Contract that automates vault operations for liquidity provision and management
  */
-contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, ERC1155Holder, IVaultAutomator {
+contract VaultAutomator is
+  CustomEIP712,
+  AccessControl,
+  Pausable,
+  ERC721Holder,
+  ERC1155Holder,
+  Withdrawable,
+  IVaultAutomator
+{
   using SafeERC20 for IERC20;
 
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
@@ -52,9 +61,9 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
     require(
-      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition)
-        || instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound)
-        || instruction.instructionType == uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
+      instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndRebalancePosition) ||
+        instruction.instructionType == uint8(ILpStrategy.InstructionType.SwapAndCompound) ||
+        instruction.instructionType == uint8(ILpStrategy.InstructionType.DecreaseLiquidityAndSwap),
       InvalidInstructionType()
     );
     vault.allocate(inputAssets, strategy, gasFeeX64, allocateData);
@@ -108,7 +117,7 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
 
     uint256 length = tokens.length;
 
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       IERC20 token = IERC20(tokens[i]);
       token.safeTransfer(_msgSender(), token.balanceOf(address(this)));
 
@@ -122,16 +131,16 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepERC721(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
-    external
-    override
-    onlyRole(OPERATOR_ROLE_HASH)
-  {
+  function executeSweepERC721(
+    IVault vault,
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepERC721(tokens, tokenIds);
 
     uint256 length = tokens.length;
 
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       IERC721 token = IERC721(tokens[i]);
       token.safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
 
@@ -145,16 +154,16 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
   /// @param vault Vault address
   /// @param tokens Tokens to sweep
   /// @param tokenIds Token IDs to sweep
-  function executeSweepERC1155(IVault vault, address[] memory tokens, uint256[] memory tokenIds)
-    external
-    override
-    onlyRole(OPERATOR_ROLE_HASH)
-  {
+  function executeSweepERC1155(
+    IVault vault,
+    address[] memory tokens,
+    uint256[] memory tokenIds
+  ) external override onlyRole(OPERATOR_ROLE_HASH) {
     vault.sweepERC1155(tokens, tokenIds);
 
     uint256 length = tokens.length;
 
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       IERC1155 token = IERC1155(tokens[i]);
       token.safeTransferFrom(address(this), _msgSender(), tokenIds[i], token.balanceOf(address(this), tokenIds[i]), "");
 
@@ -212,15 +221,16 @@ contract VaultAutomator is CustomEIP712, AccessControl, Pausable, ERC721Holder, 
     _unpause();
   }
 
-  receive() external payable { }
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkRole(DEFAULT_ADMIN_ROLE);
+  }
 
-  function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    virtual
-    override(AccessControl, ERC1155Holder)
-    returns (bool)
-  {
+  receive() external payable {}
+
+  function supportsInterface(
+    bytes4 interfaceId
+  ) public view virtual override(AccessControl, ERC1155Holder) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 }

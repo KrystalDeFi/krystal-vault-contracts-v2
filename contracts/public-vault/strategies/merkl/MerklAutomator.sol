@@ -8,12 +8,13 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../interfaces/core/IConfigManager.sol";
 import "../../interfaces/strategies/IMerklStrategy.sol";
 import "../../interfaces/strategies/IMerklAutomator.sol";
+import "../../../common/Withdrawable.sol";
 
 /**
  * @title MerklAutomator
  * @notice Contract that allows anyone to trigger Merkl reward claims through vault allocation
  */
-contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
+contract MerklAutomator is Ownable, Pausable, Withdrawable, IMerklAutomator {
   IConfigManager public configManager;
 
   constructor(address _owner, address _configManager) Ownable(_owner) {
@@ -38,9 +39,14 @@ contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
   ) external whenNotPaused {
     require(inputAssets.length == 0, InvalidAssetStrategy());
     Instruction memory instruction = abi.decode(allocateData, (Instruction));
-    require(instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap), InvalidInstructionType());
-    IMerklStrategy.ClaimAndSwapParams memory claimParams =
-      abi.decode(instruction.params, (IMerklStrategy.ClaimAndSwapParams));
+    require(
+      instruction.instructionType == uint8(IMerklStrategy.InstructionType.ClaimAndSwap),
+      InvalidInstructionType()
+    );
+    IMerklStrategy.ClaimAndSwapParams memory claimParams = abi.decode(
+      instruction.params,
+      (IMerklStrategy.ClaimAndSwapParams)
+    );
 
     // Verify the signer is whitelisted
     bytes32 messageHash = keccak256(
@@ -70,5 +76,10 @@ contract MerklAutomator is Ownable, Pausable, IMerklAutomator {
   /// @notice Unpause the contract
   function unpause() external onlyOwner {
     _unpause();
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkOwner();
   }
 }

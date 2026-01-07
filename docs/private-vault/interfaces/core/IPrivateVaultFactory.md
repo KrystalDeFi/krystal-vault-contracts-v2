@@ -23,7 +23,7 @@ event VaultImplementationSet(address vaultImplementation)
 ### createVault
 
 ```solidity
-function createVault(string name) external payable returns (address vault)
+function createVault(string name) external returns (address vault)
 ```
 
 ### createVault

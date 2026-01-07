@@ -7,12 +7,13 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/core/IPrivateVaultAutomator.sol";
 import "./CustomEIP712.sol";
 import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
+import "../../common/Withdrawable.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivateVaultAutomator {
+contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
   mapping(bytes32 => bool) private _cancelledOrder;
@@ -67,12 +68,15 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     vault.multicall(targets, callValues, data, callTypes);
   }
 
-  function _validateAgentAllowance(bytes memory abiEncodedAgentAllowance, bytes memory signature, address vault)
-    internal
-    view
-  {
-    AgentAllowanceStructHash.AgentAllowance memory agentAllowance =
-      abi.decode(abiEncodedAgentAllowance, (AgentAllowanceStructHash.AgentAllowance));
+  function _validateAgentAllowance(
+    bytes memory abiEncodedAgentAllowance,
+    bytes memory signature,
+    address vault
+  ) internal view {
+    AgentAllowanceStructHash.AgentAllowance memory agentAllowance = abi.decode(
+      abiEncodedAgentAllowance,
+      (AgentAllowanceStructHash.AgentAllowance)
+    );
     require(agentAllowance.vault == address(vault), InvalidSignature());
     require(agentAllowance.expirationTime >= block.timestamp, InvalidSignature());
     address actor = _recoverAgentAllowance(abiEncodedAgentAllowance, signature);
@@ -128,7 +132,12 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, IPrivat
     _unpause();
   }
 
-  receive() external payable { }
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkRole(DEFAULT_ADMIN_ROLE);
+  }
+
+  receive() external payable {}
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
     return super.supportsInterface(interfaceId);

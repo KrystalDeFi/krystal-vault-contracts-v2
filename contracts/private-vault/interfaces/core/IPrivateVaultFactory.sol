@@ -10,7 +10,7 @@ interface IPrivateVaultFactory is IPrivateCommon {
 
   event VaultImplementationSet(address vaultImplementation);
 
-  function createVault(string calldata name) external payable returns (address vault);
+  function createVault(string calldata name) external returns (address vault);
 
   function createVault(
     string calldata name,

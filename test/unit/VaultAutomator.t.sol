@@ -22,9 +22,101 @@ import { IVaultFactory } from "../../contracts/public-vault/interfaces/core/IVau
 import { IVault } from "../../contracts/public-vault/interfaces/core/IVault.sol";
 import { Vault } from "../../contracts/public-vault/core/Vault.sol";
 import { VaultAutomator } from "../../contracts/public-vault/strategies/lpUniV3/VaultAutomator.sol";
-import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {
+  INonfungiblePositionManager as INFPM
+} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
+
+// Mock ERC20 token for testing
+contract MockERC20 {
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    allowance[from][msg.sender] -= amount;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
+// Mock ERC721 token for testing
+contract MockERC721 {
+  mapping(uint256 => address) private _owners;
+  mapping(address => uint256) public balanceOf;
+
+  function mint(address to, uint256 tokenId) external {
+    require(_owners[tokenId] == address(0), "Token already minted");
+    _owners[tokenId] = to;
+    balanceOf[to]++;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    address owner = _owners[tokenId];
+    require(owner != address(0), "Token does not exist");
+    return owner;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(_owners[tokenId] == from, "Not the owner");
+    _owners[tokenId] = to;
+    balanceOf[from]--;
+    balanceOf[to]++;
+  }
+
+  function approve(address, uint256) external pure returns (bool) {
+    return true;
+  }
+
+  function getApproved(uint256) external pure returns (address) {
+    return address(0);
+  }
+
+  function setApprovalForAll(address, bool) external pure { }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
+}
+
+// Mock ERC1155 token for testing
+contract MockERC1155 {
+  mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+  function mint(address to, uint256 tokenId, uint256 amount) external {
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes calldata) external {
+    require(balanceOf[from][tokenId] >= amount, "Insufficient balance");
+    balanceOf[from][tokenId] -= amount;
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function setApprovalForAll(address, bool) external pure { }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
+}
 
 contract VaultAutomatorTest is TestCommon {
   LpUniV3StructHash.Order emptyUserConfig;
@@ -138,8 +230,7 @@ contract VaultAutomatorTest is TestCommon {
       swapData: ""
     });
     ICommon.Instruction memory instruction = ICommon.Instruction({
-      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition),
-      params: abi.encode(strategyParams)
+      instructionType: uint8(ILpStrategy.InstructionType.SwapAndMintPosition), params: abi.encode(strategyParams)
     });
 
     vm.stopBroadcast();
@@ -263,5 +354,158 @@ contract VaultAutomatorTest is TestCommon {
     bytes32 digest = vaultAutomatorLpStrategy.hashTypedDataV4(LpUniV3StructHash._hash(order));
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
     signature = abi.encodePacked(r, s, v);
+  }
+
+  // ========== Sweep Tests ==========
+
+  MockERC20 public mockERC20;
+  MockERC721 public mockERC721;
+  MockERC1155 public mockERC1155;
+  address public constant NON_ADMIN = address(0x999);
+
+  function setUpSweepTests() public {
+    // Stop any active broadcast from setUp
+    vm.stopBroadcast();
+    mockERC20 = new MockERC20();
+    mockERC721 = new MockERC721();
+    mockERC1155 = new MockERC1155();
+  }
+
+  function test_sweepNativeToken_success() public {
+    setUpSweepTests();
+    uint256 amount = 1 ether;
+    vm.deal(address(vaultAutomatorLpStrategy), amount);
+
+    uint256 userBalanceBefore = USER.balance;
+
+    vm.prank(USER);
+    vaultAutomatorLpStrategy.sweepNativeToken(amount);
+
+    assertEq(USER.balance, userBalanceBefore + amount);
+    assertEq(address(vaultAutomatorLpStrategy).balance, 0);
+  }
+
+  function test_sweepERC20_success() public {
+    setUpSweepTests();
+    uint256 amount = 1000;
+
+    // Mint tokens to automator
+    mockERC20.mint(address(vaultAutomatorLpStrategy), amount);
+
+    uint256 userBalanceBefore = mockERC20.balanceOf(USER);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(USER);
+    vaultAutomatorLpStrategy.sweepERC20(tokens, amounts);
+
+    assertEq(mockERC20.balanceOf(USER), userBalanceBefore + amount);
+    assertEq(mockERC20.balanceOf(address(vaultAutomatorLpStrategy)), 0);
+  }
+
+  function test_sweepERC20_zero_token() public {
+    setUpSweepTests();
+    uint256 amount = 1000;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(USER);
+    vm.expectRevert("ZeroAddress");
+    vaultAutomatorLpStrategy.sweepERC20(tokens, amounts);
+  }
+
+  function test_sweepERC20_unauthorized() public {
+    setUpSweepTests();
+    uint256 amount = 1000;
+    mockERC20.mint(address(vaultAutomatorLpStrategy), amount);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC20);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(NON_ADMIN);
+    vm.expectRevert();
+    vaultAutomatorLpStrategy.sweepERC20(tokens, amounts);
+  }
+
+  function test_sweepERC721_success() public {
+    setUpSweepTests();
+    uint256 tokenId = 1;
+
+    // Mint NFT to automator
+    mockERC721.mint(address(vaultAutomatorLpStrategy), tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC721);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.prank(USER);
+    vaultAutomatorLpStrategy.sweepERC721(tokens, tokenIds);
+
+    assertEq(mockERC721.ownerOf(tokenId), USER);
+    assertEq(mockERC721.balanceOf(address(vaultAutomatorLpStrategy)), 0);
+  }
+
+  function test_sweepERC721_zero_token() public {
+    setUpSweepTests();
+    uint256 tokenId = 1;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+
+    vm.prank(USER);
+    vm.expectRevert("ZeroAddress");
+    vaultAutomatorLpStrategy.sweepERC721(tokens, tokenIds);
+  }
+
+  function test_sweepERC1155_success() public {
+    setUpSweepTests();
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+
+    // Mint ERC1155 tokens to automator
+    mockERC1155.mint(address(vaultAutomatorLpStrategy), tokenId, amount);
+
+    uint256 userBalanceBefore = mockERC1155.balanceOf(USER, tokenId);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(mockERC1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(USER);
+    vaultAutomatorLpStrategy.sweepERC1155(tokens, tokenIds, amounts);
+
+    assertEq(mockERC1155.balanceOf(USER, tokenId), userBalanceBefore + amount);
+    assertEq(mockERC1155.balanceOf(address(vaultAutomatorLpStrategy), tokenId), 0);
+  }
+
+  function test_sweepERC1155_zero_token() public {
+    setUpSweepTests();
+    uint256 tokenId = 1;
+    uint256 amount = 100;
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = tokenId;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = amount;
+
+    vm.prank(USER);
+    vm.expectRevert("ZeroAddress");
+    vaultAutomatorLpStrategy.sweepERC1155(tokens, tokenIds, amounts);
   }
 }

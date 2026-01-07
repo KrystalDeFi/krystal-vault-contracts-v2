@@ -41,7 +41,7 @@ function initialize(address _owner, address _configManager, address _vaultImplem
 ### createVault
 
 ```solidity
-function createVault(string name) external payable returns (address vault)
+function createVault(string name) external returns (address vault)
 ```
 
 ### createVault
@@ -107,4 +107,14 @@ Check if a vault created by this factory
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | vault | address | Address of the vault to check |
+
+### _checkWithdrawPermission
+
+```solidity
+function _checkWithdrawPermission() internal view
+```
+
+Check if the caller has permission to withdraw
+
+_Must be implemented by the child contract_
 
