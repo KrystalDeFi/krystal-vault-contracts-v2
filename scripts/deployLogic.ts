@@ -314,7 +314,7 @@ export const deployVaultAutomatorContract = async (
     vaultAutomator = (await deployContract(
       `${step} >>`,
       config.vaultAutomator?.autoVerifyContract,
-      "VaultAutomator",
+      "contracts/public-vault/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
       existingContract?.["vaultAutomator"],
       "contracts/public-vault/strategies/lpUniV3/VaultAutomator.sol:VaultAutomator",
       undefined,
