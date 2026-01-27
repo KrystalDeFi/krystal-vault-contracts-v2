@@ -18,7 +18,7 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     name: "Claude Code Review job"
-    runs-on: [arc-kyrd-runner, size-m-amd64]
+    runs-on: [ubuntu-latest]
     permissions:
       contents: write
       pull-requests: write
