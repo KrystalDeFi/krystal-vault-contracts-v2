@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      issues: write
+      issues: read
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
