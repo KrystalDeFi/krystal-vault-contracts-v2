@@ -39,7 +39,7 @@
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
     "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
-    "v3UtilsStrategy": "0x3d9114ea5965000ac702faffcc77f7626d93aa7b",
+    "v3UtilsStrategy": "0xa863e20e6aeca048ddd8656f82eed21860cef37d",
     "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
   }
 }
