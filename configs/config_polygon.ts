@@ -30,7 +30,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "0xb0717286fca964cb7315a95a003e1c3f0313b6de",
+    v3UtilsAddress: "0x56fc6ac4af3007c4ae36f239cb0f8028ade73519",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
   },
