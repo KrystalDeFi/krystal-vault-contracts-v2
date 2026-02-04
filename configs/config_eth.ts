@@ -18,7 +18,15 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    privateAerodromeFarmingStrategy: {
+    privatePancakeV3FarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateMerklStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateKyberFairFlowStrategy: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -30,9 +38,11 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6",
-    v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+    v3UtilsAddress: "0x56fc6ac4af3007c4ae36f239cb0f8028ade73519",
+    v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
+    merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+    uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
   },
 };
 
