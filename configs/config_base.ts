@@ -42,7 +42,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "0xb0717286fca964cb7315a95a003e1c3f0313b6de",
+    v3UtilsAddress: "0xb4acbc082b5e7ded571c98ee4257778a9d784b36",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     aerodromeGaugeFactory: "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
     pancakeV3MasterChef: "0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3",
