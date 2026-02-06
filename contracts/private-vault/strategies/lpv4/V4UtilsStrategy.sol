@@ -54,7 +54,7 @@ contract V4UtilsStrategy {
     uint256 nativeBefore;
     if (returnLeftOverToOwner) (amountsBefore, nativeBefore) = SkimLib.snapshotBalances(tokens);
 
-    IERC721(posm).approve(v4UtilsRouter, tokenId);
+    if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
     IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
 
     if (returnLeftOverToOwner) {
