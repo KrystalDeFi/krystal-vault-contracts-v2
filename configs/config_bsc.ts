@@ -38,7 +38,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "0xb0717286fca964cb7315a95a003e1c3f0313b6de",
+    v3UtilsAddress: "0xb4acbc082b5e7ded571c98ee4257778a9d784b36",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
