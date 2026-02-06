@@ -8,7 +8,7 @@
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
   "base_mainnet": {
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
@@ -20,7 +20,7 @@
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
   "bsc_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
@@ -31,7 +31,7 @@
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
   "eth_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
@@ -42,7 +42,7 @@
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
   "polygon_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
@@ -51,6 +51,6 @@
     "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xcae856d2316ae2e6e0655b7ef2b093cb38d78b82"
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   }
 }

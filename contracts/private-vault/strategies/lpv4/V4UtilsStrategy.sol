@@ -39,6 +39,7 @@ contract V4UtilsStrategy {
 
   function execute(
     address posm,
+    uint256 tokenId,
     bytes calldata params,
     uint256 ethValue,
     address[] calldata tokens,
@@ -53,6 +54,7 @@ contract V4UtilsStrategy {
     uint256 nativeBefore;
     if (returnLeftOverToOwner) (amountsBefore, nativeBefore) = SkimLib.snapshotBalances(tokens);
 
+    if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
     IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
 
     if (returnLeftOverToOwner) {
