@@ -14,6 +14,20 @@ bytes4 MAGIC_VALUE
 uint256 SHARES_PRECISION
 ```
 
+### Position
+
+_Tracked LP position_
+
+```solidity
+struct Position {
+  address strategy;
+  address nfpm;
+  uint256 tokenId;
+  address token0;
+  address token1;
+}
+```
+
 ### configManager
 
 ```solidity
@@ -62,6 +76,22 @@ mapping(address => bool) isVaultToken
 mapping(address => bool) admins
 ```
 
+### positions
+
+```solidity
+struct SharedVault.Position[] positions
+```
+
+_Array of tracked LP positions_
+
+### positionIndex
+
+```solidity
+mapping(bytes32 => uint256) positionIndex
+```
+
+_Quick lookup: keccak256(nfpm, tokenId) => index+1 (0 = not tracked)_
+
 ### onlyOwner
 
 ```solidity
@@ -94,17 +124,6 @@ function initialize(string _name, string _symbol, address[4] _tokens, uint256[4]
 
 Initializes the shared vault
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _name | string | Vault share token name |
-| _symbol | string | Vault share token symbol |
-| _tokens | address[4] | Up to 4 managed token addresses (address(0) = unused slot) |
-| initialAmounts | uint256[4] | Initial deposit amounts (transferred by factory before this call) |
-| _owner | address | Vault owner address |
-| _configManager | address | Config manager address |
-
 ### deposit
 
 ```solidity
@@ -113,18 +132,7 @@ function deposit(uint256[4] amounts, uint256 minShares) external returns (uint25
 
 Deposit tokens proportionally and receive shares
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amounts | uint256[4] | Amounts for each of the 4 token slots |
-| minShares | uint256 | Minimum shares to receive |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| shares | uint256 | Amount of shares minted |
+_Share ratio is based on TOTAL balances (idle + LP positions valued by strategies)_
 
 ### withdraw
 
@@ -132,20 +140,10 @@ Deposit tokens proportionally and receive shares
 function withdraw(uint256 shares, uint256[4] minAmounts) external returns (uint256[4] amounts)
 ```
 
-Withdraw proportional idle tokens by burning shares
+Withdraw proportional IDLE tokens by burning shares
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| shares | uint256 | Amount of shares to burn |
-| minAmounts | uint256[4] | Minimum amounts to receive per token |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amounts | uint256[4] | Actual amounts returned |
+_Uses total balances for share ratio but only withdraws idle tokens.
+     If tokens are deployed to LP, withdrawer gets proportional idle only._
 
 ### execute
 
@@ -155,12 +153,7 @@ function execute(address strategy, bytes data) external payable
 
 Execute LP operation via whitelisted strategy (delegatecall)
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| strategy | address | Whitelisted strategy address |
-| data | bytes | Encoded operation params |
+_Strategy returns position changes which the vault tracks with the strategy address_
 
 ### swap
 
@@ -169,17 +162,6 @@ function swap(address swapTarget, address tokenIn, address tokenOut, uint256 amo
 ```
 
 Swap between vault tokens via whitelisted aggregator target
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| swapTarget | address | Whitelisted swap aggregator address |
-| tokenIn | address | Input token (must be a vault token) |
-| tokenOut | address | Output token (must be a vault token) |
-| amountIn | uint256 | Amount of tokenIn to swap |
-| minAmountOut | uint256 | Minimum amount of tokenOut to receive |
-| swapData | bytes | Encoded swap call data for the aggregator |
 
 ### getTokens
 
@@ -191,6 +173,18 @@ function getTokens() external view returns (address[4])
 
 ```solidity
 function getIdleBalances() external view returns (uint256[4])
+```
+
+### getTotalBalances
+
+```solidity
+function getTotalBalances() external view returns (uint256[4])
+```
+
+### getPositionCount
+
+```solidity
+function getPositionCount() external view returns (uint256)
 ```
 
 ### previewDeposit
@@ -211,15 +205,11 @@ function previewWithdraw(uint256 _shares) external view returns (uint256[4] amou
 function sweepTokens(address[] _tokens, uint256[] amounts, address to) external
 ```
 
-Sweep non-vault ERC20 tokens (safeguard for stuck tokens)
-
 ### sweepNativeToken
 
 ```solidity
 function sweepNativeToken(uint256 amount, address to) external
 ```
-
-Sweep native token
 
 ### sweepERC721
 
@@ -227,15 +217,11 @@ Sweep native token
 function sweepERC721(address token, uint256 tokenId, address to) external
 ```
 
-Sweep ERC721 token
-
 ### sweepERC1155
 
 ```solidity
 function sweepERC1155(address token, uint256 tokenId, uint256 amount, address to) external
 ```
-
-Sweep ERC1155 token
 
 ### grantAdminRole
 
@@ -302,11 +288,31 @@ NOTE: This information is only used for _display_ purposes: it in
 no way affects any of the arithmetic of the contract, including
 {IERC20-balanceOf} and {IERC20-transfer}._
 
+### _addPosition
+
+```solidity
+function _addPosition(address strategy, address nfpm, uint256 tokenId, address token0, address token1) internal
+```
+
+### _removePosition
+
+```solidity
+function _removePosition(address nfpm, uint256 tokenId) internal
+```
+
 ### _getIdleBalances
 
 ```solidity
 function _getIdleBalances() internal view returns (uint256[4] balances)
 ```
+
+### _getTotalBalances
+
+```solidity
+function _getTotalBalances() internal view returns (uint256[4] balances)
+```
+
+Total balances including idle tokens + LP position amounts valued by strategies
 
 ### receive
 

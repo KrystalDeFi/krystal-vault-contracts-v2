@@ -1,10 +1,44 @@
 # Solidity API
 
+## INFPM
+
+_Generic NFPM for querying positions_
+
+### positions
+
+```solidity
+function positions(uint256 tokenId) external view returns (uint96, address, address token0, address token1, int24 feeOrTickSpacing, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256, uint256, uint128, uint128)
+```
+
+### factory
+
+```solidity
+function factory() external view returns (address)
+```
+
+## IUniV3Factory
+
+_UniswapV3 factory for pool lookup (fee as uint24)_
+
+### getPool
+
+```solidity
+function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)
+```
+
+## IUniV3Pool
+
+_UniswapV3 pool for slot0 query_
+
+### slot0
+
+```solidity
+function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)
+```
+
 ## SharedV3Strategy
 
-Uniswap V3 LP operations for SharedVault with token validation
-
-_Executed via delegatecall from SharedVault. Validates pool tokens are vault tokens._
+Uniswap V3 LP operations for SharedVault with token validation and position tracking
 
 ### v3utils
 
@@ -31,14 +65,15 @@ constructor(address _v3utils) public
 ### execute
 
 ```solidity
-function execute(bytes data) external payable
+function execute(bytes data) external payable returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Execute an LP operation. Called via delegatecall from SharedVault.
 
 _Strategy MUST validate that pool tokens are vault tokens by calling
      ISharedVault(address(this)).isVaultToken(token) for each pool token.
-     Since this runs via delegatecall, address(this) is the vault._
+     Since this runs via delegatecall, address(this) is the vault.
+     Strategy MUST return position changes so the vault can track LP positions._
 
 #### Parameters
 
@@ -46,22 +81,59 @@ _Strategy MUST validate that pool tokens are vault tokens by calling
 | ---- | ---- | ----------- |
 | data | bytes | Encoded operation params (strategy-specific) |
 
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| changes | struct ISharedStrategy.PositionChange[] | Array of position changes (added/removed) |
+
 ### _swapAndMint
 
 ```solidity
-function _swapAndMint(bytes data) internal
+function _swapAndMint(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 ### _swapAndIncreaseLiquidity
 
 ```solidity
-function _swapAndIncreaseLiquidity(bytes data) internal
+function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 ### _safeTransferNft
 
 ```solidity
-function _safeTransferNft(bytes data) internal
+function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+### getPositionAmounts
+
+```solidity
+function getPositionAmounts(address nfpm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
+```
+
+Get token amounts for a tracked LP position (liquidity + uncollected fees)
+
+_Called via regular staticcall from the vault. Strategy uses its own
+     protocol-specific interfaces for precise valuation._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager address |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | Amount of token0 in the position |
+| amount1 | uint256 | Amount of token1 in the position |
+
+### _getPool
+
+```solidity
+function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address)
 ```
 
 ### _validateVaultToken

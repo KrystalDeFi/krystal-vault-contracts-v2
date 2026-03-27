@@ -86,6 +86,18 @@ function getTokens() external view returns (address[4])
 function getIdleBalances() external view returns (uint256[4])
 ```
 
+### getTotalBalances
+
+```solidity
+function getTotalBalances() external view returns (uint256[4])
+```
+
+### getPositionCount
+
+```solidity
+function getPositionCount() external view returns (uint256)
+```
+
 ### previewDeposit
 
 ```solidity
