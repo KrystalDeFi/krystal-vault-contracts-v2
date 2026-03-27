@@ -74,7 +74,38 @@ export interface IConfigAerodrome {
   aerodromeGaugeFactories?: AddressLike[];
 }
 
-export interface IConfig extends IConfigPrivate, IConfigAerodrome {
+export interface IConfigShared {
+  sharedVault?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVaultFactory?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedConfigManager?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedV3Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedV4Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedAerodromeStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedPancakeV3Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+}
+
+export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {
   autoVerifyContract?: boolean;
   sleepTime?: number;
   vault: {

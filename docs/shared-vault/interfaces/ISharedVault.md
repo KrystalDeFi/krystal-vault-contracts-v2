@@ -1,0 +1,166 @@
+# Solidity API
+
+## ISharedVault
+
+### VaultDeposit
+
+```solidity
+event VaultDeposit(address vaultFactory, address account, uint256[4] amounts, uint256 shares)
+```
+
+### VaultWithdraw
+
+```solidity
+event VaultWithdraw(address vaultFactory, address account, uint256[4] amounts, uint256 shares)
+```
+
+### VaultExecute
+
+```solidity
+event VaultExecute(address vaultFactory, address strategy, bytes data)
+```
+
+### VaultSwap
+
+```solidity
+event VaultSwap(address vaultFactory, address swapTarget, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut)
+```
+
+### SetVaultAdmin
+
+```solidity
+event SetVaultAdmin(address vaultFactory, address account, bool isAdmin)
+```
+
+### SetVaultOperator
+
+```solidity
+event SetVaultOperator(address vaultFactory, address previousOperator, address newOperator)
+```
+
+### VaultOwnerChanged
+
+```solidity
+event VaultOwnerChanged(address vaultFactory, address previousOwner, address newOwner)
+```
+
+### initialize
+
+```solidity
+function initialize(string name, string symbol, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) external
+```
+
+### deposit
+
+```solidity
+function deposit(uint256[4] amounts, uint256 minShares) external returns (uint256 shares)
+```
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares, uint256[4] minAmounts) external returns (uint256[4] amounts)
+```
+
+### execute
+
+```solidity
+function execute(address strategy, bytes data) external payable
+```
+
+### swap
+
+```solidity
+function swap(address swapTarget, address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes swapData) external
+```
+
+### getTokens
+
+```solidity
+function getTokens() external view returns (address[4])
+```
+
+### getIdleBalances
+
+```solidity
+function getIdleBalances() external view returns (uint256[4])
+```
+
+### previewDeposit
+
+```solidity
+function previewDeposit(uint256[4] amounts) external view returns (uint256 shares)
+```
+
+### previewWithdraw
+
+```solidity
+function previewWithdraw(uint256 shares) external view returns (uint256[4] amounts)
+```
+
+### isVaultToken
+
+```solidity
+function isVaultToken(address token) external view returns (bool)
+```
+
+### vaultOwner
+
+```solidity
+function vaultOwner() external view returns (address)
+```
+
+### tokenCount
+
+```solidity
+function tokenCount() external view returns (uint8)
+```
+
+### grantAdminRole
+
+```solidity
+function grantAdminRole(address _address) external
+```
+
+### revokeAdminRole
+
+```solidity
+function revokeAdminRole(address _address) external
+```
+
+### setOperator
+
+```solidity
+function setOperator(address _operator) external
+```
+
+### transferOwnership
+
+```solidity
+function transferOwnership(address newOwner) external
+```
+
+### sweepTokens
+
+```solidity
+function sweepTokens(address[] _tokens, uint256[] amounts, address to) external
+```
+
+### sweepNativeToken
+
+```solidity
+function sweepNativeToken(uint256 amount, address to) external
+```
+
+### sweepERC721
+
+```solidity
+function sweepERC721(address token, uint256 tokenId, address to) external
+```
+
+### sweepERC1155
+
+```solidity
+function sweepERC1155(address token, uint256 tokenId, uint256 amount, address to) external
+```
+

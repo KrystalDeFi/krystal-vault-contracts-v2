@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.28;
+
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+import "../interfaces/ISharedConfigManager.sol";
+
+contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
+  mapping(address => bool) public whitelistedStrategies;
+  mapping(address => bool) public whitelistedTargets;
+  mapping(address => bool) public whitelistedCallers;
+
+  bool public override isVaultPaused = false;
+  address public override feeRecipient;
+
+  function initialize(
+    address _owner,
+    address[] calldata _whitelistStrategies,
+    address[] calldata _whitelistTargets,
+    address[] calldata _whitelistCallers,
+    address _feeRecipient
+  ) public initializer {
+    __Ownable_init(_owner);
+
+    uint256 length = _whitelistStrategies.length;
+    for (uint256 i; i < length;) {
+      whitelistedStrategies[_whitelistStrategies[i]] = true;
+      unchecked { i++; }
+    }
+
+    length = _whitelistTargets.length;
+    for (uint256 i; i < length;) {
+      whitelistedTargets[_whitelistTargets[i]] = true;
+      unchecked { i++; }
+    }
+
+    length = _whitelistCallers.length;
+    for (uint256 i; i < length;) {
+      whitelistedCallers[_whitelistCallers[i]] = true;
+      unchecked { i++; }
+    }
+
+    feeRecipient = _feeRecipient;
+  }
+
+  function setWhitelistStrategies(address[] calldata strategies, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = strategies.length;
+    for (uint256 i; i < length;) {
+      whitelistedStrategies[strategies[i]] = _isWhitelisted;
+      unchecked { i++; }
+    }
+  }
+
+  function isWhitelistedStrategy(address strategy) external view override returns (bool) {
+    return whitelistedStrategies[strategy];
+  }
+
+  function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = targets.length;
+    for (uint256 i; i < length;) {
+      whitelistedTargets[targets[i]] = _isWhitelisted;
+      unchecked { i++; }
+    }
+  }
+
+  function isWhitelistedTarget(address target) external view override returns (bool) {
+    return whitelistedTargets[target];
+  }
+
+  function setWhitelistCallers(address[] calldata callers, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = callers.length;
+    for (uint256 i; i < length;) {
+      whitelistedCallers[callers[i]] = _isWhitelisted;
+      unchecked { i++; }
+    }
+  }
+
+  function isWhitelistedCaller(address caller) external view override returns (bool) {
+    return whitelistedCallers[caller];
+  }
+
+  function setVaultPaused(bool _isVaultPaused) external onlyOwner {
+    isVaultPaused = _isVaultPaused;
+  }
+
+  function setFeeRecipient(address newFeeRecipient) external override onlyOwner {
+    require(newFeeRecipient != address(0), "ZeroAddress");
+
+    emit FeeRecipientUpdated(feeRecipient, newFeeRecipient);
+
+    feeRecipient = newFeeRecipient;
+  }
+}
