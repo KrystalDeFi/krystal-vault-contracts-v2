@@ -3,6 +3,10 @@ pragma solidity ^0.8.28;
 
 interface ISharedConfigManager {
   event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
+  event WhitelistStrategiesUpdated(address[] strategies, bool isWhitelisted);
+  event WhitelistTargetsUpdated(address[] targets, bool isWhitelisted);
+  event WhitelistCallersUpdated(address[] callers, bool isWhitelisted);
+  event VaultPausedUpdated(bool isVaultPaused);
 
   function isVaultPaused() external view returns (bool);
 

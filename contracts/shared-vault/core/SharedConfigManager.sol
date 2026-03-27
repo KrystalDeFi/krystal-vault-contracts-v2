@@ -49,6 +49,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       whitelistedStrategies[strategies[i]] = _isWhitelisted;
       unchecked { i++; }
     }
+    emit WhitelistStrategiesUpdated(strategies, _isWhitelisted);
   }
 
   function isWhitelistedStrategy(address strategy) external view override returns (bool) {
@@ -61,6 +62,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       whitelistedTargets[targets[i]] = _isWhitelisted;
       unchecked { i++; }
     }
+    emit WhitelistTargetsUpdated(targets, _isWhitelisted);
   }
 
   function isWhitelistedTarget(address target) external view override returns (bool) {
@@ -73,6 +75,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       whitelistedCallers[callers[i]] = _isWhitelisted;
       unchecked { i++; }
     }
+    emit WhitelistCallersUpdated(callers, _isWhitelisted);
   }
 
   function isWhitelistedCaller(address caller) external view override returns (bool) {
@@ -81,6 +84,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function setVaultPaused(bool _isVaultPaused) external onlyOwner {
     isVaultPaused = _isVaultPaused;
+    emit VaultPausedUpdated(_isVaultPaused);
   }
 
   function setFeeRecipient(address newFeeRecipient) external override onlyOwner {

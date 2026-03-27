@@ -198,7 +198,7 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.startPrank(FACTORY_OWNER);
     factory.setConfigManager(newConfig);
     vm.stopPrank();
-    assertEq(factory.configManager(), newConfig);
+    assertEq(address(factory.configManager()), newConfig);
   }
 
   function test_setConfigManager_fail_zero() public {

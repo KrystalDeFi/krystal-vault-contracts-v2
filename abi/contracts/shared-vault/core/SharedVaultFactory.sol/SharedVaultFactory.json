@@ -316,7 +316,7 @@
     "name": "configManager",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract ISharedConfigManager",
         "name": "",
         "type": "address"
       }

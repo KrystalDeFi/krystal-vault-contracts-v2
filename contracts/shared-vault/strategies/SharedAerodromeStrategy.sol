@@ -127,11 +127,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
   function _depositGauge(bytes calldata data) internal {
     uint256 tokenId = abi.decode(data, (uint256));
-
-    if (tokenId == 0) {
-      IERC721Enumerable nfpmEnum = IERC721Enumerable(nfpm);
-      tokenId = nfpmEnum.tokenByIndex(nfpmEnum.totalSupply() - 1);
-    }
+    require(tokenId != 0, InvalidPoolTokens());
 
     address clGauge = _getGaugeFromTokenId(tokenId);
     IERC721(nfpm).approve(clGauge, tokenId);

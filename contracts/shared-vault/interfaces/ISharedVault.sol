@@ -18,6 +18,7 @@ interface ISharedVault is ISharedCommon {
   event SetVaultAdmin(address indexed vaultFactory, address indexed account, bool indexed isAdmin);
   event SetVaultOperator(address indexed vaultFactory, address indexed previousOperator, address indexed newOperator);
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
+  event VaultPausedUpdated(address indexed vaultFactory, bool paused);
 
   // --- Initialization ---
   function initialize(
@@ -72,6 +73,8 @@ interface ISharedVault is ISharedCommon {
   function revokeAdminRole(address _address) external;
 
   function setOperator(address _operator) external;
+
+  function setPaused(bool _paused) external;
 
   function transferOwnership(address newOwner) external;
 

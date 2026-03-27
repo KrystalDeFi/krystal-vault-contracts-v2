@@ -147,13 +147,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
   function _depositMasterChef(bytes calldata data) internal {
     uint256 tokenId = abi.decode(data, (uint256));
+    require(tokenId != 0, InvalidPoolTokens());
 
     address _nfpm = IMasterChefV3(masterChefV3).nonfungiblePositionManager();
-    if (tokenId == 0) {
-      uint256 _totalSupply = IERC721Enumerable(_nfpm).totalSupply();
-      tokenId = IERC721Enumerable(_nfpm).tokenByIndex(_totalSupply - 1);
-    }
-
     IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
   }
 

@@ -52,6 +52,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   mapping(address => bool) public override isVaultToken;
 
   mapping(address => bool) public admins;
+  bool public paused;
 
   /// @dev Array of tracked LP positions
   Position[] public positions;
@@ -76,7 +77,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   }
 
   modifier whenNotPaused() {
-    require(!configManager.isVaultPaused(), VaultPaused());
+    require(!paused && !configManager.isVaultPaused(), VaultPaused());
     _;
   }
 
@@ -98,7 +99,6 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     configManager = ISharedConfigManager(_configManager);
     vaultOwner = _owner;
     vaultFactory = msg.sender;
-    admins[msg.sender] = true;
 
     // Set up tokens
     uint8 count;
@@ -321,6 +321,15 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     return positions.length;
   }
 
+  function getPosition(uint256 index)
+    external
+    view
+    returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1)
+  {
+    Position memory pos = positions[index];
+    return (pos.strategy, pos.nfpm, pos.tokenId, pos.token0, pos.token1);
+  }
+
   function previewDeposit(uint256[4] calldata amounts) external view override returns (uint256 shares) {
     uint256 currentTotalSupply = totalSupply();
     uint256[4] memory totalBalances = _getTotalBalances();
@@ -376,6 +385,8 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   }
 
   function sweepERC721(address token, uint256 tokenId, address to) external override onlyOperator {
+    bytes32 key = keccak256(abi.encodePacked(token, tokenId));
+    require(positionIndex[key] == 0, CannotSweepVaultToken());
     IERC721(token).safeTransferFrom(address(this), to, tokenId);
   }
 
@@ -400,6 +411,11 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   function setOperator(address _operator) external override onlyOwner {
     emit SetVaultOperator(vaultFactory, operator, _operator);
     operator = _operator;
+  }
+
+  function setPaused(bool _paused) external override onlyOwner {
+    paused = _paused;
+    emit VaultPausedUpdated(vaultFactory, _paused);
   }
 
   function transferOwnership(address newOwner) external override onlyOwner {

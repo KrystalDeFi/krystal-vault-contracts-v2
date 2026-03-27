@@ -548,7 +548,7 @@ contract SharedVaultTest is TestCommon {
 
   // ==================== Pause Tests ====================
 
-  function test_pause_blocks_deposit() public {
+  function test_global_pause_blocks_deposit() public {
     configManager.setVaultPaused(true);
 
     tokenA.mint(DEPOSITOR, 10e18);
@@ -561,7 +561,7 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
-  function test_pause_blocks_execute() public {
+  function test_global_pause_blocks_execute() public {
     configManager.setVaultPaused(true);
 
     vm.startPrank(VAULT_OWNER);
@@ -570,12 +570,68 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
-  function test_pause_blocks_swap() public {
+  function test_global_pause_blocks_swap() public {
     configManager.setVaultPaused(true);
 
     vm.startPrank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
     vault.swap(address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, "");
+    vm.stopPrank();
+  }
+
+  function test_per_vault_pause_blocks_deposit() public {
+    vm.startPrank(VAULT_OWNER);
+    vault.setPaused(true);
+    vm.stopPrank();
+
+    tokenA.mint(DEPOSITOR, 10e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+
+    uint256[4] memory amounts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.VaultPaused.selector);
+    vault.deposit(amounts, 0);
+    vm.stopPrank();
+  }
+
+  function test_per_vault_pause_blocks_execute() public {
+    vm.startPrank(VAULT_OWNER);
+    vault.setPaused(true);
+    vm.expectRevert(ISharedCommon.VaultPaused.selector);
+    vault.execute(address(mockStrategy), abi.encode(uint256(1)));
+    vm.stopPrank();
+  }
+
+  function test_per_vault_pause_unpause() public {
+    vm.startPrank(VAULT_OWNER);
+    vault.setPaused(true);
+    assertTrue(vault.paused());
+
+    // Unpaused
+    vault.setPaused(false);
+    assertFalse(vault.paused());
+
+    // Can execute again
+    bytes memory data = abi.encode(uint256(42));
+    vault.execute(address(mockStrategy), data);
+    vm.stopPrank();
+  }
+
+  function test_per_vault_pause_independent_of_global() public {
+    // Per-vault paused, global not paused
+    vm.startPrank(VAULT_OWNER);
+    vault.setPaused(true);
+    vm.expectRevert(ISharedCommon.VaultPaused.selector);
+    vault.execute(address(mockStrategy), abi.encode(uint256(1)));
+    vm.stopPrank();
+
+    // Per-vault unpaused, global paused
+    vm.prank(VAULT_OWNER);
+    vault.setPaused(false);
+    configManager.setVaultPaused(true);
+    vm.startPrank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.VaultPaused.selector);
+    vault.execute(address(mockStrategy), abi.encode(uint256(1)));
     vm.stopPrank();
   }
 

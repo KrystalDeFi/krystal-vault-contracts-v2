@@ -10,12 +10,13 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 
 import "../interfaces/ISharedVaultFactory.sol";
 import "../interfaces/ISharedVault.sol";
+import "../interfaces/ISharedConfigManager.sol";
 import "../../common/Withdrawable.sol";
 
 contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdrawable, ISharedVaultFactory {
   using SafeERC20 for IERC20;
 
-  address public configManager;
+  ISharedConfigManager public configManager;
   address public vaultImplementation;
 
   mapping(address => address[]) public vaultsByAddress;
@@ -31,7 +32,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     __Ownable_init(_owner);
     __Pausable_init();
 
-    configManager = _configManager;
+    configManager = ISharedConfigManager(_configManager);
     vaultImplementation = _vaultImplementation;
   }
 
@@ -79,7 +80,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
       unchecked { i++; }
     }
 
-    ISharedVault(vault).initialize(name, symbol, tokens, initialAmounts, msg.sender, configManager);
+    ISharedVault(vault).initialize(name, symbol, tokens, initialAmounts, msg.sender, address(configManager));
 
     vaultsByAddress[msg.sender].push(vault);
     allVaults.push(vault);
@@ -113,7 +114,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
 
   function setConfigManager(address _configManager) external onlyOwner {
     require(_configManager != address(0), ZeroAddress());
-    configManager = _configManager;
+    configManager = ISharedConfigManager(_configManager);
     emit ConfigManagerSet(_configManager);
   }
 
