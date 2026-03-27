@@ -44,6 +44,12 @@ event SetVaultOperator(address vaultFactory, address previousOperator, address n
 event VaultOwnerChanged(address vaultFactory, address previousOwner, address newOwner)
 ```
 
+### VaultPausedUpdated
+
+```solidity
+event VaultPausedUpdated(address vaultFactory, bool paused)
+```
+
 ### initialize
 
 ```solidity
@@ -144,6 +150,12 @@ function revokeAdminRole(address _address) external
 
 ```solidity
 function setOperator(address _operator) external
+```
+
+### setPaused
+
+```solidity
+function setPaused(bool _paused) external
 ```
 
 ### transferOwnership

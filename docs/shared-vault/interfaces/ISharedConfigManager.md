@@ -8,6 +8,30 @@
 event FeeRecipientUpdated(address previousRecipient, address newRecipient)
 ```
 
+### WhitelistStrategiesUpdated
+
+```solidity
+event WhitelistStrategiesUpdated(address[] strategies, bool isWhitelisted)
+```
+
+### WhitelistTargetsUpdated
+
+```solidity
+event WhitelistTargetsUpdated(address[] targets, bool isWhitelisted)
+```
+
+### WhitelistCallersUpdated
+
+```solidity
+event WhitelistCallersUpdated(address[] callers, bool isWhitelisted)
+```
+
+### VaultPausedUpdated
+
+```solidity
+event VaultPausedUpdated(bool isVaultPaused)
+```
+
 ### isVaultPaused
 
 ```solidity

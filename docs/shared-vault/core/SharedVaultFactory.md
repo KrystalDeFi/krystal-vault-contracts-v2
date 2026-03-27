@@ -5,7 +5,7 @@
 ### configManager
 
 ```solidity
-address configManager
+contract ISharedConfigManager configManager
 ```
 
 ### vaultImplementation
