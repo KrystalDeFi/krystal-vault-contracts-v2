@@ -104,6 +104,12 @@ function getTotalBalances() external view returns (uint256[4])
 function getPositionCount() external view returns (uint256)
 ```
 
+### getPosition
+
+```solidity
+function getPosition(uint256 index) external view returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1)
+```
+
 ### previewDeposit
 
 ```solidity

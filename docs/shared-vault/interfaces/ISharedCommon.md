@@ -98,3 +98,15 @@ error TokenNotConfigured()
 error CannotSweepVaultToken()
 ```
 
+### InvalidOperation
+
+```solidity
+error InvalidOperation()
+```
+
+### LengthMismatch
+
+```solidity
+error LengthMismatch()
+```
+

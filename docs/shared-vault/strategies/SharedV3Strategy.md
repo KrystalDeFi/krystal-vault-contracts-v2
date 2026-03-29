@@ -105,6 +105,9 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
+_For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
+     The caller can predict this via NFPM._nextId() or tx simulation._
+
 ### getPositionAmounts
 
 ```solidity
