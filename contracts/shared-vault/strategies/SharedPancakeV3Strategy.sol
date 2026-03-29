@@ -16,6 +16,7 @@ import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/Liqu
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
+import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 
 /// @dev Generic NFPM for querying positions
 interface INFPM {
@@ -62,7 +63,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   constructor(address _v3utils, address _masterChefV3, address _configManager) {
-    require(_v3utils != address(0) && _masterChefV3 != address(0) && _configManager != address(0), "Invalid params");
+    require(_v3utils != address(0) && _masterChefV3 != address(0) && _configManager != address(0), ISharedCommon.ZeroAddress());
     v3utils = _v3utils;
     masterChefV3 = _masterChefV3;
     configManager = ISharedConfigManager(_configManager);
@@ -88,7 +89,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       _harvestMasterChef(data[32:]);
       return new PositionChange[](0);
     } else {
-      revert("Invalid operation");
+      revert ISharedCommon.InvalidOperation();
     }
   }
 
@@ -129,14 +130,21 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
+  /// @dev For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
-    (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions, bool isFullWithdraw) =
-      abi.decode(data, (address, uint256, IV3Utils.Instructions, bool));
+    (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions, bool isFullWithdraw, uint256 newTokenId) =
+      abi.decode(data, (address, uint256, IV3Utils.Instructions, bool, uint256));
 
     instructions.recipient = address(this);
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
-    if (isFullWithdraw || instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+      (,, address token0, address token1,,,,,,,,) = INFPM(_nfpm).positions(tokenId);
+      require(newTokenId != 0, InvalidPoolTokens());
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
+      changes[1] = PositionChange(true, _nfpm, newTokenId, token0, token1);
+    } else if (isFullWithdraw) {
       (,, address token0, address token1,,,,,,,,) = INFPM(_nfpm).positions(tokenId);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -233,7 +241,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   function _approveTokens(address[] memory _tokens, uint256[] memory approveAmounts, address target) internal {
-    require(_tokens.length == approveAmounts.length, "Length mismatch");
+    require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length;) {
       if (approveAmounts[i] > 0) {
         IERC20(_tokens[i]).safeResetAndApprove(target, approveAmounts[i]);

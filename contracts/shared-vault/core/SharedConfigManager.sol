@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import "../interfaces/ISharedConfigManager.sol";
+import "../interfaces/ISharedCommon.sol";
 
 contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   mapping(address => bool) public whitelistedStrategies;
@@ -41,6 +42,10 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     }
 
     feeRecipient = _feeRecipient;
+
+    if (_whitelistStrategies.length > 0) emit WhitelistStrategiesUpdated(_whitelistStrategies, true);
+    if (_whitelistTargets.length > 0) emit WhitelistTargetsUpdated(_whitelistTargets, true);
+    if (_whitelistCallers.length > 0) emit WhitelistCallersUpdated(_whitelistCallers, true);
   }
 
   function setWhitelistStrategies(address[] calldata strategies, bool _isWhitelisted) external override onlyOwner {
@@ -88,7 +93,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   }
 
   function setFeeRecipient(address newFeeRecipient) external override onlyOwner {
-    require(newFeeRecipient != address(0), "ZeroAddress");
+    require(newFeeRecipient != address(0), ISharedCommon.ZeroAddress());
 
     emit FeeRecipientUpdated(feeRecipient, newFeeRecipient);
 

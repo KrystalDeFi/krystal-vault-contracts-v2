@@ -11,6 +11,7 @@ import { FixedPoint128 } from "@uniswap/v4-core/src/libraries/FixedPoint128.sol"
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
+import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { SafeCast } from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -21,6 +22,7 @@ import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/Liqu
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 
 /// @title SharedV4Strategy
 /// @notice Uniswap V4 LP operations for SharedVault with token validation and position tracking
@@ -40,7 +42,7 @@ contract SharedV4Strategy is ISharedStrategy {
   }
 
   constructor(address _v4UtilsRouter) {
-    require(_v4UtilsRouter != address(0), "Invalid v4UtilsRouter");
+    require(_v4UtilsRouter != address(0), ISharedCommon.ZeroAddress());
     v4UtilsRouter = _v4UtilsRouter;
   }
 
@@ -53,7 +55,7 @@ contract SharedV4Strategy is ISharedStrategy {
     } else if (opType == OperationType.SAFE_TRANSFER_NFT) {
       return _safeTransferNft(data[32:]);
     } else {
-      revert("Invalid operation");
+      revert ISharedCommon.InvalidOperation();
     }
   }
 
@@ -63,29 +65,45 @@ contract SharedV4Strategy is ISharedStrategy {
       uint256 tokenId,
       bytes memory params,
       uint256 ethValue,
-      address[] memory _tokens,
+      address[] memory approveTokens,
       uint256[] memory approveAmounts,
       PositionChange[] memory positionChanges
     ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[], PositionChange[]));
 
-    // Validate pool tokens
-    for (uint256 i; i < positionChanges.length; ) {
-      if (positionChanges[i].token0 != address(0)) _validateVaultToken(positionChanges[i].token0);
-      if (positionChanges[i].token1 != address(0)) _validateVaultToken(positionChanges[i].token1);
-      unchecked {
-        i++;
+    // Validate approved tokens are vault tokens (these are the tokens actually used)
+    for (uint256 i; i < approveTokens.length;) {
+      if (approveAmounts[i] > 0) {
+        _validateVaultToken(approveTokens[i]);
       }
+      unchecked { i++; }
+    }
+
+    // Also validate position change tokens from on-chain data when adding existing positions
+    for (uint256 i; i < positionChanges.length;) {
+      if (positionChanges[i].isAdd && positionChanges[i].tokenId != 0) {
+        // Verify tokens from actual POSM position data, not caller-supplied values
+        IPositionManager pm = IPositionManager(posm);
+        (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(positionChanges[i].tokenId);
+        address c0 = Currency.unwrap(poolKey.currency0);
+        address c1 = Currency.unwrap(poolKey.currency1);
+        _validateVaultToken(c0);
+        _validateVaultToken(c1);
+        positionChanges[i].token0 = c0;
+        positionChanges[i].token1 = c1;
+      } else {
+        if (positionChanges[i].token0 != address(0)) _validateVaultToken(positionChanges[i].token0);
+        if (positionChanges[i].token1 != address(0)) _validateVaultToken(positionChanges[i].token1);
+      }
+      unchecked { i++; }
     }
 
     // Approve tokens
-    require(_tokens.length == approveAmounts.length, "Length mismatch");
-    for (uint256 i; i < _tokens.length; ) {
+    require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
+    for (uint256 i; i < approveTokens.length;) {
       if (approveAmounts[i] > 0) {
-        IERC20(_tokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
+        IERC20(approveTokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
       }
-      unchecked {
-        i++;
-      }
+      unchecked { i++; }
     }
 
     if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
@@ -100,13 +118,12 @@ contract SharedV4Strategy is ISharedStrategy {
       (address, uint256, bytes, PositionChange[])
     );
 
-    // Validate pool tokens
-    for (uint256 i; i < positionChanges.length; ) {
-      if (positionChanges[i].token0 != address(0)) _validateVaultToken(positionChanges[i].token0);
-      if (positionChanges[i].token1 != address(0)) _validateVaultToken(positionChanges[i].token1);
-      unchecked {
-        i++;
-      }
+    // Validate tokens from on-chain POSM data for the position being transferred
+    {
+      IPositionManager pm = IPositionManager(posm);
+      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      _validateVaultToken(Currency.unwrap(poolKey.currency0));
+      _validateVaultToken(Currency.unwrap(poolKey.currency1));
     }
 
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
@@ -173,6 +190,9 @@ contract SharedV4Strategy is ISharedStrategy {
     fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
   }
 
+  /// @dev Returns fees owed. Uses a defensive check instead of V4 core's unchecked subtraction
+  ///      (which relies on uint256 overflow wrapping). This returns 0 on apparent underflow rather
+  ///      than risking an incorrect large value if fee growth tracking is out of sync.
   function _feeOwed(
     uint256 feeGrowthInsideX128,
     uint256 feeGrowthInsideLastX128,

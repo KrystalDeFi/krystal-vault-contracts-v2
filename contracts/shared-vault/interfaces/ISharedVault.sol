@@ -57,6 +57,11 @@ interface ISharedVault is ISharedCommon {
 
   function getPositionCount() external view returns (uint256);
 
+  function getPosition(uint256 index)
+    external
+    view
+    returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1);
+
   function previewDeposit(uint256[4] calldata amounts) external view returns (uint256 shares);
 
   function previewWithdraw(uint256 shares) external view returns (uint256[4] memory amounts);

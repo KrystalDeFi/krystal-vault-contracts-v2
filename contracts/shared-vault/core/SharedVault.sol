@@ -381,7 +381,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     uint256 balance = address(this).balance;
     if (amount > balance) amount = balance;
     (bool success,) = to.call{ value: amount }("");
-    require(success, "Failed to send native token");
+    require(success, SwapFailed());
   }
 
   function sweepERC721(address token, uint256 tokenId, address to) external override onlyOperator {

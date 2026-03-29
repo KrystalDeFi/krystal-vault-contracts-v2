@@ -192,6 +192,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidRatio",
     "type": "error"
   },
@@ -220,6 +225,11 @@
   {
     "inputs": [],
     "name": "InvalidToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LengthMismatch",
     "type": "error"
   },
   {

@@ -18,4 +18,6 @@ interface ISharedCommon {
   error DuplicateToken();
   error TokenNotConfigured();
   error CannotSweepVaultToken();
+  error InvalidOperation();
+  error LengthMismatch();
 }

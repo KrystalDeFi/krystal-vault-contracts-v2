@@ -20,6 +20,7 @@ import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/Liqu
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
+import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 
 /// @title SharedAerodromeStrategy
 /// @notice Aerodrome CL LP + gauge farming for SharedVault with token validation and position tracking
@@ -42,7 +43,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   constructor(address _v3utils, address _gaugeFactory, address _configManager) {
-    require(_v3utils != address(0) && _gaugeFactory != address(0) && _configManager != address(0), "Invalid params");
+    require(_v3utils != address(0) && _gaugeFactory != address(0) && _configManager != address(0), ISharedCommon.ZeroAddress());
     v3utils = _v3utils;
     gaugeFactory = _gaugeFactory;
     nfpm = ICLGaugeFactory(_gaugeFactory).nft();
@@ -69,7 +70,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       _harvestGauge(data[32:]);
       return new PositionChange[](0);
     } else {
-      revert("Invalid operation");
+      revert ISharedCommon.InvalidOperation();
     }
   }
 
@@ -109,14 +110,21 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
+  /// @dev For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
-    (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions, bool isFullWithdraw) =
-      abi.decode(data, (address, uint256, IV3Utils.Instructions, bool));
+    (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions, bool isFullWithdraw, uint256 newTokenId) =
+      abi.decode(data, (address, uint256, IV3Utils.Instructions, bool, uint256));
 
     instructions.recipient = address(this);
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
-    if (isFullWithdraw || instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+      (,, address token0, address token1,,,,,,,,) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+      require(newTokenId != 0, InvalidPoolTokens());
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
+      changes[1] = PositionChange(true, _nfpm, newTokenId, token0, token1);
+    } else if (isFullWithdraw) {
       (,, address token0, address token1,,,,,,,,) = INonfungiblePositionManager(_nfpm).positions(tokenId);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -212,9 +220,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (token0 > token1) (token0, token1) = (token1, token0);
     address factory = INonfungiblePositionManager(nfpm).factory();
     address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
-    require(pool != address(0), "Pool not found");
+    require(pool != address(0), InvalidPoolTokens());
     gauge = ICLPool(pool).gauge();
-    require(gauge != address(0), "Gauge not found");
+    require(gauge != address(0), InvalidPoolTokens());
   }
 
   function _validateVaultToken(address token) internal view {
@@ -222,7 +230,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   function _approveTokens(address[] memory _tokens, uint256[] memory approveAmounts, address target) internal {
-    require(_tokens.length == approveAmounts.length, "Length mismatch");
+    require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length;) {
       if (approveAmounts[i] > 0) {
         IERC20(_tokens[i]).safeResetAndApprove(target, approveAmounts[i]);

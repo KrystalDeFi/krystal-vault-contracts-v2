@@ -32,12 +32,22 @@
   },
   {
     "inputs": [],
+    "name": "InvalidOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidPoolTokens",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidRewardFee",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LengthMismatch",
     "type": "error"
   },
   {
@@ -54,6 +64,11 @@
   {
     "inputs": [],
     "name": "T",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
     "type": "error"
   },
   {
