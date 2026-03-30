@@ -66,7 +66,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
   modifier onlyAuthorized() {
     require(
-      msg.sender == vaultOwner || admins[msg.sender] || configManager.isWhitelistedCaller(msg.sender), Unauthorized()
+      msg.sender == vaultOwner || msg.sender == vaultFactory || admins[msg.sender] || configManager.isWhitelistedCaller(msg.sender), Unauthorized()
     );
     _;
   }

@@ -209,14 +209,19 @@
         "type": "uint256[4]"
       },
       {
-        "internalType": "address",
-        "name": "strategy",
-        "type": "address"
+        "internalType": "address[]",
+        "name": "strategies",
+        "type": "address[]"
       },
       {
-        "internalType": "bytes",
-        "name": "strategyData",
-        "type": "bytes"
+        "internalType": "bytes[]",
+        "name": "strategiesData",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "ethValues",
+        "type": "uint256[]"
       }
     ],
     "name": "createVault",

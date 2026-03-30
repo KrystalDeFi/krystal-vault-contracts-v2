@@ -49,10 +49,10 @@ Create a shared vault with initial token deposits
 ### createVault
 
 ```solidity
-function createVault(string name, string symbol, address[4] tokens, uint256[4] initialAmounts, address strategy, bytes strategyData) external payable returns (address vault)
+function createVault(string name, string symbol, address[4] tokens, uint256[4] initialAmounts, address[] strategies, bytes[] strategiesData, uint256[] ethValues) external payable returns (address vault)
 ```
 
-Create a shared vault with initial deposits and execute a strategy
+Create a shared vault with initial deposits and execute multiple strategies
 
 ### _createVault
 

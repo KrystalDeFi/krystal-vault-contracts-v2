@@ -7,10 +7,28 @@ import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaul
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { ISharedVaultFactory } from "../../contracts/shared-vault/interfaces/ISharedVaultFactory.sol";
+import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+
+/// @dev Mock strategy that returns a PositionChange so vault execution is observable via getPositionCount()
+contract MockFactoryStrategy is ISharedStrategy {
+  // nfpm address used for all mock positions — unique tokenIds distinguish each call
+  address public constant MOCK_NFPM = address(0xBEEF);
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    uint256 tokenId = abi.decode(data, (uint256));
+    if (tokenId == 0) return new PositionChange[](0);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, MOCK_NFPM, tokenId, address(0), address(0));
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+}
 
 // Mock ERC20 token for testing
 contract MockERC20 {
@@ -57,6 +75,7 @@ contract SharedVaultFactoryTest is TestCommon {
   SharedVaultFactory public factory;
   SharedConfigManager public configManager;
   SharedVault public vaultImplementation;
+  MockFactoryStrategy public mockStrategy;
 
   MockERC20 public tokenA;
   MockERC20 public tokenB;
@@ -67,9 +86,11 @@ contract SharedVaultFactoryTest is TestCommon {
   function setUp() public {
     tokenA = new MockERC20("Token A", "TKA");
     tokenB = new MockERC20("Token B", "TKB");
+    mockStrategy = new MockFactoryStrategy();
 
     configManager = new SharedConfigManager();
-    address[] memory targets = new address[](0);
+    address[] memory targets = new address[](1);
+    targets[0] = address(mockStrategy);
     address[] memory callers = new address[](0);
     configManager.initialize(FACTORY_OWNER, targets, callers, FACTORY_OWNER);
 
@@ -219,6 +240,105 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.startPrank(VAULT_CREATOR);
     vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, VAULT_CREATOR));
     factory.setVaultImplementation(address(0x888));
+    vm.stopPrank();
+  }
+
+  // ==================== createVault with strategies ====================
+
+  function test_createVault_with_empty_strategies() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](0);
+    bytes[] memory strategiesData = new bytes[](0);
+    uint256[] memory ethValues = new uint256[](0);
+
+    address vaultAddr = factory.createVault("Test", "T", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    assertEq(ISharedVault(vaultAddr).getPositionCount(), 0);
+  }
+
+  function test_createVault_with_single_strategy() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    tokenB.mint(VAULT_CREATOR, 200e18);
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+    tokenB.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](1);
+    strategiesData[0] = abi.encode(uint256(42)); // tokenId=42 → strategy returns 1 PositionChange
+    uint256[] memory ethValues = new uint256[](1);
+
+    address vaultAddr = factory.createVault("Test", "T", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    // Strategy was called and returned a PositionChange — vault should have tracked it
+    assertEq(ISharedVault(vaultAddr).getPositionCount(), 1);
+  }
+
+  function test_createVault_with_multiple_strategies() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](3);
+    strategies[0] = address(mockStrategy);
+    strategies[1] = address(mockStrategy);
+    strategies[2] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](3);
+    strategiesData[0] = abi.encode(uint256(1)); // tokenId=1
+    strategiesData[1] = abi.encode(uint256(2)); // tokenId=2
+    strategiesData[2] = abi.encode(uint256(3)); // tokenId=3
+    uint256[] memory ethValues = new uint256[](3);
+
+    address vaultAddr = factory.createVault("Test", "T", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    // Each strategy call returned a unique PositionChange — vault tracks all 3
+    assertEq(ISharedVault(vaultAddr).getPositionCount(), 3);
+  }
+
+  function test_createVault_strategies_length_mismatch() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](2); // wrong length
+    uint256[] memory ethValues = new uint256[](1);
+
+    vm.expectRevert(ISharedCommon.LengthMismatch.selector);
+    factory.createVault("Test", "T", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.stopPrank();
+  }
+
+  function test_createVault_strategy_not_whitelisted() public {
+    address unwhitelisted = address(new MockFactoryStrategy());
+
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = unwhitelisted;
+    bytes[] memory strategiesData = new bytes[](1);
+    strategiesData[0] = abi.encode(uint256(0));
+    uint256[] memory ethValues = new uint256[](1);
+
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidStrategy.selector, unwhitelisted));
+    factory.createVault("Test", "T", tokens, amounts, strategies, strategiesData, ethValues);
     vm.stopPrank();
   }
 }

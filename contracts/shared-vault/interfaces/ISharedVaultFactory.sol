@@ -22,8 +22,9 @@ interface ISharedVaultFactory is ISharedCommon {
     string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    address strategy,
-    bytes calldata strategyData
+    address[] calldata strategies,
+    bytes[] calldata strategiesData,
+    uint256[] calldata ethValues
   ) external payable returns (address vault);
 
   function isVault(address vault) external view returns (bool);

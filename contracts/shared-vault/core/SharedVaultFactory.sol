@@ -46,19 +46,23 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     vault = _createVault(name, symbol, tokens, initialAmounts);
   }
 
-  /// @notice Create a shared vault with initial deposits and execute a strategy
+  /// @notice Create a shared vault with initial deposits and execute multiple strategies
   function createVault(
     string calldata name,
     string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    address strategy,
-    bytes calldata strategyData
+    address[] calldata strategies,
+    bytes[] calldata strategiesData,
+    uint256[] calldata ethValues
   ) external payable override whenNotPaused returns (address vault) {
+    require(strategies.length == strategiesData.length && strategies.length == ethValues.length, LengthMismatch());
+
     vault = _createVault(name, symbol, tokens, initialAmounts);
 
-    if (strategyData.length > 0) {
-      ISharedVault(vault).execute{ value: msg.value }(strategy, strategyData);
+    for (uint256 i; i < strategies.length;) {
+      ISharedVault(vault).execute{ value: ethValues[i] }(strategies[i], strategiesData[i]);
+      unchecked { i++; }
     }
   }
 
