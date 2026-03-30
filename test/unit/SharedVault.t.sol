@@ -271,7 +271,10 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
-  function test_deposit_fail_bad_ratio() public {
+  function test_deposit_excess_capped_at_proportional() public {
+    // Vault is 1:2 (100A:200B). User provides 50A + 50B — more A than needed.
+    // The minimum-ratio token is B (50/200 < 50/100), so shares are computed from B.
+    // The vault takes only the proportional A amount and leaves excess A with the user.
     tokenA.mint(DEPOSITOR, 50e18);
     tokenB.mint(DEPOSITOR, 50e18);
 
@@ -279,11 +282,57 @@ contract SharedVaultTest is TestCommon {
     tokenA.approve(address(vault), type(uint256).max);
     tokenB.approve(address(vault), type(uint256).max);
 
-    // Current ratio is 1:2, depositing 50:50 violates ratio
+    uint256 aBalanceBefore = tokenA.balanceOf(DEPOSITOR);
+
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(depositAmounts, 0);
+
+    assertGt(shares, 0);
+    // Only proportional A was taken: 50B / 200B * 100A = 25A
+    assertEq(tokenA.balanceOf(DEPOSITOR), aBalanceBefore - 25e18);
+    assertEq(tokenB.balanceOf(DEPOSITOR), 0);
+    vm.stopPrank();
+  }
+
+  function test_deposit_fail_insufficient_token_b() public {
+    // User provides correct A but less B than the ratio requires
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 50e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    // Vault is 1:2. Depositing 50A + 50B: min shares come from B (25% of pool),
+    // but expectedA for those shares = 25e18. 50A >= 25A so it passes.
+    // Now try providing only 1B — min shares from B = 1/200 * totalSupply,
+    // expectedA = (1/200 * totalSupply) * 100 / totalSupply = 0.5 → 0 (rounds down).
+    // That would succeed, so test a case that truly fails: amounts[i] < expectedAmount.
+    // Force fail: provide 0B when B balance is 200e18 (required).
+    uint256[4] memory depositAmounts = [uint256(50e18), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.InvalidRatio.selector);
     vault.deposit(depositAmounts, 0);
     vm.stopPrank();
+  }
+
+  function test_deposit_shares_independent_of_reference_token() public {
+    // Regression: the minimum-ratio approach must yield the same shares regardless of which
+    // token the caller leads with. Vault is 100A:200B (1:2). Exact proportional 10A:20B.
+    tokenA.mint(DEPOSITOR, 10e18);
+    tokenB.mint(DEPOSITOR, 20e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256 supplyBefore = vault.totalSupply();
+    uint256[4] memory depositAmounts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(depositAmounts, 0);
+    vm.stopPrank();
+
+    // 10A / 100A == 20B / 200B == 10% of pool → shares = 10% of prior supply
+    assertEq(shares, supplyBefore / 10);
+    assertEq(tokenA.balanceOf(address(vault)), 110e18);
+    assertEq(tokenB.balanceOf(address(vault)), 220e18);
   }
 
   function test_deposit_fail_insufficient_shares() public {
@@ -528,6 +577,13 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
 
     assertEq(vault.operator(), newOp);
+  }
+
+  function test_set_operator_fail_zero_address() public {
+    vm.startPrank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault.setOperator(address(0));
+    vm.stopPrank();
   }
 
   function test_transfer_ownership() public {

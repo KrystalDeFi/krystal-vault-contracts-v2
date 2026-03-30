@@ -163,31 +163,27 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
       require(refIndex != type(uint256).max, InvalidAmount());
       shares = amounts[refIndex] * SHARES_PRECISION;
     } else {
-      // Subsequent deposit — enforce proportional ratio based on total balances
-      uint256 refIndex = type(uint256).max;
+      // Subsequent deposit — compute shares as minimum ratio across all tokens to prevent
+      // reference-token manipulation: attacker cannot cherry-pick a token to inflate shares.
+      shares = type(uint256).max;
       for (uint256 i; i < 4;) {
         if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
-          refIndex = i;
-          break;
+          uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
+          if (s < shares) shares = s;
         }
         unchecked { i++; }
       }
-      require(refIndex != type(uint256).max, InvalidAmount());
+      require(shares != type(uint256).max, InvalidAmount());
 
-      shares = FullMath.mulDiv(amounts[refIndex], currentTotalSupply, totalBalances[refIndex]);
-      transferAmounts[refIndex] = amounts[refIndex];
-
+      // Transfer only the proportional amount per token; excess stays with depositor.
       for (uint256 i; i < 4;) {
-        if (tokens[i] == address(0) || i == refIndex) {
-          unchecked { i++; }
-          continue;
-        }
-        if (totalBalances[i] == 0) {
-          require(amounts[i] == 0, InvalidRatio());
-        } else {
-          uint256 expectedAmount = FullMath.mulDiv(shares, totalBalances[i], currentTotalSupply);
-          require(amounts[i] >= expectedAmount, InvalidRatio());
-          transferAmounts[i] = expectedAmount;
+        if (tokens[i] != address(0)) {
+          if (totalBalances[i] == 0) {
+            require(amounts[i] == 0, InvalidRatio());
+          } else {
+            transferAmounts[i] = FullMath.mulDiv(shares, totalBalances[i], currentTotalSupply);
+            require(amounts[i] >= transferAmounts[i], InvalidRatio());
+          }
         }
         unchecked { i++; }
       }
@@ -342,12 +338,15 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
         unchecked { i++; }
       }
     } else {
+      shares = type(uint256).max;
       for (uint256 i; i < 4;) {
         if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
-          return FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
+          uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
+          if (s < shares) shares = s;
         }
         unchecked { i++; }
       }
+      if (shares == type(uint256).max) shares = 0;
     }
   }
 
@@ -409,6 +408,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   }
 
   function setOperator(address _operator) external override onlyOwner {
+    require(_operator != address(0), ZeroAddress());
     emit SetVaultOperator(vaultFactory, operator, _operator);
     operator = _operator;
   }
