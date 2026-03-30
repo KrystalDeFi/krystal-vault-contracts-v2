@@ -2,9 +2,9 @@ import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { ethers, network, run } from "hardhat";
 import { isArray } from "lodash";
 import { commonConfig } from "../configs/config_common";
-import { IConfig } from "../configs/interfaces";
 import { NetworkConfig } from "../configs/networkConfig";
 import { sleep } from "./helpers";
+import { SharedVaultAutomator } from "../typechain-types";
 
 const { SALT } = process.env;
 
@@ -24,6 +24,7 @@ export interface SharedContracts {
   sharedVault?: BaseContract;
   sharedVaultFactory?: BaseContract;
   sharedConfigManager?: BaseContract;
+  sharedVaultAutomator?: SharedVaultAutomator;
   sharedV3Strategy?: BaseContract;
   sharedV4Strategy?: BaseContract;
   sharedAerodromeStrategy?: BaseContract;
@@ -150,6 +151,20 @@ async function deployContracts(
     );
   }
 
+  // 8. Deploy SharedVaultAutomator
+  if (networkConfig.sharedVaultAutomator?.enabled) {
+    contracts.sharedVaultAutomator = (await deployContract(
+      ++step,
+      networkConfig.sharedVaultAutomator?.autoVerifyContract,
+      "SharedVaultAutomator",
+      existingContract?.["sharedVaultAutomator"],
+      "contracts/shared-vault/core/SharedVaultAutomator.sol:SharedVaultAutomator",
+      undefined,
+      ["address", "address[]"],
+      [contractAdmin, commonConfig.automationOperators],
+    )) as SharedVaultAutomator;
+  }
+
   // Initialize SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled) {
     await (contracts.sharedVaultFactory as any)?.initialize(
@@ -160,20 +175,21 @@ async function deployContracts(
   }
 
   // Initialize SharedConfigManager
+  // Strategies use the same target whitelist as swap aggregators (unified whitelistedTargets)
   if (networkConfig.sharedConfigManager?.enabled) {
-    const whitelistedStrategies = [
+    const whitelistedTargets = [
       existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target,
       existingContract?.["sharedV4Strategy"] || contracts.sharedV4Strategy?.target,
       existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target,
       existingContract?.["sharedPancakeV3Strategy"] || contracts.sharedPancakeV3Strategy?.target,
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
 
-    const whitelistedTargets: string[] = [];
-    const whitelistedCallers: string[] = [];
+    const whitelistedCallers = [
+      existingContract?.["sharedVaultAutomator"] || contracts.sharedVaultAutomator?.target,
+    ].filter(Boolean) as string[];
 
     await (contracts.sharedConfigManager as any)?.initialize(
       contractAdmin,
-      whitelistedStrategies,
       whitelistedTargets,
       whitelistedCallers,
       commonConfig.feeCollector,

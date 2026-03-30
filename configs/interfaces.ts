@@ -103,6 +103,10 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  sharedVaultAutomator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
 }
 
 export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {
