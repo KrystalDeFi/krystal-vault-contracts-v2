@@ -74,6 +74,37 @@ contract MockAutomatorStrategy is ISharedStrategy {
   }
 }
 
+// Mock EIP-1271 multisig wallet — validates signatures from a set of approved signers
+contract MockMultisig {
+  bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
+  mapping(address => bool) public isSigner;
+
+  constructor(address _signer) {
+    isSigner[_signer] = true;
+  }
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4) {
+    // Decode an ECDSA signature and check if the recovered address is an approved signer
+    (uint8 v, bytes32 r, bytes32 s) = _decodeSignature(signature);
+    address recovered = ecrecover(hash, v, r, s);
+    if (isSigner[recovered]) return EIP1271_MAGIC;
+    return bytes4(0xffffffff);
+  }
+
+  function _decodeSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+    require(sig.length == 65, "invalid sig length");
+    assembly {
+      r := mload(add(sig, 32))
+      s := mload(add(sig, 64))
+      v := byte(0, mload(add(sig, 96)))
+    }
+  }
+
+  // Allow the multisig to receive calls (for cancelOrder via msg.sender)
+  fallback() external payable {}
+  receive() external payable {}
+}
+
 // Expose internal EIP-712 helpers for test signing
 contract SharedVaultAutomatorHelper is SharedVaultAutomator {
   constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) { }
@@ -462,5 +493,122 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     automator.executeWithAgentAllowance{ value: 0 }(ISharedVault(address(vault)), ops, encoded, sig);
+  }
+
+  // ============ Multisig (EIP-1271) vault owner tests ============
+
+  /// @dev Helper: deploy a fresh vault owned by a multisig and a fresh automator
+  function _setupMultisigVault()
+    internal
+    returns (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator)
+  {
+    // Multisig with VAULT_OWNER_KEY as its sole approved signer
+    multisig = new MockMultisig(VAULT_OWNER);
+
+    // Deploy vault owned by the multisig contract
+    msVault = new SharedVault();
+    tokenA.mint(address(this), 200e18);
+    tokenB.mint(address(this), 200e18);
+    tokenA.transfer(address(msVault), 100e18);
+    tokenB.transfer(address(msVault), 100e18);
+    address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(configManager));
+
+    // Deploy a fresh automator (reuse same ADMIN/OPERATOR)
+    address[] memory operators = new address[](1);
+    operators[0] = OPERATOR;
+    msAutomator = new SharedVaultAutomatorHelper(ADMIN, operators);
+
+    // Whitelist the new automator as a caller
+    vm.startPrank(ADMIN);
+    address[] memory callers = new address[](1);
+    callers[0] = address(msAutomator);
+    configManager.setWhitelistCallers(callers, true);
+    vm.stopPrank();
+  }
+
+  function test_multisig_executeWithAgentAllowance_success() public {
+    (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+
+    // Verify the vault owner is the multisig contract, not an EOA
+    assertEq(msVault.vaultOwner(), address(multisig));
+    assertTrue(address(multisig).code.length > 0);
+
+    // Build allowance for the multisig-owned vault
+    _nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
+      vault: address(msVault),
+      signatureTime: uint64(block.timestamp + _nonce),
+      expirationTime: uint64(block.timestamp + 3600)
+    });
+    bytes memory encoded = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
+    bytes32 digest = msAutomator.hashTypedDataV4(structHash);
+
+    // Sign with the key that the multisig trusts
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    // Execute — this would revert with ECDSA-only verification
+    vm.prank(OPERATOR);
+    msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);
+  }
+
+  function test_multisig_executeWithUserOrder_onlyUsedOnce() public {
+    (SharedVault msVault,, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+
+    _nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
+      vault: address(msVault),
+      signatureTime: uint64(block.timestamp + _nonce),
+      expirationTime: uint64(block.timestamp + 3600)
+    });
+    bytes memory encoded = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
+    bytes32 digest = msAutomator.hashTypedDataV4(structHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.startPrank(OPERATOR);
+    // First execution succeeds
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
+
+    // Second execution reverts — one-time use consumed
+    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
+    vm.stopPrank();
+  }
+
+  function test_multisig_cancelOrder_success() public {
+    (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+
+    _nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
+      vault: address(msVault),
+      signatureTime: uint64(block.timestamp + _nonce),
+      expirationTime: uint64(block.timestamp + 3600)
+    });
+    bytes memory encoded = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
+    bytes32 digest = msAutomator.hashTypedDataV4(structHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    // Cancel from the multisig address (it validates via EIP-1271)
+    vm.prank(address(multisig));
+    msAutomator.cancelOrder(digest, sig);
+
+    assertTrue(msAutomator.isOrderCancelled(sig));
+
+    // Execution now fails
+    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    vm.prank(OPERATOR);
+    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
+    msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);
   }
 }

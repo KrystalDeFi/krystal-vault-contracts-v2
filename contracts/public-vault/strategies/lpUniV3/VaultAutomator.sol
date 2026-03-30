@@ -14,6 +14,8 @@ import "../CustomEIP712.sol";
 import "../../interfaces/core/IVaultAutomator.sol";
 import "../../interfaces/strategies/ILpStrategy.sol";
 import "../../../common/Withdrawable.sol";
+import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import "../../../common/libraries/strategies/LpUniV3StructHash.sol";
 
 /**
  * @title VaultAutomator
@@ -178,8 +180,8 @@ contract VaultAutomator is
   /// @param orderSignature Signature of the order
   /// @param actor Actor of the order
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
-    address userAddress = _recover(abiEncodedUserOrder, orderSignature);
-    require(userAddress == actor, InvalidSignature());
+    bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
+    require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
     require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
   }
 

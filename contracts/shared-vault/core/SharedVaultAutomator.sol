@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import "../interfaces/ISharedVaultAutomator.sol";
 import "../../private-vault/core/CustomEIP712.sol";
@@ -51,7 +51,8 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
 
   /// @inheritdoc ISharedVaultAutomator
   function cancelOrder(bytes32 hash, bytes memory signature) external override {
-    require(ECDSA.recover(hash, signature) == msg.sender, InvalidSignature());
+    // SignatureChecker: for EOA checks ECDSA recovery; for multisig calls EIP-1271.isValidSignature
+    require(SignatureChecker.isValidSignatureNow(msg.sender, hash, signature), InvalidSignature());
     _cancelledOrder[keccak256(signature)] = true;
     emit CancelOrder(msg.sender, hash, signature);
   }
@@ -103,8 +104,10 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
       abi.decode(abiEncodedAgentAllowance, (AgentAllowanceStructHash.AgentAllowance));
     require(allowance.vault == vault, InvalidSignature());
     require(allowance.expirationTime >= block.timestamp, InvalidSignature());
-    address signer = _recoverAgentAllowance(abiEncodedAgentAllowance, signature);
-    require(signer == ISharedVault(vault).vaultOwner(), InvalidSignature());
+    // Use SignatureChecker to support both EOA (ECDSA) and smart contract wallets (EIP-1271 multisig)
+    bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
+    address owner = ISharedVault(vault).vaultOwner();
+    require(SignatureChecker.isValidSignatureNow(owner, digest, signature), InvalidSignature());
     require(!_cancelledOrder[keccak256(signature)], OrderCancelled());
   }
 
