@@ -53,7 +53,7 @@ event VaultPausedUpdated(address vaultFactory, bool paused)
 ### initialize
 
 ```solidity
-function initialize(string name, string symbol, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) external
+function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) external
 ```
 
 ### deposit

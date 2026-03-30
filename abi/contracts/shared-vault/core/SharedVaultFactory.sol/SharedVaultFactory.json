@@ -342,11 +342,6 @@
         "type": "string"
       },
       {
-        "internalType": "string",
-        "name": "symbol",
-        "type": "string"
-      },
-      {
         "internalType": "address[4]",
         "name": "tokens",
         "type": "address[4]"
@@ -373,11 +368,6 @@
       {
         "internalType": "string",
         "name": "name",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "symbol",
         "type": "string"
       },
       {

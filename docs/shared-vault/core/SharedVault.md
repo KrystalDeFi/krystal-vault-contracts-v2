@@ -125,7 +125,7 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(string _name, string _symbol, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) public
+function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) public
 ```
 
 Initializes the shared vault

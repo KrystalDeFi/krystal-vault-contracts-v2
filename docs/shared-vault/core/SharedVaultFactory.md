@@ -41,7 +41,7 @@ function initialize(address _owner, address _configManager, address _vaultImplem
 ### createVault
 
 ```solidity
-function createVault(string name, string symbol, address[4] tokens, uint256[4] initialAmounts) external returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts) external returns (address vault)
 ```
 
 Create a shared vault with initial token deposits
@@ -49,7 +49,7 @@ Create a shared vault with initial token deposits
 ### createVault
 
 ```solidity
-function createVault(string name, string symbol, address[4] tokens, uint256[4] initialAmounts, address[] strategies, bytes[] strategiesData, uint256[] ethValues) external payable returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address[] strategies, bytes[] strategiesData, uint256[] ethValues) external payable returns (address vault)
 ```
 
 Create a shared vault with initial deposits and execute multiple strategies
@@ -57,7 +57,7 @@ Create a shared vault with initial deposits and execute multiple strategies
 ### _createVault
 
 ```solidity
-function _createVault(string name, string symbol, address[4] tokens, uint256[4] initialAmounts) internal returns (address vault)
+function _createVault(string name, address[4] tokens, uint256[4] initialAmounts) internal returns (address vault)
 ```
 
 ### isVault

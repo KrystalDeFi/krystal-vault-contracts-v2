@@ -84,7 +84,6 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   /// @notice Initializes the shared vault
   function initialize(
     string calldata _name,
-    string calldata _symbol,
     address[4] calldata _tokens,
     uint256[4] calldata initialAmounts,
     address _owner,
@@ -93,7 +92,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     require(_configManager != address(0), ZeroAddress());
     require(_owner != address(0), ZeroAddress());
 
-    __ERC20_init(_name, _symbol);
+    __ERC20_init(_name, _name);
     __ERC20Permit_init(_name);
 
     configManager = ISharedConfigManager(_configManager);

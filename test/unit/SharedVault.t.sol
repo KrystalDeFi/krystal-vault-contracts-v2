@@ -183,7 +183,7 @@ contract SharedVaultTest is TestCommon {
     // Initialize
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
-    vault.initialize("Shared Vault", "SV", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager));
+    vault.initialize("Shared Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager));
 
     // Setup roles
     vm.startPrank(VAULT_OWNER);
@@ -215,7 +215,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenA), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.DuplicateToken.selector);
-    vault2.initialize("Test", "T", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
   }
 
   function test_initialize_fail_too_few_tokens() public {
@@ -223,7 +223,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(0), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.NoTokensConfigured.selector);
-    vault2.initialize("Test", "T", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
   }
 
   // ==================== Deposit Tests ====================
@@ -233,7 +233,7 @@ contract SharedVaultTest is TestCommon {
     SharedVault vault2 = new SharedVault();
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
-    vault2.initialize("Test", "T", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
 
     // First deposit
     tokenA.mint(DEPOSITOR, 50e18);

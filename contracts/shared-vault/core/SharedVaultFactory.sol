@@ -39,17 +39,15 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   /// @notice Create a shared vault with initial token deposits
   function createVault(
     string calldata name,
-    string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
   ) external override whenNotPaused returns (address vault) {
-    vault = _createVault(name, symbol, tokens, initialAmounts);
+    vault = _createVault(name, tokens, initialAmounts);
   }
 
   /// @notice Create a shared vault with initial deposits and execute multiple strategies
   function createVault(
     string calldata name,
-    string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
     address[] calldata strategies,
@@ -58,7 +56,11 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   ) external payable override whenNotPaused returns (address vault) {
     require(strategies.length == strategiesData.length && strategies.length == ethValues.length, LengthMismatch());
 
-    vault = _createVault(name, symbol, tokens, initialAmounts);
+    uint256 totalEth;
+    for (uint256 i; i < ethValues.length;) { totalEth += ethValues[i]; unchecked { i++; } }
+    require(totalEth == msg.value, InvalidAmount());
+
+    vault = _createVault(name, tokens, initialAmounts);
 
     for (uint256 i; i < strategies.length;) {
       ISharedVault(vault).execute{ value: ethValues[i] }(strategies[i], strategiesData[i]);
@@ -68,12 +70,11 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
 
   function _createVault(
     string calldata name,
-    string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
   ) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(name, symbol, msg.sender, "shared-1.0"))
+      vaultImplementation, keccak256(abi.encodePacked(name, msg.sender, "shared-1.0"))
     );
 
     // Transfer initial tokens to vault before initialization
@@ -84,7 +85,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
       unchecked { i++; }
     }
 
-    ISharedVault(vault).initialize(name, symbol, tokens, initialAmounts, msg.sender, address(configManager));
+    ISharedVault(vault).initialize(name, tokens, initialAmounts, msg.sender, address(configManager));
 
     vaultsByAddress[msg.sender].push(vault);
     allVaults.push(vault);

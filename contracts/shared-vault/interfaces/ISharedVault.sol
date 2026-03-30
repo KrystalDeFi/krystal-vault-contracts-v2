@@ -23,7 +23,6 @@ interface ISharedVault is ISharedCommon {
   // --- Initialization ---
   function initialize(
     string calldata name,
-    string calldata symbol,
     address[4] calldata _tokens,
     uint256[4] calldata initialAmounts,
     address _owner,

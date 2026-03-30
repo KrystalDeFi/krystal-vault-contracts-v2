@@ -12,14 +12,12 @@ interface ISharedVaultFactory is ISharedCommon {
 
   function createVault(
     string calldata name,
-    string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
   ) external returns (address vault);
 
   function createVault(
     string calldata name,
-    string calldata symbol,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
     address[] calldata strategies,

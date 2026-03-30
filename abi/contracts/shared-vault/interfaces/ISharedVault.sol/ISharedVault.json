@@ -479,11 +479,6 @@
         "type": "string"
       },
       {
-        "internalType": "string",
-        "name": "symbol",
-        "type": "string"
-      },
-      {
         "internalType": "address[4]",
         "name": "_tokens",
         "type": "address[4]"
