@@ -8,12 +8,6 @@
 event FeeRecipientUpdated(address previousRecipient, address newRecipient)
 ```
 
-### WhitelistStrategiesUpdated
-
-```solidity
-event WhitelistStrategiesUpdated(address[] strategies, bool isWhitelisted)
-```
-
 ### WhitelistTargetsUpdated
 
 ```solidity
@@ -42,18 +36,6 @@ function isVaultPaused() external view returns (bool)
 
 ```solidity
 function feeRecipient() external view returns (address)
-```
-
-### isWhitelistedStrategy
-
-```solidity
-function isWhitelistedStrategy(address strategy) external view returns (bool)
-```
-
-### setWhitelistStrategies
-
-```solidity
-function setWhitelistStrategies(address[] strategies, bool isWhitelisted) external
 ```
 
 ### isWhitelistedTarget

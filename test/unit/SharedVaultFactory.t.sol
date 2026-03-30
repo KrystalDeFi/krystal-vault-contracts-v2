@@ -69,10 +69,9 @@ contract SharedVaultFactoryTest is TestCommon {
     tokenB = new MockERC20("Token B", "TKB");
 
     configManager = new SharedConfigManager();
-    address[] memory strategies = new address[](0);
     address[] memory targets = new address[](0);
     address[] memory callers = new address[](0);
-    configManager.initialize(FACTORY_OWNER, strategies, targets, callers, FACTORY_OWNER);
+    configManager.initialize(FACTORY_OWNER, targets, callers, FACTORY_OWNER);
 
     vaultImplementation = new SharedVault();
 

@@ -248,7 +248,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     onlyAuthorized
     whenNotPaused
   {
-    require(configManager.isWhitelistedStrategy(strategy), InvalidStrategy(strategy));
+    require(configManager.isWhitelistedTarget(strategy), InvalidStrategy(strategy));
 
     (bool success, bytes memory result) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
 

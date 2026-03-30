@@ -125,25 +125,6 @@
       {
         "indexed": false,
         "internalType": "address[]",
-        "name": "strategies",
-        "type": "address[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "isWhitelisted",
-        "type": "bool"
-      }
-    ],
-    "name": "WhitelistStrategiesUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
         "name": "targets",
         "type": "address[]"
       },
@@ -176,11 +157,6 @@
         "internalType": "address",
         "name": "_owner",
         "type": "address"
-      },
-      {
-        "internalType": "address[]",
-        "name": "_whitelistStrategies",
-        "type": "address[]"
       },
       {
         "internalType": "address[]",
@@ -225,25 +201,6 @@
       }
     ],
     "name": "isWhitelistedCaller",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "strategy",
-        "type": "address"
-      }
-    ],
-    "name": "isWhitelistedStrategy",
     "outputs": [
       {
         "internalType": "bool",
@@ -341,24 +298,6 @@
     "inputs": [
       {
         "internalType": "address[]",
-        "name": "strategies",
-        "type": "address[]"
-      },
-      {
-        "internalType": "bool",
-        "name": "_isWhitelisted",
-        "type": "bool"
-      }
-    ],
-    "name": "setWhitelistStrategies",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address[]",
         "name": "targets",
         "type": "address[]"
       },
@@ -395,25 +334,6 @@
       }
     ],
     "name": "whitelistedCallers",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "whitelistedStrategies",
     "outputs": [
       {
         "internalType": "bool",

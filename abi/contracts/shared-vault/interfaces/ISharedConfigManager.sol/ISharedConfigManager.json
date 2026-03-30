@@ -56,25 +56,6 @@
       {
         "indexed": false,
         "internalType": "address[]",
-        "name": "strategies",
-        "type": "address[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "isWhitelisted",
-        "type": "bool"
-      }
-    ],
-    "name": "WhitelistStrategiesUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address[]",
         "name": "targets",
         "type": "address[]"
       },
@@ -123,25 +104,6 @@
       }
     ],
     "name": "isWhitelistedCaller",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "strategy",
-        "type": "address"
-      }
-    ],
-    "name": "isWhitelistedStrategy",
     "outputs": [
       {
         "internalType": "bool",
@@ -211,24 +173,6 @@
       }
     ],
     "name": "setWhitelistCallers",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address[]",
-        "name": "strategies",
-        "type": "address[]"
-      },
-      {
-        "internalType": "bool",
-        "name": "isWhitelisted",
-        "type": "bool"
-      }
-    ],
-    "name": "setWhitelistStrategies",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

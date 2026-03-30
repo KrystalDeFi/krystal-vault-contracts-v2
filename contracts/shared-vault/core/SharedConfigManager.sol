@@ -7,7 +7,6 @@ import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedCommon.sol";
 
 contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
-  mapping(address => bool) public whitelistedStrategies;
   mapping(address => bool) public whitelistedTargets;
   mapping(address => bool) public whitelistedCallers;
 
@@ -16,20 +15,13 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function initialize(
     address _owner,
-    address[] calldata _whitelistStrategies,
     address[] calldata _whitelistTargets,
     address[] calldata _whitelistCallers,
     address _feeRecipient
   ) public initializer {
     __Ownable_init(_owner);
 
-    uint256 length = _whitelistStrategies.length;
-    for (uint256 i; i < length;) {
-      whitelistedStrategies[_whitelistStrategies[i]] = true;
-      unchecked { i++; }
-    }
-
-    length = _whitelistTargets.length;
+    uint256 length = _whitelistTargets.length;
     for (uint256 i; i < length;) {
       whitelistedTargets[_whitelistTargets[i]] = true;
       unchecked { i++; }
@@ -43,22 +35,8 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
     feeRecipient = _feeRecipient;
 
-    if (_whitelistStrategies.length > 0) emit WhitelistStrategiesUpdated(_whitelistStrategies, true);
     if (_whitelistTargets.length > 0) emit WhitelistTargetsUpdated(_whitelistTargets, true);
     if (_whitelistCallers.length > 0) emit WhitelistCallersUpdated(_whitelistCallers, true);
-  }
-
-  function setWhitelistStrategies(address[] calldata strategies, bool _isWhitelisted) external override onlyOwner {
-    uint256 length = strategies.length;
-    for (uint256 i; i < length;) {
-      whitelistedStrategies[strategies[i]] = _isWhitelisted;
-      unchecked { i++; }
-    }
-    emit WhitelistStrategiesUpdated(strategies, _isWhitelisted);
-  }
-
-  function isWhitelistedStrategy(address strategy) external view override returns (bool) {
-    return whitelistedStrategies[strategy];
   }
 
   function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {

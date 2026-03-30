@@ -161,12 +161,11 @@ contract SharedVaultTest is TestCommon {
 
     // Deploy config manager
     configManager = new SharedConfigManager();
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    address[] memory targets = new address[](1);
+    address[] memory targets = new address[](2);
     targets[0] = address(swapTarget);
+    targets[1] = address(mockStrategy);
     address[] memory callers = new address[](0);
-    configManager.initialize(address(this), strategies, targets, callers, address(this));
+    configManager.initialize(address(this), targets, callers, address(this));
 
     // Deploy vault
     vault = new SharedVault();

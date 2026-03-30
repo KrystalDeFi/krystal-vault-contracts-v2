@@ -2,12 +2,6 @@
 
 ## SharedConfigManager
 
-### whitelistedStrategies
-
-```solidity
-mapping(address => bool) whitelistedStrategies
-```
-
 ### whitelistedTargets
 
 ```solidity
@@ -35,19 +29,7 @@ address feeRecipient
 ### initialize
 
 ```solidity
-function initialize(address _owner, address[] _whitelistStrategies, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient) public
-```
-
-### setWhitelistStrategies
-
-```solidity
-function setWhitelistStrategies(address[] strategies, bool _isWhitelisted) external
-```
-
-### isWhitelistedStrategy
-
-```solidity
-function isWhitelistedStrategy(address strategy) external view returns (bool)
+function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient) public
 ```
 
 ### setWhitelistTargets
