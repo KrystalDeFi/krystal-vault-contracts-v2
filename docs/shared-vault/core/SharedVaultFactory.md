@@ -14,6 +14,12 @@ contract ISharedConfigManager configManager
 address vaultImplementation
 ```
 
+### weth
+
+```solidity
+address weth
+```
+
 ### vaultsByAddress
 
 ```solidity
@@ -35,16 +41,18 @@ mapping(address => bool) isVaultAddress
 ### initialize
 
 ```solidity
-function initialize(address _owner, address _configManager, address _vaultImplementation) external
+function initialize(address _owner, address _configManager, address _vaultImplementation, address _weth) external
 ```
 
 ### createVault
 
 ```solidity
-function createVault(string name, address[4] tokens, uint256[4] initialAmounts) external returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts) external payable returns (address vault)
 ```
 
 Create a shared vault with initial token deposits
+
+_Send ETH via msg.value to auto-wrap to WETH for the initial deposit_
 
 ### createVault
 
@@ -54,10 +62,12 @@ function createVault(string name, address[4] tokens, uint256[4] initialAmounts, 
 
 Create a shared vault with initial deposits and execute multiple strategies
 
+_ETH sent here is used for strategy calls only, not for the initial deposit_
+
 ### _createVault
 
 ```solidity
-function _createVault(string name, address[4] tokens, uint256[4] initialAmounts) internal returns (address vault)
+function _createVault(string name, address[4] tokens, uint256[4] initialAmounts, uint256 ethForDeposit) internal returns (address vault)
 ```
 
 ### isVault

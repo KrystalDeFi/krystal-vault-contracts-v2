@@ -50,23 +50,50 @@ event VaultOwnerChanged(address vaultFactory, address previousOwner, address new
 event VaultPausedUpdated(address vaultFactory, bool paused)
 ```
 
+### Position
+
+_Tracked LP position_
+
+```solidity
+struct Position {
+  address strategy;
+  address nfpm;
+  uint256 tokenId;
+  address token0;
+  address token1;
+}
+```
+
 ### initialize
 
 ```solidity
-function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) external
+function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager, address _weth) external
 ```
 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint256 minShares) external returns (uint256 shares)
+function deposit(uint256[4] amounts, uint256 minShares) external payable returns (uint256 shares)
 ```
+
+Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
+        (msg.value must match amounts[wethIndex] exactly).
 
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, uint256[4] minAmounts) external returns (uint256[4] amounts)
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap) external returns (uint256[4] amounts)
 ```
+
+Burn shares and withdraw proportional idle tokens.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 |  |
+| minAmounts | uint256[4] |  |
+| unwrap | bool | If true, any WETH amount is unwrapped to native ETH before sending. |
 
 ### execute
 
@@ -134,10 +161,16 @@ function isVaultToken(address token) external view returns (bool)
 function vaultOwner() external view returns (address)
 ```
 
+### weth
+
+```solidity
+function weth() external view returns (address)
+```
+
 ### tokenCount
 
 ```solidity
-function tokenCount() external view returns (uint8)
+function tokenCount() external view returns (uint16)
 ```
 
 ### grantAdminRole

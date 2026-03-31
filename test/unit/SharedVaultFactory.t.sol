@@ -30,6 +30,54 @@ contract MockFactoryStrategy is ISharedStrategy {
   }
 }
 
+// Mock WETH9 for testing native ETH wrapping/unwrapping
+contract MockWETH9 {
+  string public name = "Wrapped Ether";
+  string public symbol = "WETH";
+  uint8 public decimals = 18;
+
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  receive() external payable { deposit(); }
+
+  function deposit() public payable {
+    balanceOf[msg.sender] += msg.value;
+  }
+
+  function withdraw(uint256 wad) external {
+    require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
+    balanceOf[msg.sender] -= wad;
+    (bool ok,) = msg.sender.call{value: wad}("");
+    require(ok, "ETH transfer failed");
+  }
+
+  function totalSupply() external view returns (uint256) { return address(this).balance; }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+      allowance[from][msg.sender] -= amount;
+    }
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
 // Mock ERC20 token for testing
 contract MockERC20 {
   string public name;
@@ -79,6 +127,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
   MockERC20 public tokenA;
   MockERC20 public tokenB;
+  MockWETH9 public mockWeth;
 
   address public constant FACTORY_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant VAULT_CREATOR = 0x1234567890123456789012345678901234567891;
@@ -86,6 +135,7 @@ contract SharedVaultFactoryTest is TestCommon {
   function setUp() public {
     tokenA = new MockERC20("Token A", "TKA");
     tokenB = new MockERC20("Token B", "TKB");
+    mockWeth = new MockWETH9();
     mockStrategy = new MockFactoryStrategy();
 
     configManager = new SharedConfigManager();
@@ -97,7 +147,7 @@ contract SharedVaultFactoryTest is TestCommon {
     vaultImplementation = new SharedVault();
 
     factory = new SharedVaultFactory();
-    factory.initialize(FACTORY_OWNER, address(configManager), address(vaultImplementation));
+    factory.initialize(FACTORY_OWNER, address(configManager), address(vaultImplementation), address(mockWeth));
   }
 
   function test_createVault_simple() public {
@@ -340,5 +390,101 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidStrategy.selector, unwhitelisted));
     factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
     vm.stopPrank();
+  }
+
+  // ==================== Native ETH / WETH Tests ====================
+
+  /// @notice ETH sent to createVault is wrapped to WETH and deposited into the vault
+  function test_createVault_eth_wraps_for_initial_deposit() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    vm.deal(VAULT_CREATOR, 1 ether);
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
+
+    address vaultAddr = factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts);
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    ISharedVault vault = ISharedVault(vaultAddr);
+
+    // Vault holds tokenA and WETH (ETH was wrapped)
+    assertEq(tokenA.balanceOf(vaultAddr), 100e18);
+    assertEq(mockWeth.balanceOf(vaultAddr), 1 ether);
+
+    // Shares minted to creator
+    assertGt(IERC20(vaultAddr).totalSupply(), 0);
+    assertGt(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), 0);
+
+    // Vault weth address is set
+    assertEq(vault.weth(), address(mockWeth));
+
+    // Creator's ETH is fully consumed
+    assertEq(VAULT_CREATOR.balance, 0);
+  }
+
+  /// @notice Sending ETH when WETH is not in the token list reverts
+  function test_createVault_eth_fails_weth_not_configured() public {
+    vm.deal(VAULT_CREATOR, 1 ether);
+    vm.startPrank(VAULT_CREATOR);
+
+    // Token list does NOT include mockWeth
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts);
+    vm.stopPrank();
+  }
+
+  /// @notice msg.value must equal initialAmounts[wethIndex], otherwise reverts
+  function test_createVault_eth_fails_wrong_amount() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    vm.deal(VAULT_CREATOR, 2 ether);
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    // initialAmounts[1] = 1 ether but msg.value = 2 ether
+    uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    factory.createVault{value: 2 ether}("ETH Vault", tokens, amounts);
+    vm.stopPrank();
+  }
+
+  /// @notice ETH sent in the strategies overload goes only to strategy calls, not initial deposit
+  function test_createVault_strategies_eth_not_for_deposit() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    tokenB.mint(VAULT_CREATOR, 100e18);
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+    tokenB.approve(address(factory), type(uint256).max);
+
+    // Only ERC20 tokens — no WETH in token list
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+
+    // ETH sent here is for strategy calls (ethValues), not initial deposit
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](1);
+    strategiesData[0] = abi.encode(uint256(0)); // tokenId=0 → no position
+    uint256[] memory ethValues = new uint256[](1);
+    ethValues[0] = 0; // no ETH to strategy
+
+    address vaultAddr = factory.createVault{value: 0}("No-ETH Vault", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    // Vault has ERC20 tokens (no WETH)
+    assertEq(tokenA.balanceOf(vaultAddr), 100e18);
+    assertEq(tokenB.balanceOf(vaultAddr), 100e18);
+    assertEq(mockWeth.balanceOf(vaultAddr), 0);
   }
 }

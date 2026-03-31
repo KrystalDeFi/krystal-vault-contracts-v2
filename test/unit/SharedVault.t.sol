@@ -11,6 +11,54 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
+// Mock WETH9 for testing native ETH wrapping/unwrapping
+contract MockWETH9 {
+  string public name = "Wrapped Ether";
+  string public symbol = "WETH";
+  uint8 public decimals = 18;
+
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  receive() external payable { deposit(); }
+
+  function deposit() public payable {
+    balanceOf[msg.sender] += msg.value;
+  }
+
+  function withdraw(uint256 wad) external {
+    require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
+    balanceOf[msg.sender] -= wad;
+    (bool ok,) = msg.sender.call{value: wad}("");
+    require(ok, "ETH transfer failed");
+  }
+
+  function totalSupply() external view returns (uint256) { return address(this).balance; }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+      allowance[from][msg.sender] -= amount;
+    }
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
 // Mock ERC20 token for testing
 contract MockERC20 {
   string public name;
@@ -137,6 +185,7 @@ contract SharedVaultTest is TestCommon {
   MockSwapTarget public swapTarget;
   MockERC721 public mockERC721;
   MockERC1155 public mockERC1155;
+  MockWETH9 public mockWeth;
 
   address public constant VAULT_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant ADMIN = 0x1234567890123456789012345678901234567891;
@@ -158,6 +207,7 @@ contract SharedVaultTest is TestCommon {
     swapTarget = new MockSwapTarget();
     mockERC721 = new MockERC721();
     mockERC1155 = new MockERC1155();
+    mockWeth = new MockWETH9();
 
     // Deploy config manager
     configManager = new SharedConfigManager();
@@ -183,7 +233,7 @@ contract SharedVaultTest is TestCommon {
     // Initialize
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
-    vault.initialize("Shared Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager));
+    vault.initialize("Shared Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager), address(0));
 
     // Setup roles
     vm.startPrank(VAULT_OWNER);
@@ -215,7 +265,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenA), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.DuplicateToken.selector);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager), address(0));
   }
 
   function test_initialize_fail_too_few_tokens() public {
@@ -223,7 +273,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(0), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.NoTokensConfigured.selector);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager), address(0));
   }
 
   // ==================== Deposit Tests ====================
@@ -233,7 +283,7 @@ contract SharedVaultTest is TestCommon {
     SharedVault vault2 = new SharedVault();
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(configManager), address(0));
 
     // First deposit
     tokenA.mint(DEPOSITOR, 50e18);
@@ -358,7 +408,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.startPrank(VAULT_OWNER);
-    uint256[4] memory amounts = vault.withdraw(halfShares, minAmounts);
+    uint256[4] memory amounts = vault.withdraw(halfShares, minAmounts, false);
     vm.stopPrank();
 
     // Should get ~50% of each token
@@ -372,7 +422,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.startPrank(VAULT_OWNER);
-    uint256[4] memory amounts = vault.withdraw(ownerShares, minAmounts);
+    uint256[4] memory amounts = vault.withdraw(ownerShares, minAmounts, false);
     vm.stopPrank();
 
     assertEq(amounts[0], 100e18);
@@ -386,7 +436,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.InsufficientShares.selector);
-    vault.withdraw(1, minAmounts);
+    vault.withdraw(1, minAmounts, false);
     vm.stopPrank();
   }
 
@@ -396,7 +446,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
-    vault.withdraw(ownerShares, minAmounts);
+    vault.withdraw(ownerShares, minAmounts, false);
     vm.stopPrank();
   }
 
@@ -721,5 +771,132 @@ contract SharedVaultTest is TestCommon {
     assertEq(balances[1], 200e18);
     assertEq(balances[2], 0);
     assertEq(balances[3], 0);
+  }
+
+  // ==================== Native ETH / WETH Tests ====================
+
+  /// @dev Creates a fresh vault with [tokenA, mockWeth] tokens and 100e18 of each.
+  ///      ETH is deposited via mockWeth.deposit() so MockWETH9 holds real ETH to back withdrawals.
+  function _setupWethVault() internal returns (SharedVault wv) {
+    wv = new SharedVault();
+
+    // Wrap 100e18 ETH → WETH; test contract gets the WETH and transfers to vault
+    tokenA.mint(address(this), 100e18);
+    vm.deal(address(this), 100e18);
+    mockWeth.deposit{value: 100e18}();
+
+    tokenA.transfer(address(wv), 100e18);
+    mockWeth.transfer(address(wv), 100e18);
+
+    address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    wv.initialize("WETH Vault", wvTokens, initAmounts, VAULT_OWNER, address(configManager), address(mockWeth));
+    // VAULT_OWNER now has all shares = 100e18 * SHARES_PRECISION
+  }
+
+  /// @notice Depositing with msg.value wraps ETH to WETH inside the vault
+  function test_deposit_eth_wraps_to_weth() public {
+    SharedVault wethVault = _setupWethVault();
+
+    tokenA.mint(DEPOSITOR, 50e18);
+    vm.deal(DEPOSITOR, 50e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(wethVault), type(uint256).max);
+
+    // Deposit 50e18 tokenA + 50e18 ETH (→ WETH). Proportional: 50/100 ratio → exact match.
+    uint256[4] memory amounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
+    uint256 shares = wethVault.deposit{value: 50e18}(amounts, 0);
+    vm.stopPrank();
+
+    assertGt(shares, 0);
+    assertEq(wethVault.balanceOf(DEPOSITOR), shares);
+
+    // Vault gained 50e18 WETH from wrapped ETH
+    assertEq(mockWeth.balanceOf(address(wethVault)), 150e18);
+    // Depositor's ETH is fully consumed
+    assertEq(DEPOSITOR.balance, 0);
+  }
+
+  /// @notice Proportional deposit: only the needed fraction of WETH is consumed; excess ETH is refunded
+  function test_deposit_eth_excess_refund() public {
+    SharedVault wethVault = _setupWethVault();
+    // State: 100e18 tokenA + 100e18 WETH, totalSupply = 100e18 * SHARES_PRECISION
+
+    // Depositor sends 40e18 tokenA + 80e18 ETH, but the binding constraint is tokenA (40/100 = 40%)
+    // transferAmounts = [40e18, 40e18]; excess WETH = 80e18 - 40e18 = 40e18 refunded as ETH
+    tokenA.mint(DEPOSITOR, 40e18);
+    vm.deal(DEPOSITOR, 80e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(wethVault), type(uint256).max);
+
+    uint256[4] memory amounts = [uint256(40e18), uint256(80e18), uint256(0), uint256(0)];
+    wethVault.deposit{value: 80e18}(amounts, 0);
+    vm.stopPrank();
+
+    // 40e18 ETH refunded; depositor paid net 40e18 ETH
+    assertEq(DEPOSITOR.balance, 40e18);
+    // Vault received only 40e18 WETH (not 80e18)
+    assertEq(mockWeth.balanceOf(address(wethVault)), 140e18);
+  }
+
+  /// @notice Sending ETH when no WETH token is configured in the vault reverts
+  function test_deposit_eth_fails_weth_not_configured() public {
+    // `vault` was initialized with weth = address(0): no WETH slot
+    vm.deal(DEPOSITOR, 1 ether);
+    uint256[4] memory amounts = [uint256(0), uint256(1 ether), uint256(0), uint256(0)];
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.deposit{value: 1 ether}(amounts, 0);
+  }
+
+  /// @notice msg.value must equal amounts[wethIndex]; mismatch reverts
+  function test_deposit_eth_fails_wrong_amount() public {
+    SharedVault wethVault = _setupWethVault();
+    vm.deal(DEPOSITOR, 60e18);
+
+    uint256[4] memory amounts = [uint256(0), uint256(50e18), uint256(0), uint256(0)];
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    // msg.value (60e18) != amounts[wethIndex] (50e18)
+    wethVault.deposit{value: 60e18}(amounts, 0);
+  }
+
+  /// @notice Withdraw with unwrap=true: WETH is unwrapped and caller receives native ETH
+  function test_withdraw_unwrap_true_sends_native_eth() public {
+    SharedVault wethVault = _setupWethVault();
+    uint256 shares = wethVault.balanceOf(VAULT_OWNER);
+    uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    uint256 ethBefore = VAULT_OWNER.balance;
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory received = wethVault.withdraw(shares, minAmounts, true);
+
+    // VAULT_OWNER received native ETH for the WETH portion
+    assertEq(VAULT_OWNER.balance - ethBefore, received[1]);
+    assertGt(received[1], 0);
+    // No WETH tokens transferred
+    assertEq(mockWeth.balanceOf(VAULT_OWNER), 0);
+    // tokenA transferred as ERC20
+    assertEq(tokenA.balanceOf(VAULT_OWNER), received[0]);
+  }
+
+  /// @notice Withdraw with unwrap=false: WETH stays as an ERC20 token, no native ETH sent
+  function test_withdraw_unwrap_false_keeps_weth_token() public {
+    SharedVault wethVault = _setupWethVault();
+    uint256 shares = wethVault.balanceOf(VAULT_OWNER);
+    uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory received = wethVault.withdraw(shares, minAmounts, false);
+
+    // VAULT_OWNER received WETH tokens (not native ETH)
+    assertEq(mockWeth.balanceOf(VAULT_OWNER), received[1]);
+    assertGt(received[1], 0);
+    // No native ETH received
+    assertEq(VAULT_OWNER.balance, 0);
+    // tokenA received as ERC20
+    assertEq(tokenA.balanceOf(VAULT_OWNER), received[0]);
   }
 }

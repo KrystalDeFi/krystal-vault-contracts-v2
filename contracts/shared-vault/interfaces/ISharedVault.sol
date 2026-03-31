@@ -20,19 +20,38 @@ interface ISharedVault is ISharedCommon {
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
 
+  /// @dev Tracked LP position
+  struct Position {
+    address strategy; // Strategy contract (used for getPositionAmounts valuation)
+    address nfpm; // NFT Position Manager
+    uint256 tokenId; // Position NFT ID
+    address token0; // Pool token0
+    address token1; // Pool token1
+  }
+
   // --- Initialization ---
   function initialize(
     string calldata name,
     address[4] calldata _tokens,
     uint256[4] calldata initialAmounts,
     address _owner,
-    address _configManager
+    address _configManager,
+    address _weth
   ) external;
 
   // --- Deposit / Withdraw ---
-  function deposit(uint256[4] calldata amounts, uint256 minShares) external returns (uint256 shares);
 
-  function withdraw(uint256 shares, uint256[4] calldata minAmounts) external returns (uint256[4] memory amounts);
+  /// @notice Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
+  ///         (msg.value must match amounts[wethIndex] exactly).
+  function deposit(uint256[4] calldata amounts, uint256 minShares) external payable returns (uint256 shares);
+
+  /// @notice Burn shares and withdraw proportional idle tokens.
+  /// @param unwrap If true, any WETH amount is unwrapped to native ETH before sending.
+  function withdraw(
+    uint256 shares,
+    uint256[4] calldata minAmounts,
+    bool unwrap
+  ) external returns (uint256[4] memory amounts);
 
   // --- LP Operations (onlyAuthorized) ---
   function execute(address strategy, bytes calldata data) external payable;
@@ -56,10 +75,9 @@ interface ISharedVault is ISharedCommon {
 
   function getPositionCount() external view returns (uint256);
 
-  function getPosition(uint256 index)
-    external
-    view
-    returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1);
+  function getPosition(
+    uint256 index
+  ) external view returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1);
 
   function previewDeposit(uint256[4] calldata amounts) external view returns (uint256 shares);
 
@@ -69,7 +87,9 @@ interface ISharedVault is ISharedCommon {
 
   function vaultOwner() external view returns (address);
 
-  function tokenCount() external view returns (uint8);
+  function weth() external view returns (address);
+
+  function tokenCount() external view returns (uint16);
 
   // --- Roles (onlyOwner) ---
   function grantAdminRole(address _address) external;

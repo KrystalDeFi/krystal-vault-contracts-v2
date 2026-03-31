@@ -52,9 +52,9 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   /// @inheritdoc ISharedVaultAutomator
   function cancelOrder(bytes32 hash, bytes memory signature) external override {
     // SignatureChecker: for EOA checks ECDSA recovery; for multisig calls EIP-1271.isValidSignature
-    require(SignatureChecker.isValidSignatureNow(msg.sender, hash, signature), InvalidSignature());
+    require(SignatureChecker.isValidSignatureNow(_msgSender(), hash, signature), InvalidSignature());
     _cancelledOrder[keccak256(signature)] = true;
-    emit CancelOrder(msg.sender, hash, signature);
+    emit CancelOrder(_msgSender(), hash, signature);
   }
 
   /// @inheritdoc ISharedVaultAutomator

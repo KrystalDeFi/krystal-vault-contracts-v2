@@ -14,20 +14,6 @@ bytes4 MAGIC_VALUE
 uint256 SHARES_PRECISION
 ```
 
-### Position
-
-_Tracked LP position_
-
-```solidity
-struct Position {
-  address strategy;
-  address nfpm;
-  uint256 tokenId;
-  address token0;
-  address token1;
-}
-```
-
 ### configManager
 
 ```solidity
@@ -52,10 +38,16 @@ address vaultFactory
 address operator
 ```
 
+### weth
+
+```solidity
+address weth
+```
+
 ### tokenCount
 
 ```solidity
-uint8 tokenCount
+uint16 tokenCount
 ```
 
 ### tokens
@@ -85,7 +77,7 @@ bool paused
 ### positions
 
 ```solidity
-struct SharedVault.Position[] positions
+struct ISharedVault.Position[] positions
 ```
 
 _Array of tracked LP positions_
@@ -125,7 +117,7 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager) public
+function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager, address _weth) public
 ```
 
 Initializes the shared vault
@@ -133,23 +125,32 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint256 minShares) external returns (uint256 shares)
+function deposit(uint256[4] amounts, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares
 
-_Share ratio is based on TOTAL balances (idle + LP positions valued by strategies)_
+_Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
+     Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value._
 
 ### withdraw
 
 ```solidity
-function withdraw(uint256 shares, uint256[4] minAmounts) external returns (uint256[4] amounts)
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap) external returns (uint256[4] amounts)
 ```
 
 Withdraw proportional IDLE tokens by burning shares
 
 _Uses total balances for share ratio but only withdraws idle tokens.
      If tokens are deployed to LP, withdrawer gets proportional idle only._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 |  |
+| minAmounts | uint256[4] |  |
+| unwrap | bool | If true, any WETH output is unwrapped to native ETH before sending. |
 
 ### execute
 
@@ -317,6 +318,14 @@ function _addPosition(address strategy, address nfpm, uint256 tokenId, address t
 ```solidity
 function _removePosition(address nfpm, uint256 tokenId) internal
 ```
+
+### _wethIndex
+
+```solidity
+function _wethIndex() internal view returns (uint256)
+```
+
+_Returns the index of the WETH token in the tokens array, or type(uint256).max if not found._
 
 ### _getIdleBalances
 

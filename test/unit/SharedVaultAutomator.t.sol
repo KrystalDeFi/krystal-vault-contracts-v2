@@ -158,7 +158,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(vault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    vault.initialize("Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager));
+    vault.initialize("Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager), address(0));
 
     // Automator
     address[] memory operators = new address[](1);
@@ -513,7 +513,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(msVault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(configManager));
+    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(configManager), address(0));
 
     // Deploy a fresh automator (reuse same ADMIN/OPERATOR)
     address[] memory operators = new address[](1);

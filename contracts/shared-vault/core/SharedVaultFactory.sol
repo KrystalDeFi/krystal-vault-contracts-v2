@@ -12,21 +12,30 @@ import "../interfaces/ISharedVaultFactory.sol";
 import "../interfaces/ISharedVault.sol";
 import "../interfaces/ISharedConfigManager.sol";
 import "../../common/Withdrawable.sol";
+import "../../public-vault/interfaces/IWETH9.sol";
 
 contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdrawable, ISharedVaultFactory {
   using SafeERC20 for IERC20;
 
   ISharedConfigManager public configManager;
   address public vaultImplementation;
+  address public weth;
 
   mapping(address => address[]) public vaultsByAddress;
 
   address[] public allVaults;
   mapping(address => bool) public isVaultAddress;
 
-  function initialize(address _owner, address _configManager, address _vaultImplementation) external initializer {
+  function initialize(
+    address _owner,
+    address _configManager,
+    address _vaultImplementation,
+    address _weth
+  ) external initializer {
     require(
-      _owner != address(0) && _configManager != address(0) && _vaultImplementation != address(0), ZeroAddress()
+      _owner != address(0) && _configManager != address(0) && _vaultImplementation != address(0) &&
+        _weth != address(0),
+      ZeroAddress()
     );
 
     __Ownable_init(_owner);
@@ -34,18 +43,21 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
 
     configManager = ISharedConfigManager(_configManager);
     vaultImplementation = _vaultImplementation;
+    weth = _weth;
   }
 
   /// @notice Create a shared vault with initial token deposits
+  /// @dev Send ETH via msg.value to auto-wrap to WETH for the initial deposit
   function createVault(
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
-  ) external override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts);
+  ) external payable override whenNotPaused returns (address vault) {
+    vault = _createVault(name, tokens, initialAmounts, msg.value);
   }
 
   /// @notice Create a shared vault with initial deposits and execute multiple strategies
+  /// @dev ETH sent here is used for strategy calls only, not for the initial deposit
   function createVault(
     string calldata name,
     address[4] calldata tokens,
@@ -60,7 +72,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     for (uint256 i; i < ethValues.length;) { totalEth += ethValues[i]; unchecked { i++; } }
     require(totalEth == msg.value, InvalidAmount());
 
-    vault = _createVault(name, tokens, initialAmounts);
+    vault = _createVault(name, tokens, initialAmounts, 0);
 
     for (uint256 i; i < strategies.length;) {
       ISharedVault(vault).execute{ value: ethValues[i] }(strategies[i], strategiesData[i]);
@@ -71,27 +83,48 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   function _createVault(
     string calldata name,
     address[4] calldata tokens,
-    uint256[4] calldata initialAmounts
+    uint256[4] calldata initialAmounts,
+    uint256 ethForDeposit
   ) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(name, msg.sender, "shared-1.0"))
+      vaultImplementation, keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"))
     );
 
-    // Transfer initial tokens to vault before initialization
+    // Wrap ETH to WETH and transfer to vault if ETH was provided for the initial deposit
+    if (ethForDeposit > 0) {
+      bool foundWeth;
+      for (uint256 i; i < 4;) {
+        if (tokens[i] == weth) {
+          require(initialAmounts[i] == ethForDeposit, InvalidAmount());
+          foundWeth = true;
+          break;
+        }
+        unchecked { i++; }
+      }
+      require(foundWeth, TokenNotConfigured());
+      IWETH9(weth).deposit{value: ethForDeposit}();
+      IERC20(weth).safeTransfer(vault, ethForDeposit);
+    }
+
+    // Transfer remaining initial tokens to vault before initialization
     for (uint256 i; i < 4;) {
       if (tokens[i] != address(0) && initialAmounts[i] > 0) {
-        IERC20(tokens[i]).safeTransferFrom(msg.sender, vault, initialAmounts[i]);
+        if (ethForDeposit > 0 && tokens[i] == weth) {
+          // WETH already transferred above via ETH wrap
+        } else {
+          IERC20(tokens[i]).safeTransferFrom(_msgSender(), vault, initialAmounts[i]);
+        }
       }
       unchecked { i++; }
     }
 
-    ISharedVault(vault).initialize(name, tokens, initialAmounts, msg.sender, address(configManager));
+    ISharedVault(vault).initialize(name, tokens, initialAmounts, _msgSender(), address(configManager), weth);
 
-    vaultsByAddress[msg.sender].push(vault);
+    vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);
     isVaultAddress[vault] = true;
 
-    emit VaultCreated(msg.sender, vault, name);
+    emit VaultCreated(_msgSender(), vault, name);
   }
 
   /// @notice Check if a vault was created by this factory

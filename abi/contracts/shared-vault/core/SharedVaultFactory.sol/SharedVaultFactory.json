@@ -360,7 +360,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -441,6 +441,11 @@
       {
         "internalType": "address",
         "name": "_vaultImplementation",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_weth",
         "type": "address"
       }
     ],
@@ -672,6 +677,19 @@
       }
     ],
     "name": "vaultsByAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "weth",
     "outputs": [
       {
         "internalType": "address",

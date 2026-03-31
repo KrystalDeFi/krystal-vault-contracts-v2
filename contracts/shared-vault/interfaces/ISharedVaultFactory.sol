@@ -14,7 +14,7 @@ interface ISharedVaultFactory is ISharedCommon {
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
-  ) external returns (address vault);
+  ) external payable returns (address vault);
 
   function createVault(
     string calldata name,
