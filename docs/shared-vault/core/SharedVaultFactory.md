@@ -62,7 +62,10 @@ function createVault(string name, address[4] tokens, uint256[4] initialAmounts, 
 
 Create a shared vault with initial deposits and execute multiple strategies
 
-_ETH sent here is used for strategy calls only, not for the initial deposit_
+_Send ETH via msg.value to cover both the initial WETH deposit (if WETH is a vault
+     token with a non-zero initialAmount) AND the strategy ETH values.
+     msg.value must equal initialAmounts[wethSlot] + sum(ethValues).
+     If WETH is not in the initial deposit, msg.value must equal sum(ethValues) exactly._
 
 ### _createVault
 
