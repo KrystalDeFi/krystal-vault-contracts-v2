@@ -299,7 +299,8 @@ contract SharedVaultIntegrationTest is TestCommon {
     uint256 wethAmt = 1 ether;
     uint256 usdcAmt = 3000e6;
 
-    IERC20(WETH).approve(address(vaultFactory), wethAmt);
+    // WETH initial deposit is paid in native ETH (auto-wrapped by factory).
+    // No WETH ERC20 approval needed; only USDC needs approval.
     IERC20(USDC).approve(address(vaultFactory), usdcAmt);
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
@@ -314,8 +315,9 @@ contract SharedVaultIntegrationTest is TestCommon {
     uint256[] memory ethValues = new uint256[](1);
     ethValues[0] = 0;
 
+    // msg.value = wethAmt (for WETH initial deposit) + ethValues[0]=0 (strategy needs no ETH)
     SharedVault vault2 = SharedVault(payable(
-      vaultFactory.createVault("Vault2-WithStrategies", vaultTokens, initialAmounts, strategies, strategiesData, ethValues)
+      vaultFactory.createVault{value: wethAmt}("Vault2-WithStrategies", vaultTokens, initialAmounts, strategies, strategiesData, ethValues)
     ));
 
     // Vault should have exactly 1 LP position created atomically during vault creation
