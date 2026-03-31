@@ -899,4 +899,46 @@ contract SharedVaultTest is TestCommon {
     // tokenA received as ERC20
     assertEq(tokenA.balanceOf(VAULT_OWNER), received[0]);
   }
+
+  /// @notice When WETH transferAmount rounds to zero (dust), wrapped ETH is fully refunded
+  /// @dev Constructs: tokenA=1e18, mockWeth=1 wei → totalSupply=1e36
+  ///      Deposit 1 wei ETH: shares=1e18, transferAmounts[weth]=mulDiv(1e18,1,1e36)=0
+  ///      Before fix: wrapped ETH locked in vault. After fix: fully refunded.
+  function test_deposit_eth_dust_amount_refunded() public {
+    // Vault: 1e18 tokenA, 1 wei WETH — totalSupply = 1e36 (tokenA * SHARES_PRECISION)
+    SharedVault wv = new SharedVault();
+    tokenA.mint(address(this), 1e18);
+    vm.deal(address(this), 100 ether);
+    mockWeth.deposit{value: 1}(); // 1 wei WETH backed by 1 wei ETH
+
+    tokenA.transfer(address(wv), 1e18);
+    mockWeth.transfer(address(wv), 1);
+
+    address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(1e18), uint256(1), uint256(0), uint256(0)];
+    wv.initialize("Dust Vault", wvTokens, initAmounts, VAULT_OWNER, address(configManager), address(mockWeth));
+    // totalSupply = 1e18 * 1e18 = 1e36
+
+    address depositor = makeAddr("dustDepositor");
+    vm.deal(depositor, 1 wei);
+    tokenA.mint(depositor, 1);
+
+    vm.startPrank(depositor);
+    tokenA.approve(address(wv), 1);
+
+    // amounts[1] = 1 wei ETH; transferAmounts[1] will round to zero
+    uint256[4] memory amounts = [uint256(1), uint256(1), uint256(0), uint256(0)];
+    uint256 sharesBefore = wv.balanceOf(depositor);
+    uint256 ethBefore = depositor.balance;
+
+    wv.deposit{value: 1}(amounts, 0);
+    vm.stopPrank();
+
+    // Depositor receives shares (non-zero — tokenA contribution)
+    assertGt(wv.balanceOf(depositor), sharesBefore, "should receive shares");
+    // The 1 wei ETH must be fully refunded (transferAmounts[weth] was 0)
+    assertEq(depositor.balance, ethBefore, "dust ETH must be refunded, not locked");
+    // Vault WETH balance unchanged (1 wei — no extra WETH was actually deposited)
+    assertEq(mockWeth.balanceOf(address(wv)), 1, "vault WETH balance unchanged");
+  }
 }

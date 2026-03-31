@@ -57,7 +57,10 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   }
 
   /// @notice Create a shared vault with initial deposits and execute multiple strategies
-  /// @dev ETH sent here is used for strategy calls only, not for the initial deposit
+  /// @dev Send ETH via msg.value to cover both the initial WETH deposit (if WETH is a vault
+  ///      token with a non-zero initialAmount) AND the strategy ETH values.
+  ///      msg.value must equal initialAmounts[wethSlot] + sum(ethValues).
+  ///      If WETH is not in the initial deposit, msg.value must equal sum(ethValues) exactly.
   function createVault(
     string calldata name,
     address[4] calldata tokens,
@@ -68,11 +71,21 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   ) external payable override whenNotPaused returns (address vault) {
     require(strategies.length == strategiesData.length && strategies.length == ethValues.length, LengthMismatch());
 
-    uint256 totalEth;
+    // Detect whether the caller is paying the WETH initial deposit in native ETH
+    uint256 ethForDeposit;
+    for (uint256 i; i < 4;) {
+      if (tokens[i] == weth && initialAmounts[i] > 0) {
+        ethForDeposit = initialAmounts[i];
+        break;
+      }
+      unchecked { i++; }
+    }
+
+    uint256 totalEth = ethForDeposit;
     for (uint256 i; i < ethValues.length;) { totalEth += ethValues[i]; unchecked { i++; } }
     require(totalEth == msg.value, InvalidAmount());
 
-    vault = _createVault(name, tokens, initialAmounts, 0);
+    vault = _createVault(name, tokens, initialAmounts, ethForDeposit);
 
     for (uint256 i; i < strategies.length;) {
       ISharedVault(vault).execute{ value: ethValues[i] }(strategies[i], strategiesData[i]);

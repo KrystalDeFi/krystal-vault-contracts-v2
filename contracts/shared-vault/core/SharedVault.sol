@@ -216,18 +216,18 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     }
 
     for (uint256 i; i < 4; ) {
-      if (transferAmounts[i] > 0) {
-        if (wi < 4 && i == wi) {
-          // WETH already in vault from ETH wrap; refund any excess back to caller
-          uint256 excess = msg.value - transferAmounts[i];
-          if (excess > 0) {
-            IWETH9(weth).withdraw(excess);
-            (bool ok, ) = _msgSender().call{value: excess}("");
-            require(ok, SwapFailed());
-          }
-        } else {
-          IERC20(tokens[i]).safeTransferFrom(_msgSender(), address(this), transferAmounts[i]);
+      if (wi < 4 && i == wi) {
+        // WETH slot: ETH was wrapped unconditionally above, so always handle this slot.
+        // If transferAmounts[wi] rounded to zero (dust), excess == msg.value and the full
+        // amount is refunded, preventing ETH from being permanently locked in the vault.
+        uint256 excess = msg.value - transferAmounts[i];
+        if (excess > 0) {
+          IWETH9(weth).withdraw(excess);
+          (bool ok, ) = _msgSender().call{value: excess}("");
+          require(ok, SwapFailed());
         }
+      } else if (transferAmounts[i] > 0) {
+        IERC20(tokens[i]).safeTransferFrom(_msgSender(), address(this), transferAmounts[i]);
       }
       unchecked {
         i++;

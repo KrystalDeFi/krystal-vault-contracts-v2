@@ -487,4 +487,63 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenB.balanceOf(vaultAddr), 100e18);
     assertEq(mockWeth.balanceOf(vaultAddr), 0);
   }
+
+  /// @notice Multi-strategy overload accepts ETH for both WETH initial deposit AND strategy calls.
+  ///         msg.value = initialAmounts[wethSlot] + sum(ethValues)
+  function test_createVault_strategies_with_eth_for_deposit_and_strategy() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    vm.deal(VAULT_CREATOR, 2 ether); // 1 ETH for WETH deposit + 1 ETH for strategy
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](1);
+    strategiesData[0] = abi.encode(uint256(0)); // tokenId=0 → no position
+    uint256[] memory ethValues = new uint256[](1);
+    ethValues[0] = 1 ether; // ETH forwarded to strategy call
+
+    // msg.value = 1 ETH (WETH deposit) + 1 ETH (strategy) = 2 ETH
+    address vaultAddr = factory.createVault{value: 2 ether}(
+      "ETH-Deposit+Strategy Vault", tokens, amounts, strategies, strategiesData, ethValues
+    );
+    vm.stopPrank();
+
+    assertTrue(factory.isVault(vaultAddr));
+    // WETH initial deposit was paid in native ETH and wrapped
+    assertEq(mockWeth.balanceOf(vaultAddr), 1 ether, "WETH wrapped from ETH deposit");
+    assertEq(tokenA.balanceOf(vaultAddr), 100e18, "tokenA transferred as ERC20");
+    // No leftover ETH in factory
+    assertEq(address(factory).balance, 0);
+  }
+
+  /// @notice Multi-strategy overload: WETH not in token list means sum(ethValues) must equal msg.value exactly
+  function test_createVault_strategies_eth_for_deposit_fails_wrong_total() public {
+    tokenA.mint(VAULT_CREATOR, 100e18);
+    vm.deal(VAULT_CREATOR, 3 ether);
+
+    vm.startPrank(VAULT_CREATOR);
+    tokenA.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
+
+    address[] memory strategies = new address[](1);
+    strategies[0] = address(mockStrategy);
+    bytes[] memory strategiesData = new bytes[](1);
+    strategiesData[0] = abi.encode(uint256(0));
+    uint256[] memory ethValues = new uint256[](1);
+    ethValues[0] = 1 ether;
+
+    // msg.value = 3 ETH but required = 1 (deposit) + 1 (strategy) = 2 ETH → should revert
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    factory.createVault{value: 3 ether}(
+      "Bad-Total Vault", tokens, amounts, strategies, strategiesData, ethValues
+    );
+    vm.stopPrank();
+  }
 }
