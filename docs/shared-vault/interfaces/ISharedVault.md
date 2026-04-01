@@ -106,8 +106,8 @@ Burn shares and withdraw proportional tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| shares | uint256 |  |
-| minAmounts | uint256[4] |  |
+| shares | uint256 | Number of vault shares to burn. |
+| minAmounts | uint256[4] | Per-token minimum output (aggregate slippage guard).        Individual LP exits use zero slippage bounds so one tight position cannot        revert the whole withdrawal. Instead, any sandwich-induced shortfall reduces        the aggregate `amounts[i]` and is caught here. Derive values from        `previewWithdraw()` minus acceptable slippage. |
 | unwrap | bool | If true, any WETH amount is unwrapped to native ETH before sending. |
 
 ### execute
