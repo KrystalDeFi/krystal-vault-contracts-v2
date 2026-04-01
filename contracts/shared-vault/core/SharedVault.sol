@@ -262,6 +262,14 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   /// @dev For each tracked LP position the vault delegatecalls the strategy to exit
   ///      a proportional share of liquidity. Tokens returned to the vault are then
   ///      included in the idle balance withdrawn to the caller.
+  ///
+  ///      **Slippage protection model**: individual LP exits are called with
+  ///      minAmount0=0, minAmount1=0 by design. Per-position slippage guards are
+  ///      intentionally omitted so that a single position's tight bound cannot DoS
+  ///      the entire withdrawal. Instead, `minAmounts` provides aggregate per-token
+  ///      protection: if a sandwich attack reduces any LP exit return, the total
+  ///      `amounts[i]` decreases and the outer check reverts the whole tx. Callers
+  ///      should derive `minAmounts` from `previewWithdraw()` minus acceptable slippage.
   /// @param unwrap If true, any WETH output is unwrapped to native ETH before sending.
   function withdraw(
     uint256 shares,
@@ -287,6 +295,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     }
 
     // Exit proportional LP position liquidity.
+    // Per-position min amounts are 0 — see function NatSpec for slippage model rationale.
     // We iterate the positions array; when a position is fully exited it is removed
     // (swap-with-last pattern), so we reload the length instead of incrementing p.
     uint256 p;

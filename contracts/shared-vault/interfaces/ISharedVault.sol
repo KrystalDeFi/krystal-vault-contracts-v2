@@ -55,6 +55,12 @@ interface ISharedVault is ISharedCommon {
   /// @notice Burn shares and withdraw proportional tokens.
   ///         If the vault has active LP positions, each strategy exits its proportional share
   ///         of liquidity first; idle tokens are then withdrawn.
+  /// @param shares Number of vault shares to burn.
+  /// @param minAmounts Per-token minimum output (aggregate slippage guard).
+  ///        Individual LP exits use zero slippage bounds so one tight position cannot
+  ///        revert the whole withdrawal. Instead, any sandwich-induced shortfall reduces
+  ///        the aggregate `amounts[i]` and is caught here. Derive values from
+  ///        `previewWithdraw()` minus acceptable slippage.
   /// @param unwrap If true, any WETH amount is unwrapped to native ETH before sending.
   function withdraw(
     uint256 shares,
