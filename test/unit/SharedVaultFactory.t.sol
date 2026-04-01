@@ -25,9 +25,14 @@ contract MockFactoryStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, MOCK_NFPM, tokenId, address(0), address(0));
   }
 
-  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
-    external pure override returns (PositionChange[] memory changes)
-  {
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256
+  ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
 
@@ -45,7 +50,9 @@ contract MockWETH9 {
   mapping(address => uint256) public balanceOf;
   mapping(address => mapping(address => uint256)) public allowance;
 
-  receive() external payable { deposit(); }
+  receive() external payable {
+    deposit();
+  }
 
   function deposit() public payable {
     balanceOf[msg.sender] += msg.value;
@@ -54,11 +61,13 @@ contract MockWETH9 {
   function withdraw(uint256 wad) external {
     require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
     balanceOf[msg.sender] -= wad;
-    (bool ok,) = msg.sender.call{value: wad}("");
+    (bool ok, ) = msg.sender.call{ value: wad }("");
     require(ok, "ETH transfer failed");
   }
 
-  function totalSupply() external view returns (uint256) { return address(this).balance; }
+  function totalSupply() external view returns (uint256) {
+    return address(this).balance;
+  }
 
   function transfer(address to, uint256 amount) external returns (bool) {
     require(balanceOf[msg.sender] >= amount, "Insufficient balance");
@@ -210,9 +219,9 @@ contract SharedVaultFactoryTest is TestCommon {
 
     assertTrue(vault1 != address(0));
 
-    // Same params should revert (deterministic clash)
+    // Same name + sender should revert with descriptive error
     vm.startPrank(VAULT_CREATOR);
-    vm.expectRevert();
+    vm.expectRevert(ISharedVaultFactory.DuplicateVaultName.selector);
     factory.createVault("Vault 1", tokens, amounts, address(0));
     vm.stopPrank();
   }
@@ -411,7 +420,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts, address(0));
+    address vaultAddr = factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -442,7 +451,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts, address(0));
+    factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -459,7 +468,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{value: 2 ether}("ETH Vault", tokens, amounts, address(0));
+    factory.createVault{ value: 2 ether }("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -484,7 +493,15 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[] memory ethValues = new uint256[](1);
     ethValues[0] = 0; // no ETH to strategy
 
-    address vaultAddr = factory.createVault{value: 0}("No-ETH Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues);
+    address vaultAddr = factory.createVault{ value: 0 }(
+      "No-ETH Vault",
+      tokens,
+      amounts,
+      address(0),
+      strategies,
+      strategiesData,
+      ethValues
+    );
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -514,8 +531,14 @@ contract SharedVaultFactoryTest is TestCommon {
     ethValues[0] = 1 ether; // ETH forwarded to strategy call
 
     // msg.value = 1 ETH (WETH deposit) + 1 ETH (strategy) = 2 ETH
-    address vaultAddr = factory.createVault{value: 2 ether}(
-      "ETH-Deposit+Strategy Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues
+    address vaultAddr = factory.createVault{ value: 2 ether }(
+      "ETH-Deposit+Strategy Vault",
+      tokens,
+      amounts,
+      address(0),
+      strategies,
+      strategiesData,
+      ethValues
     );
     vm.stopPrank();
 
@@ -547,8 +570,14 @@ contract SharedVaultFactoryTest is TestCommon {
 
     // msg.value = 3 ETH but required = 1 (deposit) + 1 (strategy) = 2 ETH → should revert
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{value: 3 ether}(
-      "Bad-Total Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues
+    factory.createVault{ value: 3 ether }(
+      "Bad-Total Vault",
+      tokens,
+      amounts,
+      address(0),
+      strategies,
+      strategiesData,
+      ethValues
     );
     vm.stopPrank();
   }

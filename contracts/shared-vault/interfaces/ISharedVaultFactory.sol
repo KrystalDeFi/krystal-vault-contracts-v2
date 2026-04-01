@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import "./ISharedCommon.sol";
 
 interface ISharedVaultFactory is ISharedCommon {
+  error DuplicateVaultName();
+
   event VaultCreated(address indexed owner, address indexed vault, string name);
 
   event ConfigManagerSet(address configManager);

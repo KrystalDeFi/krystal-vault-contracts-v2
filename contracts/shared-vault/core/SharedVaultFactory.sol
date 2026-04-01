@@ -33,8 +33,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     address _weth
   ) external initializer {
     require(
-      _owner != address(0) && _configManager != address(0) && _vaultImplementation != address(0) &&
-        _weth != address(0),
+      _owner != address(0) && _configManager != address(0) && _vaultImplementation != address(0) && _weth != address(0),
       ZeroAddress()
     );
 
@@ -75,25 +74,34 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
 
     // Detect whether the caller is paying the WETH initial deposit in native ETH
     uint256 ethForDeposit;
-    for (uint256 i; i < 4;) {
+    for (uint256 i; i < 4; ) {
       if (tokens[i] == weth && initialAmounts[i] > 0) {
         ethForDeposit = initialAmounts[i];
         break;
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     uint256 totalEth = ethForDeposit;
-    for (uint256 i; i < ethValues.length;) { totalEth += ethValues[i]; unchecked { i++; } }
+    for (uint256 i; i < ethValues.length; ) {
+      totalEth += ethValues[i];
+      unchecked {
+        i++;
+      }
+    }
     require(totalEth == msg.value, InvalidAmount());
 
     vault = _createVault(name, tokens, initialAmounts, ethForDeposit, _operator);
 
-    for (uint256 i; i < strategies.length;) {
+    for (uint256 i; i < strategies.length; ) {
       ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
       actions[0] = ISharedVault.Action(strategies[i], strategiesData[i], ethValues[i], true);
       ISharedVault(vault).execute{ value: ethValues[i] }(actions);
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
   }
 
@@ -104,28 +112,31 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     uint256 ethForDeposit,
     address _operator
   ) internal returns (address vault) {
-    vault = Clones.cloneDeterministic(
-      vaultImplementation, keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"))
-    );
+    bytes32 salt = keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"));
+    address predicted = Clones.predictDeterministicAddress(vaultImplementation, salt);
+    require(predicted.code.length == 0, DuplicateVaultName());
+    vault = Clones.cloneDeterministic(vaultImplementation, salt);
 
     // Wrap ETH to WETH and transfer to vault if ETH was provided for the initial deposit
     if (ethForDeposit > 0) {
       bool foundWeth;
-      for (uint256 i; i < 4;) {
+      for (uint256 i; i < 4; ) {
         if (tokens[i] == weth) {
           require(initialAmounts[i] == ethForDeposit, InvalidAmount());
           foundWeth = true;
           break;
         }
-        unchecked { i++; }
+        unchecked {
+          i++;
+        }
       }
       require(foundWeth, TokenNotConfigured());
-      IWETH9(weth).deposit{value: ethForDeposit}();
+      IWETH9(weth).deposit{ value: ethForDeposit }();
       IERC20(weth).safeTransfer(vault, ethForDeposit);
     }
 
     // Transfer remaining initial tokens to vault before initialization
-    for (uint256 i; i < 4;) {
+    for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0) && initialAmounts[i] > 0) {
         if (ethForDeposit > 0 && tokens[i] == weth) {
           // WETH already transferred above via ETH wrap
@@ -133,7 +144,9 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
           IERC20(tokens[i]).safeTransferFrom(_msgSender(), vault, initialAmounts[i]);
         }
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     ISharedVault(vault).initialize(name, tokens, initialAmounts, _msgSender(), _operator, address(configManager), weth);

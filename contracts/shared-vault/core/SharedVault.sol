@@ -62,6 +62,10 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     _;
   }
 
+  /// @dev Trust assumption: `vaultFactory` retains permanent execute() access so it can
+  ///      atomically create vaults with initial LP positions (createVault + strategies).
+  ///      If the factory is compromised, all vaults it deployed are at risk. The factory
+  ///      is expected to be a protocol-owned upgradeable contract behind a timelock/multisig.
   modifier onlyAuthorized() {
     require(
       _msgSender() == vaultOwner ||
@@ -97,6 +101,8 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     require(_configManager != address(0), ZeroAddress());
     require(_owner != address(0), ZeroAddress());
 
+    // Intentional: name is reused as symbol so vault share tokens display the
+    // user-chosen vault name in wallets and block explorers as the ticker.
     __ERC20_init(_name, _name);
     __ERC20Permit_init(_name);
 

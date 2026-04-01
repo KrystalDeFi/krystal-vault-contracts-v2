@@ -100,8 +100,10 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     bytes memory signature,
     address vault
   ) internal view {
-    AgentAllowanceStructHash.AgentAllowance memory allowance =
-      abi.decode(abiEncodedAgentAllowance, (AgentAllowanceStructHash.AgentAllowance));
+    AgentAllowanceStructHash.AgentAllowance memory allowance = abi.decode(
+      abiEncodedAgentAllowance,
+      (AgentAllowanceStructHash.AgentAllowance)
+    );
     require(allowance.vault == vault, InvalidSignature());
     require(allowance.expirationTime >= block.timestamp, InvalidSignature());
     // Use SignatureChecker to support both EOA (ECDSA) and smart contract wallets (EIP-1271 multisig)
@@ -113,21 +115,27 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
 
   function _executeOperations(ISharedVault vault, Operation[] calldata operations) internal {
     uint256 totalEth;
-    for (uint256 i; i < operations.length;) {
+    for (uint256 i; i < operations.length; ) {
       if (operations[i].opType == OpType.EXECUTE) {
         totalEth += operations[i].value;
+      } else {
+        require(operations[i].value == 0, InvalidAmount());
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
     require(totalEth == msg.value, InvalidAmount());
 
-    for (uint256 i; i < operations.length;) {
+    for (uint256 i; i < operations.length; ) {
       Operation calldata op = operations[i];
       bool isStrategy = op.opType == OpType.EXECUTE;
       ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
       actions[0] = ISharedVault.Action(op.target, op.data, op.value, isStrategy);
       vault.execute{ value: op.value }(actions);
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
   }
 }
