@@ -2,6 +2,12 @@
 
 ## ISharedVaultFactory
 
+### DuplicateVaultName
+
+```solidity
+error DuplicateVaultName()
+```
+
 ### VaultCreated
 
 ```solidity

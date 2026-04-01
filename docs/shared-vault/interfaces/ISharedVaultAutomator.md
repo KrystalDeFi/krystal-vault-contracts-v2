@@ -50,7 +50,14 @@ struct Operation {
 function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external payable
 ```
 
-Execute operations against a vault using a long-lived AgentAllowance signature
+Execute operations against a vault using a long-lived AgentAllowance signature.
+
+_**Security note**: the AgentAllowance struct commits only to (vault, signatureTime,
+     expirationTime). It does NOT restrict which strategies, targets, or calldata the
+     operator may use — any whitelisted operation on the vault is permitted until expiry.
+     This is a broad delegation by design; vault owners should use short expiration
+     windows and `cancelOrder` for early revocation. For one-time scoped operations,
+     prefer `executeWithUserOrder`._
 
 #### Parameters
 

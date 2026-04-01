@@ -112,6 +112,11 @@ modifier onlyOwner()
 modifier onlyAuthorized()
 ```
 
+_Trust assumption: `vaultFactory` retains permanent execute() access so it can
+     atomically create vaults with initial LP positions (createVault + strategies).
+     If the factory is compromised, all vaults it deployed are at risk. The factory
+     is expected to be a protocol-owned upgradeable contract behind a timelock/multisig._
+
 ### onlyOperator
 
 ```solidity

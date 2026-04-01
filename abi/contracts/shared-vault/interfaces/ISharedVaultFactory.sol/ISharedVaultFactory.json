@@ -11,6 +11,11 @@
   },
   {
     "inputs": [],
+    "name": "DuplicateVaultName",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientOutput",
     "type": "error"
   },
