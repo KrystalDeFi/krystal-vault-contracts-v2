@@ -85,10 +85,8 @@ function execute(bytes data) external payable returns (struct ISharedStrategy.Po
 
 Execute an LP operation. Called via delegatecall from SharedVault.
 
-_Strategy MUST validate that pool tokens are vault tokens by calling
-     ISharedVault(address(this)).isVaultToken(token) for each pool token.
-     Since this runs via delegatecall, address(this) is the vault.
-     Strategy MUST return position changes so the vault can track LP positions._
+_Strategy MUST validate that pool tokens are vault tokens.
+     Since this runs via delegatecall, address(this) is the vault._
 
 #### Parameters
 
@@ -146,6 +144,35 @@ function _harvestMasterChef(bytes data) internal
 function _harvestRewards(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal
 ```
 
+### exitProportional
+
+```solidity
+function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+Exit a proportional share of an LP position during vault withdrawal.
+
+_Handles both direct (vault-held) and MasterChef-staked positions.
+     If staked: harvests pending CAKE rewards, withdraws from MasterChef, removes proportional
+     liquidity via V3Utils, then re-deposits the NFT into MasterChef for partial exits._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _nfpm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| shares | uint256 | Withdrawer's share count |
+| totalShares | uint256 | Total vault share supply (snapshot before burn) |
+| minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
+| minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
+
 ### getPositionAmounts
 
 ```solidity
@@ -154,8 +181,7 @@ function getPositionAmounts(address _nfpm, uint256 tokenId) external view return
 
 Get token amounts for a tracked LP position (liquidity + uncollected fees)
 
-_Called via regular staticcall from the vault. Strategy uses its own
-     protocol-specific interfaces for precise valuation._
+_Called via regular staticcall from the vault._
 
 #### Parameters
 

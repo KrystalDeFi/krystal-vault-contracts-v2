@@ -70,10 +70,8 @@ function execute(bytes data) external payable returns (struct ISharedStrategy.Po
 
 Execute an LP operation. Called via delegatecall from SharedVault.
 
-_Strategy MUST validate that pool tokens are vault tokens by calling
-     ISharedVault(address(this)).isVaultToken(token) for each pool token.
-     Since this runs via delegatecall, address(this) is the vault.
-     Strategy MUST return position changes so the vault can track LP positions._
+_Strategy MUST validate that pool tokens are vault tokens.
+     Since this runs via delegatecall, address(this) is the vault._
 
 #### Parameters
 
@@ -108,6 +106,36 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 _For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
      The caller can predict this via NFPM._nextId() or tx simulation._
 
+### exitProportional
+
+```solidity
+function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+Exit a proportional share of an LP position during vault withdrawal.
+
+_Called via delegatecall from SharedVault.withdraw so address(this) is the vault.
+     Must remove `shares/totalShares` of the position's liquidity, collect fees,
+     and leave resulting tokens in the vault. Returns position changes so the vault
+     can untrack the position if fully exited._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager |
+| tokenId | uint256 | Position NFT ID |
+| shares | uint256 | Withdrawer's share count |
+| totalShares | uint256 | Total vault share supply (snapshot before burn) |
+| minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
+| minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
+
 ### getPositionAmounts
 
 ```solidity
@@ -116,8 +144,7 @@ function getPositionAmounts(address nfpm, uint256 tokenId) external view returns
 
 Get token amounts for a tracked LP position (liquidity + uncollected fees)
 
-_Called via regular staticcall from the vault. Strategy uses its own
-     protocol-specific interfaces for precise valuation._
+_Called via regular staticcall from the vault._
 
 #### Parameters
 

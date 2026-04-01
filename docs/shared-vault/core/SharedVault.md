@@ -14,6 +14,16 @@ bytes4 MAGIC_VALUE
 uint256 SHARES_PRECISION
 ```
 
+### INITIAL_SHARES
+
+```solidity
+uint256 INITIAL_SHARES
+```
+
+_Fixed share count minted to the first depositor regardless of deposit amount.
+     This decouples share units from any specific token's decimals and prevents
+     the initial share price from being dictated by deposit size._
+
 ### configManager
 
 ```solidity
@@ -117,10 +127,22 @@ modifier whenNotPaused()
 ### initialize
 
 ```solidity
-function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _configManager, address _weth) public
+function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth) public
 ```
 
 Initializes the shared vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _name | string |  |
+| _tokens | address[4] |  |
+| initialAmounts | uint256[4] |  |
+| _owner | address |  |
+| _operator | address | Initial vault operator; address(0) means no operator until set by owner. |
+| _configManager | address |  |
+| _weth | address |  |
 
 ### deposit
 
@@ -128,10 +150,12 @@ Initializes the shared vault
 function deposit(uint256[4] amounts, uint256 minShares) external payable returns (uint256 shares)
 ```
 
-Deposit tokens proportionally and receive shares
+Deposit tokens proportionally and receive shares.
 
 _Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
-     Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value._
+     Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
+     Only the needed WETH is wrapped — excess ETH is refunded as native ETH directly,
+     avoiding an unnecessary wrap→unwrap round-trip._
 
 ### withdraw
 
@@ -139,10 +163,11 @@ _Share ratio is based on TOTAL balances (idle + LP positions valued by strategie
 function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap) external returns (uint256[4] amounts)
 ```
 
-Withdraw proportional IDLE tokens by burning shares
+Burn shares and withdraw proportional tokens.
 
-_Uses total balances for share ratio but only withdraws idle tokens.
-     If tokens are deployed to LP, withdrawer gets proportional idle only._
+_For each tracked LP position the vault delegatecalls the strategy to exit
+     a proportional share of liquidity. Tokens returned to the vault are then
+     included in the idle balance withdrawn to the caller._
 
 #### Parameters
 
@@ -155,20 +180,17 @@ _Uses total balances for share ratio but only withdraws idle tokens.
 ### execute
 
 ```solidity
-function execute(address strategy, bytes data) external payable
+function execute(struct ISharedVault.Action[] actions) external payable
 ```
 
-Execute LP operation via whitelisted strategy (delegatecall)
+Execute one or more actions atomically.
 
-_Strategy returns position changes which the vault tracks with the strategy address_
-
-### swap
-
-```solidity
-function swap(address swapTarget, address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes swapData) external
-```
-
-Swap between vault tokens via whitelisted aggregator target
+  isStrategy = true  → delegatecall the target as a whitelisted strategy.
+                        Returned PositionChange[] updates LP position tracking.
+  isStrategy = false → direct call the target as a swap aggregator.
+                        action.data must be abi.encode(tokenIn, tokenOut, amountIn,
+                        minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
+                        tokens; output balance delta is checked against minAmountOut.
 
 ### getTokens
 

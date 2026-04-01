@@ -350,6 +350,11 @@
         "internalType": "uint256[4]",
         "name": "initialAmounts",
         "type": "uint256[4]"
+      },
+      {
+        "internalType": "address",
+        "name": "_operator",
+        "type": "address"
       }
     ],
     "name": "createVault",
@@ -379,6 +384,11 @@
         "internalType": "uint256[4]",
         "name": "initialAmounts",
         "type": "uint256[4]"
+      },
+      {
+        "internalType": "address",
+        "name": "_operator",
+        "type": "address"
       },
       {
         "internalType": "address[]",

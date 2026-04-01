@@ -194,7 +194,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "strategy",
+        "name": "target",
         "type": "address"
       },
       {
@@ -263,49 +263,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "swapTarget",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "tokenOut",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amountOut",
-        "type": "uint256"
-      }
-    ],
-    "name": "VaultSwap",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vaultFactory",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "account",
         "type": "address"
       },
@@ -352,14 +309,31 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "strategy",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethValue",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isStrategy",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct ISharedVault.Action[]",
+        "name": "actions",
+        "type": "tuple[]"
       }
     ],
     "name": "execute",
@@ -495,6 +469,11 @@
       },
       {
         "internalType": "address",
+        "name": "_operator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_configManager",
         "type": "address"
       },
@@ -601,44 +580,6 @@
       }
     ],
     "name": "setPaused",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "swapTarget",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenOut",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minAmountOut",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "swapData",
-        "type": "bytes"
-      }
-    ],
-    "name": "swap",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

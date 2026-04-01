@@ -1,5 +1,72 @@
 # Solidity API
 
+## IV4Utils
+
+_Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
+     Currency = address underneath, so address is used here for ABI-encoding compatibility._
+
+### UtilActions
+
+```solidity
+enum UtilActions {
+  ADJUST_RANGE,
+  DECREASE_AND_SWAP,
+  COMPOUND
+}
+```
+
+### Instructions
+
+```solidity
+struct Instructions {
+  enum IV4Utils.UtilActions action;
+  bytes params;
+}
+```
+
+### DecreaseLiquidityParams
+
+```solidity
+struct DecreaseLiquidityParams {
+  uint128 liquidity;
+  uint256 deadline;
+  uint256 amount0Min;
+  uint256 amount1Min;
+  bytes hookData;
+}
+```
+
+### SwapParams
+
+```solidity
+struct SwapParams {
+  address tokenIn;
+  uint256 amountIn;
+  address tokenOut;
+  uint256 amountOutMin;
+  bytes swapData;
+}
+```
+
+### DecreaseAndSwapParams
+
+```solidity
+struct DecreaseAndSwapParams {
+  struct IV4Utils.DecreaseLiquidityParams decreaseParams;
+  struct IV4Utils.SwapParams[] swapParams;
+  address swapDestToken;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
+  uint64 gasFeeX64;
+}
+```
+
+### execute
+
+```solidity
+function execute(address posm, uint256 tokenId, struct IV4Utils.Instructions instructions) external
+```
+
 ## SharedV4Strategy
 
 Uniswap V4 LP operations for SharedVault with token validation and position tracking
@@ -33,10 +100,8 @@ function execute(bytes data) external payable returns (struct ISharedStrategy.Po
 
 Execute an LP operation. Called via delegatecall from SharedVault.
 
-_Strategy MUST validate that pool tokens are vault tokens by calling
-     ISharedVault(address(this)).isVaultToken(token) for each pool token.
-     Since this runs via delegatecall, address(this) is the vault.
-     Strategy MUST return position changes so the vault can track LP positions._
+_Strategy MUST validate that pool tokens are vault tokens.
+     Since this runs via delegatecall, address(this) is the vault._
 
 #### Parameters
 
@@ -61,6 +126,35 @@ function _execute(bytes data) internal returns (struct ISharedStrategy.PositionC
 ```solidity
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
+
+### exitProportional
+
+```solidity
+function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+Exit a proportional share of an LP position during vault withdrawal.
+
+_Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
+     Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
+     The NFT is returned to the vault by V4Utils after the decrease regardless of exit type._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| shares | uint256 | Withdrawer's share count |
+| totalShares | uint256 | Total vault share supply (snapshot before burn) |
+| minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
+| minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
 
 ### getPositionAmounts
 
