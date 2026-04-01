@@ -20,7 +20,9 @@ contract MockWETH9 {
   mapping(address => uint256) public balanceOf;
   mapping(address => mapping(address => uint256)) public allowance;
 
-  receive() external payable { deposit(); }
+  receive() external payable {
+    deposit();
+  }
 
   function deposit() public payable {
     balanceOf[msg.sender] += msg.value;
@@ -29,11 +31,13 @@ contract MockWETH9 {
   function withdraw(uint256 wad) external {
     require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
     balanceOf[msg.sender] -= wad;
-    (bool ok,) = msg.sender.call{value: wad}("");
+    (bool ok, ) = msg.sender.call{ value: wad }("");
     require(ok, "ETH transfer failed");
   }
 
-  function totalSupply() external view returns (uint256) { return address(this).balance; }
+  function totalSupply() external view returns (uint256) {
+    return address(this).balance;
+  }
 
   function transfer(address to, uint256 amount) external returns (bool) {
     require(balanceOf[msg.sender] >= amount, "Insufficient balance");
@@ -110,9 +114,14 @@ contract MockSharedStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
-    external pure override returns (PositionChange[] memory changes)
-  {
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256
+  ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
 
@@ -127,9 +136,14 @@ contract MockFailingStrategy is ISharedStrategy {
     revert("Strategy failed");
   }
 
-  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
-    external pure override returns (PositionChange[] memory changes)
-  {
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256
+  ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
 
@@ -179,6 +193,98 @@ contract MockERC1155 {
     require(balanceOf[from][id] >= amount, "Insufficient balance");
     balanceOf[from][id] -= amount;
     balanceOf[to][id] += amount;
+  }
+}
+
+// Mock LP pool that holds tokens and simulates proportional LP exits
+contract MockLPPool {
+  struct LP {
+    address token0;
+    address token1;
+    uint256 amount0;
+    uint256 amount1;
+  }
+
+  mapping(bytes32 => LP) public lps;
+
+  function deposit(
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1,
+    uint256 _amount0,
+    uint256 _amount1
+  ) external {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    LP storage lp = lps[key];
+    lp.token0 = token0;
+    lp.token1 = token1;
+    lp.amount0 += _amount0;
+    lp.amount1 += _amount1;
+  }
+
+  function exit(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, address recipient) external {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    LP storage lp = lps[key];
+    uint256 exit0 = (lp.amount0 * shares) / totalShares;
+    uint256 exit1 = (lp.amount1 * shares) / totalShares;
+    if (exit0 > 0) {
+      MockERC20(lp.token0).transfer(recipient, exit0);
+      lp.amount0 -= exit0;
+    }
+    if (exit1 > 0) {
+      MockERC20(lp.token1).transfer(recipient, exit1);
+      lp.amount1 -= exit1;
+    }
+  }
+
+  function getAmounts(address nfpm, uint256 tokenId) external view returns (uint256, uint256) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (lps[key].amount0, lps[key].amount1);
+  }
+}
+
+// Mock strategy that simulates realistic LP creation + proportional exits
+// Uses immutable lpPool ref so it's accessible in delegatecall context
+contract MockLPExitStrategy is ISharedStrategy {
+  address public immutable lpPool;
+
+  constructor(address _lpPool) {
+    lpPool = _lpPool;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
+      data,
+      (address, uint256, address, address, uint256, uint256)
+    );
+
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256
+  ) external override returns (PositionChange[] memory changes) {
+    MockLPPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 }
 
@@ -245,7 +351,15 @@ contract SharedVaultTest is TestCommon {
     // Initialize
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
-    vault.initialize("Shared Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vault.initialize(
+      "Shared Vault",
+      vaultTokens,
+      initialAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(0)
+    );
 
     // Setup roles
     vm.startPrank(VAULT_OWNER);
@@ -821,14 +935,22 @@ contract SharedVaultTest is TestCommon {
     // Wrap 100e18 ETH → WETH; test contract gets the WETH and transfers to vault
     tokenA.mint(address(this), 100e18);
     vm.deal(address(this), 100e18);
-    mockWeth.deposit{value: 100e18}();
+    mockWeth.deposit{ value: 100e18 }();
 
     tokenA.transfer(address(wv), 100e18);
     mockWeth.transfer(address(wv), 100e18);
 
     address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    wv.initialize("WETH Vault", wvTokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(mockWeth));
+    wv.initialize(
+      "WETH Vault",
+      wvTokens,
+      initAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(mockWeth)
+    );
     // VAULT_OWNER now has all shares = 100e18 * SHARES_PRECISION
   }
 
@@ -844,7 +966,7 @@ contract SharedVaultTest is TestCommon {
 
     // Deposit 50e18 tokenA + 50e18 ETH (→ WETH). Proportional: 50/100 ratio → exact match.
     uint256[4] memory amounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
-    uint256 shares = wethVault.deposit{value: 50e18}(amounts, 0);
+    uint256 shares = wethVault.deposit{ value: 50e18 }(amounts, 0);
     vm.stopPrank();
 
     assertGt(shares, 0);
@@ -870,7 +992,7 @@ contract SharedVaultTest is TestCommon {
     tokenA.approve(address(wethVault), type(uint256).max);
 
     uint256[4] memory amounts = [uint256(40e18), uint256(80e18), uint256(0), uint256(0)];
-    wethVault.deposit{value: 80e18}(amounts, 0);
+    wethVault.deposit{ value: 80e18 }(amounts, 0);
     vm.stopPrank();
 
     // 40e18 ETH refunded; depositor paid net 40e18 ETH
@@ -886,7 +1008,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(1 ether), uint256(0), uint256(0)];
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    vault.deposit{value: 1 ether}(amounts, 0);
+    vault.deposit{ value: 1 ether }(amounts, 0);
   }
 
   /// @notice msg.value must equal amounts[wethIndex]; mismatch reverts
@@ -898,7 +1020,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     // msg.value (60e18) != amounts[wethIndex] (50e18)
-    wethVault.deposit{value: 60e18}(amounts, 0);
+    wethVault.deposit{ value: 60e18 }(amounts, 0);
   }
 
   /// @notice Withdraw with unwrap=true: WETH is unwrapped and caller receives native ETH
@@ -947,14 +1069,22 @@ contract SharedVaultTest is TestCommon {
     SharedVault wv = new SharedVault();
     tokenA.mint(address(this), 1e18);
     vm.deal(address(this), 100 ether);
-    mockWeth.deposit{value: 1}(); // 1 wei WETH backed by 1 wei ETH
+    mockWeth.deposit{ value: 1 }(); // 1 wei WETH backed by 1 wei ETH
 
     tokenA.transfer(address(wv), 1e18);
     mockWeth.transfer(address(wv), 1);
 
     address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(1e18), uint256(1), uint256(0), uint256(0)];
-    wv.initialize("Dust Vault", wvTokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(mockWeth));
+    wv.initialize(
+      "Dust Vault",
+      wvTokens,
+      initAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(mockWeth)
+    );
     // totalSupply = 1e18 * 1e18 = 1e36
 
     address depositor = makeAddr("dustDepositor");
@@ -969,7 +1099,7 @@ contract SharedVaultTest is TestCommon {
     uint256 sharesBefore = wv.balanceOf(depositor);
     uint256 ethBefore = depositor.balance;
 
-    wv.deposit{value: 1}(amounts, 0);
+    wv.deposit{ value: 1 }(amounts, 0);
     vm.stopPrank();
 
     // Depositor receives shares (non-zero — tokenA contribution)
@@ -978,5 +1108,194 @@ contract SharedVaultTest is TestCommon {
     assertEq(depositor.balance, ethBefore, "dust ETH must be refunded, not locked");
     // Vault WETH balance unchanged (1 wei — no extra WETH was actually deposited)
     assertEq(mockWeth.balanceOf(address(wv)), 1, "vault WETH balance unchanged");
+  }
+
+  // ==================== Double-Dilution Regression Tests ====================
+
+  /// @dev Helper: creates a fresh vault with LP strategy, two equal depositors, and an LP position.
+  ///      Each user deposits `depositPerUser` of each token.
+  ///      Then `lpAmount` of each token is moved into a mock LP position.
+  ///      Final state: idle = 2*depositPerUser - lpAmount, LP = lpAmount, total = 2*depositPerUser per token.
+  ///      Alice and Bob each hold 50% of shares → each entitled to `depositPerUser` per token.
+  function _setupLPVault(
+    uint256 depositPerUser,
+    uint256 lpAmount
+  ) internal returns (SharedVault v, MockERC20 tA, MockERC20 tB, MockLPPool lpPoolContract) {
+    lpPoolContract = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(lpPoolContract));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(lpStrategy);
+    address[] memory callers = new address[](0);
+    cm.initialize(address(this), targets, callers, address(this));
+
+    v = new SharedVault();
+    tA = new MockERC20("Token A", "A");
+    tB = new MockERC20("Token B", "B");
+
+    // Alice (VAULT_OWNER) seeds vault
+    tA.mint(address(this), depositPerUser);
+    tB.mint(address(this), depositPerUser);
+    tA.transfer(address(v), depositPerUser);
+    tB.transfer(address(v), depositPerUser);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
+    v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0));
+
+    // Bob deposits the same amounts → gets equal shares
+    address bob = makeAddr("bob");
+    tA.mint(bob, depositPerUser);
+    tB.mint(bob, depositPerUser);
+    vm.startPrank(bob);
+    tA.approve(address(v), type(uint256).max);
+    tB.approve(address(v), type(uint256).max);
+    uint256[4] memory bobDeposit = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
+    v.deposit(bobDeposit, 0);
+    vm.stopPrank();
+
+    // Move lpAmount of each into LP via strategy execute
+    if (lpAmount > 0) {
+      vm.startPrank(VAULT_OWNER);
+      address fakeNfpm = makeAddr("nfpm");
+      bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), lpAmount, lpAmount);
+      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+      actions[0] = ISharedVault.Action(address(lpStrategy), stratData, 0, true);
+      v.execute(actions);
+      vm.stopPrank();
+    }
+  }
+
+  /// @notice Regression: withdraw with active LP must not double-dilute the LP exit return.
+  /// Each user deposits 100e18 per token, vault creates 100e18 LP.
+  /// Final state: idle=100e18, LP=100e18, total=200e18 per token, 50/50 shares.
+  /// Alice's 50% = 100e18 per token.
+  /// Before fix: exitProportional returns 50e18 → idle=150e18 → amounts=50/100*150=75e18 (WRONG).
+  /// After fix:  amounts = 50/100*100(original idle) + 50(LP return) = 100e18 (CORRECT).
+  function test_withdraw_no_double_dilution_with_lp() public {
+    // depositPerUser=100e18, lpAmount=100e18
+    // total=200e18, idle=100e18, LP=100e18 per token
+    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(100e18, 100e18);
+
+    uint256 aliceShares = v.balanceOf(VAULT_OWNER);
+    assertEq(aliceShares, 1e18);
+    assertEq(v.totalSupply(), 2e18);
+
+    // Verify total balances
+    uint256[4] memory totalBal = v.getTotalBalances();
+    assertEq(totalBal[0], 200e18, "total A = 200e18");
+    assertEq(totalBal[1], 200e18, "total B = 200e18");
+
+    // Preview: Alice's 50% of 200e18 = 100e18
+    uint256[4] memory preview = v.previewWithdraw(aliceShares);
+    assertEq(preview[0], 100e18, "preview A = 50% of 200e18");
+    assertEq(preview[1], 100e18, "preview B = 50% of 200e18");
+
+    vm.startPrank(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+    uint256[4] memory received = v.withdraw(aliceShares, minAmounts, false);
+    vm.stopPrank();
+
+    // Core assertion: Alice gets her full proportional share
+    assertEq(received[0], 100e18, "Alice must receive 100e18 A (not 75e18)");
+    assertEq(received[1], 100e18, "Alice must receive 100e18 B (not 75e18)");
+    assertEq(received[0], preview[0], "actual must match preview for A");
+    assertEq(received[1], preview[1], "actual must match preview for B");
+
+    // Bob withdraws the remainder — vault must be perfectly drained
+    address bob = makeAddr("bob");
+    uint256[4] memory bobPreview = v.previewWithdraw(v.balanceOf(bob));
+    vm.startPrank(bob);
+    uint256[4] memory bobReceived = v.withdraw(v.balanceOf(bob), minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(bobReceived[0], 100e18, "Bob must receive 100e18 A");
+    assertEq(bobReceived[1], 100e18, "Bob must receive 100e18 B");
+    assertEq(bobReceived[0], bobPreview[0], "Bob actual must match preview for A");
+    assertEq(bobReceived[1], bobPreview[1], "Bob actual must match preview for B");
+
+    assertEq(v.totalSupply(), 0, "all shares burned");
+    assertEq(tA.balanceOf(address(v)), 0, "vault A drained");
+    assertEq(tB.balanceOf(address(v)), 0, "vault B drained");
+  }
+
+  /// @notice Heavy LP allocation — matches the bug report's Alice/Bob scenario.
+  /// Each user deposits 500e18, vault creates 900e18 LP.
+  /// Final: idle=100e18, LP=900e18, total=1000e18 per token.
+  /// Alice's 50% = 500e18.
+  /// Before fix: exit returns 450 → idle=550 → amounts=50%*550=275 (WRONG).
+  /// After fix:  amounts = 50%*100 + 450 = 500 (CORRECT).
+  function test_withdraw_heavy_lp_no_double_dilution() public {
+    // depositPerUser=500e18, lpAmount=900e18
+    // total=1000e18, idle=100e18, LP=900e18 per token
+    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(500e18, 900e18);
+
+    uint256[4] memory totalBal = v.getTotalBalances();
+    assertEq(totalBal[0], 1000e18, "total A");
+    assertEq(totalBal[1], 1000e18, "total B");
+    assertEq(tA.balanceOf(address(v)), 100e18, "idle A = 100e18");
+
+    uint256 aliceShares = v.balanceOf(VAULT_OWNER);
+    uint256[4] memory preview = v.previewWithdraw(aliceShares);
+    assertEq(preview[0], 500e18, "preview A = 50% of 1000e18");
+    assertEq(preview[1], 500e18, "preview B = 50% of 1000e18");
+
+    vm.startPrank(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+    uint256[4] memory received = v.withdraw(aliceShares, minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(received[0], 500e18, "Alice A = 500e18 (not 275e18)");
+    assertEq(received[1], 500e18, "Alice B = 500e18 (not 275e18)");
+    assertEq(received[0], preview[0], "match preview A");
+    assertEq(received[1], preview[1], "match preview B");
+
+    // Bob gets the other half — vault drains cleanly
+    address bob = makeAddr("bob");
+    vm.startPrank(bob);
+    uint256[4] memory bobReceived = v.withdraw(v.balanceOf(bob), minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(bobReceived[0], 500e18, "Bob A");
+    assertEq(bobReceived[1], 500e18, "Bob B");
+    assertEq(tA.balanceOf(address(v)), 0, "vault A drained");
+    assertEq(tB.balanceOf(address(v)), 0, "vault B drained");
+  }
+
+  /// @notice Edge case: vault has zero idle, 100% LP.
+  /// depositPerUser=50e18, lpAmount=100e18 → idle=0, LP=100e18, total=100e18.
+  /// Alice's 50% = 50e18.
+  function test_withdraw_zero_idle_all_lp_no_double_dilution() public {
+    // depositPerUser=50e18, lpAmount=100e18
+    // total=100e18, idle=0, LP=100e18 per token
+    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(50e18, 100e18);
+
+    assertEq(tA.balanceOf(address(v)), 0, "idle A = 0");
+    uint256[4] memory totalBal = v.getTotalBalances();
+    assertEq(totalBal[0], 100e18, "total A = 100e18");
+
+    uint256 aliceShares = v.balanceOf(VAULT_OWNER);
+    uint256[4] memory preview = v.previewWithdraw(aliceShares);
+    assertEq(preview[0], 50e18, "preview A = 50% of 100e18");
+
+    vm.startPrank(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+    uint256[4] memory received = v.withdraw(aliceShares, minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(received[0], 50e18, "Alice A");
+    assertEq(received[1], 50e18, "Alice B");
+    assertEq(received[0], preview[0], "match preview A");
+
+    // Bob gets remainder
+    address bob = makeAddr("bob");
+    vm.startPrank(bob);
+    uint256[4] memory bobReceived = v.withdraw(v.balanceOf(bob), minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(bobReceived[0], 50e18, "Bob A");
+    assertEq(tA.balanceOf(address(v)), 0, "vault A drained");
+    assertEq(tB.balanceOf(address(v)), 0, "vault B drained");
   }
 }

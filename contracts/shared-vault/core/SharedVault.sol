@@ -228,11 +228,11 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     if (msg.value > 0) {
       uint256 wethNeeded = transferAmounts[wi]; // 0 in dust edge-case
       if (wethNeeded > 0) {
-        IWETH9(weth).deposit{value: wethNeeded}();
+        IWETH9(weth).deposit{ value: wethNeeded }();
       }
       uint256 excess = msg.value - wethNeeded;
       if (excess > 0) {
-        (bool ok, ) = _msgSender().call{value: excess}("");
+        (bool ok, ) = _msgSender().call{ value: excess }("");
         require(ok, SwapFailed());
       }
     }
@@ -240,7 +240,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     for (uint256 i; i < 4; ) {
       // Skip WETH slot — already handled above via ETH wrap.
       if (wi < 4 && i == wi) {
-        unchecked { i++; }
+        unchecked {
+          i++;
+        }
         continue;
       }
       if (transferAmounts[i] > 0) {
@@ -271,7 +273,20 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     uint256 currentTotalSupply = totalSupply();
     _burn(_msgSender(), shares);
 
-    // Exit proportional LP position liquidity before measuring idle balances.
+    // Snapshot idle balances BEFORE LP exits so the share ratio is applied only once
+    // to the original idle tokens. LP exit returns are added in full (they already
+    // represent the withdrawer's proportional share of each position).
+    uint256[4] memory idleBefore;
+    for (uint256 i; i < 4; ) {
+      if (tokens[i] != address(0)) {
+        idleBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
+      }
+      unchecked {
+        i++;
+      }
+    }
+
+    // Exit proportional LP position liquidity.
     // We iterate the positions array; when a position is fully exited it is removed
     // (swap-with-last pattern), so we reload the length instead of incrementing p.
     uint256 p;
@@ -279,15 +294,14 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
       Position memory pos = positions[p];
 
       (bool ok, bytes memory result) = pos.strategy.delegatecall(
-        abi.encodeCall(
-          ISharedStrategy.exitProportional,
-          (pos.nfpm, pos.tokenId, shares, currentTotalSupply, 0, 0)
-        )
+        abi.encodeCall(ISharedStrategy.exitProportional, (pos.nfpm, pos.tokenId, shares, currentTotalSupply, 0, 0))
       );
 
       if (!ok) {
         if (result.length == 0) revert StrategyCallFailed();
-        assembly { revert(add(32, result), mload(result)) }
+        assembly {
+          revert(add(32, result), mload(result))
+        }
       }
 
       ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
@@ -297,23 +311,33 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
           _removePosition(changes[c].nfpm, changes[c].tokenId);
           removed = true;
         }
-        unchecked { c++; }
+        unchecked {
+          c++;
+        }
       }
       // Only advance p if the position was NOT removed; otherwise the swap-with-last
       // placed a new position at index p that we must process next iteration.
-      if (!removed) { unchecked { p++; } }
+      if (!removed) {
+        unchecked {
+          p++;
+        }
+      }
     }
 
-    // Withdraw proportional idle balances after LP exits have returned tokens.
+    // Compute withdrawal amounts:
+    //   proportional share of original idle  +  full LP exit return
+    // This avoids double-dilution where the LP return was previously re-multiplied
+    // by shares/totalSupply.
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
-        uint256 idleBalance = IERC20(tokens[i]).balanceOf(address(this));
-        amounts[i] = FullMath.mulDiv(shares, idleBalance, currentTotalSupply);
+        uint256 idleAfter = IERC20(tokens[i]).balanceOf(address(this));
+        uint256 lpExitReturn = idleAfter - idleBefore[i];
+        amounts[i] = FullMath.mulDiv(shares, idleBefore[i], currentTotalSupply) + lpExitReturn;
         require(amounts[i] >= minAmounts[i], InsufficientOutput());
         if (amounts[i] > 0) {
           if (unwrap && tokens[i] == weth) {
             IWETH9(weth).withdraw(amounts[i]);
-            (bool sent, ) = _msgSender().call{value: amounts[i]}("");
+            (bool sent, ) = _msgSender().call{ value: amounts[i] }("");
             require(sent, SwapFailed());
           } else {
             IERC20(tokens[i]).safeTransfer(_msgSender(), amounts[i]);
@@ -338,9 +362,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   ///                         action.data must be abi.encode(tokenIn, tokenOut, amountIn,
   ///                         minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
   ///                         tokens; output balance delta is checked against minAmountOut.
-  function execute(
-    Action[] calldata actions
-  ) external payable override nonReentrant onlyAuthorized whenNotPaused {
+  function execute(Action[] calldata actions) external payable override nonReentrant onlyAuthorized whenNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
       require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
@@ -353,7 +375,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
         if (!success) {
           if (result.length == 0) revert StrategyCallFailed();
-          assembly { revert(add(32, result), mload(result)) }
+          assembly {
+            revert(add(32, result), mload(result))
+          }
         }
 
         if (result.length > 0) {
@@ -364,18 +388,15 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
             } else {
               _removePosition(changes[c].nfpm, changes[c].tokenId);
             }
-            unchecked { c++; }
+            unchecked {
+              c++;
+            }
           }
         }
       } else {
         // --- Swap: direct call to aggregator with token validation ---
-        (
-          address tokenIn,
-          address tokenOut,
-          uint256 amountIn,
-          uint256 minAmountOut,
-          bytes memory swapCalldata
-        ) = abi.decode(action.data, (address, address, uint256, uint256, bytes));
+        (address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes memory swapCalldata) = abi
+          .decode(action.data, (address, address, uint256, uint256, bytes));
 
         require(isVaultToken[tokenIn], TokenNotConfigured());
         require(isVaultToken[tokenOut], TokenNotConfigured());
@@ -384,7 +405,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
         IERC20(tokenIn).safeResetAndApprove(action.target, amountIn);
 
-        (bool success, ) = action.target.call{value: action.ethValue}(swapCalldata);
+        (bool success, ) = action.target.call{ value: action.ethValue }(swapCalldata);
         require(success, SwapFailed());
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
@@ -392,7 +413,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
       }
 
       emit VaultExecute(vaultFactory, action.target, action.data);
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
   }
 
