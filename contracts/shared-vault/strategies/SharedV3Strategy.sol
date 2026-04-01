@@ -8,6 +8,7 @@ import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.s
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
@@ -128,6 +129,67 @@ contract SharedV3Strategy is ISharedStrategy {
       changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
     } else if (isFullWithdraw) {
       (,, address token0, address token1,,,,,,,,) = INFPM(nfpm).positions(tokenId);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+    } else {
+      changes = new PositionChange[](0);
+    }
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256 minAmount0,
+    uint256 minAmount1
+  ) external override returns (PositionChange[] memory changes) {
+    (,, address token0, address token1,,,, uint128 posLiquidity,,,,) = INFPM(nfpm).positions(tokenId);
+
+    if (posLiquidity == 0) {
+      // Stale position with no liquidity — remove from tracking
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+      return changes;
+    }
+
+    uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
+    if (liquidityToRemove == 0) {
+      return new PositionChange[](0);
+    }
+
+    bool isFullExit = liquidityToRemove >= posLiquidity;
+
+    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: minAmount0,
+      amountRemoveMin1: minAmount1,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: false,
+      liquidity: liquidityToRemove,
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp,
+      recipient: address(this),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (isFullExit) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
     } else {

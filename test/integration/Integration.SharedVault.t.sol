@@ -76,7 +76,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts)));
+    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts, address(0))));
 
     vm.stopPrank();
   }
@@ -88,7 +88,9 @@ contract SharedVaultIntegrationTest is TestCommon {
   function test_swapAndMint_createsLpPosition() public {
     vm.startPrank(vaultOwner);
 
-    vault.execute(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -105,10 +107,18 @@ contract SharedVaultIntegrationTest is TestCommon {
   function test_swapAndIncrease_addsLiquidityToPosition() public {
     vm.startPrank(vaultOwner);
 
-    vault.execute(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6));
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      vault.execute(mintActions);
+    }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
-    vault.execute(address(v3Strategy), _swapAndIncreaseData(tokenId, 0.2 ether, 600e6));
+    {
+      ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
+      increaseActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndIncreaseData(tokenId, 0.2 ether, 600e6), 0, true);
+      vault.execute(increaseActions);
+    }
 
     // Position count unchanged — SWAP_AND_INCREASE doesn't add a new tracked position
     assertEq(vault.getPositionCount(), 1, "position count unchanged after increase");
@@ -124,7 +134,11 @@ contract SharedVaultIntegrationTest is TestCommon {
   function test_safeTransferNft_collectFees() public {
     vm.startPrank(vaultOwner);
 
-    vault.execute(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6));
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      vault.execute(mintActions);
+    }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Collect fees only (0 liquidity removed)
@@ -159,7 +173,11 @@ contract SharedVaultIntegrationTest is TestCommon {
       abi.encode(NFPM, tokenId, instructions, false, uint256(0))
     );
 
-    vault.execute(address(v3Strategy), data);
+    {
+      ISharedVault.Action[] memory collectActions = new ISharedVault.Action[](1);
+      collectActions[0] = ISharedVault.Action(address(v3Strategy), data, 0, true);
+      vault.execute(collectActions);
+    }
 
     // Position still tracked — partial collection keeps position alive
     assertEq(vault.getPositionCount(), 1, "position still tracked after fee collection");
@@ -174,7 +192,11 @@ contract SharedVaultIntegrationTest is TestCommon {
   function test_safeTransferNft_fullWithdraw_removesPosition() public {
     vm.startPrank(vaultOwner);
 
-    vault.execute(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6));
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      vault.execute(mintActions);
+    }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Query the actual liquidity so we can request full removal precisely
@@ -212,7 +234,11 @@ contract SharedVaultIntegrationTest is TestCommon {
       abi.encode(NFPM, tokenId, instructions, true /* isFullWithdraw */, uint256(0))
     );
 
-    vault.execute(address(v3Strategy), data);
+    {
+      ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
+      withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, 0, true);
+      vault.execute(withdrawActions);
+    }
 
     assertEq(vault.getPositionCount(), 0, "position removed after full withdrawal");
     console.log("SAFE_TRANSFER_NFT full withdraw: position removed");
@@ -227,7 +253,11 @@ contract SharedVaultIntegrationTest is TestCommon {
   function test_deposit_proportional_withActiveLp() public {
     // vaultOwner deploys liquidity into LP
     vm.startPrank(vaultOwner);
-    vault.execute(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6));
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      vault.execute(mintActions);
+    }
     vm.stopPrank();
 
     // Second depositor: PLAYER_1 deposits proportionally
@@ -317,12 +347,66 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     // msg.value = wethAmt (for WETH initial deposit) + ethValues[0]=0 (strategy needs no ETH)
     SharedVault vault2 = SharedVault(payable(
-      vaultFactory.createVault{value: wethAmt}("Vault2-WithStrategies", vaultTokens, initialAmounts, strategies, strategiesData, ethValues)
+      vaultFactory.createVault{value: wethAmt}("Vault2-WithStrategies", vaultTokens, initialAmounts, address(0), strategies, strategiesData, ethValues)
     ));
 
     // Vault should have exactly 1 LP position created atomically during vault creation
     assertEq(vault2.getPositionCount(), 1, "vault created with LP position");
     console.log("createVault with strategies: LP position count =", vault2.getPositionCount());
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // withdraw with active LP: triggers exitProportional via delegatecall
+  // =========================================================
+
+  function test_withdraw_full_with_lp_position() public {
+    vm.startPrank(vaultOwner);
+
+    // Create LP position
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    vault.execute(actions);
+
+    assertEq(vault.getPositionCount(), 1, "should have 1 LP position");
+
+    uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
+    uint256 usdcBefore = IERC20(USDC).balanceOf(vaultOwner);
+
+    // Withdraw all shares — triggers exitProportional which removes the LP position
+    uint256 shares = vault.balanceOf(vaultOwner);
+    uint256[4] memory minAmounts;
+    uint256[4] memory withdrawn = vault.withdraw(shares, minAmounts, false);
+
+    assertEq(vault.getPositionCount(), 0, "LP position removed after full withdrawal");
+    assertEq(vault.totalSupply(), 0, "no shares remaining");
+    assertGt(withdrawn[0] + IERC20(WETH).balanceOf(vaultOwner) - wethBefore, 0, "WETH returned");
+    assertGt(withdrawn[1] + IERC20(USDC).balanceOf(vaultOwner) - usdcBefore, 0, "USDC returned");
+    console.log("withdraw with LP: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // previewWithdraw includes LP position value
+  // =========================================================
+
+  function test_previewWithdraw_includes_lp_value() public {
+    vm.startPrank(vaultOwner);
+
+    // Create LP position — idle balances drop, LP value rises
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    vault.execute(actions);
+
+    uint256 shares = vault.balanceOf(vaultOwner);
+    uint256[4] memory preview = vault.previewWithdraw(shares);
+
+    // With LP position deployed, both token previews should be non-zero (LP value included)
+    assertGt(preview[0], 0, "WETH preview should reflect LP value");
+    assertGt(preview[1], 0, "USDC preview should reflect LP value");
+    console.log("previewWithdraw: WETH =", preview[0], "USDC =", preview[1]);
 
     vm.stopPrank();
   }

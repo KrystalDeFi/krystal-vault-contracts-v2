@@ -123,13 +123,10 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
 
     for (uint256 i; i < operations.length;) {
       Operation calldata op = operations[i];
-      if (op.opType == OpType.EXECUTE) {
-        vault.execute{ value: op.value }(op.target, op.data);
-      } else {
-        (address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes memory swapData) =
-          abi.decode(op.data, (address, address, uint256, uint256, bytes));
-        vault.swap(op.target, tokenIn, tokenOut, amountIn, minAmountOut, swapData);
-      }
+      bool isStrategy = op.opType == OpType.EXECUTE;
+      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+      actions[0] = ISharedVault.Action(op.target, op.data, op.value, isStrategy);
+      vault.execute{ value: op.value }(actions);
       unchecked { i++; }
     }
   }

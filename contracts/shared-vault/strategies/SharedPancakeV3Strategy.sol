@@ -12,6 +12,7 @@ import { CollectFee } from "../../private-vault/libraries/CollectFee.sol";
 
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
@@ -196,6 +197,86 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       feeAmount += CollectFee.collect(
         configManager.feeRecipient(), rewardToken, harvestedAmount, gasFeeX64, CollectFee.FeeType.GAS
       );
+    }
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Handles both direct (vault-held) and MasterChef-staked positions.
+  ///      If staked: harvests pending CAKE rewards, withdraws from MasterChef, removes proportional
+  ///      liquidity via V3Utils, then re-deposits the NFT into MasterChef for partial exits.
+  function exitProportional(
+    address _nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256 minAmount0,
+    uint256 minAmount1
+  ) external override returns (PositionChange[] memory changes) {
+    (,, address token0, address token1,,,, uint128 posLiquidity,,,,) = INFPM(_nfpm).positions(tokenId);
+
+    // Detect staking: if the vault (address(this) in delegatecall) doesn't own the NFT, it's in MasterChef
+    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
+
+    if (isStaked) {
+      // Harvest pending CAKE rewards before unstaking (no fee deduction on forced exit)
+      _harvestRewards(tokenId, 0, 0);
+      IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
+    }
+
+    if (posLiquidity == 0) {
+      // Zero-liquidity stale position — just remove from tracking
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
+      return changes;
+    }
+
+    uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
+    if (liquidityToRemove == 0) {
+      // Nothing to remove; re-stake if it was staked
+      if (isStaked) IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
+      return new PositionChange[](0);
+    }
+
+    bool isFullExit = liquidityToRemove >= posLiquidity;
+
+    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: minAmount0,
+      amountRemoveMin1: minAmount1,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: false,
+      liquidity: liquidityToRemove,
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp,
+      recipient: address(this),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (!isFullExit && isStaked) {
+      // Re-stake the NFT (still has remaining liquidity) back into MasterChef
+      IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
+    }
+
+    if (isFullExit) {
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
+    } else {
+      changes = new PositionChange[](0);
     }
   }
 

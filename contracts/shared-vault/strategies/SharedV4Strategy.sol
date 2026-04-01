@@ -24,6 +24,44 @@ import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 
+/// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
+///      Currency = address underneath, so address is used here for ABI-encoding compatibility.
+interface IV4Utils {
+  enum UtilActions { ADJUST_RANGE, DECREASE_AND_SWAP, COMPOUND }
+
+  struct Instructions {
+    UtilActions action;
+    bytes params;
+  }
+
+  struct DecreaseLiquidityParams {
+    uint128 liquidity;
+    uint256 deadline;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    bytes hookData;
+  }
+
+  struct SwapParams {
+    address tokenIn;
+    uint256 amountIn;
+    address tokenOut;
+    uint256 amountOutMin;
+    bytes swapData;
+  }
+
+  struct DecreaseAndSwapParams {
+    DecreaseLiquidityParams decreaseParams;
+    SwapParams[] swapParams;
+    address swapDestToken;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
+    uint64 gasFeeX64;
+  }
+
+  function execute(address posm, uint256 tokenId, Instructions calldata instructions) external;
+}
+
 /// @title SharedV4Strategy
 /// @notice Uniswap V4 LP operations for SharedVault with token validation and position tracking
 contract SharedV4Strategy is ISharedStrategy {
@@ -129,6 +167,76 @@ contract SharedV4Strategy is ISharedStrategy {
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
 
     return positionChanges;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
+  ///      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
+  ///      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
+  function exitProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256 minAmount0,
+    uint256 minAmount1
+  ) external override returns (PositionChange[] memory changes) {
+    IPositionManager pm = IPositionManager(posm);
+    uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
+
+    if (posLiquidity == 0) {
+      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(
+        false, posm, tokenId,
+        Currency.unwrap(poolKey.currency0),
+        Currency.unwrap(poolKey.currency1)
+      );
+      return changes;
+    }
+
+    uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
+    if (liquidityToRemove == 0) return new PositionChange[](0);
+
+    bool isFullExit = liquidityToRemove >= posLiquidity;
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: liquidityToRemove,
+        deadline: block.timestamp,
+        amount0Min: minAmount0,
+        amount1Min: minAmount1,
+        hookData: ""
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      swapDestToken: address(0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
+    });
+
+    IERC721(posm).approve(v4UtilsRouter, tokenId);
+    IV4UtilsRouter(v4UtilsRouter).execute(
+      posm,
+      abi.encodeCall(IV4Utils.execute, (posm, tokenId, instructions))
+    );
+
+    if (isFullExit) {
+      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(
+        false, posm, tokenId,
+        Currency.unwrap(poolKey.currency0),
+        Currency.unwrap(poolKey.currency1)
+      );
+    } else {
+      changes = new PositionChange[](0);
+    }
   }
 
   /// @inheritdoc ISharedStrategy

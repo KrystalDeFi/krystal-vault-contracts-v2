@@ -69,6 +69,12 @@ contract MockAutomatorStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
+    external pure override returns (PositionChange[] memory changes)
+  {
+    changes = new PositionChange[](0);
+  }
+
   function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
   }
@@ -158,7 +164,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(vault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    vault.initialize("Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(configManager), address(0));
+    vault.initialize("Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
 
     // Automator
     address[] memory operators = new address[](1);
@@ -513,7 +519,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(msVault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(configManager), address(0));
+    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(0), address(configManager), address(0));
 
     // Deploy a fresh automator (reuse same ADMIN/OPERATOR)
     address[] memory operators = new address[](1);

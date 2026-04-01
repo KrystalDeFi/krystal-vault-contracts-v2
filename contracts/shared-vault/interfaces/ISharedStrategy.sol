@@ -13,17 +13,35 @@ interface ISharedStrategy {
   }
 
   /// @notice Execute an LP operation. Called via delegatecall from SharedVault.
-  /// @dev Strategy MUST validate that pool tokens are vault tokens by calling
-  ///      ISharedVault(address(this)).isVaultToken(token) for each pool token.
+  /// @dev Strategy MUST validate that pool tokens are vault tokens.
   ///      Since this runs via delegatecall, address(this) is the vault.
-  ///      Strategy MUST return position changes so the vault can track LP positions.
   /// @param data Encoded operation params (strategy-specific)
   /// @return changes Array of position changes (added/removed)
   function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
 
+  /// @notice Exit a proportional share of an LP position during vault withdrawal.
+  /// @dev Called via delegatecall from SharedVault.withdraw so address(this) is the vault.
+  ///      Must remove `shares/totalShares` of the position's liquidity, collect fees,
+  ///      and leave resulting tokens in the vault. Returns position changes so the vault
+  ///      can untrack the position if fully exited.
+  /// @param nfpm NFT Position Manager
+  /// @param tokenId Position NFT ID
+  /// @param shares Withdrawer's share count
+  /// @param totalShares Total vault share supply (snapshot before burn)
+  /// @param minAmount0 Minimum token0 to receive (slippage guard)
+  /// @param minAmount1 Minimum token1 to receive (slippage guard)
+  /// @return changes Empty if partial exit; single removal entry if fully exited
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256 minAmount0,
+    uint256 minAmount1
+  ) external returns (PositionChange[] memory changes);
+
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
-  /// @dev Called via regular staticcall from the vault. Strategy uses its own
-  ///      protocol-specific interfaces for precise valuation.
+  /// @dev Called via regular staticcall from the vault.
   /// @param nfpm NFT Position Manager address
   /// @param tokenId Position NFT ID
   /// @return amount0 Amount of token0 in the position

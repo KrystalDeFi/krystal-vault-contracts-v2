@@ -25,6 +25,12 @@ contract MockFactoryStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, MOCK_NFPM, tokenId, address(0), address(0));
   }
 
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
+    external pure override returns (PositionChange[] memory changes)
+  {
+    changes = new PositionChange[](0);
+  }
+
   function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
   }
@@ -161,7 +167,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault("Test Vault", tokens, amounts);
+    address vaultAddr = factory.createVault("Test Vault", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(vaultAddr != address(0));
@@ -187,7 +193,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault("Empty Vault", tokens, amounts);
+    address vaultAddr = factory.createVault("Empty Vault", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -199,7 +205,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vault1 = factory.createVault("Vault 1", tokens, amounts);
+    address vault1 = factory.createVault("Vault 1", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(vault1 != address(0));
@@ -207,7 +213,7 @@ contract SharedVaultFactoryTest is TestCommon {
     // Same params should revert (deterministic clash)
     vm.startPrank(VAULT_CREATOR);
     vm.expectRevert();
-    factory.createVault("Vault 1", tokens, amounts);
+    factory.createVault("Vault 1", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -216,8 +222,8 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vault1 = factory.createVault("Vault A", tokens, amounts);
-    address vault2 = factory.createVault("Vault B", tokens, amounts);
+    address vault1 = factory.createVault("Vault A", tokens, amounts, address(0));
+    address vault2 = factory.createVault("Vault B", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(vault1 != vault2);
@@ -231,8 +237,8 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    factory.createVault("V1", tokens, amounts);
-    factory.createVault("V2", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, address(0));
+    factory.createVault("V2", tokens, amounts, address(0));
     vm.stopPrank();
 
     address[] memory vaults = factory.getVaultsByAddress(VAULT_CREATOR);
@@ -249,7 +255,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-    factory.createVault("V1", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, address(0));
     vm.stopPrank();
 
     // Unpause
@@ -259,7 +265,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
     // Should work now
     vm.startPrank(VAULT_CREATOR);
-    factory.createVault("V1", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -304,7 +310,7 @@ contract SharedVaultFactoryTest is TestCommon {
     bytes[] memory strategiesData = new bytes[](0);
     uint256[] memory ethValues = new uint256[](0);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -328,7 +334,7 @@ contract SharedVaultFactoryTest is TestCommon {
     strategiesData[0] = abi.encode(uint256(42)); // tokenId=42 → strategy returns 1 PositionChange
     uint256[] memory ethValues = new uint256[](1);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -351,7 +357,7 @@ contract SharedVaultFactoryTest is TestCommon {
     strategiesData[2] = abi.encode(uint256(3)); // tokenId=3
     uint256[] memory ethValues = new uint256[](3);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -370,7 +376,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[] memory ethValues = new uint256[](1);
 
     vm.expectRevert(ISharedCommon.LengthMismatch.selector);
-    factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
+    factory.createVault("Test", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
   }
 
@@ -387,8 +393,8 @@ contract SharedVaultFactoryTest is TestCommon {
     strategiesData[0] = abi.encode(uint256(0));
     uint256[] memory ethValues = new uint256[](1);
 
-    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidStrategy.selector, unwhitelisted));
-    factory.createVault("Test", tokens, amounts, strategies, strategiesData, ethValues);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, unwhitelisted));
+    factory.createVault("Test", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
   }
 
@@ -405,7 +411,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts);
+    address vaultAddr = factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -436,7 +442,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts);
+    factory.createVault{value: 1 ether}("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -453,7 +459,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{value: 2 ether}("ETH Vault", tokens, amounts);
+    factory.createVault{value: 2 ether}("ETH Vault", tokens, amounts, address(0));
     vm.stopPrank();
   }
 
@@ -478,7 +484,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[] memory ethValues = new uint256[](1);
     ethValues[0] = 0; // no ETH to strategy
 
-    address vaultAddr = factory.createVault{value: 0}("No-ETH Vault", tokens, amounts, strategies, strategiesData, ethValues);
+    address vaultAddr = factory.createVault{value: 0}("No-ETH Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -509,7 +515,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
     // msg.value = 1 ETH (WETH deposit) + 1 ETH (strategy) = 2 ETH
     address vaultAddr = factory.createVault{value: 2 ether}(
-      "ETH-Deposit+Strategy Vault", tokens, amounts, strategies, strategiesData, ethValues
+      "ETH-Deposit+Strategy Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues
     );
     vm.stopPrank();
 
@@ -542,7 +548,7 @@ contract SharedVaultFactoryTest is TestCommon {
     // msg.value = 3 ETH but required = 1 (deposit) + 1 (strategy) = 2 ETH → should revert
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     factory.createVault{value: 3 ether}(
-      "Bad-Total Vault", tokens, amounts, strategies, strategiesData, ethValues
+      "Bad-Total Vault", tokens, amounts, address(0), strategies, strategiesData, ethValues
     );
     vm.stopPrank();
   }

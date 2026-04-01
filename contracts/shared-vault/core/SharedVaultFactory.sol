@@ -51,9 +51,10 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   function createVault(
     string calldata name,
     address[4] calldata tokens,
-    uint256[4] calldata initialAmounts
+    uint256[4] calldata initialAmounts,
+    address _operator
   ) external payable override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts, msg.value);
+    vault = _createVault(name, tokens, initialAmounts, msg.value, _operator);
   }
 
   /// @notice Create a shared vault with initial deposits and execute multiple strategies
@@ -65,6 +66,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
+    address _operator,
     address[] calldata strategies,
     bytes[] calldata strategiesData,
     uint256[] calldata ethValues
@@ -85,10 +87,12 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     for (uint256 i; i < ethValues.length;) { totalEth += ethValues[i]; unchecked { i++; } }
     require(totalEth == msg.value, InvalidAmount());
 
-    vault = _createVault(name, tokens, initialAmounts, ethForDeposit);
+    vault = _createVault(name, tokens, initialAmounts, ethForDeposit, _operator);
 
     for (uint256 i; i < strategies.length;) {
-      ISharedVault(vault).execute{ value: ethValues[i] }(strategies[i], strategiesData[i]);
+      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+      actions[0] = ISharedVault.Action(strategies[i], strategiesData[i], ethValues[i], true);
+      ISharedVault(vault).execute{ value: ethValues[i] }(actions);
       unchecked { i++; }
     }
   }
@@ -97,7 +101,8 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    uint256 ethForDeposit
+    uint256 ethForDeposit,
+    address _operator
   ) internal returns (address vault) {
     vault = Clones.cloneDeterministic(
       vaultImplementation, keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"))
@@ -131,7 +136,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
       unchecked { i++; }
     }
 
-    ISharedVault(vault).initialize(name, tokens, initialAmounts, _msgSender(), address(configManager), weth);
+    ISharedVault(vault).initialize(name, tokens, initialAmounts, _msgSender(), _operator, address(configManager), weth);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);

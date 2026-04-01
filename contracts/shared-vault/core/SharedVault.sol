@@ -34,6 +34,11 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
   uint256 public constant SHARES_PRECISION = 1e18;
 
+  /// @dev Fixed share count minted to the first depositor regardless of deposit amount.
+  ///      This decouples share units from any specific token's decimals and prevents
+  ///      the initial share price from being dictated by deposit size.
+  uint256 public constant INITIAL_SHARES = 1e18;
+
   ISharedConfigManager public configManager;
   address public override vaultOwner;
   address public vaultFactory;
@@ -79,11 +84,13 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   }
 
   /// @notice Initializes the shared vault
+  /// @param _operator Initial vault operator; address(0) means no operator until set by owner.
   function initialize(
     string calldata _name,
     address[4] calldata _tokens,
     uint256[4] calldata initialAmounts,
     address _owner,
+    address _operator,
     address _configManager,
     address _weth
   ) public initializer {
@@ -97,6 +104,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     vaultOwner = _owner;
     vaultFactory = _msgSender();
     weth = _weth;
+    if (_operator != address(0)) operator = _operator;
 
     // Set up tokens
     uint8 count;
@@ -121,7 +129,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     require(count >= 2, NoTokensConfigured());
     tokenCount = count;
 
-    // Mint initial shares if tokens were deposited by factory
+    // Mint initial shares if tokens were deposited by factory.
+    // Always mints INITIAL_SHARES regardless of deposit size so the initial
+    // share price is predictable and independent of token decimals.
     uint256 refIndex = type(uint256).max;
     for (uint256 i; i < 4; ) {
       if (initialAmounts[i] > 0) {
@@ -134,17 +144,18 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     }
 
     if (refIndex != type(uint256).max) {
-      uint256 shares = initialAmounts[refIndex] * SHARES_PRECISION;
-      _mint(_owner, shares);
-      emit VaultDeposit(_msgSender(), _owner, initialAmounts, shares);
+      _mint(_owner, INITIAL_SHARES);
+      emit VaultDeposit(_msgSender(), _owner, initialAmounts, INITIAL_SHARES);
     }
   }
 
   // ==================== Deposit / Withdraw ====================
 
-  /// @notice Deposit tokens proportionally and receive shares
+  /// @notice Deposit tokens proportionally and receive shares.
   /// @dev Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
   ///      Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
+  ///      Only the needed WETH is wrapped — excess ETH is refunded as native ETH directly,
+  ///      avoiding an unnecessary wrap→unwrap round-trip.
   function deposit(
     uint256[4] calldata amounts,
     uint256 minShares
@@ -163,7 +174,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     uint256[4] memory transferAmounts;
 
     if (currentTotalSupply == 0) {
-      // First deposit — find reference token
+      // First deposit — always mint the fixed INITIAL_SHARES constant.
       uint256 refIndex = type(uint256).max;
       for (uint256 i; i < 4; ) {
         if (amounts[i] > 0) {
@@ -176,10 +187,10 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
         }
       }
       require(refIndex != type(uint256).max, InvalidAmount());
-      shares = amounts[refIndex] * SHARES_PRECISION;
+      shares = INITIAL_SHARES;
     } else {
       // Subsequent deposit — compute shares as minimum ratio across all tokens to prevent
-      // reference-token manipulation: attacker cannot cherry-pick a token to inflate shares.
+      // reference-token manipulation.
       shares = type(uint256).max;
       for (uint256 i; i < 4; ) {
         if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
@@ -210,23 +221,29 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
     require(shares >= minShares, InsufficientShares());
 
-    // Wrap ETH now (after share calculation) so the WETH is in the vault for the transfer loop.
+    // ETH handling: wrap only the needed amount; refund excess as raw ETH.
+    // This avoids the old wrap-all → unwrap-excess pattern (two WETH operations).
+    // If transferAmounts[wi] rounds to zero (dust deposit), the full msg.value is
+    // refunded without touching WETH at all.
     if (msg.value > 0) {
-      IWETH9(weth).deposit{value: msg.value}();
+      uint256 wethNeeded = transferAmounts[wi]; // 0 in dust edge-case
+      if (wethNeeded > 0) {
+        IWETH9(weth).deposit{value: wethNeeded}();
+      }
+      uint256 excess = msg.value - wethNeeded;
+      if (excess > 0) {
+        (bool ok, ) = _msgSender().call{value: excess}("");
+        require(ok, SwapFailed());
+      }
     }
 
     for (uint256 i; i < 4; ) {
+      // Skip WETH slot — already handled above via ETH wrap.
       if (wi < 4 && i == wi) {
-        // WETH slot: ETH was wrapped unconditionally above, so always handle this slot.
-        // If transferAmounts[wi] rounded to zero (dust), excess == msg.value and the full
-        // amount is refunded, preventing ETH from being permanently locked in the vault.
-        uint256 excess = msg.value - transferAmounts[i];
-        if (excess > 0) {
-          IWETH9(weth).withdraw(excess);
-          (bool ok, ) = _msgSender().call{value: excess}("");
-          require(ok, SwapFailed());
-        }
-      } else if (transferAmounts[i] > 0) {
+        unchecked { i++; }
+        continue;
+      }
+      if (transferAmounts[i] > 0) {
         IERC20(tokens[i]).safeTransferFrom(_msgSender(), address(this), transferAmounts[i]);
       }
       unchecked {
@@ -239,9 +256,10 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     emit VaultDeposit(vaultFactory, _msgSender(), transferAmounts, shares);
   }
 
-  /// @notice Withdraw proportional IDLE tokens by burning shares
-  /// @dev Uses total balances for share ratio but only withdraws idle tokens.
-  ///      If tokens are deployed to LP, withdrawer gets proportional idle only.
+  /// @notice Burn shares and withdraw proportional tokens.
+  /// @dev For each tracked LP position the vault delegatecalls the strategy to exit
+  ///      a proportional share of liquidity. Tokens returned to the vault are then
+  ///      included in the idle balance withdrawn to the caller.
   /// @param unwrap If true, any WETH output is unwrapped to native ETH before sending.
   function withdraw(
     uint256 shares,
@@ -253,6 +271,40 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     uint256 currentTotalSupply = totalSupply();
     _burn(_msgSender(), shares);
 
+    // Exit proportional LP position liquidity before measuring idle balances.
+    // We iterate the positions array; when a position is fully exited it is removed
+    // (swap-with-last pattern), so we reload the length instead of incrementing p.
+    uint256 p;
+    while (p < positions.length) {
+      Position memory pos = positions[p];
+
+      (bool ok, bytes memory result) = pos.strategy.delegatecall(
+        abi.encodeCall(
+          ISharedStrategy.exitProportional,
+          (pos.nfpm, pos.tokenId, shares, currentTotalSupply, 0, 0)
+        )
+      );
+
+      if (!ok) {
+        if (result.length == 0) revert StrategyCallFailed();
+        assembly { revert(add(32, result), mload(result)) }
+      }
+
+      ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+      bool removed;
+      for (uint256 c; c < changes.length; ) {
+        if (!changes[c].isAdd) {
+          _removePosition(changes[c].nfpm, changes[c].tokenId);
+          removed = true;
+        }
+        unchecked { c++; }
+      }
+      // Only advance p if the position was NOT removed; otherwise the swap-with-last
+      // placed a new position at index p that we must process next iteration.
+      if (!removed) { unchecked { p++; } }
+    }
+
+    // Withdraw proportional idle balances after LP exits have returned tokens.
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         uint256 idleBalance = IERC20(tokens[i]).balanceOf(address(this));
@@ -261,8 +313,8 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
         if (amounts[i] > 0) {
           if (unwrap && tokens[i] == weth) {
             IWETH9(weth).withdraw(amounts[i]);
-            (bool ok, ) = _msgSender().call{value: amounts[i]}("");
-            require(ok, SwapFailed());
+            (bool sent, ) = _msgSender().call{value: amounts[i]}("");
+            require(sent, SwapFailed());
           } else {
             IERC20(tokens[i]).safeTransfer(_msgSender(), amounts[i]);
           }
@@ -276,69 +328,72 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     emit VaultWithdraw(vaultFactory, _msgSender(), amounts, shares);
   }
 
-  // ==================== Strategy Execution ====================
+  // ==================== Execute (LP operations + swaps) ====================
 
-  /// @notice Execute LP operation via whitelisted strategy (delegatecall)
-  /// @dev Strategy returns position changes which the vault tracks with the strategy address
+  /// @notice Execute one or more actions atomically.
+  ///
+  ///   isStrategy = true  → delegatecall the target as a whitelisted strategy.
+  ///                         Returned PositionChange[] updates LP position tracking.
+  ///   isStrategy = false → direct call the target as a swap aggregator.
+  ///                         action.data must be abi.encode(tokenIn, tokenOut, amountIn,
+  ///                         minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
+  ///                         tokens; output balance delta is checked against minAmountOut.
   function execute(
-    address strategy,
-    bytes calldata data
+    Action[] calldata actions
   ) external payable override nonReentrant onlyAuthorized whenNotPaused {
-    require(configManager.isWhitelistedTarget(strategy), InvalidStrategy(strategy));
+    for (uint256 i; i < actions.length; ) {
+      Action calldata action = actions[i];
+      require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
 
-    (bool success, bytes memory result) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
+      if (action.isStrategy) {
+        // --- Strategy: delegatecall + LP position tracking ---
+        (bool success, bytes memory result) = action.target.delegatecall(
+          abi.encodeCall(ISharedStrategy.execute, (action.data))
+        );
 
-    if (!success) {
-      if (result.length == 0) revert StrategyCallFailed();
-      assembly {
-        revert(add(32, result), mload(result))
-      }
-    }
-
-    // Process position changes returned by strategy
-    if (result.length > 0) {
-      ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
-      for (uint256 i; i < changes.length; ) {
-        if (changes[i].isAdd) {
-          _addPosition(strategy, changes[i].nfpm, changes[i].tokenId, changes[i].token0, changes[i].token1);
-        } else {
-          _removePosition(changes[i].nfpm, changes[i].tokenId);
+        if (!success) {
+          if (result.length == 0) revert StrategyCallFailed();
+          assembly { revert(add(32, result), mload(result)) }
         }
-        unchecked {
-          i++;
+
+        if (result.length > 0) {
+          ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+          for (uint256 c; c < changes.length; ) {
+            if (changes[c].isAdd) {
+              _addPosition(action.target, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
+            } else {
+              _removePosition(changes[c].nfpm, changes[c].tokenId);
+            }
+            unchecked { c++; }
+          }
         }
+      } else {
+        // --- Swap: direct call to aggregator with token validation ---
+        (
+          address tokenIn,
+          address tokenOut,
+          uint256 amountIn,
+          uint256 minAmountOut,
+          bytes memory swapCalldata
+        ) = abi.decode(action.data, (address, address, uint256, uint256, bytes));
+
+        require(isVaultToken[tokenIn], TokenNotConfigured());
+        require(isVaultToken[tokenOut], TokenNotConfigured());
+
+        uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
+
+        IERC20(tokenIn).safeResetAndApprove(action.target, amountIn);
+
+        (bool success, ) = action.target.call{value: action.ethValue}(swapCalldata);
+        require(success, SwapFailed());
+
+        uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
+        require(amountOut >= minAmountOut, InsufficientOutput());
       }
+
+      emit VaultExecute(vaultFactory, action.target, action.data);
+      unchecked { i++; }
     }
-
-    emit VaultExecute(vaultFactory, strategy, data);
-  }
-
-  // ==================== Swap ====================
-
-  /// @notice Swap between vault tokens via whitelisted aggregator target
-  function swap(
-    address swapTarget,
-    address tokenIn,
-    address tokenOut,
-    uint256 amountIn,
-    uint256 minAmountOut,
-    bytes calldata swapData
-  ) external override nonReentrant onlyAuthorized whenNotPaused {
-    require(isVaultToken[tokenIn], TokenNotConfigured());
-    require(isVaultToken[tokenOut], TokenNotConfigured());
-    require(configManager.isWhitelistedTarget(swapTarget), InvalidTarget(swapTarget));
-
-    uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
-
-    IERC20(tokenIn).safeResetAndApprove(swapTarget, amountIn);
-
-    (bool success, ) = swapTarget.call(swapData);
-    require(success, SwapFailed());
-
-    uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
-    require(amountOut >= minAmountOut, InsufficientOutput());
-
-    emit VaultSwap(vaultFactory, swapTarget, tokenIn, tokenOut, amountIn, amountOut);
   }
 
   // ==================== View Functions ====================
@@ -373,7 +428,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     if (currentTotalSupply == 0) {
       for (uint256 i; i < 4; ) {
         if (amounts[i] > 0) {
-          return amounts[i] * SHARES_PRECISION;
+          return INITIAL_SHARES;
         }
         unchecked {
           i++;
@@ -398,10 +453,10 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     uint256 currentTotalSupply = totalSupply();
     if (currentTotalSupply == 0) return amounts;
 
+    uint256[4] memory totalBalances = _getTotalBalances();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
-        uint256 idleBalance = IERC20(tokens[i]).balanceOf(address(this));
-        amounts[i] = FullMath.mulDiv(_shares, idleBalance, currentTotalSupply);
+        amounts[i] = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
       }
       unchecked {
         i++;
