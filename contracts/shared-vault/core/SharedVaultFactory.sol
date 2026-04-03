@@ -56,26 +56,17 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     ISharedVault(vault).transferOwnership(_msgSender());
   }
 
-  /// @notice Create a shared vault with initial deposits and execute multiple strategies
+  /// @notice Create a shared vault with initial deposits and run `execute(actions)` once
   function createVault(
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    address[] calldata targets,
-    uint256[] calldata callValues,
-    bytes[] calldata data
+    ISharedVault.Action[] calldata actions
   ) external payable override whenNotPaused returns (address vault) {
-    require(targets.length == callValues.length && targets.length == data.length, LengthMismatch());
-
     vault = _createVault(name, tokens, initialAmounts);
 
-    for (uint256 i; i < targets.length; ) {
-      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-      actions[0] = ISharedVault.Action(targets[i], data[i], callValues[i], true);
+    if (actions.length > 0) {
       ISharedVault(vault).execute(actions);
-      unchecked {
-        i++;
-      }
     }
 
     ISharedVault(vault).transferOwnership(_msgSender());

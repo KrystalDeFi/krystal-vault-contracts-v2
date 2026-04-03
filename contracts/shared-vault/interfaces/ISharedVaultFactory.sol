@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./ISharedCommon.sol";
+import "./ISharedVault.sol";
 
 interface ISharedVaultFactory is ISharedCommon {
   error DuplicateVaultName();
@@ -19,14 +20,12 @@ interface ISharedVaultFactory is ISharedCommon {
     uint256[4] calldata initialAmounts
   ) external payable returns (address vault);
 
-  /// @notice Create a shared vault with initial deposits and execute multiple strategy actions.
+  /// @notice Create a shared vault with initial deposits and run `execute(actions)` once (same semantics as `ISharedVault.execute`).
   function createVault(
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    address[] calldata targets,
-    uint256[] calldata callValues,
-    bytes[] calldata data
+    ISharedVault.Action[] calldata actions
   ) external payable returns (address vault);
 
   function isVault(address vault) external view returns (bool);

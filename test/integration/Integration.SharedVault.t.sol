@@ -337,7 +337,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // createVault with strategies: initial deposit + immediate LP
+  // createVault with execute(actions): initial deposit + immediate LP
   // =========================================================
 
   function test_createVault_withStrategies() public {
@@ -353,27 +353,12 @@ contract SharedVaultIntegrationTest is TestCommon {
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [wethAmt, usdcAmt, uint256(0), 0];
 
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(v3Strategy);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(wethAmt / 2, usdcAmt / 2), 0, true);
 
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = _swapAndMintData(wethAmt / 2, usdcAmt / 2);
-
-    uint256[] memory ethValues = new uint256[](1);
-    ethValues[0] = 0;
-
-    // msg.value = wethAmt for WETH initial deposit (wrapped by factory); strategy call uses callValues[0] = 0
+    // msg.value = wethAmt for WETH initial deposit (wrapped by factory)
     SharedVault vault2 = SharedVault(
-      payable(
-        vaultFactory.createVault{ value: wethAmt }(
-          "Vault2-WithStrategies",
-          vaultTokens,
-          initialAmounts,
-          strategies,
-          ethValues,
-          strategiesData
-        )
-      )
+      payable(vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, actions))
     );
 
     // Vault should have exactly 1 LP position created atomically during vault creation

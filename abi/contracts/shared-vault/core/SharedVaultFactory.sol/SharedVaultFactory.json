@@ -386,19 +386,31 @@
         "type": "uint256[4]"
       },
       {
-        "internalType": "address[]",
-        "name": "targets",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "callValues",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "bytes[]",
-        "name": "data",
-        "type": "bytes[]"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethValue",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isStrategy",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct ISharedVault.Action[]",
+        "name": "actions",
+        "type": "tuple[]"
       }
     ],
     "name": "createVault",

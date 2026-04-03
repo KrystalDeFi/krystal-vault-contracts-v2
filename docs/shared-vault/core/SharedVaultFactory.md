@@ -57,10 +57,10 @@ _Send ETH via msg.value to auto-wrap to WETH for the initial deposit_
 ### createVault
 
 ```solidity
-function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address[] targets, uint256[] callValues, bytes[] data) external payable returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts, struct ISharedVault.Action[] actions) external payable returns (address vault)
 ```
 
-Create a shared vault with initial deposits and execute multiple strategies
+Create a shared vault with initial deposits and run `execute(actions)` once
 
 ### _createVault
 

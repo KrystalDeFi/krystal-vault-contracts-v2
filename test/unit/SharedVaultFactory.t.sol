@@ -308,18 +308,16 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.stopPrank();
   }
 
-  // ==================== createVault with strategies ====================
+  // ==================== createVault with execute(actions) ====================
 
   function test_createVault_with_empty_strategies() public {
     vm.startPrank(VAULT_CREATOR);
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](0);
-    bytes[] memory strategiesData = new bytes[](0);
-    uint256[] memory ethValues = new uint256[](0);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, ethValues, strategiesData);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -337,13 +335,10 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = abi.encode(uint256(42)); // tokenId=42 → strategy returns 1 PositionChange
-    uint256[] memory ethValues = new uint256[](1);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, ethValues, strategiesData);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -356,37 +351,17 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](3);
-    strategies[0] = address(mockStrategy);
-    strategies[1] = address(mockStrategy);
-    strategies[2] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](3);
-    strategiesData[0] = abi.encode(uint256(1)); // tokenId=1
-    strategiesData[1] = abi.encode(uint256(2)); // tokenId=2
-    strategiesData[2] = abi.encode(uint256(3)); // tokenId=3
-    uint256[] memory ethValues = new uint256[](3);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), 0, true);
+    actions[1] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(2)), 0, true);
+    actions[2] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(3)), 0, true);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, strategies, ethValues, strategiesData);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
     // Each strategy call returned a unique PositionChange — vault tracks all 3
     assertEq(ISharedVault(vaultAddr).getPositionCount(), 3);
-  }
-
-  function test_createVault_strategies_length_mismatch() public {
-    vm.startPrank(VAULT_CREATOR);
-    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
-    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
-
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](2); // wrong length
-    uint256[] memory ethValues = new uint256[](1);
-
-    vm.expectRevert(ISharedCommon.LengthMismatch.selector);
-    factory.createVault("Test", tokens, amounts, strategies, ethValues, strategiesData);
-    vm.stopPrank();
   }
 
   function test_createVault_strategy_not_whitelisted() public {
@@ -396,14 +371,11 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](1);
-    strategies[0] = unwhitelisted;
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = abi.encode(uint256(0));
-    uint256[] memory ethValues = new uint256[](1);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(unwhitelisted, abi.encode(uint256(0)), 0, true);
 
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, unwhitelisted));
-    factory.createVault("Test", tokens, amounts, strategies, ethValues, strategiesData);
+    factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
   }
 
@@ -485,22 +457,10 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
 
-    // ETH sent here is for strategy calls (ethValues), not initial deposit
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = abi.encode(uint256(0)); // tokenId=0 → no position
-    uint256[] memory ethValues = new uint256[](1);
-    ethValues[0] = 0; // no ETH to strategy
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
 
-    address vaultAddr = factory.createVault{ value: 0 }(
-      "No-ETH Vault",
-      tokens,
-      amounts,
-      strategies,
-      ethValues,
-      strategiesData
-    );
+    address vaultAddr = factory.createVault{ value: 0 }("No-ETH Vault", tokens, amounts, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -521,21 +481,10 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = abi.encode(uint256(0)); // tokenId=0 → no position
-    uint256[] memory ethValues = new uint256[](1);
-    ethValues[0] = 0;
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
 
-    address vaultAddr = factory.createVault{ value: 1 ether }(
-      "ETH-Deposit+Strategy Vault",
-      tokens,
-      amounts,
-      strategies,
-      ethValues,
-      strategiesData
-    );
+    address vaultAddr = factory.createVault{ value: 1 ether }("ETH-Deposit+Strategy Vault", tokens, amounts, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -555,15 +504,11 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
-    address[] memory strategies = new address[](1);
-    strategies[0] = address(mockStrategy);
-    bytes[] memory strategiesData = new bytes[](1);
-    strategiesData[0] = abi.encode(uint256(0));
-    uint256[] memory ethValues = new uint256[](1);
-    ethValues[0] = 0;
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, strategies, ethValues, strategiesData);
+    factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, actions);
     vm.stopPrank();
   }
 }

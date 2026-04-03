@@ -37,10 +37,10 @@ Create a shared vault with initial token deposits.
 ### createVault
 
 ```solidity
-function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address[] targets, uint256[] callValues, bytes[] data) external payable returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts, struct ISharedVault.Action[] actions) external payable returns (address vault)
 ```
 
-Create a shared vault with initial deposits and execute multiple strategy actions.
+Create a shared vault with initial deposits and run `execute(actions)` once (same semantics as `ISharedVault.execute`).
 
 ### isVault
 
