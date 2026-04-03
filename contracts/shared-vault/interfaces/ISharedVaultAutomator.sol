@@ -46,9 +46,7 @@ interface ISharedVaultAutomator is ISharedCommon {
     bytes memory signature
   ) external payable;
 
-  /// @notice Execute operations against a vault using a one-time AgentAllowance signature.
-  ///         Uses the same AgentAllowance struct as executeWithAgentAllowance but marks the
-  ///         signature as consumed after execution, making it a one-time-use credential.
+  /// @notice Execute operations against a vault using a user order signature.
   /// @param vault Vault to operate on
   /// @param operations Operations to execute
   /// @param abiEncodedUserOrder ABI encoded user order

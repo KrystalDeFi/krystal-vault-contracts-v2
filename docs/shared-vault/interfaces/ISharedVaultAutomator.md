@@ -74,9 +74,7 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external payable
 ```
 
-Execute operations against a vault using a one-time AgentAllowance signature.
-        Uses the same AgentAllowance struct as executeWithAgentAllowance but marks the
-        signature as consumed after execution, making it a one-time-use credential.
+Execute operations against a vault using a user order signature.
 
 #### Parameters
 

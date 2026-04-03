@@ -514,26 +514,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.pause();
   }
 
-  // ============ ETH validation ============
-
-  function test_executeWithAgentAllowance_fail_ethMismatch() public {
-    (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
-
-    // Op says it needs 1 ether but we send 0
-    ISharedVaultAutomator.Operation[] memory ops = new ISharedVaultAutomator.Operation[](1);
-    ops[0] = ISharedVaultAutomator.Operation({
-      opType: ISharedVaultAutomator.OpType.EXECUTE,
-      target: address(mockStrategy),
-      data: abi.encode(uint256(0)),
-      value: 1 ether
-    });
-
-    vm.deal(OPERATOR, 0);
-    vm.prank(OPERATOR);
-    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    automator.executeWithAgentAllowance{ value: 0 }(ISharedVault(address(vault)), ops, encoded, sig);
-  }
-
   // ============ Multisig (EIP-1271) vault owner tests ============
 
   /// @dev Helper: deploy a fresh vault owned by a multisig and a fresh automator

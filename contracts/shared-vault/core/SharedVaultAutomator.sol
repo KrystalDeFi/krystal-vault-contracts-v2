@@ -120,28 +120,14 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   }
 
   function _executeOperations(ISharedVault vault, Operation[] calldata operations) internal {
-    uint256 totalEth;
-    for (uint256 i; i < operations.length; ) {
-      if (operations[i].opType == OpType.EXECUTE) {
-        totalEth += operations[i].value;
-      } else {
-        require(operations[i].value == 0, InvalidAmount());
-      }
-      unchecked {
-        i++;
-      }
-    }
-    require(totalEth == msg.value, InvalidAmount());
-
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](operations.length);
     for (uint256 i; i < operations.length; ) {
       Operation calldata op = operations[i];
-      bool isStrategy = op.opType == OpType.EXECUTE;
-      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-      actions[0] = ISharedVault.Action(op.target, op.data, op.value, isStrategy);
-      vault.execute{ value: op.value }(actions);
+      actions[i] = ISharedVault.Action(op.target, op.data, op.value, op.opType == OpType.EXECUTE);
       unchecked {
         i++;
       }
     }
+    vault.execute(actions);
   }
 }
