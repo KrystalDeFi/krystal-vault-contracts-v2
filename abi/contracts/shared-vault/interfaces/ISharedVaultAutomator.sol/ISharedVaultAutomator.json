@@ -164,11 +164,6 @@
       {
         "components": [
           {
-            "internalType": "enum ISharedVaultAutomator.OpType",
-            "name": "opType",
-            "type": "uint8"
-          },
-          {
             "internalType": "address",
             "name": "target",
             "type": "address"
@@ -179,13 +174,13 @@
             "type": "bytes"
           },
           {
-            "internalType": "uint256",
-            "name": "value",
-            "type": "uint256"
+            "internalType": "enum ISharedCommon.CallType",
+            "name": "callType",
+            "type": "uint8"
           }
         ],
-        "internalType": "struct ISharedVaultAutomator.Operation[]",
-        "name": "operations",
+        "internalType": "struct ISharedVault.Action[]",
+        "name": "actions",
         "type": "tuple[]"
       },
       {
@@ -214,11 +209,6 @@
       {
         "components": [
           {
-            "internalType": "enum ISharedVaultAutomator.OpType",
-            "name": "opType",
-            "type": "uint8"
-          },
-          {
             "internalType": "address",
             "name": "target",
             "type": "address"
@@ -229,13 +219,13 @@
             "type": "bytes"
           },
           {
-            "internalType": "uint256",
-            "name": "value",
-            "type": "uint256"
+            "internalType": "enum ISharedCommon.CallType",
+            "name": "callType",
+            "type": "uint8"
           }
         ],
-        "internalType": "struct ISharedVaultAutomator.Operation[]",
-        "name": "operations",
+        "internalType": "struct ISharedVault.Action[]",
+        "name": "actions",
         "type": "tuple[]"
       },
       {

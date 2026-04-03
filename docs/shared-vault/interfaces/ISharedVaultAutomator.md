@@ -20,37 +20,13 @@ error OrderCancelled()
 event CancelOrder(address user, bytes32 hash, bytes signature)
 ```
 
-### OpType
-
-Operation type for the automator
-
-```solidity
-enum OpType {
-  EXECUTE,
-  SWAP
-}
-```
-
-### Operation
-
-A single operation to execute against a vault
-
-```solidity
-struct Operation {
-  enum ISharedVaultAutomator.OpType opType;
-  address target;
-  bytes data;
-  uint256 value;
-}
-```
-
 ### executeWithAgentAllowance
 
 ```solidity
-function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external
+function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVault.Action[] actions, bytes abiEncodedAgentAllowance, bytes signature) external
 ```
 
-Execute operations against a vault using a long-lived AgentAllowance signature.
+Execute actions against a vault using a long-lived AgentAllowance signature.
 
 _**Security note**: the AgentAllowance struct commits only to (vault, signatureTime,
      expirationTime). It does NOT restrict which strategies, targets, or calldata the
@@ -64,24 +40,24 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
-| operations | struct ISharedVaultAutomator.Operation[] | Operations to execute |
+| actions | struct ISharedVault.Action[] | Same shape as `ISharedVault.execute` (`CallType.DELEGATECALL` for strategies, `CALL` for swaps) |
 | abiEncodedAgentAllowance | bytes | ABI-encoded AgentAllowance struct |
 | signature | bytes | Vault owner's EIP-712 signature over the AgentAllowance |
 
 ### executeWithUserOrder
 
 ```solidity
-function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeWithUserOrder(contract ISharedVault vault, struct ISharedVault.Action[] actions, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
-Execute operations against a vault using a user order signature.
+Execute actions against a vault using a user order signature.
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
-| operations | struct ISharedVaultAutomator.Operation[] | Operations to execute |
+| actions | struct ISharedVault.Action[] | Same shape as `ISharedVault.execute` |
 | abiEncodedUserOrder | bytes | ABI encoded user order |
 | orderSignature | bytes | Signature of the order |
 

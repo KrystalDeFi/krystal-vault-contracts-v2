@@ -22,16 +22,15 @@ interface ISharedVault is ISharedCommon {
   }
 
   /// @dev A single unit of work passed to execute().
-  ///      isStrategy=true  → delegatecall the target as a whitelisted strategy (LP operations).
-  ///                          Returned PositionChange[] is processed to track positions.
-  ///      isStrategy=false → direct call the target as a swap aggregator.
-  ///                          data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                          tokenIn and tokenOut must be vault tokens; balance delta is checked.
+  ///      callType = DELEGATECALL → delegatecall the target as a whitelisted strategy (LP operations).
+  ///                                Returned PositionChange[] is processed to track positions.
+  ///      callType = CALL        → direct call the target as a swap aggregator.
+  ///                                data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
+  ///                                tokenIn and tokenOut must be vault tokens; balance delta is checked.
   struct Action {
     address target;
     bytes data;
-    uint256 ethValue;
-    bool isStrategy;
+    CallType callType;
   }
 
   // --- Initialization ---
@@ -74,7 +73,7 @@ interface ISharedVault is ISharedCommon {
   ///         For strategy actions the vault tracks LP position changes.
   ///         For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
   ///         that the output meets minAmountOut.
-  function execute(Action[] calldata actions) external payable;
+  function execute(Action[] calldata actions) external;
 
   // --- Views ---
   function getTokens() external view returns (address[4] memory);

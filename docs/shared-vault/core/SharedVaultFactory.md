@@ -65,7 +65,7 @@ Create a shared vault with initial deposits and run `execute(actions)` once
 ### _createVault
 
 ```solidity
-function _createVault(string name, address[4] tokens, uint256[4] initialAmounts) internal returns (address vault)
+function _createVault(string name, address[4] tokens, uint256[4] initialAmounts, address _owner) internal returns (address vault)
 ```
 
 ### isVault

@@ -2,6 +2,12 @@
 pragma solidity ^0.8.28;
 
 interface ISharedCommon {
+  /// @notice Call discipline for vault execution (aligned with private vault multicall).
+  enum CallType {
+    DELEGATECALL,
+    CALL
+  }
+
   error Unauthorized();
   error ZeroAddress();
   error InvalidAmount();

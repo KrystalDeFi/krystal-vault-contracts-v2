@@ -348,7 +348,7 @@ contract SharedVaultTest is TestCommon {
     tokenA.transfer(address(vault), 100e18);
     tokenB.transfer(address(vault), 200e18);
 
-    // Initialize (vaultOwner = msg.sender, matching factory pattern)
+    // Initialize: vaultOwner is _owner; vaultFactory is msg.sender (both VAULT_OWNER in this direct-deploy setup)
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
@@ -582,7 +582,11 @@ contract SharedVaultTest is TestCommon {
   function test_execute_success() public {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
     vm.stopPrank();
   }
@@ -590,7 +594,11 @@ contract SharedVaultTest is TestCommon {
   function test_execute_admin() public {
     vm.startPrank(ADMIN);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
     vm.stopPrank();
   }
@@ -598,7 +606,11 @@ contract SharedVaultTest is TestCommon {
   function test_execute_fail_unauthorized() public {
     vm.startPrank(NON_AUTHORIZED);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -607,7 +619,11 @@ contract SharedVaultTest is TestCommon {
   function test_execute_fail_non_whitelisted_strategy() public {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(failingStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(failingStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
     vault.execute(actions);
     vm.stopPrank();
@@ -625,7 +641,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256 balanceBefore = tokenB.balanceOf(address(vault));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(swapTarget), actionData, 0, false);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vault.execute(actions);
     uint256 balanceAfter = tokenB.balanceOf(address(vault));
 
@@ -638,7 +654,7 @@ contract SharedVaultTest is TestCommon {
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenE), address(tokenA), 10e18));
     bytes memory actionData = abi.encode(address(tokenE), address(tokenA), 10e18, 0, swapCalldata);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(swapTarget), actionData, 0, false);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -649,7 +665,7 @@ contract SharedVaultTest is TestCommon {
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenE), 10e18));
     bytes memory actionData = abi.encode(address(tokenA), address(tokenE), 10e18, 0, swapCalldata);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(swapTarget), actionData, 0, false);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -659,7 +675,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 0, "");
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(NON_AUTHORIZED, actionData, 0, false);
+    actions[0] = ISharedVault.Action(NON_AUTHORIZED, actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, NON_AUTHORIZED));
     vault.execute(actions);
     vm.stopPrank();
@@ -748,7 +764,11 @@ contract SharedVaultTest is TestCommon {
     // New admin can execute
     vm.startPrank(newAdmin);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
     vm.stopPrank();
 
@@ -814,7 +834,11 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(1)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -826,7 +850,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, 0, "");
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(swapTarget), actionData, 0, false);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -849,7 +873,11 @@ contract SharedVaultTest is TestCommon {
 
   function test_per_vault_pause_blocks_execute() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(1)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
@@ -859,7 +887,11 @@ contract SharedVaultTest is TestCommon {
 
   function test_per_vault_pause_unpause() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     assertTrue(vault.paused());
@@ -875,7 +907,11 @@ contract SharedVaultTest is TestCommon {
 
   function test_per_vault_pause_independent_of_global() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(1)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     // Per-vault paused, global not paused
     vm.startPrank(VAULT_OWNER);
@@ -1169,7 +1205,7 @@ contract SharedVaultTest is TestCommon {
       address fakeNfpm = makeAddr("nfpm");
       bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), lpAmount, lpAmount);
       ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-      actions[0] = ISharedVault.Action(address(lpStrategy), stratData, 0, true);
+      actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
       v.execute(actions);
       vm.stopPrank();
     }

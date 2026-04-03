@@ -237,33 +237,31 @@ contract SharedVaultAutomatorTest is TestCommon {
     sig = abi.encodePacked(r, s, v);
   }
 
-  // ─── Helper: build a single EXECUTE operation ───────────────────────────
+  // ─── Helper: single strategy action (delegatecall) ──────────────────────
 
-  function _executeOp(bytes memory data) internal view returns (ISharedVaultAutomator.Operation[] memory ops) {
-    ops = new ISharedVaultAutomator.Operation[](1);
-    ops[0] = ISharedVaultAutomator.Operation({
-      opType: ISharedVaultAutomator.OpType.EXECUTE,
+  function _executeOp(bytes memory data) internal view returns (ISharedVault.Action[] memory actions) {
+    actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
       target: address(mockStrategy),
       data: data,
-      value: 0
+      callType: ISharedCommon.CallType.DELEGATECALL
     });
   }
 
-  // ─── Helper: build a single SWAP operation ──────────────────────────────
+  // ─── Helper: single swap action (call) ──────────────────────────────────
 
   function _swapOp(
     address tokenIn,
     address tokenOut,
     uint256 amountIn
-  ) internal view returns (ISharedVaultAutomator.Operation[] memory ops) {
+  ) internal view returns (ISharedVault.Action[] memory actions) {
     bytes memory swapCall = abi.encodeWithSelector(MockSwapTarget.swap.selector, tokenIn, tokenOut, amountIn);
     bytes memory opData = abi.encode(tokenIn, tokenOut, amountIn, uint256(0), swapCall);
-    ops = new ISharedVaultAutomator.Operation[](1);
-    ops[0] = ISharedVaultAutomator.Operation({
-      opType: ISharedVaultAutomator.OpType.SWAP,
+    actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
       target: address(swapTarget),
       data: opData,
-      value: 0
+      callType: ISharedCommon.CallType.CALL
     });
   }
 
@@ -279,7 +277,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_executeWithAgentAllowance_success() public {
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
@@ -288,7 +286,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_executeWithAgentAllowance_fail_nonOperator() public {
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(NON_OPERATOR);
     vm.expectRevert();
@@ -298,7 +296,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   function test_executeWithAgentAllowance_fail_wrongVault() public {
     // Sign for a different vault address
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(0xDEAD));
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
@@ -318,7 +316,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
@@ -339,7 +337,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
@@ -355,7 +353,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(VAULT_OWNER);
     automator.cancelOrder(digest, sig);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
@@ -364,7 +362,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_executeWithAgentAllowance_fail_paused() public {
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(ADMIN);
     automator.pause();
@@ -378,7 +376,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_executeWithUserOrder_success() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
@@ -387,7 +385,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   /// @dev executeWithUserOrder does not mark signatures consumed; replay is allowed until cancelOrder
   function test_executeWithUserOrder_replayable() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
@@ -409,7 +407,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
@@ -418,7 +416,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_executeWithUserOrder_fail_nonOperator() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(NON_OPERATOR);
     vm.expectRevert();
@@ -433,7 +431,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(VAULT_OWNER);
     automator.cancelOrder(digest, sig);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
@@ -578,7 +576,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     // Execute — this would revert with ECDSA-only verification
     vm.prank(OPERATOR);
@@ -597,7 +595,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
@@ -627,7 +625,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     assertTrue(msAutomator.isOrderCancelled(sig));
 
     // Execution now fails
-    ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
     msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);

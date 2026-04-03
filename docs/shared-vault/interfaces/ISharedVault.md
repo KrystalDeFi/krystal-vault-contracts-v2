@@ -61,18 +61,17 @@ struct Position {
 ### Action
 
 _A single unit of work passed to execute().
-     isStrategy=true  → delegatecall the target as a whitelisted strategy (LP operations).
-                         Returned PositionChange[] is processed to track positions.
-     isStrategy=false → direct call the target as a swap aggregator.
-                         data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-                         tokenIn and tokenOut must be vault tokens; balance delta is checked._
+     callType = DELEGATECALL → delegatecall the target as a whitelisted strategy (LP operations).
+                               Returned PositionChange[] is processed to track positions.
+     callType = CALL        → direct call the target as a swap aggregator.
+                               data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
+                               tokenIn and tokenOut must be vault tokens; balance delta is checked._
 
 ```solidity
 struct Action {
   address target;
   bytes data;
-  uint256 ethValue;
-  bool isStrategy;
+  enum ISharedCommon.CallType callType;
 }
 ```
 
@@ -113,7 +112,7 @@ Burn shares and withdraw proportional tokens.
 ### execute
 
 ```solidity
-function execute(struct ISharedVault.Action[] actions) external payable
+function execute(struct ISharedVault.Action[] actions) external
 ```
 
 Execute one or more actions: strategy delegatecalls (LP) and/or direct swap calls.

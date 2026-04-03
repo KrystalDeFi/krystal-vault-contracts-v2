@@ -771,14 +771,9 @@
             "type": "bytes"
           },
           {
-            "internalType": "uint256",
-            "name": "ethValue",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "isStrategy",
-            "type": "bool"
+            "internalType": "enum ISharedCommon.CallType",
+            "name": "callType",
+            "type": "uint8"
           }
         ],
         "internalType": "struct ISharedVault.Action[]",
@@ -788,7 +783,7 @@
     ],
     "name": "execute",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

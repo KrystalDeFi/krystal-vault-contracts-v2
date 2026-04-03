@@ -11,23 +11,7 @@ interface ISharedVaultAutomator is ISharedCommon {
 
   event CancelOrder(address user, bytes32 hash, bytes signature);
 
-  /// @notice Operation type for the automator
-  enum OpType {
-    EXECUTE,
-    SWAP
-  }
-
-  /// @notice A single operation to execute against a vault
-  struct Operation {
-    OpType opType;
-    /// @dev For EXECUTE: the strategy address; for SWAP: the swap aggregator target
-    address target;
-    /// @dev For EXECUTE: strategy calldata; for SWAP: abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapData)
-    bytes data;
-    uint256 value;
-  }
-
-  /// @notice Execute operations against a vault using a long-lived AgentAllowance signature.
+  /// @notice Execute actions against a vault using a long-lived AgentAllowance signature.
   /// @dev **Security note**: the AgentAllowance struct commits only to (vault, signatureTime,
   ///      expirationTime). It does NOT restrict which strategies, targets, or calldata the
   ///      operator may use — any whitelisted operation on the vault is permitted until expiry.
@@ -35,24 +19,24 @@ interface ISharedVaultAutomator is ISharedCommon {
   ///      windows and `cancelOrder` for early revocation. For one-time scoped operations,
   ///      prefer `executeWithUserOrder`.
   /// @param vault Vault to operate on
-  /// @param operations Operations to execute
+  /// @param actions Same shape as `ISharedVault.execute` (`CallType.DELEGATECALL` for strategies, `CALL` for swaps)
   /// @param abiEncodedAgentAllowance ABI-encoded AgentAllowance struct
   /// @param signature Vault owner's EIP-712 signature over the AgentAllowance
   function executeWithAgentAllowance(
     ISharedVault vault,
-    Operation[] calldata operations,
+    ISharedVault.Action[] calldata actions,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external;
 
-  /// @notice Execute operations against a vault using a user order signature.
+  /// @notice Execute actions against a vault using a user order signature.
   /// @param vault Vault to operate on
-  /// @param operations Operations to execute
+  /// @param actions Same shape as `ISharedVault.execute`
   /// @param abiEncodedUserOrder ABI encoded user order
   /// @param orderSignature Signature of the order
   function executeWithUserOrder(
     ISharedVault vault,
-    Operation[] calldata operations,
+    ISharedVault.Action[] calldata actions,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
   ) external;

@@ -336,7 +336,11 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(42)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
@@ -352,9 +356,21 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), 0, true);
-    actions[1] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(2)), 0, true);
-    actions[2] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(3)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(1)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    actions[1] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(2)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    actions[2] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(3)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
     vm.stopPrank();
@@ -372,7 +388,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(unwhitelisted, abi.encode(uint256(0)), 0, true);
+    actions[0] = ISharedVault.Action(unwhitelisted, abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
 
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, unwhitelisted));
     factory.createVault("Test", tokens, amounts, actions);
@@ -458,7 +474,11 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(0)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     address vaultAddr = factory.createVault{ value: 0 }("No-ETH Vault", tokens, amounts, actions);
     vm.stopPrank();
@@ -482,7 +502,11 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(0)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     address vaultAddr = factory.createVault{ value: 1 ether }("ETH-Deposit+Strategy Vault", tokens, amounts, actions);
     vm.stopPrank();
@@ -505,7 +529,11 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(0)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, actions);

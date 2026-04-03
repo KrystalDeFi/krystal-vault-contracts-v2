@@ -5,9 +5,11 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
+import "../interfaces/ISharedVault.sol";
 import "../interfaces/ISharedVaultAutomator.sol";
 import "../../private-vault/core/CustomEIP712.sol";
 import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
+import "../../common/libraries/strategies/LpUniV3StructHash.sol";
 import "../../common/Withdrawable.sol";
 
 contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, ISharedVaultAutomator {
@@ -26,23 +28,23 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   /// @inheritdoc ISharedVaultAutomator
   function executeWithAgentAllowance(
     ISharedVault vault,
-    Operation[] calldata operations,
+    ISharedVault.Action[] calldata actions,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateAgentAllowance(abiEncodedAgentAllowance, signature, address(vault));
-    _executeOperations(vault, operations);
+    vault.execute(actions);
   }
 
   /// @inheritdoc ISharedVaultAutomator
   function executeWithUserOrder(
     ISharedVault vault,
-    Operation[] calldata operations,
+    ISharedVault.Action[] calldata actions,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
   ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
-    _executeOperations(vault, operations);
+    vault.execute(actions);
   }
 
   /// @inheritdoc ISharedVaultAutomator
@@ -114,20 +116,8 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   /// @param orderSignature Signature of the order
   /// @param actor Actor of the order
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
-    bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(abiEncodedUserOrder));
+    bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
     require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
     require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
-  }
-
-  function _executeOperations(ISharedVault vault, Operation[] calldata operations) internal {
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](operations.length);
-    for (uint256 i; i < operations.length; ) {
-      Operation calldata op = operations[i];
-      actions[i] = ISharedVault.Action(op.target, op.data, op.value, op.opType == OpType.EXECUTE);
-      unchecked {
-        i++;
-      }
-    }
-    vault.execute(actions);
   }
 }

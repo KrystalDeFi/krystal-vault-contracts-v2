@@ -2,6 +2,17 @@
 
 ## ISharedCommon
 
+### CallType
+
+Call discipline for vault execution (aligned with private vault multicall).
+
+```solidity
+enum CallType {
+  DELEGATECALL,
+  CALL
+}
+```
+
 ### Unauthorized
 
 ```solidity

@@ -112,11 +112,6 @@ modifier onlyOwner()
 modifier onlyAuthorized()
 ```
 
-_Trust assumption: `vaultFactory` retains permanent execute() access so it can
-     atomically create vaults with initial LP positions (createVault + strategies).
-     If the factory is compromised, all vaults it deployed are at risk. The factory
-     is expected to be a protocol-owned upgradeable contract behind a timelock/multisig._
-
 ### onlyOperator
 
 ```solidity
@@ -193,17 +188,17 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 ### execute
 
 ```solidity
-function execute(struct ISharedVault.Action[] actions) external payable
+function execute(struct ISharedVault.Action[] actions) external
 ```
 
 Execute one or more actions atomically.
 
-  isStrategy = true  → delegatecall the target as a whitelisted strategy.
-                        Returned PositionChange[] updates LP position tracking.
-  isStrategy = false → direct call the target as a swap aggregator.
-                        action.data must be abi.encode(tokenIn, tokenOut, amountIn,
-                        minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
-                        tokens; output balance delta is checked against minAmountOut.
+  callType = DELEGATECALL → delegatecall the target as a whitelisted strategy.
+                            Returned PositionChange[] updates LP position tracking.
+  callType = CALL         → direct call the target as a swap aggregator.
+                            action.data must be abi.encode(tokenIn, tokenOut, amountIn,
+                            minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
+                            tokens; output balance delta is checked against minAmountOut.
 
 ### getTokens
 

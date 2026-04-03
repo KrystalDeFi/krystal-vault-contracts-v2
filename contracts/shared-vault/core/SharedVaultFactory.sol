@@ -52,8 +52,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts
   ) external payable override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts);
-    ISharedVault(vault).transferOwnership(_msgSender());
+    vault = _createVault(name, tokens, initialAmounts, _msgSender());
   }
 
   /// @notice Create a shared vault with initial deposits and run `execute(actions)` once
@@ -63,7 +62,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     uint256[4] calldata initialAmounts,
     ISharedVault.Action[] calldata actions
   ) external payable override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts);
+    vault = _createVault(name, tokens, initialAmounts, address(this));
 
     if (actions.length > 0) {
       ISharedVault(vault).execute(actions);
@@ -75,7 +74,8 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   function _createVault(
     string calldata name,
     address[4] calldata tokens,
-    uint256[4] calldata initialAmounts
+    uint256[4] calldata initialAmounts,
+    address _owner
   ) internal returns (address vault) {
     bytes32 salt = keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"));
     address predicted = Clones.predictDeterministicAddress(vaultImplementation, salt);
@@ -114,7 +114,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
       }
     }
 
-    ISharedVault(vault).initialize(name, tokens, initialAmounts, _msgSender(), owner(), address(configManager), weth);
+    ISharedVault(vault).initialize(name, tokens, initialAmounts, _owner, owner(), address(configManager), weth);
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);

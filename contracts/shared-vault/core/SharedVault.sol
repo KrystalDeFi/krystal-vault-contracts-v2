@@ -62,16 +62,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     _;
   }
 
-  /// @dev Trust assumption: `vaultFactory` retains permanent execute() access so it can
-  ///      atomically create vaults with initial LP positions (createVault + strategies).
-  ///      If the factory is compromised, all vaults it deployed are at risk. The factory
-  ///      is expected to be a protocol-owned upgradeable contract behind a timelock/multisig.
   modifier onlyAuthorized() {
     require(
-      _msgSender() == vaultOwner ||
-        _msgSender() == vaultFactory ||
-        admins[_msgSender()] ||
-        configManager.isWhitelistedCaller(_msgSender()),
+      _msgSender() == vaultOwner || admins[_msgSender()] || configManager.isWhitelistedCaller(_msgSender()),
       Unauthorized()
     );
     _;
@@ -107,7 +100,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     __ERC20Permit_init(_name);
 
     configManager = ISharedConfigManager(_configManager);
-    vaultOwner = _msgSender();
+    vaultOwner = _owner;
     vaultFactory = _msgSender();
     weth = _weth;
     if (_operator != address(0)) operator = _operator;
@@ -371,18 +364,18 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
   /// @notice Execute one or more actions atomically.
   ///
-  ///   isStrategy = true  → delegatecall the target as a whitelisted strategy.
-  ///                         Returned PositionChange[] updates LP position tracking.
-  ///   isStrategy = false → direct call the target as a swap aggregator.
-  ///                         action.data must be abi.encode(tokenIn, tokenOut, amountIn,
-  ///                         minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
-  ///                         tokens; output balance delta is checked against minAmountOut.
-  function execute(Action[] calldata actions) external payable override nonReentrant onlyAuthorized whenNotPaused {
+  ///   callType = DELEGATECALL → delegatecall the target as a whitelisted strategy.
+  ///                             Returned PositionChange[] updates LP position tracking.
+  ///   callType = CALL         → direct call the target as a swap aggregator.
+  ///                             action.data must be abi.encode(tokenIn, tokenOut, amountIn,
+  ///                             minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
+  ///                             tokens; output balance delta is checked against minAmountOut.
+  function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
       require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
 
-      if (action.isStrategy) {
+      if (action.callType == CallType.DELEGATECALL) {
         // --- Strategy: delegatecall + LP position tracking ---
         (bool success, bytes memory result) = action.target.delegatecall(
           abi.encodeCall(ISharedStrategy.execute, (action.data))
@@ -420,7 +413,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
 
         IERC20(tokenIn).safeResetAndApprove(action.target, amountIn);
 
-        (bool success, ) = action.target.call{ value: action.ethValue }(swapCalldata);
+        (bool success, ) = action.target.call(swapCalldata);
         require(success, SwapFailed());
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;

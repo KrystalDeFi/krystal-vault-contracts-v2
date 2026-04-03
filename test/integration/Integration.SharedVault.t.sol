@@ -9,6 +9,7 @@ import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensio
 
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
+import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
@@ -101,7 +102,11 @@ contract SharedVaultIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(v3Strategy),
+      _swapAndMintData(0.5 ether, 1500e6),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked LP position");
@@ -121,7 +126,11 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndMintData(0.5 ether, 1500e6),
+        ISharedCommon.CallType.DELEGATECALL
+      );
       vault.execute(mintActions);
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -131,8 +140,7 @@ contract SharedVaultIntegrationTest is TestCommon {
       increaseActions[0] = ISharedVault.Action(
         address(v3Strategy),
         _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
-        0,
-        true
+        ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(increaseActions);
     }
@@ -153,7 +161,11 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndMintData(0.5 ether, 1500e6),
+        ISharedCommon.CallType.DELEGATECALL
+      );
       vault.execute(mintActions);
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -192,7 +204,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory collectActions = new ISharedVault.Action[](1);
-      collectActions[0] = ISharedVault.Action(address(v3Strategy), data, 0, true);
+      collectActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
       vault.execute(collectActions);
     }
 
@@ -211,7 +223,11 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndMintData(0.5 ether, 1500e6),
+        ISharedCommon.CallType.DELEGATECALL
+      );
       vault.execute(mintActions);
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -253,7 +269,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
-      withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, 0, true);
+      withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
       vault.execute(withdrawActions);
     }
 
@@ -272,7 +288,11 @@ contract SharedVaultIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-      mintActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndMintData(0.5 ether, 1500e6),
+        ISharedCommon.CallType.DELEGATECALL
+      );
       vault.execute(mintActions);
     }
     vm.stopPrank();
@@ -354,7 +374,11 @@ contract SharedVaultIntegrationTest is TestCommon {
     uint256[4] memory initialAmounts = [wethAmt, usdcAmt, uint256(0), 0];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(wethAmt / 2, usdcAmt / 2), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(v3Strategy),
+      _swapAndMintData(wethAmt / 2, usdcAmt / 2),
+      ISharedCommon.CallType.DELEGATECALL
+    );
 
     // msg.value = wethAmt for WETH initial deposit (wrapped by factory)
     SharedVault vault2 = SharedVault(
@@ -377,7 +401,11 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     // Create LP position
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(v3Strategy),
+      _swapAndMintData(0.5 ether, 1500e6),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 1, "should have 1 LP position");
@@ -408,7 +436,11 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     // Create LP position — idle balances drop, LP value rises
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), 0, true);
+    actions[0] = ISharedVault.Action(
+      address(v3Strategy),
+      _swapAndMintData(0.5 ether, 1500e6),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
 
     uint256 shares = vault.balanceOf(vaultOwner);
