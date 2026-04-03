@@ -17,7 +17,7 @@ constructor(address _owner, address[] _operators) public
 ### executeWithAgentAllowance
 
 ```solidity
-function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external payable
+function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external
 ```
 
 Execute operations against a vault using a long-lived AgentAllowance signature.
@@ -41,7 +41,7 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 ### executeWithUserOrder
 
 ```solidity
-function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external payable
+function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 Execute operations against a vault using a user order signature.

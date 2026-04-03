@@ -24,7 +24,6 @@ interface ISharedVaultAutomator is ISharedCommon {
     address target;
     /// @dev For EXECUTE: strategy calldata; for SWAP: abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapData)
     bytes data;
-    /// @dev ETH value forwarded (only used for EXECUTE ops; must be 0 for SWAP)
     uint256 value;
   }
 
@@ -44,7 +43,7 @@ interface ISharedVaultAutomator is ISharedCommon {
     Operation[] calldata operations,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
-  ) external payable;
+  ) external;
 
   /// @notice Execute operations against a vault using a user order signature.
   /// @param vault Vault to operate on
@@ -56,7 +55,7 @@ interface ISharedVaultAutomator is ISharedCommon {
     Operation[] calldata operations,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
-  ) external payable;
+  ) external;
 
   /// @notice Cancel an order so it can never be replayed
   /// @param hash EIP-712 digest that was signed

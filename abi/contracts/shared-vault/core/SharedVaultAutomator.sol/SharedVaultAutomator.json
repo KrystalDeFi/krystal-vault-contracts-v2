@@ -404,7 +404,7 @@
     ],
     "name": "executeWithAgentAllowance",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -454,7 +454,7 @@
     ],
     "name": "executeWithUserOrder",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

@@ -29,7 +29,7 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     Operation[] calldata operations,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
-  ) external payable override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+  ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateAgentAllowance(abiEncodedAgentAllowance, signature, address(vault));
     _executeOperations(vault, operations);
   }
@@ -40,7 +40,7 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     Operation[] calldata operations,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
-  ) external payable override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+  ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
     _executeOperations(vault, operations);
   }
