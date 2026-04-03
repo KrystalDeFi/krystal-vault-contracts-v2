@@ -35,17 +35,13 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   }
 
   /// @inheritdoc ISharedVaultAutomator
-  /// @dev Uses the same AgentAllowance struct but marks the signature as consumed after execution,
-  ///      making it a one-time-use credential unlike the reusable AgentAllowance flow.
   function executeWithUserOrder(
     ISharedVault vault,
     Operation[] calldata operations,
-    bytes calldata abiEncodedAgentAllowance,
-    bytes calldata signature
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
   ) external payable override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
-    _validateAgentAllowance(abiEncodedAgentAllowance, signature, address(vault));
-    // Mark consumed before execution to prevent reentrancy replay
-    _cancelledOrder[keccak256(signature)] = true;
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
     _executeOperations(vault, operations);
   }
 
@@ -111,6 +107,16 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     address owner = ISharedVault(vault).vaultOwner();
     require(SignatureChecker.isValidSignatureNow(owner, digest, signature), InvalidSignature());
     require(!_cancelledOrder[keccak256(signature)], OrderCancelled());
+  }
+
+  /// @dev Validate the order
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
+  /// @param actor Actor of the order
+  function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
+    bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(abiEncodedUserOrder));
+    require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
+    require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
   }
 
   function _executeOperations(ISharedVault vault, Operation[] calldata operations) internal {

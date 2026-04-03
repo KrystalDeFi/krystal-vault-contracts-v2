@@ -107,7 +107,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     __ERC20Permit_init(_name);
 
     configManager = ISharedConfigManager(_configManager);
-    vaultOwner = _owner;
+    vaultOwner = _msgSender();
     vaultFactory = _msgSender();
     weth = _weth;
     if (_operator != address(0)) operator = _operator;

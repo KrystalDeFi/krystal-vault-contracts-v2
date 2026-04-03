@@ -41,15 +41,12 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 ### executeWithUserOrder
 
 ```solidity
-function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external payable
+function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external payable
 ```
 
 Execute operations against a vault using a one-time AgentAllowance signature.
         Uses the same AgentAllowance struct as executeWithAgentAllowance but marks the
         signature as consumed after execution, making it a one-time-use credential.
-
-_Uses the same AgentAllowance struct but marks the signature as consumed after execution,
-     making it a one-time-use credential unlike the reusable AgentAllowance flow._
 
 #### Parameters
 
@@ -57,8 +54,8 @@ _Uses the same AgentAllowance struct but marks the signature as consumed after e
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
 | operations | struct ISharedVaultAutomator.Operation[] | Operations to execute |
-| abiEncodedAgentAllowance | bytes | ABI-encoded AgentAllowance struct |
-| signature | bytes | Vault owner's EIP-712 signature over the AgentAllowance |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
 
 ### cancelOrder
 
@@ -144,6 +141,22 @@ _See {IERC165-supportsInterface}._
 ```solidity
 function _validateAgentAllowance(bytes abiEncodedAgentAllowance, bytes signature, address vault) internal view
 ```
+
+### _validateOrder
+
+```solidity
+function _validateOrder(bytes abiEncodedUserOrder, bytes orderSignature, address actor) internal view
+```
+
+_Validate the order_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
+| actor | address | Actor of the order |
 
 ### _executeOperations
 

@@ -47,7 +47,7 @@ function initialize(address _owner, address _configManager, address _vaultImplem
 ### createVault
 
 ```solidity
-function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address _operator) external payable returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts) external payable returns (address vault)
 ```
 
 Create a shared vault with initial token deposits
@@ -57,20 +57,15 @@ _Send ETH via msg.value to auto-wrap to WETH for the initial deposit_
 ### createVault
 
 ```solidity
-function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address _operator, address[] strategies, bytes[] strategiesData, uint256[] ethValues) external payable returns (address vault)
+function createVault(string name, address[4] tokens, uint256[4] initialAmounts, address[] targets, uint256[] callValues, bytes[] data) external payable returns (address vault)
 ```
 
 Create a shared vault with initial deposits and execute multiple strategies
 
-_Send ETH via msg.value to cover both the initial WETH deposit (if WETH is a vault
-     token with a non-zero initialAmount) AND the strategy ETH values.
-     msg.value must equal initialAmounts[wethSlot] + sum(ethValues).
-     If WETH is not in the initial deposit, msg.value must equal sum(ethValues) exactly._
-
 ### _createVault
 
 ```solidity
-function _createVault(string name, address[4] tokens, uint256[4] initialAmounts, uint256 ethForDeposit, address _operator) internal returns (address vault)
+function _createVault(string name, address[4] tokens, uint256[4] initialAmounts) internal returns (address vault)
 ```
 
 ### isVault

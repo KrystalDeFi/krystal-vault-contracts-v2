@@ -51,13 +51,13 @@ interface ISharedVaultAutomator is ISharedCommon {
   ///         signature as consumed after execution, making it a one-time-use credential.
   /// @param vault Vault to operate on
   /// @param operations Operations to execute
-  /// @param abiEncodedAgentAllowance ABI-encoded AgentAllowance struct
-  /// @param signature Vault owner's EIP-712 signature over the AgentAllowance
+  /// @param abiEncodedUserOrder ABI encoded user order
+  /// @param orderSignature Signature of the order
   function executeWithUserOrder(
     ISharedVault vault,
     Operation[] calldata operations,
-    bytes calldata abiEncodedAgentAllowance,
-    bytes calldata signature
+    bytes calldata abiEncodedUserOrder,
+    bytes calldata orderSignature
   ) external payable;
 
   /// @notice Cancel an order so it can never be replayed

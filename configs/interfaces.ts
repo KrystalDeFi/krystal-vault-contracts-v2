@@ -87,6 +87,10 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  sharedVaultAutomator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   sharedV3Strategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -100,10 +104,6 @@ export interface IConfigShared {
     autoVerifyContract?: boolean;
   };
   sharedPancakeV3Strategy?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  sharedVaultAutomator?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };

@@ -16,12 +16,24 @@ import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/Shared
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 interface INFPMPositions {
-  function positions(uint256 tokenId)
+  function positions(
+    uint256 tokenId
+  )
     external
     view
     returns (
-      uint96, address, address, address, uint24,
-      int24, int24, uint128 liquidity, uint256, uint256, uint128, uint128
+      uint96,
+      address,
+      address,
+      address,
+      uint24,
+      int24,
+      int24,
+      uint128 liquidity,
+      uint256,
+      uint256,
+      uint128,
+      uint128
     );
 }
 
@@ -76,7 +88,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts, address(0))));
+    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts)));
 
     vm.stopPrank();
   }
@@ -116,7 +128,12 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     {
       ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
-      increaseActions[0] = ISharedVault.Action(address(v3Strategy), _swapAndIncreaseData(tokenId, 0.2 ether, 600e6), 0, true);
+      increaseActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
+        0,
+        true
+      );
       vault.execute(increaseActions);
     }
 
@@ -200,7 +217,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Query the actual liquidity so we can request full removal precisely
-    (,,,,,,, uint128 posLiquidity,,,,) = INFPMPositions(NFPM).positions(tokenId);
+    (, , , , , , , uint128 posLiquidity, , , , ) = INFPMPositions(NFPM).positions(tokenId);
 
     // Full withdrawal: remove all liquidity back to vault
     IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
@@ -304,7 +321,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vault), usdcIn);
 
     uint256[4] memory amounts = [ethIn, usdcIn, uint256(0), 0];
-    uint256 shares = vault.deposit{value: ethIn}(amounts, 0);
+    uint256 shares = vault.deposit{ value: ethIn }(amounts, 0);
     assertGt(shares, 0, "should receive shares for ETH deposit");
 
     uint256 ethBalBefore = player.balance;
@@ -345,10 +362,19 @@ contract SharedVaultIntegrationTest is TestCommon {
     uint256[] memory ethValues = new uint256[](1);
     ethValues[0] = 0;
 
-    // msg.value = wethAmt (for WETH initial deposit) + ethValues[0]=0 (strategy needs no ETH)
-    SharedVault vault2 = SharedVault(payable(
-      vaultFactory.createVault{value: wethAmt}("Vault2-WithStrategies", vaultTokens, initialAmounts, address(0), strategies, strategiesData, ethValues)
-    ));
+    // msg.value = wethAmt for WETH initial deposit (wrapped by factory); strategy call uses callValues[0] = 0
+    SharedVault vault2 = SharedVault(
+      payable(
+        vaultFactory.createVault{ value: wethAmt }(
+          "Vault2-WithStrategies",
+          vaultTokens,
+          initialAmounts,
+          strategies,
+          ethValues,
+          strategiesData
+        )
+      )
+    );
 
     // Vault should have exactly 1 LP position created atomically during vault creation
     assertEq(vault2.getPositionCount(), 1, "vault created with LP position");
@@ -452,17 +478,18 @@ contract SharedVaultIntegrationTest is TestCommon {
       poolDeployer: address(0)
     });
 
-    return bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
+      );
   }
 
-  function _swapAndIncreaseData(uint256 tokenId, uint256 amount0, uint256 amount1)
-    internal
-    view
-    returns (bytes memory)
-  {
+  function _swapAndIncreaseData(
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1
+  ) internal view returns (bytes memory) {
     address[] memory approveTokens = new address[](2);
     approveTokens[0] = WETH;
     approveTokens[1] = USDC;
@@ -493,9 +520,10 @@ contract SharedVaultIntegrationTest is TestCommon {
       gasFeeX64: 0
     });
 
-    return bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
+      );
   }
 }

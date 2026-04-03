@@ -348,9 +348,10 @@ contract SharedVaultTest is TestCommon {
     tokenA.transfer(address(vault), 100e18);
     tokenB.transfer(address(vault), 200e18);
 
-    // Initialize
+    // Initialize (vaultOwner = msg.sender, matching factory pattern)
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
     vault.initialize(
       "Shared Vault",
       vaultTokens,
@@ -362,7 +363,6 @@ contract SharedVaultTest is TestCommon {
     );
 
     // Setup roles
-    vm.startPrank(VAULT_OWNER);
     vault.grantAdminRole(ADMIN);
     vault.setOperator(OPERATOR);
     vm.stopPrank();
@@ -408,7 +408,9 @@ contract SharedVaultTest is TestCommon {
     SharedVault vault2 = new SharedVault();
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
     vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vm.stopPrank();
 
     // First deposit
     tokenA.mint(DEPOSITOR, 50e18);
@@ -942,6 +944,7 @@ contract SharedVaultTest is TestCommon {
 
     address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
     wv.initialize(
       "WETH Vault",
       wvTokens,
@@ -951,6 +954,7 @@ contract SharedVaultTest is TestCommon {
       address(configManager),
       address(mockWeth)
     );
+    vm.stopPrank();
     // VAULT_OWNER now has all shares = 100e18 * SHARES_PRECISION
   }
 
@@ -1076,6 +1080,7 @@ contract SharedVaultTest is TestCommon {
 
     address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(1e18), uint256(1), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
     wv.initialize(
       "Dust Vault",
       wvTokens,
@@ -1085,6 +1090,7 @@ contract SharedVaultTest is TestCommon {
       address(configManager),
       address(mockWeth)
     );
+    vm.stopPrank();
     // totalSupply = 1e18 * 1e18 = 1e36
 
     address depositor = makeAddr("dustDepositor");
@@ -1142,7 +1148,9 @@ contract SharedVaultTest is TestCommon {
 
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
     v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0));
+    vm.stopPrank();
 
     // Bob deposits the same amounts → gets equal shares
     address bob = makeAddr("bob");

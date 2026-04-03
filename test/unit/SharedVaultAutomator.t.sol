@@ -9,6 +9,7 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
+import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
@@ -69,9 +70,14 @@ contract MockAutomatorStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function exitProportional(address, uint256, uint256, uint256, uint256, uint256)
-    external pure override returns (PositionChange[] memory changes)
-  {
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256
+  ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
 
@@ -108,12 +114,13 @@ contract MockMultisig {
 
   // Allow the multisig to receive calls (for cancelOrder via msg.sender)
   fallback() external payable {}
+
   receive() external payable {}
 }
 
 // Expose internal EIP-712 helpers for test signing
 contract SharedVaultAutomatorHelper is SharedVaultAutomator {
-  constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) { }
+  constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) {}
 
   function hashTypedDataV4(bytes32 structHash) external view returns (bytes32) {
     return super._hashTypedDataV4(structHash);
@@ -164,7 +171,17 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(vault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    vault.initialize("Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vm.startPrank(VAULT_OWNER);
+    vault.initialize(
+      "Test Vault",
+      vaultTokens,
+      initialAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(0)
+    );
+    vm.stopPrank();
 
     // Automator
     address[] memory operators = new address[](1);
@@ -195,24 +212,26 @@ contract SharedVaultAutomatorTest is TestCommon {
     digest = automator.hashTypedDataV4(structHash);
   }
 
-  function _signAgentAllowance(address _vault)
-    internal
-    returns (bytes memory encoded, bytes memory sig)
-  {
+  function _signAgentAllowance(address _vault) internal returns (bytes memory encoded, bytes memory sig) {
     (bytes32 digest, bytes memory enc) = _agentAllowanceDigest(_vault);
     encoded = enc;
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     sig = abi.encodePacked(r, s, v);
   }
 
-  // ─── Helper: build and sign a user order (AgentAllowance, consumed on use) ──
+  // ─── Helper: EIP-712 user order (LpUniV3StructHash.Order) for executeWithUserOrder ──
 
-  function _signUserOrder(address _vault)
-    internal
-    returns (bytes memory encoded, bytes memory sig)
-  {
-    // User orders use the same AgentAllowance struct; the contract enforces one-time use
-    (bytes32 digest, bytes memory enc) = _agentAllowanceDigest(_vault);
+  function _userOrderDigest() internal returns (bytes32 digest, bytes memory encoded) {
+    _nonce++;
+    StructHash.Order memory order;
+    order.chainId = int64(uint64(block.chainid));
+    order.signatureTime = int64(uint64(block.timestamp + _nonce));
+    encoded = abi.encode(order);
+    digest = automator.hashTypedDataV4(StructHash._hash(encoded));
+  }
+
+  function _signUserOrder() internal returns (bytes memory encoded, bytes memory sig) {
+    (bytes32 digest, bytes memory enc) = _userOrderDigest();
     encoded = enc;
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     sig = abi.encodePacked(r, s, v);
@@ -232,7 +251,11 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   // ─── Helper: build a single SWAP operation ──────────────────────────────
 
-  function _swapOp(address tokenIn, address tokenOut, uint256 amountIn) internal view returns (ISharedVaultAutomator.Operation[] memory ops) {
+  function _swapOp(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn
+  ) internal view returns (ISharedVaultAutomator.Operation[] memory ops) {
     bytes memory swapCall = abi.encodeWithSelector(MockSwapTarget.swap.selector, tokenIn, tokenOut, amountIn);
     bytes memory opData = abi.encode(tokenIn, tokenOut, amountIn, uint256(0), swapCall);
     ops = new ISharedVaultAutomator.Operation[](1);
@@ -354,37 +377,47 @@ contract SharedVaultAutomatorTest is TestCommon {
   // ============ executeWithUserOrder ============
 
   function test_executeWithUserOrder_success() public {
-    (bytes memory encoded, bytes memory sig) = _signUserOrder(address(vault));
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
-  function test_executeWithUserOrder_onlyUsedOnce() public {
-    (bytes memory encoded, bytes memory sig) = _signUserOrder(address(vault));
+  /// @dev executeWithUserOrder does not mark signatures consumed; replay is allowed until cancelOrder
+  function test_executeWithUserOrder_replayable() public {
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
-
-    // Second call must revert because order was consumed
-    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
     vm.stopPrank();
   }
 
-  function test_executeWithUserOrder_fail_wrongVault() public {
-    (bytes memory encoded, bytes memory sig) = _signUserOrder(address(0xDEAD));
+  function test_executeWithUserOrder_fail_wrongVaultOwner() public {
+    address otherOwner = makeAddr("otherVaultOwner");
+    SharedVault otherVault = new SharedVault();
+    tokenA.mint(address(this), 200e18);
+    tokenB.mint(address(this), 200e18);
+    tokenA.transfer(address(otherVault), 100e18);
+    tokenB.transfer(address(otherVault), 100e18);
+    address[4] memory vt = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory am = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.startPrank(otherOwner);
+    otherVault.initialize("Other", vt, am, otherOwner, address(0), address(configManager), address(0));
+    vm.stopPrank();
+
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
-    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+    automator.executeWithUserOrder(ISharedVault(address(otherVault)), ops, encoded, sig);
   }
 
   function test_executeWithUserOrder_fail_nonOperator() public {
-    (bytes memory encoded, bytes memory sig) = _signUserOrder(address(vault));
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(NON_OPERATOR);
@@ -393,7 +426,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   }
 
   function test_executeWithUserOrder_fail_cancelledManually() public {
-    (bytes32 digest, bytes memory encoded) = _agentAllowanceDigest(address(vault));
+    (bytes32 digest, bytes memory encoded) = _userOrderDigest();
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
@@ -410,7 +443,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   // ============ cancelOrder ============
 
   function test_cancelOrder_success() public {
-    (bytes32 digest,) = _agentAllowanceDigest(address(vault));
+    (bytes32 digest, ) = _agentAllowanceDigest(address(vault));
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
@@ -423,7 +456,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   }
 
   function test_cancelOrder_fail_wrongSigner() public {
-    (bytes32 digest,) = _agentAllowanceDigest(address(vault));
+    (bytes32 digest, ) = _agentAllowanceDigest(address(vault));
     // Sign with a different key than the expected signer
     uint256 wrongKey = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
@@ -519,7 +552,16 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB.transfer(address(msVault), 100e18);
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    msVault.initialize("Multisig Vault", vaultTokens, initialAmounts, address(multisig), address(0), address(configManager), address(0));
+    vm.prank(address(multisig));
+    msVault.initialize(
+      "Multisig Vault",
+      vaultTokens,
+      initialAmounts,
+      address(multisig),
+      address(0),
+      address(configManager),
+      address(0)
+    );
 
     // Deploy a fresh automator (reuse same ADMIN/OPERATOR)
     address[] memory operators = new address[](1);
@@ -563,29 +605,22 @@ contract SharedVaultAutomatorTest is TestCommon {
     msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);
   }
 
-  function test_multisig_executeWithUserOrder_onlyUsedOnce() public {
-    (SharedVault msVault,, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+  function test_multisig_executeWithUserOrder_replayable() public {
+    (SharedVault msVault, , SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
 
     _nonce++;
-    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
-      vault: address(msVault),
-      signatureTime: uint64(block.timestamp + _nonce),
-      expirationTime: uint64(block.timestamp + 3600)
-    });
-    bytes memory encoded = abi.encode(allowance);
-    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
-    bytes32 digest = msAutomator.hashTypedDataV4(structHash);
+    StructHash.Order memory order;
+    order.chainId = int64(uint64(block.chainid));
+    order.signatureTime = int64(uint64(block.timestamp + _nonce));
+    bytes memory encoded = abi.encode(order);
+    bytes32 digest = msAutomator.hashTypedDataV4(StructHash._hash(encoded));
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
     ISharedVaultAutomator.Operation[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
-    // First execution succeeds
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
-
-    // Second execution reverts — one-time use consumed
-    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
     vm.stopPrank();
   }

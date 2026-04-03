@@ -173,11 +173,6 @@
         "internalType": "uint256[4]",
         "name": "initialAmounts",
         "type": "uint256[4]"
-      },
-      {
-        "internalType": "address",
-        "name": "_operator",
-        "type": "address"
       }
     ],
     "name": "createVault",
@@ -209,24 +204,19 @@
         "type": "uint256[4]"
       },
       {
-        "internalType": "address",
-        "name": "_operator",
-        "type": "address"
-      },
-      {
         "internalType": "address[]",
-        "name": "strategies",
+        "name": "targets",
         "type": "address[]"
       },
       {
-        "internalType": "bytes[]",
-        "name": "strategiesData",
-        "type": "bytes[]"
+        "internalType": "uint256[]",
+        "name": "callValues",
+        "type": "uint256[]"
       },
       {
-        "internalType": "uint256[]",
-        "name": "ethValues",
-        "type": "uint256[]"
+        "internalType": "bytes[]",
+        "name": "data",
+        "type": "bytes[]"
       }
     ],
     "name": "createVault",

@@ -71,7 +71,7 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 ### executeWithUserOrder
 
 ```solidity
-function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedAgentAllowance, bytes signature) external payable
+function executeWithUserOrder(contract ISharedVault vault, struct ISharedVaultAutomator.Operation[] operations, bytes abiEncodedUserOrder, bytes orderSignature) external payable
 ```
 
 Execute operations against a vault using a one-time AgentAllowance signature.
@@ -84,8 +84,8 @@ Execute operations against a vault using a one-time AgentAllowance signature.
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
 | operations | struct ISharedVaultAutomator.Operation[] | Operations to execute |
-| abiEncodedAgentAllowance | bytes | ABI-encoded AgentAllowance struct |
-| signature | bytes | Vault owner's EIP-712 signature over the AgentAllowance |
+| abiEncodedUserOrder | bytes | ABI encoded user order |
+| orderSignature | bytes | Signature of the order |
 
 ### cancelOrder
 

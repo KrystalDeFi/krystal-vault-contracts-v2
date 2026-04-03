@@ -240,12 +240,12 @@
       },
       {
         "internalType": "bytes",
-        "name": "abiEncodedAgentAllowance",
+        "name": "abiEncodedUserOrder",
         "type": "bytes"
       },
       {
         "internalType": "bytes",
-        "name": "signature",
+        "name": "orderSignature",
         "type": "bytes"
       }
     ],
