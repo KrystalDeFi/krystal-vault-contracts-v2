@@ -123,13 +123,13 @@ function _harvestRewards(address clGauge, uint256 tokenId, uint64 rewardFeeX64, 
 ### _decreaseVaultPosition
 
 ```solidity
-function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 tickSpacing, struct ISharedStrategy.ExitProportionalFeeParams feeParams) internal
+function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 tickSpacing, uint16 vaultOwnerFeeBasisPoint) internal
 ```
 
 ### exitProportional
 
 ```solidity
-function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, struct ISharedStrategy.ExitProportionalFeeParams feeParams) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, uint16 vaultOwnerFeeBasisPoint) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
@@ -146,7 +146,7 @@ _Handles gauge-staked and direct positions. Proportional exit: NFPM + `LpFeeTake
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
-| feeParams | struct ISharedStrategy.ExitProportionalFeeParams | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
+| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
 
 #### Return Values
 

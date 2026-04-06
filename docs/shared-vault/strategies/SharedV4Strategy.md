@@ -130,7 +130,7 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 ### exitProportional
 
 ```solidity
-function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, struct ISharedStrategy.ExitProportionalFeeParams feeParams) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, uint16 vaultOwnerFeeBasisPoint) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
@@ -151,7 +151,7 @@ _Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
-| feeParams | struct ISharedStrategy.ExitProportionalFeeParams | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
+| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
 
 #### Return Values
 
