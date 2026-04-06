@@ -26,4 +26,6 @@ interface ISharedCommon {
   error CannotSweepVaultToken();
   error InvalidOperation();
   error LengthMismatch();
+  error InvalidVaultOwnerFeeBasisPoint();
+  error InvalidFeeBasisPoint();
 }

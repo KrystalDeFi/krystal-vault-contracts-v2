@@ -23,11 +23,17 @@ import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/Liqu
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
+import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
+import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 
 /// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
 ///      Currency = address underneath, so address is used here for ABI-encoding compatibility.
 interface IV4Utils {
-  enum UtilActions { ADJUST_RANGE, DECREASE_AND_SWAP, COMPOUND }
+  enum UtilActions {
+    ADJUST_RANGE,
+    DECREASE_AND_SWAP,
+    COMPOUND
+  }
 
   struct Instructions {
     UtilActions action;
@@ -109,19 +115,21 @@ contract SharedV4Strategy is ISharedStrategy {
     ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[], PositionChange[]));
 
     // Validate approved tokens are vault tokens (these are the tokens actually used)
-    for (uint256 i; i < approveTokens.length;) {
+    for (uint256 i; i < approveTokens.length; ) {
       if (approveAmounts[i] > 0) {
         _validateVaultToken(approveTokens[i]);
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     // Also validate position change tokens from on-chain data when adding existing positions
-    for (uint256 i; i < positionChanges.length;) {
+    for (uint256 i; i < positionChanges.length; ) {
       if (positionChanges[i].isAdd && positionChanges[i].tokenId != 0) {
         // Verify tokens from actual POSM position data, not caller-supplied values
         IPositionManager pm = IPositionManager(posm);
-        (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(positionChanges[i].tokenId);
+        (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(positionChanges[i].tokenId);
         address c0 = Currency.unwrap(poolKey.currency0);
         address c1 = Currency.unwrap(poolKey.currency1);
         _validateVaultToken(c0);
@@ -132,16 +140,20 @@ contract SharedV4Strategy is ISharedStrategy {
         if (positionChanges[i].token0 != address(0)) _validateVaultToken(positionChanges[i].token0);
         if (positionChanges[i].token1 != address(0)) _validateVaultToken(positionChanges[i].token1);
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     // Approve tokens
     require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
-    for (uint256 i; i < approveTokens.length;) {
+    for (uint256 i; i < approveTokens.length; ) {
       if (approveAmounts[i] > 0) {
         IERC20(approveTokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
       }
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
@@ -159,7 +171,7 @@ contract SharedV4Strategy is ISharedStrategy {
     // Validate tokens from on-chain POSM data for the position being transferred
     {
       IPositionManager pm = IPositionManager(posm);
-      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
       _validateVaultToken(Currency.unwrap(poolKey.currency0));
       _validateVaultToken(Currency.unwrap(poolKey.currency1));
     }
@@ -173,22 +185,27 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
   ///      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
   ///      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
+  ///      Protocol/performance fees are left at zero here: V4Utils does not integrate with `LpFeeTaker`;
+  ///      use vault-level fee config + future v4 fee plumbing if needed.
   function exitProportional(
     address posm,
     uint256 tokenId,
     uint256 shares,
     uint256 totalShares,
     uint256 minAmount0,
-    uint256 minAmount1
+    uint256 minAmount1,
+    uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
     IPositionManager pm = IPositionManager(posm);
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
 
     if (posLiquidity == 0) {
-      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(
-        false, posm, tokenId,
+        false,
+        posm,
+        tokenId,
         Currency.unwrap(poolKey.currency0),
         Currency.unwrap(poolKey.currency1)
       );
@@ -200,6 +217,9 @@ contract SharedV4Strategy is ISharedStrategy {
 
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    uint64 protocolX64 = SharedStrategyFeeConfig.platformFeeX64(cm, 0);
+
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
         liquidity: liquidityToRemove,
@@ -210,7 +230,7 @@ contract SharedV4Strategy is ISharedStrategy {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       swapDestToken: address(0),
-      protocolFeeX64: 0,
+      protocolFeeX64: protocolX64,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
@@ -221,16 +241,15 @@ contract SharedV4Strategy is ISharedStrategy {
     });
 
     IERC721(posm).approve(v4UtilsRouter, tokenId);
-    IV4UtilsRouter(v4UtilsRouter).execute(
-      posm,
-      abi.encodeCall(IV4Utils.execute, (posm, tokenId, instructions))
-    );
+    IV4UtilsRouter(v4UtilsRouter).execute(posm, abi.encodeCall(IV4Utils.execute, (posm, tokenId, instructions)));
 
     if (isFullExit) {
-      (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(
-        false, posm, tokenId,
+        false,
+        posm,
+        tokenId,
         Currency.unwrap(poolKey.currency0),
         Currency.unwrap(poolKey.currency1)
       );

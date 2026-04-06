@@ -67,6 +67,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -105,6 +110,11 @@
   {
     "inputs": [],
     "name": "InvalidToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVaultOwnerFeeBasisPoint",
     "type": "error"
   },
   {

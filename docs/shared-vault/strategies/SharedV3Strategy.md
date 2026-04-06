@@ -46,6 +46,12 @@ Uniswap V3 LP operations for SharedVault with token validation and position trac
 address v3utils
 ```
 
+### lpFeeTaker
+
+```solidity
+address lpFeeTaker
+```
+
 ### OperationType
 
 ```solidity
@@ -59,7 +65,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _v3utils) public
+constructor(address _v3utils, address _lpFeeTaker) public
 ```
 
 ### execute
@@ -77,7 +83,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | Encoded operation params (strategy-specific) |
+| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed. |
 
 #### Return Values
 
@@ -106,18 +112,22 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 _For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
      The caller can predict this via NFPM._nextId() or tx simulation._
 
+### _decreaseVaultPosition
+
+```solidity
+function _decreaseVaultPosition(address nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 feeOrTickSpacing, struct ISharedStrategy.ExitProportionalFeeParams feeParams) internal
+```
+
 ### exitProportional
 
 ```solidity
-function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, struct ISharedStrategy.ExitProportionalFeeParams feeParams) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Called via delegatecall from SharedVault.withdraw so address(this) is the vault.
-     Must remove `shares/totalShares` of the position's liquidity, collect fees,
-     and leave resulting tokens in the vault. Returns position changes so the vault
-     can untrack the position if fully exited._
+_Same fee model as public `LpStrategy._decreaseLiquidity`: collect fees → `LpFeeTaker.takeFees`
+     (platform + vault owner) → decrease proportional liquidity → collect principal. No V3Utils fee fields._
 
 #### Parameters
 
@@ -129,6 +139,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+| feeParams | struct ISharedStrategy.ExitProportionalFeeParams | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
 
 #### Return Values
 

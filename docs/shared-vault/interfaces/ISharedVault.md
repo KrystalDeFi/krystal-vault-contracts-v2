@@ -44,6 +44,12 @@ event VaultOwnerChanged(address vaultFactory, address previousOwner, address new
 event VaultPausedUpdated(address vaultFactory, bool paused)
 ```
 
+### VaultOwnerFeeBasisPointUpdated
+
+```solidity
+event VaultOwnerFeeBasisPointUpdated(address vaultFactory, uint16 basisPoints)
+```
+
 ### Position
 
 _Tracked LP position_
@@ -174,6 +180,12 @@ function isVaultToken(address token) external view returns (bool)
 function vaultOwner() external view returns (address)
 ```
 
+### configManager
+
+```solidity
+function configManager() external view returns (contract ISharedConfigManager)
+```
+
 ### weth
 
 ```solidity
@@ -208,6 +220,20 @@ function setOperator(address _operator) external
 
 ```solidity
 function setPaused(bool _paused) external
+```
+
+### vaultOwnerFeeBasisPoint
+
+```solidity
+function vaultOwnerFeeBasisPoint() external view returns (uint16)
+```
+
+Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
+
+### setVaultOwnerFeeBasisPoint
+
+```solidity
+function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external
 ```
 
 ### transferOwnership

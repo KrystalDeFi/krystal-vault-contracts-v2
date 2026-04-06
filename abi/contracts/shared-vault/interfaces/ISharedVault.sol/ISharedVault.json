@@ -26,6 +26,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidOperation",
     "type": "error"
   },
@@ -59,6 +64,11 @@
   {
     "inputs": [],
     "name": "InvalidToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVaultOwnerFeeBasisPoint",
     "type": "error"
   },
   {
@@ -243,6 +253,25 @@
       },
       {
         "indexed": false,
+        "internalType": "uint16",
+        "name": "basisPoints",
+        "type": "uint16"
+      }
+    ],
+    "name": "VaultOwnerFeeBasisPointUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultFactory",
+        "type": "address"
+      },
+      {
+        "indexed": false,
         "internalType": "bool",
         "name": "paused",
         "type": "bool"
@@ -281,6 +310,19 @@
     ],
     "name": "VaultWithdraw",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "configManager",
+    "outputs": [
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -582,6 +624,19 @@
   {
     "inputs": [
       {
+        "internalType": "uint16",
+        "name": "basisPoints",
+        "type": "uint16"
+      }
+    ],
+    "name": "setVaultOwnerFeeBasisPoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "token",
         "type": "address"
@@ -705,6 +760,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "vaultOwnerFeeBasisPoint",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
       }
     ],
     "stateMutability": "view",

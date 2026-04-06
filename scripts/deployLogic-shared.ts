@@ -25,6 +25,8 @@ export interface SharedContracts {
   sharedVaultFactory?: BaseContract;
   sharedConfigManager?: BaseContract;
   sharedVaultAutomator?: SharedVaultAutomator;
+  /** Deployed here when missing from `existingContract` and a V3-style shared strategy is enabled */
+  sharedLpFeeTaker?: BaseContract;
   sharedV3Strategy?: BaseContract;
   sharedV4Strategy?: BaseContract;
   sharedAerodromeStrategy?: BaseContract;
@@ -53,6 +55,27 @@ async function deployContracts(
   let step = 0;
 
   const contracts: SharedContracts = {};
+
+  let lpFeeTakerAddress: string | undefined =
+    typeof existingContract?.["lpFeeTaker"] === "string"
+      ? existingContract["lpFeeTaker"]
+      : (existingContract?.["lpFeeTaker"] as BaseContract | undefined)?.target?.toString();
+
+  const needsLpFeeTaker =
+    networkConfig.sharedV3Strategy?.enabled ||
+    networkConfig.sharedAerodromeStrategy?.enabled ||
+    networkConfig.sharedPancakeV3Strategy?.enabled;
+
+  if (needsLpFeeTaker && !lpFeeTakerAddress) {
+    contracts.sharedLpFeeTaker = await deployContract(
+      ++step,
+      networkConfig.lpFeeTaker?.autoVerifyContract,
+      "LpFeeTaker",
+      undefined,
+      "contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol:LpFeeTaker",
+    );
+    lpFeeTakerAddress = contracts.sharedLpFeeTaker.target as string;
+  }
 
   // 1. Deploy SharedConfigManager
   if (networkConfig.sharedConfigManager?.enabled) {
@@ -96,8 +119,8 @@ async function deployContracts(
       existingContract?.["sharedV3Strategy"],
       "contracts/shared-vault/strategies/SharedV3Strategy.sol:SharedV3Strategy",
       undefined,
-      ["address"],
-      [networkConfig.v3UtilsAddress],
+      ["address", "address"],
+      [networkConfig.v3UtilsAddress, lpFeeTakerAddress],
     );
   }
 
@@ -124,9 +147,10 @@ async function deployContracts(
       existingContract?.["sharedAerodromeStrategy"],
       "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
       undefined,
-      ["address", "address", "address"],
+      ["address", "address", "address", "address"],
       [
         networkConfig.v3UtilsAddress,
+        lpFeeTakerAddress,
         networkConfig.aerodromeGaugeFactory,
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],
@@ -142,9 +166,10 @@ async function deployContracts(
       existingContract?.["sharedPancakeV3Strategy"],
       "contracts/shared-vault/strategies/SharedPancakeV3Strategy.sol:SharedPancakeV3Strategy",
       undefined,
-      ["address", "address", "address"],
+      ["address", "address", "address", "address"],
       [
         networkConfig.v3UtilsAddress,
+        lpFeeTakerAddress,
         networkConfig.pancakeV3MasterChef,
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],

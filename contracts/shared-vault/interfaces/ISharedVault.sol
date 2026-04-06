@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "./ISharedCommon.sol";
+import "./ISharedConfigManager.sol";
 
 interface ISharedVault is ISharedCommon {
   event VaultDeposit(address indexed vaultFactory, address indexed account, uint256[4] amounts, uint256 shares);
@@ -11,6 +12,7 @@ interface ISharedVault is ISharedCommon {
   event SetVaultOperator(address indexed vaultFactory, address indexed previousOperator, address indexed newOperator);
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
+  event VaultOwnerFeeBasisPointUpdated(address indexed vaultFactory, uint16 basisPoints);
 
   /// @dev Tracked LP position
   struct Position {
@@ -96,6 +98,8 @@ interface ISharedVault is ISharedCommon {
 
   function vaultOwner() external view returns (address);
 
+  function configManager() external view returns (ISharedConfigManager);
+
   function weth() external view returns (address);
 
   function tokenCount() external view returns (uint16);
@@ -108,6 +112,11 @@ interface ISharedVault is ISharedCommon {
   function setOperator(address _operator) external;
 
   function setPaused(bool _paused) external;
+
+  /// @notice Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
+  function vaultOwnerFeeBasisPoint() external view returns (uint16);
+
+  function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external;
 
   function transferOwnership(address newOwner) external;
 

@@ -8,6 +8,11 @@
       },
       {
         "internalType": "address",
+        "name": "_lpFeeTaker",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_gaugeFactory",
         "type": "address"
       },
@@ -27,7 +32,17 @@
   },
   {
     "inputs": [],
+    "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FeeRecipientNotSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidFeeBasisPoint",
     "type": "error"
   },
   {
@@ -204,6 +219,18 @@
         "internalType": "uint256",
         "name": "minAmount1",
         "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "vaultOwnerFeeBasisPoint",
+            "type": "uint16"
+          }
+        ],
+        "internalType": "struct ISharedStrategy.ExitProportionalFeeParams",
+        "name": "feeParams",
+        "type": "tuple"
       }
     ],
     "name": "exitProportional",
@@ -281,6 +308,19 @@
         "internalType": "uint256",
         "name": "amount1",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lpFeeTaker",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

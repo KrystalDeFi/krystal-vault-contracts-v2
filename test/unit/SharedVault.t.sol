@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon } from "../TestCommon.t.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
@@ -120,7 +121,8 @@ contract MockSharedStrategy is ISharedStrategy {
     uint256,
     uint256,
     uint256,
-    uint256
+    uint256,
+    uint16
   ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
@@ -142,7 +144,8 @@ contract MockFailingStrategy is ISharedStrategy {
     uint256,
     uint256,
     uint256,
-    uint256
+    uint256,
+    uint16
   ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }
@@ -249,6 +252,9 @@ contract MockLPPool {
 contract MockLPExitStrategy is ISharedStrategy {
   address public immutable lpPool;
 
+  /// @dev Emitted on proportional exit; under delegatecall this logs from the vault address.
+  event ExitVaultOwnerFeeBps(uint16 basisPoints);
+
   constructor(address _lpPool) {
     lpPool = _lpPool;
   }
@@ -274,8 +280,10 @@ contract MockLPExitStrategy is ISharedStrategy {
     uint256 shares,
     uint256 totalShares,
     uint256,
-    uint256
+    uint256,
+    uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
+    emit ExitVaultOwnerFeeBps(vaultOwnerFeeBasisPoint);
     MockLPPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
     changes = new PositionChange[](0);
   }
@@ -930,6 +938,101 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  // ==================== Vault owner fee + platform fee (LpFeeTaker / config) ====================
+
+  function test_set_platform_fee_basis_point() public {
+    // Config manager owner is `address(this)` from setUp `initialize`
+    vm.prank(address(this));
+    configManager.setPlatformFeeBasisPoint(50);
+    assertEq(configManager.platformFeeBasisPoint(), 50);
+  }
+
+  function test_set_platform_fee_basis_point_reverts_invalid() public {
+    vm.startPrank(address(this));
+    vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
+    configManager.setPlatformFeeBasisPoint(10_001);
+    vm.stopPrank();
+  }
+
+  function test_set_vault_owner_fee_basis_point() public {
+    vm.prank(VAULT_OWNER);
+    vault.setVaultOwnerFeeBasisPoint(250);
+    assertEq(vault.vaultOwnerFeeBasisPoint(), 250);
+  }
+
+  function test_set_vault_owner_fee_basis_point_max() public {
+    vm.prank(VAULT_OWNER);
+    vault.setVaultOwnerFeeBasisPoint(10_000);
+    assertEq(vault.vaultOwnerFeeBasisPoint(), 10_000);
+  }
+
+  function test_set_vault_owner_fee_basis_point_reverts_invalid() public {
+    vm.startPrank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
+    vault.setVaultOwnerFeeBasisPoint(10_001);
+    vm.stopPrank();
+  }
+
+  function test_set_vault_owner_fee_basis_point_unauthorized() public {
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.setVaultOwnerFeeBasisPoint(100);
+  }
+
+  /// @notice Withdraw delegatecalls `exitProportional` with the stored owner fee bps so strategies can apply performance fees.
+  function test_withdraw_forwards_vault_owner_fee_bps_to_strategy() public {
+    MockLPPool lpPoolContract = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(lpPoolContract));
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(lpStrategy);
+    cm.initialize(VAULT_OWNER, targets, new address[](0), address(this));
+
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    uint256 dep = 100e18;
+    tA.mint(address(this), dep);
+    tB.mint(address(this), dep);
+    tA.transfer(address(v), dep);
+    tB.transfer(address(v), dep);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [dep, dep, uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0));
+
+    vm.prank(VAULT_OWNER);
+    v.setVaultOwnerFeeBasisPoint(1234);
+    assertEq(v.vaultOwnerFeeBasisPoint(), 1234);
+
+    vm.startPrank(VAULT_OWNER);
+    address fakeNfpm = makeAddr("nfpmFee");
+    bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), 50e18, 50e18);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    v.execute(actions);
+    vm.stopPrank();
+
+    uint256 shares = v.balanceOf(VAULT_OWNER);
+
+    vm.recordLogs();
+    vm.prank(VAULT_OWNER);
+    v.withdraw(shares, [uint256(0), uint256(0), uint256(0), uint256(0)], false);
+
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    bytes32 evSig = keccak256("ExitVaultOwnerFeeBps(uint16)");
+    bool found;
+    for (uint256 i; i < logs.length; i++) {
+      if (logs[i].emitter == address(v) && logs[i].topics.length > 0 && logs[i].topics[0] == evSig) {
+        assertEq(abi.decode(logs[i].data, (uint256)), 1234);
+        found = true;
+        break;
+      }
+    }
+    assertTrue(found, "ExitVaultOwnerFeeBps must be emitted from vault during delegatecall exit");
+  }
+
   // ==================== Preview Tests ====================
 
   function test_preview_deposit() public view {
@@ -1223,8 +1326,8 @@ contract SharedVaultTest is TestCommon {
     (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(100e18, 100e18);
 
     uint256 aliceShares = v.balanceOf(VAULT_OWNER);
-    assertEq(aliceShares, 1e18);
-    assertEq(v.totalSupply(), 2e18);
+    assertEq(aliceShares, v.INITIAL_SHARES());
+    assertEq(v.totalSupply(), v.INITIAL_SHARES() * 2);
 
     // Verify total balances
     uint256[4] memory totalBal = v.getTotalBalances();

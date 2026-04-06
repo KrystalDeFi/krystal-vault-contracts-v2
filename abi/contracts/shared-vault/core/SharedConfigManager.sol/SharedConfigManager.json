@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "InvalidFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -245,6 +250,19 @@
   },
   {
     "inputs": [],
+    "name": "platformFeeBasisPoint",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -259,6 +277,19 @@
       }
     ],
     "name": "setFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "basisPoints",
+        "type": "uint16"
+      }
+    ],
+    "name": "setPlatformFeeBasisPoint",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

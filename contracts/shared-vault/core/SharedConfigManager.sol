@@ -12,6 +12,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   bool public override isVaultPaused = false;
   address public override feeRecipient;
+  uint16 public override platformFeeBasisPoint;
 
   function initialize(
     address _owner,
@@ -22,15 +23,19 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     __Ownable_init(_owner);
 
     uint256 length = _whitelistTargets.length;
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       whitelistedTargets[_whitelistTargets[i]] = true;
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     length = _whitelistCallers.length;
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       whitelistedCallers[_whitelistCallers[i]] = true;
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
 
     feeRecipient = _feeRecipient;
@@ -41,9 +46,11 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {
     uint256 length = targets.length;
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       whitelistedTargets[targets[i]] = _isWhitelisted;
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
     emit WhitelistTargetsUpdated(targets, _isWhitelisted);
   }
@@ -54,9 +61,11 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function setWhitelistCallers(address[] calldata callers, bool _isWhitelisted) external override onlyOwner {
     uint256 length = callers.length;
-    for (uint256 i; i < length;) {
+    for (uint256 i; i < length; ) {
       whitelistedCallers[callers[i]] = _isWhitelisted;
-      unchecked { i++; }
+      unchecked {
+        i++;
+      }
     }
     emit WhitelistCallersUpdated(callers, _isWhitelisted);
   }
@@ -76,5 +85,10 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     emit FeeRecipientUpdated(feeRecipient, newFeeRecipient);
 
     feeRecipient = newFeeRecipient;
+  }
+
+  function setPlatformFeeBasisPoint(uint16 basisPoints) external override onlyOwner {
+    require(basisPoints <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
+    platformFeeBasisPoint = basisPoints;
   }
 }

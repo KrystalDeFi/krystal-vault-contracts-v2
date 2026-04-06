@@ -10,6 +10,12 @@ Aerodrome CL LP + gauge farming for SharedVault with token validation and positi
 address v3utils
 ```
 
+### lpFeeTaker
+
+```solidity
+address lpFeeTaker
+```
+
 ### gaugeFactory
 
 ```solidity
@@ -44,7 +50,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _v3utils, address _gaugeFactory, address _configManager) public
+constructor(address _v3utils, address _lpFeeTaker, address _gaugeFactory, address _configManager) public
 ```
 
 ### execute
@@ -62,7 +68,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | Encoded operation params (strategy-specific) |
+| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed. |
 
 #### Return Values
 
@@ -114,17 +120,21 @@ function _harvestGauge(bytes data) internal
 function _harvestRewards(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal
 ```
 
+### _decreaseVaultPosition
+
+```solidity
+function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 tickSpacing, struct ISharedStrategy.ExitProportionalFeeParams feeParams) internal
+```
+
 ### exitProportional
 
 ```solidity
-function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, struct ISharedStrategy.ExitProportionalFeeParams feeParams) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Handles both direct (vault-held) and gauge-staked positions.
-     If staked: harvests pending rewards, withdraws from gauge, removes proportional liquidity
-     via V3Utils, then re-deposits the NFT into the gauge for partial exits._
+_Handles gauge-staked and direct positions. Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern)._
 
 #### Parameters
 
@@ -136,6 +146,7 @@ _Handles both direct (vault-held) and gauge-staked positions.
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+| feeParams | struct ISharedStrategy.ExitProportionalFeeParams | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
 
 #### Return Values
 

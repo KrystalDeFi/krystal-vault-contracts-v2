@@ -121,3 +121,15 @@ error InvalidOperation()
 error LengthMismatch()
 ```
 
+### InvalidVaultOwnerFeeBasisPoint
+
+```solidity
+error InvalidVaultOwnerFeeBasisPoint()
+```
+
+### InvalidFeeBasisPoint
+
+```solidity
+error InvalidFeeBasisPoint()
+```
+

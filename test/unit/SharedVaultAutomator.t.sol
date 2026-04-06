@@ -76,7 +76,8 @@ contract MockAutomatorStrategy is ISharedStrategy {
     uint256,
     uint256,
     uint256,
-    uint256
+    uint256,
+    uint16
   ) external pure override returns (PositionChange[] memory changes) {
     changes = new PositionChange[](0);
   }

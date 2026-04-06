@@ -78,11 +78,13 @@ mapping(address => bool) isVaultToken
 mapping(address => bool) admins
 ```
 
-### paused
+### vaultOwnerFeeBasisPoint
 
 ```solidity
-bool paused
+uint16 vaultOwnerFeeBasisPoint
 ```
+
+Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
 
 ### positions
 
@@ -118,10 +120,10 @@ modifier onlyAuthorized()
 modifier onlyOperator()
 ```
 
-### whenNotPaused
+### whenVaultNotPaused
 
 ```solidity
-modifier whenNotPaused()
+modifier whenVaultNotPaused()
 ```
 
 ### initialize
@@ -288,6 +290,12 @@ function setOperator(address _operator) external
 
 ```solidity
 function setPaused(bool _paused) external
+```
+
+### setVaultOwnerFeeBasisPoint
+
+```solidity
+function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external
 ```
 
 ### transferOwnership

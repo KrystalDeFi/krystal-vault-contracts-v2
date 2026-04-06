@@ -8,6 +8,16 @@
 error InvalidPoolTokens()
 ```
 
+### ExitProportionalFeeParams
+
+_Vault owner fee bps for `exitProportional`; platform fee always from `configManager` (withdraw has no gas fee; gas X64 only via `execute`)._
+
+```solidity
+struct ExitProportionalFeeParams {
+  uint16 vaultOwnerFeeBasisPoint;
+}
+```
+
 ### PositionChange
 
 ```solidity
@@ -35,7 +45,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | Encoded operation params (strategy-specific) |
+| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed. |
 
 #### Return Values
 
@@ -46,7 +56,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 ### exitProportional
 
 ```solidity
-function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, struct ISharedStrategy.ExitProportionalFeeParams feeParams) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
@@ -66,6 +76,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+| feeParams | struct ISharedStrategy.ExitProportionalFeeParams | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
 
 #### Return Values
 

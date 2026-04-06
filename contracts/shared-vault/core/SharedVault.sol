@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
@@ -21,11 +22,20 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 
 import "../interfaces/ISharedVault.sol";
+import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedStrategy.sol";
 import "../../public-vault/interfaces/IWETH9.sol";
 
-contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, ERC1155Holder, IERC1271, ISharedVault {
+contract SharedVault is
+  ERC20PermitUpgradeable,
+  PausableUpgradeable,
+  ReentrancyGuard,
+  ERC721Holder,
+  ERC1155Holder,
+  IERC1271,
+  ISharedVault
+{
   using SafeERC20 for IERC20;
   using SafeApprovalLib for IERC20;
 
@@ -37,7 +47,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   /// @dev Fixed share count minted to the first depositor regardless of deposit amount.
   ///      This decouples share units from any specific token's decimals and prevents
   ///      the initial share price from being dictated by deposit size.
-  uint256 public constant INITIAL_SHARES = 1e18;
+  uint256 public constant INITIAL_SHARES = 10e18;
 
   ISharedConfigManager public configManager;
   address public override vaultOwner;
@@ -50,7 +60,9 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   mapping(address => bool) public override isVaultToken;
 
   mapping(address => bool) public admins;
-  bool public paused;
+
+  /// @inheritdoc ISharedVault
+  uint16 public override vaultOwnerFeeBasisPoint;
 
   /// @dev Array of tracked LP positions
   Position[] public positions;
@@ -75,8 +87,8 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     _;
   }
 
-  modifier whenNotPaused() {
-    require(!paused && !configManager.isVaultPaused(), VaultPaused());
+  modifier whenVaultNotPaused() {
+    require(!paused() && !configManager.isVaultPaused(), VaultPaused());
     _;
   }
 
@@ -98,6 +110,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
     // user-chosen vault name in wallets and block explorers as the ticker.
     __ERC20_init(_name, _name);
     __ERC20Permit_init(_name);
+    __Pausable_init();
 
     configManager = ISharedConfigManager(_configManager);
     vaultOwner = _owner;
@@ -158,7 +171,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   function deposit(
     uint256[4] calldata amounts,
     uint256 minShares
-  ) external payable override nonReentrant whenNotPaused returns (uint256 shares) {
+  ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
     uint256[4] memory totalBalances = _getTotalBalances();
@@ -302,7 +315,10 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
       Position memory pos = positions[p];
 
       (bool ok, bytes memory result) = pos.strategy.delegatecall(
-        abi.encodeCall(ISharedStrategy.exitProportional, (pos.nfpm, pos.tokenId, shares, currentTotalSupply, 0, 0))
+        abi.encodeCall(
+          ISharedStrategy.exitProportional,
+          (pos.nfpm, pos.tokenId, shares, currentTotalSupply, 0, 0, vaultOwnerFeeBasisPoint)
+        )
       );
 
       if (!ok) {
@@ -370,7 +386,7 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   ///                             action.data must be abi.encode(tokenIn, tokenOut, amountIn,
   ///                             minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
   ///                             tokens; output balance delta is checked against minAmountOut.
-  function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenNotPaused {
+  function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
       require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
@@ -552,8 +568,19 @@ contract SharedVault is ERC20PermitUpgradeable, ReentrancyGuard, ERC721Holder, E
   }
 
   function setPaused(bool _paused) external override onlyOwner {
-    paused = _paused;
+    if (_paused) {
+      _pause();
+    } else {
+      _unpause();
+    }
     emit VaultPausedUpdated(vaultFactory, _paused);
+  }
+
+  /// @inheritdoc ISharedVault
+  function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external override onlyOwner {
+    require(basisPoints <= 10_000, ISharedCommon.InvalidVaultOwnerFeeBasisPoint());
+    vaultOwnerFeeBasisPoint = basisPoints;
+    emit VaultOwnerFeeBasisPointUpdated(vaultFactory, basisPoints);
   }
 
   function transferOwnership(address newOwner) external override onlyOwner {

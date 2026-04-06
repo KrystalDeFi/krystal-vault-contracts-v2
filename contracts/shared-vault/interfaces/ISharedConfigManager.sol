@@ -11,6 +11,11 @@ interface ISharedConfigManager {
 
   function feeRecipient() external view returns (address);
 
+  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+  function platformFeeBasisPoint() external view returns (uint16);
+
+  function setPlatformFeeBasisPoint(uint16 basisPoints) external;
+
   // Target whitelist (for strategy delegatecalls and swap aggregator calls)
   function isWhitelistedTarget(address target) external view returns (bool);
 

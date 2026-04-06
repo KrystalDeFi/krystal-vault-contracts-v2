@@ -26,6 +26,14 @@ bool isVaultPaused
 address feeRecipient
 ```
 
+### platformFeeBasisPoint
+
+```solidity
+uint16 platformFeeBasisPoint
+```
+
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+
 ### initialize
 
 ```solidity
@@ -66,5 +74,11 @@ function setVaultPaused(bool _isVaultPaused) external
 
 ```solidity
 function setFeeRecipient(address newFeeRecipient) external
+```
+
+### setPlatformFeeBasisPoint
+
+```solidity
+function setPlatformFeeBasisPoint(uint16 basisPoints) external
 ```
 

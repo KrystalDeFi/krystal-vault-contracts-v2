@@ -13,6 +13,7 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
@@ -51,6 +52,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   SharedConfigManager public configManager;
   SharedVaultFactory public vaultFactory;
   SharedVault public vaultImplementation;
+  LpFeeTaker public lpFeeTaker;
   SharedV3Strategy public v3Strategy;
   SharedVault public vault;
 
@@ -69,8 +71,8 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     vm.startPrank(vaultOwner);
 
-    // Deploy strategy (points to V3Utils on Base)
-    v3Strategy = new SharedV3Strategy(V3_UTILS);
+    lpFeeTaker = new LpFeeTaker();
+    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
 
     // Deploy config manager with strategy whitelisted
     address[] memory targets = new address[](1);
@@ -199,7 +201,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     bytes memory data = bytes.concat(
       abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions, false, uint256(0))
+      abi.encode(NFPM, tokenId, instructions, false, uint256(0), uint16(0), uint64(0))
     );
 
     {
@@ -264,7 +266,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     bytes memory data = bytes.concat(
       abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions, true /* isFullWithdraw */, uint256(0))
+      abi.encode(NFPM, tokenId, instructions, true /* isFullWithdraw */, uint256(0), uint16(0), uint64(0))
     );
 
     {
@@ -498,7 +500,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
       );
   }
 
@@ -540,7 +542,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
       );
   }
 }

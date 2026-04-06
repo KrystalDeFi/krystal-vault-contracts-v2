@@ -38,6 +38,20 @@ function isVaultPaused() external view returns (bool)
 function feeRecipient() external view returns (address)
 ```
 
+### platformFeeBasisPoint
+
+```solidity
+function platformFeeBasisPoint() external view returns (uint16)
+```
+
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+
+### setPlatformFeeBasisPoint
+
+```solidity
+function setPlatformFeeBasisPoint(uint16 basisPoints) external
+```
+
 ### isWhitelistedTarget
 
 ```solidity

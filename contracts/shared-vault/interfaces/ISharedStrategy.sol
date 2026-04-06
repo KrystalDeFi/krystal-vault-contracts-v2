@@ -15,7 +15,9 @@ interface ISharedStrategy {
   /// @notice Execute an LP operation. Called via delegatecall from SharedVault.
   /// @dev Strategy MUST validate that pool tokens are vault tokens.
   ///      Since this runs via delegatecall, address(this) is the vault.
-  /// @param data Encoded operation params (strategy-specific)
+  /// @param data Encoded operation params (strategy-specific). V3-style strategies append
+  ///        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.
+  ///        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed.
   /// @return changes Array of position changes (added/removed)
   function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
 
@@ -30,6 +32,7 @@ interface ISharedStrategy {
   /// @param totalShares Total vault share supply (snapshot before burn)
   /// @param minAmount0 Minimum token0 to receive (slippage guard)
   /// @param minAmount1 Minimum token1 to receive (slippage guard)
+  /// @param vaultOwnerFeeBasisPoint Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits.
   /// @return changes Empty if partial exit; single removal entry if fully exited
   function exitProportional(
     address nfpm,
@@ -37,7 +40,8 @@ interface ISharedStrategy {
     uint256 shares,
     uint256 totalShares,
     uint256 minAmount0,
-    uint256 minAmount1
+    uint256 minAmount1,
+    uint16 vaultOwnerFeeBasisPoint
   ) external returns (PositionChange[] memory changes);
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
