@@ -1,41 +1,5 @@
 # Solidity API
 
-## INFPM
-
-_Generic NFPM for querying positions_
-
-### positions
-
-```solidity
-function positions(uint256 tokenId) external view returns (uint96, address, address token0, address token1, int24 feeOrTickSpacing, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256, uint256, uint128, uint128)
-```
-
-### factory
-
-```solidity
-function factory() external view returns (address)
-```
-
-## IUniV3Factory
-
-_UniswapV3 factory for pool lookup (fee as uint24)_
-
-### getPool
-
-```solidity
-function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)
-```
-
-## IUniV3Pool
-
-_UniswapV3 pool for slot0 query_
-
-### slot0
-
-```solidity
-function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)
-```
-
 ## SharedV3Strategy
 
 Uniswap V3 LP operations for SharedVault with token validation and position tracking
@@ -115,7 +79,7 @@ _For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for
 ### _decreaseVaultPosition
 
 ```solidity
-function _decreaseVaultPosition(address nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 feeOrTickSpacing, uint16 vaultOwnerFeeBasisPoint) internal
+function _decreaseVaultPosition(address nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, uint24 fee, uint16 vaultOwnerFeeBasisPoint) internal
 ```
 
 ### exitProportional

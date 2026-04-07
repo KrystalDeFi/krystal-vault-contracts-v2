@@ -1,31 +1,5 @@
 # Solidity API
 
-## INFPM
-
-_Generic NFPM for querying positions_
-
-### positions
-
-```solidity
-function positions(uint256 tokenId) external view returns (uint96, address, address token0, address token1, int24 feeOrTickSpacing, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256, uint256, uint128, uint128)
-```
-
-### factory
-
-```solidity
-function factory() external view returns (address)
-```
-
-## IUniV3Factory
-
-_V3 factory for pool lookup (fee as uint24)_
-
-### getPool
-
-```solidity
-function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)
-```
-
 ## SharedPancakeV3Strategy
 
 PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
@@ -143,7 +117,7 @@ function _harvestRewards(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64)
 ### _decreaseVaultPosition
 
 ```solidity
-function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 feeOrTickSpacing, uint16 vaultOwnerFeeBasisPoint) internal
+function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, uint24 fee, uint16 vaultOwnerFeeBasisPoint) internal
 ```
 
 _Splits NFPM decrease to keep `exitProportional` stack shallow for IR builds._

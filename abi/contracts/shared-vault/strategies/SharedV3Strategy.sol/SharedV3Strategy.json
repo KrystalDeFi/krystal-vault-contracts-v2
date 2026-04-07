@@ -47,6 +47,11 @@
   },
   {
     "inputs": [],
+    "name": "StrategyCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "T",
     "type": "error"
   },

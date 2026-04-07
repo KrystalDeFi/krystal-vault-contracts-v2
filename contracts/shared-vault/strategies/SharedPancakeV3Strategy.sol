@@ -3,6 +3,9 @@ pragma solidity ^0.8.28;
 
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { IMasterChefV3 } from "../../common/interfaces/protocols/pancakev3/IMasterChefV3.sol";
+import { INonfungiblePositionManager as INFPM } from
+  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -21,36 +24,6 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-
-/// @dev Generic NFPM for querying positions
-interface INFPM {
-  function positions(
-    uint256 tokenId
-  )
-    external
-    view
-    returns (
-      uint96,
-      address,
-      address token0,
-      address token1,
-      int24 feeOrTickSpacing,
-      int24 tickLower,
-      int24 tickUpper,
-      uint128 liquidity,
-      uint256,
-      uint256,
-      uint128,
-      uint128
-    );
-
-  function factory() external view returns (address);
-}
-
-/// @dev V3 factory for pool lookup (fee as uint24)
-interface IUniV3Factory {
-  function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
-}
 
 /// @title SharedPancakeV3Strategy
 /// @notice PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
@@ -255,10 +228,10 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     address token0,
     address token1,
-    int24 feeOrTickSpacing,
+    uint24 fee,
     uint16 vaultOwnerFeeBasisPoint
   ) internal {
-    address pool = _getPool(_nfpm, token0, token1, uint24(feeOrTickSpacing));
+    address pool = _getPool(_nfpm, token0, token1, fee);
     ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
     SharedNfpmProportionalExit.decreaseLiquidityProportional(
       _nfpm,
@@ -286,8 +259,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
-    (, , address token0, address token1, int24 feeOrTickSpacing, , , uint128 posLiquidity, , , , ) = INFPM(_nfpm)
-      .positions(tokenId);
+    (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(
+      _nfpm
+    ).positions(tokenId);
 
     bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
 
@@ -318,7 +292,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       minAmount1,
       token0,
       token1,
-      feeOrTickSpacing,
+      fee,
       vaultOwnerFeeBasisPoint
     );
 
@@ -344,7 +318,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       ,
       address token0,
       address token1,
-      int24 feeOrTickSpacing,
+      uint24 fee,
       int24 tickLower,
       int24 tickUpper,
       uint128 liquidity,
@@ -357,19 +331,14 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     if (liquidity == 0 && tokensOwed0 == 0 && tokensOwed1 == 0) return (0, 0);
 
     if (liquidity > 0) {
-      address pool = _getPool(_nfpm, token0, token1, uint24(feeOrTickSpacing));
-      // Use a low-level call for slot0() to avoid Solidity 0.8 strict ABI decoder rejecting
-      // PancakeSwap V3's non-canonical encoding. PancakeSwap V3 pools return 6 values (192 bytes)
-      // vs Uniswap V3's 7 values, and some return data fields may have non-zero padding bits
-      // that the strict decoder rejects. We only need sqrtPriceX96 from the first 32-byte word.
+      address pool = _getPool(_nfpm, token0, token1, fee);
+      // Use staticcall to avoid Solidity 0.8 strict ABI decoder rejecting PancakeSwap V3's
+      // non-canonical slot0() encoding. We only need sqrtPriceX96 from the first 32-byte word.
+      (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
+      require(success, ISharedCommon.StrategyCallFailed());
       uint160 sqrtPriceX96;
       assembly {
-        let ptr := mload(0x40)
-        // selector for slot0()
-        mstore(ptr, 0x3850c7bd00000000000000000000000000000000000000000000000000000000)
-        let success := staticcall(gas(), pool, ptr, 4, ptr, 192)
-        if iszero(success) { revert(0, 0) }
-        sqrtPriceX96 := mload(ptr)
+        sqrtPriceX96 := mload(add(returnedData, 0x20))
       }
       (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
         sqrtPriceX96,
@@ -385,7 +354,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
   function _getPool(address _nfpm, address token0, address token1, uint24 fee) internal view returns (address) {
     address factory = INFPM(_nfpm).factory();
-    return IUniV3Factory(factory).getPool(token0, token1, fee);
+    return IUniswapV3Factory(factory).getPool(token0, token1, fee);
   }
 
   function _validateVaultToken(address token) internal view {

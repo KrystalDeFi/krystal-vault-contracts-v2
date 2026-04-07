@@ -2,6 +2,10 @@
 pragma solidity ^0.8.28;
 
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
+import { INonfungiblePositionManager as INFPM } from
+  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IPancakeV3Pool as IUniswapV3Pool } from "@pancakeswap/v3-core/contracts/interfaces/IPancakeV3Pool.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
@@ -17,52 +21,6 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-
-/// @dev Generic NFPM for querying positions
-interface INFPM {
-  function positions(
-    uint256 tokenId
-  )
-    external
-    view
-    returns (
-      uint96,
-      address,
-      address token0,
-      address token1,
-      int24 feeOrTickSpacing,
-      int24 tickLower,
-      int24 tickUpper,
-      uint128 liquidity,
-      uint256,
-      uint256,
-      uint128,
-      uint128
-    );
-
-  function factory() external view returns (address);
-}
-
-/// @dev UniswapV3 factory for pool lookup (fee as uint24)
-interface IUniV3Factory {
-  function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
-}
-
-/// @dev UniswapV3 pool for slot0 query
-interface IUniV3Pool {
-  function slot0()
-    external
-    view
-    returns (
-      uint160 sqrtPriceX96,
-      int24 tick,
-      uint16 observationIndex,
-      uint16 observationCardinality,
-      uint16 observationCardinalityNext,
-      uint8 feeProtocol,
-      bool unlocked
-    );
-}
 
 /// @title SharedV3Strategy
 /// @notice Uniswap V3 LP operations for SharedVault with token validation and position tracking
@@ -193,10 +151,10 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     address token0,
     address token1,
-    int24 feeOrTickSpacing,
+    uint24 fee,
     uint16 vaultOwnerFeeBasisPoint
   ) internal {
-    address pool = _getPool(nfpm, token0, token1, uint24(feeOrTickSpacing));
+    address pool = _getPool(nfpm, token0, token1, fee);
     ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
     SharedNfpmProportionalExit.decreaseLiquidityProportional(
       nfpm,
@@ -224,8 +182,9 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
-    (, , address token0, address token1, int24 feeOrTickSpacing, , , uint128 posLiquidity, , , , ) = INFPM(nfpm)
-      .positions(tokenId);
+    (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(
+      nfpm
+    ).positions(tokenId);
 
     if (posLiquidity == 0) {
       changes = new PositionChange[](1);
@@ -248,7 +207,7 @@ contract SharedV3Strategy is ISharedStrategy {
       minAmount1,
       token0,
       token1,
-      feeOrTickSpacing,
+      fee,
       vaultOwnerFeeBasisPoint
     );
 
@@ -270,7 +229,7 @@ contract SharedV3Strategy is ISharedStrategy {
       ,
       address token0,
       address token1,
-      int24 feeOrTickSpacing,
+      uint24 fee,
       int24 tickLower,
       int24 tickUpper,
       uint128 liquidity,
@@ -283,8 +242,13 @@ contract SharedV3Strategy is ISharedStrategy {
     if (liquidity == 0 && tokensOwed0 == 0 && tokensOwed1 == 0) return (0, 0);
 
     if (liquidity > 0) {
-      address pool = _getPool(nfpm, token0, token1, uint24(feeOrTickSpacing));
-      (uint160 sqrtPriceX96, , , , , , ) = IUniV3Pool(pool).slot0();
+      address pool = _getPool(nfpm, token0, token1, fee);
+      (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
+      require(success, ISharedCommon.StrategyCallFailed());
+      uint160 sqrtPriceX96;
+      assembly {
+        sqrtPriceX96 := mload(add(returnedData, 0x20))
+      }
       (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
         sqrtPriceX96,
         TickMath.getSqrtRatioAtTick(tickLower),
@@ -299,7 +263,7 @@ contract SharedV3Strategy is ISharedStrategy {
 
   function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address) {
     address factory = INFPM(nfpm).factory();
-    return IUniV3Factory(factory).getPool(token0, token1, fee);
+    return IUniswapV3Factory(factory).getPool(token0, token1, fee);
   }
 
   function _validateVaultToken(address token) internal view {
