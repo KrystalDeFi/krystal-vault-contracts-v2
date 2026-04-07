@@ -26,16 +26,6 @@ _V3 factory for pool lookup (fee as uint24)_
 function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)
 ```
 
-## IV3Pool
-
-_V3 pool for slot0 query_
-
-### slot0
-
-```solidity
-function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)
-```
-
 ## SharedPancakeV3Strategy
 
 PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking

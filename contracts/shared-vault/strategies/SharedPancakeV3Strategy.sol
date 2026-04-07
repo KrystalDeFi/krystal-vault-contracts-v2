@@ -52,22 +52,6 @@ interface IUniV3Factory {
   function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address);
 }
 
-/// @dev V3 pool for slot0 query
-interface IV3Pool {
-  function slot0()
-    external
-    view
-    returns (
-      uint160 sqrtPriceX96,
-      int24 tick,
-      uint16 observationIndex,
-      uint16 observationCardinality,
-      uint16 observationCardinalityNext,
-      uint8 feeProtocol,
-      bool unlocked
-    );
-}
-
 /// @title SharedPancakeV3Strategy
 /// @notice PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
 contract SharedPancakeV3Strategy is ISharedStrategy {
@@ -374,7 +358,19 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
     if (liquidity > 0) {
       address pool = _getPool(_nfpm, token0, token1, uint24(feeOrTickSpacing));
-      (uint160 sqrtPriceX96, , , , , , ) = IV3Pool(pool).slot0();
+      // Use a low-level call for slot0() to avoid Solidity 0.8 strict ABI decoder rejecting
+      // PancakeSwap V3's non-canonical encoding. PancakeSwap V3 pools return 6 values (192 bytes)
+      // vs Uniswap V3's 7 values, and some return data fields may have non-zero padding bits
+      // that the strict decoder rejects. We only need sqrtPriceX96 from the first 32-byte word.
+      uint160 sqrtPriceX96;
+      assembly {
+        let ptr := mload(0x40)
+        // selector for slot0()
+        mstore(ptr, 0x3850c7bd00000000000000000000000000000000000000000000000000000000)
+        let success := staticcall(gas(), pool, ptr, 4, ptr, 192)
+        if iszero(success) { revert(0, 0) }
+        sqrtPriceX96 := mload(ptr)
+      }
       (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
         sqrtPriceX96,
         TickMath.getSqrtRatioAtTick(tickLower),

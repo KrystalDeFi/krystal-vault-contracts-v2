@@ -23,12 +23,7 @@ interface ISharedVault is ISharedCommon {
     address token1; // Pool token1
   }
 
-  /// @dev A single unit of work passed to execute().
-  ///      callType = DELEGATECALL → delegatecall the target as a whitelisted strategy (LP operations).
-  ///                                Returned PositionChange[] is processed to track positions.
-  ///      callType = CALL        → direct call the target as a swap aggregator.
-  ///                                data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                                tokenIn and tokenOut must be vault tokens; balance delta is checked.
+  /// @dev A single unit of work passed to execute(). See ISharedCommon.CallType for full semantics.
   struct Action {
     address target;
     bytes data;

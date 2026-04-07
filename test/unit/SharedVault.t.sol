@@ -165,6 +165,61 @@ contract MockSwapTarget {
   }
 }
 
+/// @dev Simulates an external contract called via CALL_WITH_POSITIONS that returns PositionChange[].
+///      Unlike strategies (which run via delegatecall), this is a standalone contract that the
+///      vault calls directly. It mints/burns token approvals and returns position tracking info.
+contract MockDirectPositionCreator is ISharedStrategy {
+  /// @dev Creates a position: accepts tokens, records LP, returns PositionChange with isAdd=true.
+  function createPosition(
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1
+  ) external returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+  }
+
+  /// @dev Removes a position: returns PositionChange with isAdd=false.
+  function removePosition(
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1
+  ) external pure returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange({ isAdd: false, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+  }
+
+  /// @dev Returns an empty PositionChange[] — simulates a no-op call.
+  function noChanges() external pure returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](0);
+  }
+
+  /// @dev Reverts — simulates a failing target call.
+  function alwaysFail() external pure returns (PositionChange[] memory) {
+    revert("DirectCreator: always fails");
+  }
+
+  // ISharedStrategy stubs (not used in CALL_WITH_POSITIONS path)
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
+    return new PositionChange[](0);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+}
+
 // Mock ERC721 for sweep tests
 contract MockERC721 {
   mapping(uint256 => address) public ownerOf;
@@ -309,6 +364,7 @@ contract SharedVaultTest is TestCommon {
   MockSharedStrategy public mockStrategy;
   MockFailingStrategy public failingStrategy;
   MockSwapTarget public swapTarget;
+  MockDirectPositionCreator public directCreator;
   MockERC721 public mockERC721;
   MockERC1155 public mockERC1155;
   MockWETH9 public mockWeth;
@@ -331,15 +387,17 @@ contract SharedVaultTest is TestCommon {
     mockStrategy = new MockSharedStrategy();
     failingStrategy = new MockFailingStrategy();
     swapTarget = new MockSwapTarget();
+    directCreator = new MockDirectPositionCreator();
     mockERC721 = new MockERC721();
     mockERC1155 = new MockERC1155();
     mockWeth = new MockWETH9();
 
     // Deploy config manager
     configManager = new SharedConfigManager();
-    address[] memory targets = new address[](2);
+    address[] memory targets = new address[](3);
     targets[0] = address(swapTarget);
     targets[1] = address(mockStrategy);
+    targets[2] = address(directCreator);
     address[] memory callers = new address[](0);
     configManager.initialize(address(this), targets, callers, address(this));
 
@@ -1444,5 +1502,225 @@ contract SharedVaultTest is TestCommon {
     assertEq(bobReceived[0], 50e18, "Bob A");
     assertEq(tA.balanceOf(address(v)), 0, "vault A drained");
     assertEq(tB.balanceOf(address(v)), 0, "vault B drained");
+  }
+
+  // ==================== execute() — DELEGATECALL + token changes ====================
+
+  /// @notice DELEGATECALL returning an empty PositionChange[] is the token-change case:
+  ///         the strategy runs in vault context (e.g., harvest+swap) and only vault token
+  ///         balances change. The vault sees the idle balance difference with no position tracking.
+  function test_execute_delegatecall_token_changes_empty_position_array() public {
+    // Simulate a harvest: externally mint tokenA into vault before the strategy "runs"
+    // (in a real harvest the strategy would collect fees and they'd land in the vault)
+    uint256 harvestAmount = 5e18;
+    tokenA.mint(address(vault), harvestAmount);
+    uint256 balanceBefore = tokenA.balanceOf(address(vault));
+
+    vm.startPrank(VAULT_OWNER);
+    // MockSharedStrategy.execute() returns empty PositionChange[] — simulates a token-only op
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(mockStrategy),
+      abi.encode(uint256(0)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vault.execute(actions);
+    vm.stopPrank();
+
+    // No position changes expected
+    assertEq(vault.getPositionCount(), 0, "no positions should be tracked");
+    // Token balance reflects the externally-added harvest (vault always sees current idle balance)
+    assertEq(tokenA.balanceOf(address(vault)), balanceBefore, "token balance unchanged by empty strategy");
+  }
+
+  /// @notice DELEGATECALL with non-empty PositionChange[] → LP position tracked.
+  ///         This is the existing behavior confirmed as the "position change" case.
+  function test_execute_delegatecall_position_changes_tracked() public {
+    MockLPPool pool = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(pool));
+
+    vm.startPrank(address(this));
+    address[] memory extraTargets1 = new address[](1);
+    extraTargets1[0] = address(lpStrategy);
+    configManager.setWhitelistTargets(extraTargets1, true);
+    vm.stopPrank();
+
+    address mockNfpm = address(0xDEAD);
+    uint256 tokenId = 1;
+
+    // Give vault some tokens so the LP deposit can pull them
+    tokenA.mint(address(vault), 10e18);
+    tokenB.mint(address(pool), 10e18); // pool needs tokenB to return on exit
+
+    vm.startPrank(VAULT_OWNER);
+    bytes memory stratData = abi.encode(mockNfpm, tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 1, "one LP position should be tracked");
+    (address strategy, address nfpm, uint256 tid, , ) = vault.getPosition(0);
+    assertEq(strategy, address(lpStrategy), "strategy stored correctly");
+    assertEq(nfpm, mockNfpm, "nfpm stored correctly");
+    assertEq(tid, tokenId, "tokenId stored correctly");
+  }
+
+  // ==================== execute() — CALL_WITH_POSITIONS ====================
+
+  /// @notice CALL_WITH_POSITIONS: direct call returns PositionChange[] → LP position added.
+  function test_execute_call_with_positions_adds_position() public {
+    address mockNfpm = address(0xBEEF);
+    uint256 tokenId = 42;
+
+    bytes memory callData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (mockNfpm, tokenId, address(tokenA), address(tokenB))
+    );
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 1, "position should be added");
+    (address strategy, address nfpm, uint256 tid, address t0, address t1) = vault.getPosition(0);
+    assertEq(strategy, address(directCreator), "strategy is the direct creator target");
+    assertEq(nfpm, mockNfpm);
+    assertEq(tid, tokenId);
+    assertEq(t0, address(tokenA));
+    assertEq(t1, address(tokenB));
+  }
+
+  /// @notice CALL_WITH_POSITIONS: direct call returns PositionChange[] with isAdd=false → position removed.
+  function test_execute_call_with_positions_removes_position() public {
+    // First add a position via DELEGATECALL
+    MockLPPool pool = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(pool));
+    address[] memory extraTargets2 = new address[](1);
+    extraTargets2[0] = address(lpStrategy);
+    configManager.setWhitelistTargets(extraTargets2, true);
+
+    address mockNfpm = address(0xBEEF);
+    uint256 tokenId = 99;
+
+    tokenA.mint(address(vault), 10e18);
+    tokenB.mint(address(pool), 10e18);
+
+    vm.startPrank(VAULT_OWNER);
+    bytes memory addData = abi.encode(mockNfpm, tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
+    ISharedVault.Action[] memory addActions = new ISharedVault.Action[](1);
+    addActions[0] = ISharedVault.Action(address(lpStrategy), addData, ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(addActions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 1, "position added");
+
+    // Now remove via CALL_WITH_POSITIONS
+    bytes memory removeCallData = abi.encodeCall(
+      MockDirectPositionCreator.removePosition,
+      (mockNfpm, tokenId, address(tokenA), address(tokenB))
+    );
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory removeActions = new ISharedVault.Action[](1);
+    removeActions[0] = ISharedVault.Action(
+      address(directCreator),
+      removeCallData,
+      ISharedCommon.CallType.CALL_WITH_POSITIONS
+    );
+    vault.execute(removeActions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 0, "position should be removed");
+  }
+
+  /// @notice CALL_WITH_POSITIONS with empty PositionChange[] result → no tracking change.
+  function test_execute_call_with_positions_empty_result_no_change() public {
+    bytes memory callData = abi.encodeCall(MockDirectPositionCreator.noChanges, ());
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 0, "no positions should be added");
+  }
+
+  /// @notice CALL_WITH_POSITIONS: target call reverts → execute reverts with the error message.
+  function test_execute_call_with_positions_reverts_on_failure() public {
+    bytes memory callData = abi.encodeCall(MockDirectPositionCreator.alwaysFail, ());
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.expectRevert("DirectCreator: always fails");
+    vault.execute(actions);
+    vm.stopPrank();
+  }
+
+  /// @notice CALL_WITH_POSITIONS: non-whitelisted target → reverts with InvalidTarget.
+  function test_execute_call_with_positions_non_whitelisted_target() public {
+    bytes memory callData = abi.encodeCall(
+      MockDirectPositionCreator.noChanges,
+      ()
+    );
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    // Use failingStrategy address which is NOT whitelisted
+    actions[0] = ISharedVault.Action(address(failingStrategy), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
+    vault.execute(actions);
+    vm.stopPrank();
+  }
+
+  /// @notice Mixed batch: DELEGATECALL (position) + CALL (swap) + CALL_WITH_POSITIONS (position) in one execute().
+  function test_execute_mixed_batch_all_three_call_types() public {
+    // Setup: whitelist lpStrategy
+    MockLPPool pool = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(pool));
+    address[] memory extraTargets3 = new address[](1);
+    extraTargets3[0] = address(lpStrategy);
+    configManager.setWhitelistTargets(extraTargets3, true);
+
+    // Prepare tokens
+    tokenA.mint(address(vault), 20e18);
+    tokenB.mint(address(pool), 10e18);
+    tokenB.mint(address(swapTarget), 5e18);
+
+    address delegatecallNfpm = address(0xAAAA);
+    address callWithPositionsNfpm = address(0xBBBB);
+
+    // Action 1: DELEGATECALL — strategy creates LP position
+    bytes memory dcData = abi.encode(
+      delegatecallNfpm, uint256(1), address(tokenA), address(tokenB), uint256(10e18), uint256(0)
+    );
+
+    // Action 2: CALL — token swap tokenA → tokenB
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 5e18));
+    bytes memory swapData = abi.encode(address(tokenA), address(tokenB), 5e18, uint256(0), swapCalldata);
+
+    // Action 3: CALL_WITH_POSITIONS — direct call creates another position
+    bytes memory cwpData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (callWithPositionsNfpm, 2, address(tokenA), address(tokenB))
+    );
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
+    actions[0] = ISharedVault.Action(address(lpStrategy), dcData, ISharedCommon.CallType.DELEGATECALL);
+    actions[1] = ISharedVault.Action(address(swapTarget), swapData, ISharedCommon.CallType.CALL);
+    actions[2] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+
+    vm.startPrank(VAULT_OWNER);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    // Two LP positions tracked (one from DELEGATECALL, one from CALL_WITH_POSITIONS)
+    assertEq(vault.getPositionCount(), 2, "two positions should be tracked");
+    // Swap was also successful
+    assertGt(tokenB.balanceOf(address(vault)), 0, "tokenB balance increased from swap");
   }
 }

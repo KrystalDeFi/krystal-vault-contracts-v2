@@ -193,14 +193,25 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 function execute(struct ISharedVault.Action[] actions) external
 ```
 
-Execute one or more actions atomically.
+Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.
 
-  callType = DELEGATECALL → delegatecall the target as a whitelisted strategy.
-                            Returned PositionChange[] updates LP position tracking.
-  callType = CALL         → direct call the target as a swap aggregator.
-                            action.data must be abi.encode(tokenIn, tokenOut, amountIn,
-                            minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
-                            tokens; output balance delta is checked against minAmountOut.
+  DELEGATECALL         — delegatecall target via ISharedStrategy.execute(data).
+                         Result is PositionChange[]: LP positions are tracked.
+                         Token-only operations (harvest, swap-reward) return an empty array.
+  CALL                 — direct call to a swap aggregator.
+                         action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
+                         tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+  CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
+                         action.data is forwarded as raw calldata; result is decoded as PositionChange[].
+
+### _applyPositionChanges
+
+```solidity
+function _applyPositionChanges(address strategy, bytes result) internal
+```
+
+_Decode a PositionChange[] from raw return bytes and update LP position tracking.
+     Shared by DELEGATECALL and CALL_WITH_POSITIONS execution paths._
 
 ### getTokens
 

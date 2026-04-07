@@ -296,15 +296,7 @@ contract SharedVault is
     // Snapshot idle balances BEFORE LP exits so the share ratio is applied only once
     // to the original idle tokens. LP exit returns are added in full (they already
     // represent the withdrawer's proportional share of each position).
-    uint256[4] memory idleBefore;
-    for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0)) {
-        idleBefore[i] = IERC20(tokens[i]).balanceOf(address(this));
-      }
-      unchecked {
-        i++;
-      }
-    }
+    uint256[4] memory idleBefore = _getIdleBalances();
 
     // Exit proportional LP position liquidity.
     // Per-position min amounts are 0 — see function NatSpec for slippage model rationale.
@@ -378,21 +370,25 @@ contract SharedVault is
 
   // ==================== Execute (LP operations + swaps) ====================
 
-  /// @notice Execute one or more actions atomically.
+  /// @notice Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.
   ///
-  ///   callType = DELEGATECALL → delegatecall the target as a whitelisted strategy.
-  ///                             Returned PositionChange[] updates LP position tracking.
-  ///   callType = CALL         → direct call the target as a swap aggregator.
-  ///                             action.data must be abi.encode(tokenIn, tokenOut, amountIn,
-  ///                             minAmountOut, swapCalldata). tokenIn/tokenOut must be vault
-  ///                             tokens; output balance delta is checked against minAmountOut.
+  ///   DELEGATECALL         — delegatecall target via ISharedStrategy.execute(data).
+  ///                          Result is PositionChange[]: LP positions are tracked.
+  ///                          Token-only operations (harvest, swap-reward) return an empty array.
+  ///   CALL                 — direct call to a swap aggregator.
+  ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
+  ///                          tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+  ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
+  ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
       require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
 
       if (action.callType == CallType.DELEGATECALL) {
-        // --- Strategy: delegatecall + LP position tracking ---
+        // --- Strategy: delegatecall through ISharedStrategy.execute() interface ---
+        // Strategies handle both LP operations (non-empty PositionChange[]) and token-only
+        // operations like harvest/swap (empty PositionChange[]).
         (bool success, bytes memory result) = action.target.delegatecall(
           abi.encodeCall(ISharedStrategy.execute, (action.data))
         );
@@ -404,21 +400,9 @@ contract SharedVault is
           }
         }
 
-        if (result.length > 0) {
-          ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
-          for (uint256 c; c < changes.length; ) {
-            if (changes[c].isAdd) {
-              _addPosition(action.target, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
-            } else {
-              _removePosition(changes[c].nfpm, changes[c].tokenId);
-            }
-            unchecked {
-              c++;
-            }
-          }
-        }
-      } else {
-        // --- Swap: direct call to aggregator with token validation ---
+        _applyPositionChanges(action.target, result);
+      } else if (action.callType == CallType.CALL) {
+        // --- Swap: direct call to aggregator with token validation and slippage check ---
         (address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes memory swapCalldata) = abi
           .decode(action.data, (address, address, uint256, uint256, bytes));
 
@@ -434,11 +418,41 @@ contract SharedVault is
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
         require(amountOut >= minAmountOut, InsufficientOutput());
+      } else {
+        // --- CALL_WITH_POSITIONS: direct call whose return value is PositionChange[] ---
+        (bool success, bytes memory result) = action.target.call(action.data);
+
+        if (!success) {
+          if (result.length == 0) revert StrategyCallFailed();
+          assembly {
+            revert(add(32, result), mload(result))
+          }
+        }
+
+        _applyPositionChanges(action.target, result);
       }
 
       emit VaultExecute(vaultFactory, action.target, action.data);
       unchecked {
         i++;
+      }
+    }
+  }
+
+  /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.
+  ///      Shared by DELEGATECALL and CALL_WITH_POSITIONS execution paths.
+  function _applyPositionChanges(address strategy, bytes memory result) internal {
+    if (result.length == 0) return;
+
+    ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+    for (uint256 c; c < changes.length; ) {
+      if (changes[c].isAdd) {
+        _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
+      } else {
+        _removePosition(changes[c].nfpm, changes[c].tokenId);
+      }
+      unchecked {
+        c++;
       }
     }
   }
