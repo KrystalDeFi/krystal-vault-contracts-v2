@@ -20,6 +20,14 @@ function platformFeeX64(contract ISharedConfigManager cm, uint16 platformBpsOver
 
 _Q64 for V3Utils `protocolFeeX64` / `Instructions.performanceFeeX64`._
 
+### vaultOwnerFeeX64
+
+```solidity
+function vaultOwnerFeeX64(uint16 basisPoints) internal pure returns (uint64)
+```
+
+_Q64 for V4Utils `performanceFeeX64` (vault-owner performance share on LP exits)._
+
 ### performanceFeeConfig
 
 ```solidity

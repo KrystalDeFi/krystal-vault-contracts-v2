@@ -185,8 +185,8 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
   ///      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
   ///      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-  ///      Protocol/performance fees are left at zero here: V4Utils does not integrate with `LpFeeTaker`;
-  ///      use vault-level fee config + future v4 fee plumbing if needed.
+  ///      Protocol fee (platform) and performance fee (vault owner) are forwarded to V4Utils as X64
+  ///      values. V4Utils collects them inline rather than via `LpFeeTaker` (no gas fee on exits).
   function exitProportional(
     address posm,
     uint256 tokenId,
@@ -219,6 +219,7 @@ contract SharedV4Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     uint64 protocolX64 = SharedStrategyFeeConfig.platformFeeX64(cm, 0);
+    uint64 performanceX64 = SharedStrategyFeeConfig.vaultOwnerFeeX64(vaultOwnerFeeBasisPoint);
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
@@ -231,7 +232,7 @@ contract SharedV4Strategy is ISharedStrategy {
       swapParams: new IV4Utils.SwapParams[](0),
       swapDestToken: address(0),
       protocolFeeX64: protocolX64,
-      performanceFeeX64: 0,
+      performanceFeeX64: performanceX64,
       gasFeeX64: 0
     });
 

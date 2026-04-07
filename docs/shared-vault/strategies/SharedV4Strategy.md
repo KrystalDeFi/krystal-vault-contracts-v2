@@ -138,8 +138,8 @@ Exit a proportional share of an LP position during vault withdrawal.
 _Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-     Protocol/performance fees are left at zero here: V4Utils does not integrate with `LpFeeTaker`;
-     use vault-level fee config + future v4 fee plumbing if needed._
+     Protocol fee (platform) and performance fee (vault owner) are forwarded to V4Utils as X64
+     values. V4Utils collects them inline rather than via `LpFeeTaker` (no gas fee on exits)._
 
 #### Parameters
 

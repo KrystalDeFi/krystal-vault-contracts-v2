@@ -12,6 +12,12 @@ interface ISharedCommon {
   ///   CALL_WITH_POSITIONS    — direct call to a target that returns PositionChange[].
   ///                            action.data is the raw calldata forwarded to the target.
   ///                            The result is decoded as PositionChange[] and LP positions are tracked accordingly.
+  ///                            INVARIANT: action.target is stored as pos.strategy for any positions added via this
+  ///                            path. During withdraw(), exitProportional is always delegatecalled on pos.strategy
+  ///                            regardless of how the position was originally created. The target must therefore be a
+  ///                            fully-trusted ISharedStrategy implementation — the same requirement as DELEGATECALL.
+  ///                            Unlike CALL, no token pre-approval or post-call balance validation is performed;
+  ///                            callers must ensure the target only executes authorised LP operations.
   enum CallType {
     DELEGATECALL,
     CALL,

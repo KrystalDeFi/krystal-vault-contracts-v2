@@ -380,6 +380,9 @@ contract SharedVault is
   ///                          tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
   ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
+  ///                          The target is stored as pos.strategy and will be delegatecalled via
+  ///                          exitProportional at withdrawal time — it must implement ISharedStrategy.
+  ///                          No token pre-approval or balance check is performed on this path.
   function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];

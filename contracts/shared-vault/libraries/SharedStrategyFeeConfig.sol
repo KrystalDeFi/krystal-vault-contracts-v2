@@ -27,6 +27,12 @@ library SharedStrategyFeeConfig {
     return uint64(FullMath.mulDiv(uint256(bps), Q64, 10_000));
   }
 
+  /// @dev Q64 for V4Utils `performanceFeeX64` (vault-owner performance share on LP exits).
+  function vaultOwnerFeeX64(uint16 basisPoints) internal pure returns (uint64) {
+    if (basisPoints == 0) return 0;
+    return uint64(FullMath.mulDiv(uint256(basisPoints), Q64, 10_000));
+  }
+
   /// @notice `FeeConfig` for proportional LP exit (`LpFeeTaker`). Platform bps from config; withdraw exits never charge gas on principal.
   function performanceFeeConfig(uint16 vaultOwnerFeeBasisPoint) internal view returns (ICommon.FeeConfig memory fc) {
     ISharedVault v = ISharedVault(address(this));
