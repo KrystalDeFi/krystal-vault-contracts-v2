@@ -197,6 +197,10 @@ contract SharedV4Strategy is ISharedStrategy {
     Currency currency0 = poolKey.currency0;
     Currency currency1 = poolKey.currency1;
 
+    // Permit2 allowance amounts are capped at uint160/uint128 max — values above these are
+    // impossible in practice (total ERC20 supply fits in uint128) but we guard explicitly.
+    require(amount0 <= type(uint160).max && amount1 <= type(uint160).max, ISharedCommon.InvalidAmount());
+
     // Approve via Permit2: vault → Permit2 → PositionManager
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
     if (amount0 > 0) {

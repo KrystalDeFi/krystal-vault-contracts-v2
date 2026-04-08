@@ -56,6 +56,17 @@ event VaultOwnerFeeBasisPointUpdated(address vaultFactory, uint16 basisPoints)
 event PositionStrategyMigrated(address vaultFactory, address nfpm, uint256 tokenId, address oldStrategy, address newStrategy)
 ```
 
+### PositionDropped
+
+```solidity
+event PositionDropped(address vaultFactory, address nfpm, uint256 tokenId)
+```
+
+Emitted when the vault owner forcibly drops a position from tracking.
+        The underlying LP liquidity is NOT exited — the NFT remains in the vault
+        but is no longer valued or interacted with. Used to unblock deposits when
+        a position's strategy is broken or the pool is permanently rugged.
+
 ### Position
 
 _Tracked LP position_
@@ -219,6 +230,27 @@ function weth() external view returns (address)
 ```solidity
 function tokenCount() external view returns (uint16)
 ```
+
+### dropPosition
+
+```solidity
+function dropPosition(address nfpm, uint256 tokenId) external
+```
+
+Forcibly remove a position from vault tracking without exiting liquidity.
+        The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
+        iterated during `withdraw()`, or deposited into during `deposit()`.
+        Use when a position's pool is permanently rugged or the strategy is irreparably
+        broken and `strategyUpdates` cannot fix it (e.g. the NFPM itself is bricked).
+        After dropping, any tokens still locked in the position are effectively lost —
+        use `sweepERC721` to recover the NFT if it's still transferable.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT position manager that issued the position |
+| tokenId | uint256 | The position token ID to drop |
 
 ### grantAdminRole
 

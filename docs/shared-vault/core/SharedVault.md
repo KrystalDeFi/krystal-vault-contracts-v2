@@ -364,6 +364,27 @@ function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external
 function transferOwnership(address newOwner) external
 ```
 
+### dropPosition
+
+```solidity
+function dropPosition(address nfpm, uint256 tokenId) external
+```
+
+Forcibly remove a position from vault tracking without exiting liquidity.
+        The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
+        iterated during `withdraw()`, or deposited into during `deposit()`.
+        Use when a position's pool is permanently rugged or the strategy is irreparably
+        broken and `strategyUpdates` cannot fix it (e.g. the NFPM itself is bricked).
+        After dropping, any tokens still locked in the position are effectively lost —
+        use `sweepERC721` to recover the NFT if it's still transferable.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT position manager that issued the position |
+| tokenId | uint256 | The position token ID to drop |
+
 ### isValidSignature
 
 ```solidity

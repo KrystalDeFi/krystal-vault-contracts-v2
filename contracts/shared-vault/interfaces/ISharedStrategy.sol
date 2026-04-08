@@ -57,7 +57,9 @@ interface ISharedStrategy {
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external;
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
-  /// @dev Called via regular staticcall from the vault.
+  /// @dev Called via regular CALL (not staticcall) from non-view vault functions such as deposit().
+  ///      The function is declared `view` so Solidity prevents state mutation, but the EVM opcode
+  ///      used by the caller is CALL, not STATICCALL, when invoked from a non-view context.
   /// @param nfpm NFT Position Manager address
   /// @param tokenId Position NFT ID
   /// @return amount0 Amount of token0 in the position

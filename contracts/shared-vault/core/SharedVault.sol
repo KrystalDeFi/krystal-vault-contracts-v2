@@ -689,6 +689,14 @@ contract SharedVault is
     vaultOwner = newOwner;
   }
 
+  /// @inheritdoc ISharedVault
+  function dropPosition(address nfpm, uint256 tokenId) external override onlyOwner {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    require(positionIndex[key] != 0, InvalidOperation());
+    _removePosition(nfpm, tokenId);
+    emit PositionDropped(vaultFactory, nfpm, tokenId);
+  }
+
   // ==================== EIP-1271 ====================
 
   function isValidSignature(bytes32 hash, bytes memory signature) public view override returns (bytes4 magicValue) {

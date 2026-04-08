@@ -21,6 +21,12 @@ interface ISharedVault is ISharedCommon {
     address newStrategy
   );
 
+  /// @notice Emitted when the vault owner forcibly drops a position from tracking.
+  ///         The underlying LP liquidity is NOT exited — the NFT remains in the vault
+  ///         but is no longer valued or interacted with. Used to unblock deposits when
+  ///         a position's strategy is broken or the pool is permanently rugged.
+  event PositionDropped(address indexed vaultFactory, address indexed nfpm, uint256 indexed tokenId);
+
   /// @dev Tracked LP position
   struct Position {
     address strategy; // Strategy contract (used for getPositionAmounts valuation)
@@ -117,6 +123,19 @@ interface ISharedVault is ISharedCommon {
   function weth() external view returns (address);
 
   function tokenCount() external view returns (uint16);
+
+  // --- Position management (onlyOwner) ---
+
+  /// @notice Forcibly remove a position from vault tracking without exiting liquidity.
+  ///         The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
+  ///         iterated during `withdraw()`, or deposited into during `deposit()`.
+  ///         Use when a position's pool is permanently rugged or the strategy is irreparably
+  ///         broken and `strategyUpdates` cannot fix it (e.g. the NFPM itself is bricked).
+  ///         After dropping, any tokens still locked in the position are effectively lost —
+  ///         use `sweepERC721` to recover the NFT if it's still transferable.
+  /// @param nfpm  NFT position manager that issued the position
+  /// @param tokenId  The position token ID to drop
+  function dropPosition(address nfpm, uint256 tokenId) external;
 
   // --- Roles (onlyOwner) ---
   function grantAdminRole(address _address) external;

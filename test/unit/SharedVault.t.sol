@@ -164,6 +164,39 @@ contract MockBrokenExitStrategy is ISharedStrategy {
   function depositProportional(address, uint256, uint256, uint256) external override {}
 }
 
+// Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
+// Simulates a rugged pool where the NFPM rejects increaseLiquidity but the strategy still reports liquidity.
+contract MockBrokenDepositStrategy is ISharedStrategy {
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
+      data,
+      (address, uint256, address, address)
+    );
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint16
+  ) external pure override returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (100e18, 100e18);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256) external pure override {
+    revert("pool rugged");
+  }
+}
+
 // Mock strategy that fails
 contract MockFailingStrategy is ISharedStrategy {
   function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
@@ -1076,6 +1109,80 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = vault.balanceOf(DEPOSITOR);
     vm.prank(DEPOSITOR);
     vault.withdraw(shares, [uint256(0), uint256(0), uint256(0), uint256(0)], false);
+  }
+
+  // ==================== dropPosition Tests ====================
+
+  function test_dropPosition_happy_path() public {
+    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    assertEq(vault.getPositionCount(), 1);
+
+    vm.expectEmit(true, true, true, true);
+    emit ISharedVault.PositionDropped(VAULT_OWNER, fakeNfpm, tokenId);
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(fakeNfpm, tokenId);
+
+    assertEq(vault.getPositionCount(), 0);
+    (brokenStrat);
+  }
+
+  function test_dropPosition_unblocks_deposit() public {
+    // Deploy a strategy whose getPositionAmounts returns non-zero but depositProportional always reverts.
+    // This simulates a rugged pool where the NFPM rejects increaseLiquidity calls.
+    MockBrokenDepositStrategy brokenDepStrat = new MockBrokenDepositStrategy();
+    address[] memory targets = new address[](1);
+    targets[0] = address(brokenDepStrat);
+    configManager.setWhitelistTargets(targets, true);
+
+    // Initial deposit so we have a non-zero totalSupply to work against
+    tokenA.mint(DEPOSITOR, 300e18);
+    tokenB.mint(DEPOSITOR, 300e18);
+    vm.prank(DEPOSITOR);
+    tokenA.approve(address(vault), 300e18);
+    vm.prank(DEPOSITOR);
+    tokenB.approve(address(vault), 300e18);
+    vm.prank(DEPOSITOR);
+    vault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+
+    // Add the broken position via execute
+    address fakeNfpm = address(0xBEEF1);
+    uint256 tokenId = 42;
+    bytes memory stratData = abi.encode(fakeNfpm, tokenId, address(tokenA), address(tokenB));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(brokenDepStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    assertEq(vault.getPositionCount(), 1);
+
+    // Second deposit fails — getPositionAmounts returns non-zero so toAdd > 0, then depositProportional reverts.
+    // The inner revert string propagates through the delegatecall bubble-up path.
+    vm.prank(DEPOSITOR);
+    vm.expectRevert("pool rugged");
+    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+
+    // Drop the broken position — deposit must succeed afterwards
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(fakeNfpm, tokenId);
+    assertEq(vault.getPositionCount(), 0);
+
+    vm.prank(DEPOSITOR);
+    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+  }
+
+  function test_dropPosition_fail_not_tracked() public {
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.dropPosition(address(0xDEAD), 999);
+  }
+
+  function test_dropPosition_fail_unauthorized() public {
+    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.dropPosition(fakeNfpm, tokenId);
+    (brokenStrat);
   }
 
   // ==================== Pause Tests ====================
