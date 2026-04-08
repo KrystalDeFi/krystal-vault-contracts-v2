@@ -142,7 +142,7 @@ Initializes the shared vault
 | _tokens | address[4] |  |
 | initialAmounts | uint256[4] |  |
 | _owner | address |  |
-| _operator | address | Initial vault operator; address(0) means no operator until set by owner. |
+| _operator | address | Initial vault operator. The operator role is fixed at initialization —                  there is no post-deploy setter. Pass address(0) for a vault with no operator. |
 | _configManager | address |  |
 | _weth | address |  |
 
@@ -251,7 +251,9 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
                          The target is stored as pos.strategy and will be delegatecalled via
                          exitProportional at withdrawal time — it must implement ISharedStrategy.
-                         No token pre-approval or balance check is performed on this path.
+                         No token pre-approval or balance check is performed on this path:
+                         the external contract manages its own token transfers (unlike CALL,
+                         where the vault is the initiator and owns the approval flow).
 
 ### _applyPositionChanges
 

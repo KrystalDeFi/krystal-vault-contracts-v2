@@ -93,7 +93,8 @@ contract SharedVault is
   }
 
   /// @notice Initializes the shared vault
-  /// @param _operator Initial vault operator; address(0) means no operator until set by owner.
+  /// @param _operator Initial vault operator. The operator role is fixed at initialization —
+  ///                  there is no post-deploy setter. Pass address(0) for a vault with no operator.
   function initialize(
     string calldata _name,
     address[4] calldata _tokens,
@@ -446,7 +447,9 @@ contract SharedVault is
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   ///                          The target is stored as pos.strategy and will be delegatecalled via
   ///                          exitProportional at withdrawal time — it must implement ISharedStrategy.
-  ///                          No token pre-approval or balance check is performed on this path.
+  ///                          No token pre-approval or balance check is performed on this path:
+  ///                          the external contract manages its own token transfers (unlike CALL,
+  ///                          where the vault is the initiator and owns the approval flow).
   function execute(
     Action[] calldata actions,
     PositionStrategyUpdate[] calldata strategyUpdates
