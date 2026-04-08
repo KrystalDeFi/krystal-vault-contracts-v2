@@ -1,3 +1,4 @@
+permit2/=node_modules/@uniswap/v4-periphery/lib/permit2/
 @aperture_finance/=node_modules/@aperture_finance/
 @openzeppelin/=node_modules/@openzeppelin/
 @pancakeswap/=node_modules/@pancakeswap/

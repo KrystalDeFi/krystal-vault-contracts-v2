@@ -106,7 +106,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 2, "should have 2 tracked LP positions (one per protocol)");
 
@@ -140,7 +140,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256[4] memory idleAfter = vault.getIdleBalances();
     uint256[4] memory totalAfter = vault.getTotalBalances();
@@ -173,7 +173,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
     vm.stopPrank();
 
     address player = makeAddr("player4");
@@ -217,7 +217,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 2, "two positions before withdraw");
 
@@ -256,7 +256,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
     vm.stopPrank();
 
     // Second depositor joins to ensure total supply > withdrawer's shares
@@ -311,7 +311,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256[4] memory previewAfter = vault.previewWithdraw(vault.balanceOf(vaultOwner));
 

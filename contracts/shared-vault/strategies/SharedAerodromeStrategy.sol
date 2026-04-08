@@ -7,7 +7,6 @@ import { INonfungiblePositionManager } from "../../common/interfaces/protocols/a
 import { ICLGaugeFactory } from "../../common/interfaces/protocols/aerodrome/ICLGaugeFactory.sol";
 import { ICLFactory } from "../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
 import { ICLPool } from "../../common/interfaces/protocols/aerodrome/ICLPool.sol";
-import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
@@ -363,6 +362,27 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     amount0 += tokensOwed0;
     amount1 += tokensOwed1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev If the NFT is staked in a gauge (held by the gauge contract, not by the vault),
+  ///      increaseLiquidity is not possible — skip silently so tokens remain idle.
+  function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+    if (IERC721(_nfpm).ownerOf(tokenId) != address(this)) return;
+    (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    INonfungiblePositionManager(_nfpm).increaseLiquidity(
+      INonfungiblePositionManager.IncreaseLiquidityParams({
+        tokenId: tokenId,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
+        amount0Min: 0,
+        amount1Min: 0,
+        deadline: block.timestamp
+      })
+    );
   }
 
   function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address) {

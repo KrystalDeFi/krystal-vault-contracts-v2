@@ -127,6 +127,27 @@ function _execute(bytes data) internal returns (struct ISharedStrategy.PositionC
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
+### depositProportional
+
+```solidity
+function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
+     the required liquidity from amounts internally. Any unused tokens are swept back to the vault
+     by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+
 ### exitProportional
 
 ```solidity

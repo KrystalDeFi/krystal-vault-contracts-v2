@@ -109,7 +109,7 @@ contract SharedVaultIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -133,7 +133,7 @@ contract SharedVaultIntegrationTest is TestCommon {
         _swapAndMintData(0.5 ether, 1500e6),
         ISharedCommon.CallType.DELEGATECALL
       );
-      vault.execute(mintActions);
+      vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
@@ -144,7 +144,7 @@ contract SharedVaultIntegrationTest is TestCommon {
         _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
         ISharedCommon.CallType.DELEGATECALL
       );
-      vault.execute(increaseActions);
+      vault.execute(increaseActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
 
     // Position count unchanged — SWAP_AND_INCREASE doesn't add a new tracked position
@@ -168,7 +168,7 @@ contract SharedVaultIntegrationTest is TestCommon {
         _swapAndMintData(0.5 ether, 1500e6),
         ISharedCommon.CallType.DELEGATECALL
       );
-      vault.execute(mintActions);
+      vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
@@ -207,7 +207,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory collectActions = new ISharedVault.Action[](1);
       collectActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
-      vault.execute(collectActions);
+      vault.execute(collectActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
 
     // Position still tracked — partial collection keeps position alive
@@ -230,7 +230,7 @@ contract SharedVaultIntegrationTest is TestCommon {
         _swapAndMintData(0.5 ether, 1500e6),
         ISharedCommon.CallType.DELEGATECALL
       );
-      vault.execute(mintActions);
+      vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
@@ -272,7 +272,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
       withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
-      vault.execute(withdrawActions);
+      vault.execute(withdrawActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
 
     assertEq(vault.getPositionCount(), 0, "position removed after full withdrawal");
@@ -295,7 +295,7 @@ contract SharedVaultIntegrationTest is TestCommon {
         _swapAndMintData(0.5 ether, 1500e6),
         ISharedCommon.CallType.DELEGATECALL
       );
-      vault.execute(mintActions);
+      vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     }
     vm.stopPrank();
 
@@ -408,7 +408,7 @@ contract SharedVaultIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 1, "should have 1 LP position");
 
@@ -443,7 +443,7 @@ contract SharedVaultIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory preview = vault.previewWithdraw(shares);

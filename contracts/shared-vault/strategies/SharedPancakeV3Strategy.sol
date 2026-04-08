@@ -6,7 +6,6 @@ import { IMasterChefV3 } from "../../common/interfaces/protocols/pancakev3/IMast
 import { INonfungiblePositionManager as INFPM } from
   "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
@@ -306,6 +305,28 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     } else {
       changes = new PositionChange[](0);
     }
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev MasterChef-staked positions cannot have liquidity added without unstaking first.
+  ///      Staked positions are silently skipped — the proportional tokens remain idle in the vault.
+  function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+    // Skip staked positions — NFT is held by MasterChef, not the vault
+    if (IERC721(_nfpm).ownerOf(tokenId) != address(this)) return;
+    (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    INFPM(_nfpm).increaseLiquidity(
+      INFPM.IncreaseLiquidityParams({
+        tokenId: tokenId,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
+        amount0Min: 0,
+        amount1Min: 0,
+        deadline: block.timestamp
+      })
+    );
   }
 
   /// @inheritdoc ISharedStrategy

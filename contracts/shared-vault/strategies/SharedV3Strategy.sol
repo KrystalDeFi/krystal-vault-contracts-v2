@@ -216,6 +216,24 @@ contract SharedV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+    (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1);
+    INFPM(nfpm).increaseLiquidity(
+      INFPM.IncreaseLiquidityParams({
+        tokenId: tokenId,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
+        amount0Min: 0,
+        amount1Min: 0,
+        deadline: block.timestamp
+      })
+    );
+  }
+
+  /// @inheritdoc ISharedStrategy
   function getPositionAmounts(
     address nfpm,
     uint256 tokenId

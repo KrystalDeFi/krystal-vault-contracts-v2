@@ -175,82 +175,105 @@ contract SharedVault is
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
     uint256[4] memory totalBalances = _getTotalBalances();
+    uint256 wi = _validateWethDeposit(amounts);
 
-    // Validate ETH: track the weth slot but defer the actual wrap until after share calculation.
-    uint256 wi = type(uint256).max;
+    uint256[4] memory transferAmounts;
+    if (currentTotalSupply == 0) {
+      (transferAmounts, shares) = _firstDepositTransfers(amounts);
+    } else {
+      (transferAmounts, shares) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalances);
+    }
+
+    require(shares >= minShares, InsufficientShares());
+
+    _wrapWethAndRefundExcess(wi, transferAmounts);
+    _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
+    _depositProportionalToAllPositions(currentTotalSupply, totalBalances, transferAmounts);
+
+    _mint(_msgSender(), shares);
+
+    emit VaultDeposit(vaultFactory, _msgSender(), transferAmounts, shares);
+  }
+
+  /// @dev If caller sent ETH, returns validated WETH slot index; otherwise `type(uint256).max`.
+  function _validateWethDeposit(uint256[4] calldata amounts) internal view returns (uint256 wi) {
+    wi = type(uint256).max;
     if (msg.value > 0) {
       wi = _wethIndex();
       require(wi < 4, TokenNotConfigured());
       require(amounts[wi] == msg.value, InvalidAmount());
     }
-    uint256[4] memory transferAmounts;
+  }
 
-    if (currentTotalSupply == 0) {
-      // First deposit — always mint the fixed INITIAL_SHARES constant.
-      uint256 refIndex = type(uint256).max;
-      for (uint256 i; i < 4; ) {
-        if (amounts[i] > 0) {
-          require(tokens[i] != address(0), InvalidToken());
-          if (refIndex == type(uint256).max) refIndex = i;
-          transferAmounts[i] = amounts[i];
-        }
-        unchecked {
-          i++;
-        }
+  /// @dev First deposit — always mints `INITIAL_SHARES`; full `amounts` are transferred.
+  function _firstDepositTransfers(
+    uint256[4] calldata amounts
+  ) internal view returns (uint256[4] memory transferAmounts, uint256 sharesOut) {
+    uint256 refIndex = type(uint256).max;
+    for (uint256 i; i < 4; ) {
+      if (amounts[i] > 0) {
+        require(tokens[i] != address(0), InvalidToken());
+        if (refIndex == type(uint256).max) refIndex = i;
+        transferAmounts[i] = amounts[i];
       }
-      require(refIndex != type(uint256).max, InvalidAmount());
-      shares = INITIAL_SHARES;
-    } else {
-      // Subsequent deposit — compute shares as minimum ratio across all tokens to prevent
-      // reference-token manipulation.
-      shares = type(uint256).max;
-      for (uint256 i; i < 4; ) {
-        if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
-          uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
-          if (s < shares) shares = s;
-        }
-        unchecked {
-          i++;
-        }
-      }
-      require(shares != type(uint256).max, InvalidAmount());
-
-      // Transfer only the proportional amount per token; excess stays with depositor.
-      for (uint256 i; i < 4; ) {
-        if (tokens[i] != address(0)) {
-          if (totalBalances[i] == 0) {
-            require(amounts[i] == 0, InvalidRatio());
-          } else {
-            transferAmounts[i] = FullMath.mulDiv(shares, totalBalances[i], currentTotalSupply);
-            require(amounts[i] >= transferAmounts[i], InvalidRatio());
-          }
-        }
-        unchecked {
-          i++;
-        }
+      unchecked {
+        i++;
       }
     }
+    require(refIndex != type(uint256).max, InvalidAmount());
+    sharesOut = INITIAL_SHARES;
+  }
 
-    require(shares >= minShares, InsufficientShares());
-
-    // ETH handling: wrap only the needed amount; refund excess as raw ETH.
-    // This avoids the old wrap-all → unwrap-excess pattern (two WETH operations).
-    // If transferAmounts[wi] rounds to zero (dust deposit), the full msg.value is
-    // refunded without touching WETH at all.
-    if (msg.value > 0) {
-      uint256 wethNeeded = transferAmounts[wi]; // 0 in dust edge-case
-      if (wethNeeded > 0) {
-        IWETH9(weth).deposit{ value: wethNeeded }();
+  /// @dev Subsequent deposit — minimum ratio share calc and proportional `transferAmounts`.
+  function _subsequentDepositTransfers(
+    uint256[4] calldata amounts,
+    uint256 currentTotalSupply,
+    uint256[4] memory totalBalances
+  ) internal view returns (uint256[4] memory transferAmounts, uint256 sharesOut) {
+    sharesOut = type(uint256).max;
+    for (uint256 i; i < 4; ) {
+      if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
+        uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
+        if (s < sharesOut) sharesOut = s;
       }
-      uint256 excess = msg.value - wethNeeded;
-      if (excess > 0) {
-        (bool ok, ) = _msgSender().call{ value: excess }("");
-        require(ok, SwapFailed());
+      unchecked {
+        i++;
       }
     }
+    require(sharesOut != type(uint256).max, InvalidAmount());
 
     for (uint256 i; i < 4; ) {
-      // Skip WETH slot — already handled above via ETH wrap.
+      if (tokens[i] != address(0)) {
+        if (totalBalances[i] == 0) {
+          require(amounts[i] == 0, InvalidRatio());
+        } else {
+          transferAmounts[i] = FullMath.mulDiv(sharesOut, totalBalances[i], currentTotalSupply);
+          require(amounts[i] >= transferAmounts[i], InvalidRatio());
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @dev Wrap only needed WETH; refund excess as native ETH (see `deposit` NatSpec).
+  function _wrapWethAndRefundExcess(uint256 wi, uint256[4] memory transferAmounts) internal {
+    if (msg.value == 0) return;
+
+    uint256 wethNeeded = transferAmounts[wi];
+    if (wethNeeded > 0) {
+      IWETH9(weth).deposit{ value: wethNeeded }();
+    }
+    uint256 excess = msg.value - wethNeeded;
+    if (excess > 0) {
+      (bool ok, ) = _msgSender().call{ value: excess }("");
+      require(ok, SwapFailed());
+    }
+  }
+
+  function _pullDepositTokensExcludingWethSlot(uint256 wi, uint256[4] memory transferAmounts) internal {
+    for (uint256 i; i < 4; ) {
       if (wi < 4 && i == wi) {
         unchecked {
           i++;
@@ -264,10 +287,51 @@ contract SharedVault is
         i++;
       }
     }
+  }
 
-    _mint(_msgSender(), shares);
+  /// @dev Push proportional slices into tracked LP positions; no-op on first deposit or empty positions.
+  function _depositProportionalToAllPositions(
+    uint256 currentTotalSupply,
+    uint256[4] memory totalBalances,
+    uint256[4] memory transferAmounts
+  ) internal {
+    if (currentTotalSupply == 0 || positions.length == 0) return;
 
-    emit VaultDeposit(vaultFactory, _msgSender(), transferAmounts, shares);
+    uint256 posLen = positions.length;
+    for (uint256 p; p < posLen; ) {
+      Position memory pos = positions[p];
+
+      (uint256 posAmt0, uint256 posAmt1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+
+      uint256 toAdd0;
+      uint256 toAdd1;
+      for (uint256 i; i < 4; ) {
+        if (tokens[i] == pos.token0 && totalBalances[i] > 0) {
+          toAdd0 = FullMath.mulDiv(transferAmounts[i], posAmt0, totalBalances[i]);
+        } else if (tokens[i] == pos.token1 && totalBalances[i] > 0) {
+          toAdd1 = FullMath.mulDiv(transferAmounts[i], posAmt1, totalBalances[i]);
+        }
+        unchecked {
+          i++;
+        }
+      }
+
+      if (toAdd0 > 0 || toAdd1 > 0) {
+        (bool ok, bytes memory errData) = pos.strategy.delegatecall(
+          abi.encodeCall(ISharedStrategy.depositProportional, (pos.nfpm, pos.tokenId, toAdd0, toAdd1))
+        );
+        if (!ok) {
+          if (errData.length == 0) revert StrategyCallFailed();
+          assembly {
+            revert(add(32, errData), mload(errData))
+          }
+        }
+      }
+
+      unchecked {
+        p++;
+      }
+    }
   }
 
   /// @notice Burn shares and withdraw proportional tokens.
@@ -383,7 +447,26 @@ contract SharedVault is
   ///                          The target is stored as pos.strategy and will be delegatecalled via
   ///                          exitProportional at withdrawal time — it must implement ISharedStrategy.
   ///                          No token pre-approval or balance check is performed on this path.
-  function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
+  function execute(
+    Action[] calldata actions,
+    PositionStrategyUpdate[] calldata strategyUpdates
+  ) external override nonReentrant onlyAuthorized whenVaultNotPaused {
+    for (uint256 u; u < strategyUpdates.length; ) {
+      PositionStrategyUpdate calldata upd = strategyUpdates[u];
+      require(configManager.isWhitelistedTarget(upd.strategy), InvalidTarget(upd.strategy));
+      bytes32 key = keccak256(abi.encodePacked(upd.nfpm, upd.tokenId));
+      uint256 idx = positionIndex[key];
+      require(idx != 0, InvalidOperation());
+      address oldStrategy = positions[idx - 1].strategy;
+      if (oldStrategy != upd.strategy) {
+        positions[idx - 1].strategy = upd.strategy;
+        emit PositionStrategyMigrated(vaultFactory, upd.nfpm, upd.tokenId, oldStrategy, upd.strategy);
+      }
+      unchecked {
+        u++;
+      }
+    }
+
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
       require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
@@ -625,7 +708,17 @@ contract SharedVault is
 
   function _addPosition(address strategy, address nfpm, uint256 tokenId, address token0, address token1) internal {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    if (positionIndex[key] != 0) return; // already tracked
+    uint256 idx = positionIndex[key];
+    if (idx != 0) {
+      // Position already tracked — update strategy to reflect current executor.
+      // Mirrors Vault.sol's _addAssets pattern: re-executing via a new strategy naturally migrates the pointer.
+      address oldStrategy = positions[idx - 1].strategy;
+      if (oldStrategy != strategy) {
+        positions[idx - 1].strategy = strategy;
+        emit PositionStrategyMigrated(vaultFactory, nfpm, tokenId, oldStrategy, strategy);
+      }
+      return;
+    }
 
     positions.push(Position(strategy, nfpm, tokenId, token0, token1));
     positionIndex[key] = positions.length; // index+1

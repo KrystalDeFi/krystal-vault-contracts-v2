@@ -13,6 +13,13 @@ interface ISharedVault is ISharedCommon {
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
   event VaultOwnerFeeBasisPointUpdated(address indexed vaultFactory, uint16 basisPoints);
+  event PositionStrategyMigrated(
+    address indexed vaultFactory,
+    address indexed nfpm,
+    uint256 indexed tokenId,
+    address oldStrategy,
+    address newStrategy
+  );
 
   /// @dev Tracked LP position
   struct Position {
@@ -28,6 +35,15 @@ interface ISharedVault is ISharedCommon {
     address target;
     bytes data;
     CallType callType;
+  }
+
+  /// @dev Explicit strategy pointer update bundled with execute().
+  ///      Allows migrating a position to a new whitelisted strategy in the same transaction as the
+  ///      first action executed via that strategy, without a separate owner-only call.
+  struct PositionStrategyUpdate {
+    address nfpm;
+    uint256 tokenId;
+    address strategy; // must be whitelisted in configManager
   }
 
   // --- Initialization ---
@@ -70,7 +86,10 @@ interface ISharedVault is ISharedCommon {
   ///         For strategy actions the vault tracks LP position changes.
   ///         For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
   ///         that the output meets minAmountOut.
-  function execute(Action[] calldata actions) external;
+  /// @param strategyUpdates Optional list of position→strategy pointer updates applied before
+  ///        actions run. Use to migrate a broken strategy in the same tx as the first action
+  ///        via its replacement. Each strategy must be whitelisted in configManager.
+  function execute(Action[] calldata actions, PositionStrategyUpdate[] calldata strategyUpdates) external;
 
   // --- Views ---
   function getTokens() external view returns (address[4] memory);

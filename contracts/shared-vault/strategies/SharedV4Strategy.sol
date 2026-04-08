@@ -20,6 +20,10 @@ import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPosition
 import { PositionInfo, PositionInfoLibrary } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
+import { Permit2Forwarder } from "@uniswap/v4-periphery/src/base/Permit2Forwarder.sol";
+import { IPermit2Forwarder } from "@uniswap/v4-periphery/src/interfaces/IPermit2Forwarder.sol";
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
@@ -179,6 +183,41 @@ contract SharedV4Strategy is ISharedStrategy {
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
 
     return positionChanges;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
+  ///      the required liquidity from amounts internally. Any unused tokens are swept back to the vault
+  ///      by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
+  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+
+    IPositionManager pm = IPositionManager(posm);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    Currency currency0 = poolKey.currency0;
+    Currency currency1 = poolKey.currency1;
+
+    // Approve via Permit2: vault → Permit2 → PositionManager
+    address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
+    if (amount0 > 0) {
+      address token0 = Currency.unwrap(currency0);
+      IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
+      IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
+    }
+    if (amount1 > 0) {
+      address token1 = Currency.unwrap(currency1);
+      IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
+      IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
+    }
+
+    // INCREASE_LIQUIDITY_FROM_DELTAS (0x04) + CLOSE_CURRENCY (0x12) for each token
+    bytes memory actions = abi.encodePacked(uint8(0x04), uint8(0x12), uint8(0x12));
+    bytes[] memory params = new bytes[](3);
+    params[0] = abi.encode(tokenId, uint128(amount0), uint128(amount1), bytes(""));
+    params[1] = abi.encode(currency0);
+    params[2] = abi.encode(currency1);
+
+    pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
   }
 
   /// @inheritdoc ISharedStrategy

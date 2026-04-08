@@ -114,7 +114,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked Aerodrome LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -137,7 +137,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     (, , , , , , , uint128 liquidityBefore, , , , ) = INFPMAerodrome(NFPM).positions(tokenId);
@@ -148,7 +148,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(increaseActions);
+    vault.execute(increaseActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     (, , , , , , , uint128 liquidityAfter, , , , ) = INFPMAerodrome(NFPM).positions(tokenId);
     assertGt(liquidityAfter, liquidityBefore, "liquidity must increase after SWAP_AND_INCREASE");
@@ -171,7 +171,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault owns NFT before gauge deposit");
@@ -182,7 +182,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     // After staking, vault no longer directly owns the NFT
     assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "gauge holds NFT after deposit");
@@ -206,7 +206,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     bytes memory depositData = bytes.concat(
@@ -215,7 +215,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     // Advance time so AERO rewards accrue
     vm.warp(block.timestamp + 7 days);
@@ -229,7 +229,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory harvestActions = new ISharedVault.Action[](1);
     harvestActions[0] = ISharedVault.Action(address(aeroStrategy), harvestData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(harvestActions);
+    vault.execute(harvestActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256 aeroAfter = IERC20(AERO_TOKEN).balanceOf(address(vault));
     console.log("Aerodrome HARVEST_GAUGE: AERO rewards =", aeroAfter - aeroBefore);
@@ -251,7 +251,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Stake into gauge
@@ -261,7 +261,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
     assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "staked: vault does not own NFT");
 
     // Unstake
@@ -271,7 +271,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
     withdrawActions[0] = ISharedVault.Action(address(aeroStrategy), withdrawData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(withdrawActions);
+    vault.execute(withdrawActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault owns NFT after gauge withdraw");
     assertEq(vault.getPositionCount(), 1, "position still tracked after unstake");
@@ -294,7 +294,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     bytes memory depositData = bytes.concat(
@@ -303,7 +303,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
     assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "staked before withdraw");
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
@@ -334,7 +334,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     vm.stopPrank();
 
     address player = makeAddr("player3");
@@ -372,7 +372,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory preview = vault.previewWithdraw(shares);

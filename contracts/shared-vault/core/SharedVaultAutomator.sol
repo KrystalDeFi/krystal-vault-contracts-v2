@@ -29,22 +29,24 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   function executeWithAgentAllowance(
     ISharedVault vault,
     ISharedVault.Action[] calldata actions,
+    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateAgentAllowance(abiEncodedAgentAllowance, signature, address(vault));
-    vault.execute(actions);
+    vault.execute(actions, strategyUpdates);
   }
 
   /// @inheritdoc ISharedVaultAutomator
   function executeWithUserOrder(
     ISharedVault vault,
     ISharedVault.Action[] calldata actions,
+    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
   ) external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
     _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
-    vault.execute(actions);
+    vault.execute(actions, strategyUpdates);
   }
 
   /// @inheritdoc ISharedVaultAutomator

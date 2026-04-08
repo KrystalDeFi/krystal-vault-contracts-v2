@@ -44,6 +44,18 @@ interface ISharedStrategy {
     uint16 vaultOwnerFeeBasisPoint
   ) external returns (PositionChange[] memory changes);
 
+  /// @notice Add a proportional share of tokens to an existing LP position during vault deposit.
+  /// @dev Called via delegatecall from SharedVault.deposit so address(this) is the vault.
+  ///      Increases liquidity with the given amounts; tokens not consumed by the position
+  ///      (due to price range mismatch) remain as idle vault balance automatically.
+  ///      Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
+  ///      MUST return silently — the caller leaves unused tokens as idle.
+  /// @param nfpm NFT Position Manager (or V4 PositionManager) address
+  /// @param tokenId Position NFT ID
+  /// @param amount0 Max amount of token0 to add
+  /// @param amount1 Max amount of token1 to add
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external;
+
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
   /// @dev Called via regular staticcall from the vault.
   /// @param nfpm NFT Position Manager address

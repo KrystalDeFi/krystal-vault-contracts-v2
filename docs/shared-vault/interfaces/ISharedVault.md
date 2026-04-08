@@ -50,6 +50,12 @@ event VaultPausedUpdated(address vaultFactory, bool paused)
 event VaultOwnerFeeBasisPointUpdated(address vaultFactory, uint16 basisPoints)
 ```
 
+### PositionStrategyMigrated
+
+```solidity
+event PositionStrategyMigrated(address vaultFactory, address nfpm, uint256 tokenId, address oldStrategy, address newStrategy)
+```
+
 ### Position
 
 _Tracked LP position_
@@ -73,6 +79,20 @@ struct Action {
   address target;
   bytes data;
   enum ISharedCommon.CallType callType;
+}
+```
+
+### PositionStrategyUpdate
+
+_Explicit strategy pointer update bundled with execute().
+     Allows migrating a position to a new whitelisted strategy in the same transaction as the
+     first action executed via that strategy, without a separate owner-only call._
+
+```solidity
+struct PositionStrategyUpdate {
+  address nfpm;
+  uint256 tokenId;
+  address strategy;
 }
 ```
 
@@ -113,13 +133,20 @@ Burn shares and withdraw proportional tokens.
 ### execute
 
 ```solidity
-function execute(struct ISharedVault.Action[] actions) external
+function execute(struct ISharedVault.Action[] actions, struct ISharedVault.PositionStrategyUpdate[] strategyUpdates) external
 ```
 
 Execute one or more actions: strategy delegatecalls (LP) and/or direct swap calls.
         For strategy actions the vault tracks LP position changes.
         For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
         that the output meets minAmountOut.
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| actions | struct ISharedVault.Action[] |  |
+| strategyUpdates | struct ISharedVault.PositionStrategyUpdate[] | Optional list of position→strategy pointer updates applied before        actions run. Use to migrate a broken strategy in the same tx as the first action        via its replacement. Each strategy must be whitelisted in configManager. |
 
 ### getTokens
 

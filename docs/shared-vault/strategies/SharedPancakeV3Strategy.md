@@ -151,6 +151,26 @@ _Handles both direct (vault-held) and MasterChef-staked positions.
 | ---- | ---- | ----------- |
 | changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
 
+### depositProportional
+
+```solidity
+function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_MasterChef-staked positions cannot have liquidity added without unstaking first.
+     Staked positions are silently skipped — the proportional tokens remain idle in the vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _nfpm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+
 ### getPositionAmounts
 
 ```solidity

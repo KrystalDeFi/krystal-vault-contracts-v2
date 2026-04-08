@@ -111,6 +111,29 @@ _Same fee model as public `LpStrategy._decreaseLiquidity`: collect fees → `LpF
 | ---- | ---- | ----------- |
 | changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
 
+### depositProportional
+
+```solidity
+function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_Called via delegatecall from SharedVault.deposit so address(this) is the vault.
+     Increases liquidity with the given amounts; tokens not consumed by the position
+     (due to price range mismatch) remain as idle vault balance automatically.
+     Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
+     MUST return silently — the caller leaves unused tokens as idle._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager (or V4 PositionManager) address |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+
 ### getPositionAmounts
 
 ```solidity

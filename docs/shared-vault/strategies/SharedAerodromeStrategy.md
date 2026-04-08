@@ -178,6 +178,26 @@ _Called via regular staticcall from the vault._
 | amount0 | uint256 | Amount of token0 in the position |
 | amount1 | uint256 | Amount of token1 in the position |
 
+### depositProportional
+
+```solidity
+function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_If the NFT is staked in a gauge (held by the gauge contract, not by the vault),
+     increaseLiquidity is not possible — skip silently so tokens remain idle._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _nfpm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+
 ### _getPool
 
 ```solidity

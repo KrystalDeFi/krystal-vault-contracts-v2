@@ -114,7 +114,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked Pancake LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -137,7 +137,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     (, , , , , , , uint128 liquidityBefore, , , , ) = INFPMPositions(NFPM).positions(tokenId);
@@ -148,7 +148,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(increaseActions);
+    vault.execute(increaseActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     (, , , , , , , uint128 liquidityAfter, , , , ) = INFPMPositions(NFPM).positions(tokenId);
     assertGt(liquidityAfter, liquidityBefore, "liquidity must increase after SWAP_AND_INCREASE");
@@ -171,7 +171,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Verify vault owns the NFT before staking
@@ -183,7 +183,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     // After staking, MasterChef holds the NFT
     assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "MasterChef must hold NFT after stake");
@@ -207,7 +207,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     bytes memory depositData = bytes.concat(
@@ -216,7 +216,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     // Advance time so rewards accrue
     vm.warp(block.timestamp + 7 days);
@@ -230,7 +230,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory harvestActions = new ISharedVault.Action[](1);
     harvestActions[0] = ISharedVault.Action(address(pancakeStrategy), harvestData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(harvestActions);
+    vault.execute(harvestActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256 cakeAfter = IERC20(CAKE_TOKEN).balanceOf(address(vault));
     console.log("Pancake HARVEST: CAKE rewards =", cakeAfter - cakeBefore);
@@ -254,7 +254,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     bytes memory depositData = bytes.concat(
@@ -263,7 +263,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
     assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "staked in MasterChef");
 
     // Unstake
@@ -277,7 +277,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       withdrawData,
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(withdrawActions);
+    vault.execute(withdrawActions, new ISharedVault.PositionStrategyUpdate[](0));
 
     assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault must own NFT after unstake");
     assertEq(vault.getPositionCount(), 1, "position still tracked after unstake");
@@ -301,7 +301,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     bytes memory depositData = bytes.concat(
@@ -310,7 +310,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     );
     ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
     depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions);
+    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
     assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "staked in MasterChef before withdraw");
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
@@ -342,7 +342,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions);
+    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
     vm.stopPrank();
 
     address player = makeAddr("player2");
@@ -380,7 +380,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions);
+    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory preview = vault.previewWithdraw(shares);

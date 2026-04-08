@@ -159,6 +159,52 @@ _Share ratio is based on TOTAL balances (idle + LP positions valued by strategie
      Only the needed WETH is wrapped — excess ETH is refunded as native ETH directly,
      avoiding an unnecessary wrap→unwrap round-trip._
 
+### _validateWethDeposit
+
+```solidity
+function _validateWethDeposit(uint256[4] amounts) internal view returns (uint256 wi)
+```
+
+_If caller sent ETH, returns validated WETH slot index; otherwise `type(uint256).max`._
+
+### _firstDepositTransfers
+
+```solidity
+function _firstDepositTransfers(uint256[4] amounts) internal view returns (uint256[4] transferAmounts, uint256 sharesOut)
+```
+
+_First deposit — always mints `INITIAL_SHARES`; full `amounts` are transferred._
+
+### _subsequentDepositTransfers
+
+```solidity
+function _subsequentDepositTransfers(uint256[4] amounts, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (uint256[4] transferAmounts, uint256 sharesOut)
+```
+
+_Subsequent deposit — minimum ratio share calc and proportional `transferAmounts`._
+
+### _wrapWethAndRefundExcess
+
+```solidity
+function _wrapWethAndRefundExcess(uint256 wi, uint256[4] transferAmounts) internal
+```
+
+_Wrap only needed WETH; refund excess as native ETH (see `deposit` NatSpec)._
+
+### _pullDepositTokensExcludingWethSlot
+
+```solidity
+function _pullDepositTokensExcludingWethSlot(uint256 wi, uint256[4] transferAmounts) internal
+```
+
+### _depositProportionalToAllPositions
+
+```solidity
+function _depositProportionalToAllPositions(uint256 currentTotalSupply, uint256[4] totalBalances, uint256[4] transferAmounts) internal
+```
+
+_Push proportional slices into tracked LP positions; no-op on first deposit or empty positions._
+
 ### withdraw
 
 ```solidity
@@ -190,7 +236,7 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 ### execute
 
 ```solidity
-function execute(struct ISharedVault.Action[] actions) external
+function execute(struct ISharedVault.Action[] actions, struct ISharedVault.PositionStrategyUpdate[] strategyUpdates) external
 ```
 
 Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.

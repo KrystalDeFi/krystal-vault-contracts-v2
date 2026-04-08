@@ -23,7 +23,7 @@ event CancelOrder(address user, bytes32 hash, bytes signature)
 ### executeWithAgentAllowance
 
 ```solidity
-function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVault.Action[] actions, bytes abiEncodedAgentAllowance, bytes signature) external
+function executeWithAgentAllowance(contract ISharedVault vault, struct ISharedVault.Action[] actions, struct ISharedVault.PositionStrategyUpdate[] strategyUpdates, bytes abiEncodedAgentAllowance, bytes signature) external
 ```
 
 Execute actions against a vault using a long-lived AgentAllowance signature.
@@ -41,13 +41,14 @@ _**Security note**: the AgentAllowance struct commits only to (vault, signatureT
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
 | actions | struct ISharedVault.Action[] | Same shape as `ISharedVault.execute` (`CallType.DELEGATECALL` for strategies, `CALL` for swaps) |
+| strategyUpdates | struct ISharedVault.PositionStrategyUpdate[] |  |
 | abiEncodedAgentAllowance | bytes | ABI-encoded AgentAllowance struct |
 | signature | bytes | Vault owner's EIP-712 signature over the AgentAllowance |
 
 ### executeWithUserOrder
 
 ```solidity
-function executeWithUserOrder(contract ISharedVault vault, struct ISharedVault.Action[] actions, bytes abiEncodedUserOrder, bytes orderSignature) external
+function executeWithUserOrder(contract ISharedVault vault, struct ISharedVault.Action[] actions, struct ISharedVault.PositionStrategyUpdate[] strategyUpdates, bytes abiEncodedUserOrder, bytes orderSignature) external
 ```
 
 Execute actions against a vault using a user order signature.
@@ -58,6 +59,7 @@ Execute actions against a vault using a user order signature.
 | ---- | ---- | ----------- |
 | vault | contract ISharedVault | Vault to operate on |
 | actions | struct ISharedVault.Action[] | Same shape as `ISharedVault.execute` |
+| strategyUpdates | struct ISharedVault.PositionStrategyUpdate[] | Position strategy pointer updates applied before actions run |
 | abiEncodedUserOrder | bytes | ABI encoded user order |
 | orderSignature | bytes | Signature of the order |
 
