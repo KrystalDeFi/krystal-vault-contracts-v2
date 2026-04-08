@@ -149,7 +149,7 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint256 minShares) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares.
@@ -200,7 +200,7 @@ function _pullDepositTokensExcludingWethSlot(uint256 wi, uint256[4] transferAmou
 ### _depositProportionalToAllPositions
 
 ```solidity
-function _depositProportionalToAllPositions(uint256 currentTotalSupply, uint256[4] totalBalances, uint256[4] transferAmounts) internal
+function _depositProportionalToAllPositions(uint256 currentTotalSupply, uint256[4] totalBalances, uint256[4] transferAmounts, uint16 slippageBps) internal
 ```
 
 _Push proportional slices into tracked LP positions; no-op on first deposit or empty positions._
@@ -262,7 +262,19 @@ function _applyPositionChanges(address strategy, bytes result) internal
 ```
 
 _Decode a PositionChange[] from raw return bytes and update LP position tracking.
-     Shared by DELEGATECALL and CALL_WITH_POSITIONS execution paths._
+     Shared by DELEGATECALL execution path._
+
+### _applyPositionChangesChecked
+
+```solidity
+function _applyPositionChangesChecked(address strategy, bytes result) internal
+```
+
+_Same as _applyPositionChanges but used for the CALL_WITH_POSITIONS path.
+     Before tracking a new position, verifies that `strategy` implements ISharedStrategy
+     by probing `getPositionAmounts`. Positions stored here are later exited via
+     delegatecall to `exitProportional`; a target that lacks that selector would brick
+     all future withdrawals for every vault depositor._
 
 ### getTokens
 
@@ -305,6 +317,13 @@ function previewDeposit(uint256[4] amounts) external view returns (uint256 share
 ```solidity
 function previewWithdraw(uint256 _shares) external view returns (uint256[4] amounts)
 ```
+
+Preview token amounts returned for burning `_shares`.
+
+_Computes proportional share of total balances (idle + LP position principal + uncollected fees).
+     **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
+     charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
+     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`._
 
 ### sweepTokens
 

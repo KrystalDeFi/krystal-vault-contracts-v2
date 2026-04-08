@@ -54,7 +54,9 @@ interface ISharedStrategy {
   /// @param tokenId Position NFT ID
   /// @param amount0 Max amount of token0 to add
   /// @param amount1 Max amount of token1 to add
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external;
+  /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%). Applied as
+  ///        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor.
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external;
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
   /// @dev Called via regular CALL (not staticcall) from non-view vault functions such as deposit().

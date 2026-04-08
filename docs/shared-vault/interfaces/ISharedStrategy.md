@@ -77,7 +77,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 ### depositProportional
 
 ```solidity
-function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
@@ -96,6 +96,7 @@ _Called via delegatecall from SharedVault.deposit so address(this) is the vault.
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
 
 ### getPositionAmounts
 

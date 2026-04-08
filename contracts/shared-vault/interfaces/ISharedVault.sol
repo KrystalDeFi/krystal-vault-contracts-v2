@@ -68,7 +68,10 @@ interface ISharedVault is ISharedCommon {
   /// @notice Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
   ///         (msg.value must match amounts[wethIndex] exactly; only the proportional amount
   ///          is wrapped — excess ETH is refunded directly without an unwrap round-trip).
-  function deposit(uint256[4] calldata amounts, uint256 minShares) external payable returns (uint256 shares);
+  /// @param slippageBps Proportional LP `increaseLiquidity` min amounts: for each token, if non-zero,
+  ///        amountMin = FullMath.mulDiv(amountDesired, 10000 - slippageBps, 10000). If 0, amount mins
+  ///        are 0 (pool consumes the usual partial split; matches `ISharedStrategy.depositProportional`).
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps) external payable returns (uint256 shares);
 
   /// @notice Burn shares and withdraw proportional tokens.
   ///         If the vault has active LP positions, each strategy exits its proportional share

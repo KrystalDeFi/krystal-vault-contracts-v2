@@ -114,16 +114,14 @@ _Same fee model as public `LpStrategy._decreaseLiquidity`: collect fees → `LpF
 ### depositProportional
 
 ```solidity
-function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
-_Called via delegatecall from SharedVault.deposit so address(this) is the vault.
-     Increases liquidity with the given amounts; tokens not consumed by the position
-     (due to price range mismatch) remain as idle vault balance automatically.
-     Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
-     MUST return silently — the caller leaves unused tokens as idle._
+_`slippageBps` lowers amount mins from desired (e.g. 100 = 1% tolerance). When 0, mins are
+     0 so the pool may consume the usual partial split (see `ISharedStrategy.depositProportional`).
+     Out-of-range positions have one desired amount zero, so that side's min stays 0._
 
 #### Parameters
 
@@ -133,6 +131,7 @@ _Called via delegatecall from SharedVault.deposit so address(this) is the vault.
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
 
 ### getPositionAmounts
 

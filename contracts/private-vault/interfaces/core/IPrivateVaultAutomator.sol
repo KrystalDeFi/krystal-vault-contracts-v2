@@ -33,7 +33,8 @@ interface IPrivateVaultAutomator is IPrivateCommon {
 
   function cancelOrder(bytes32 hash, bytes memory signature) external;
 
-  function isOrderCancelled(bytes memory signature) external view returns (bool);
+  /// @notice Check whether an order (identified by its EIP-712 digest) has been cancelled
+  function isOrderCancelled(bytes32 hash) external view returns (bool);
 
   function grantOperator(address operator) external;
 

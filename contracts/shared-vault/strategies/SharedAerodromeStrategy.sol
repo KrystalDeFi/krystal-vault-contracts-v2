@@ -365,24 +365,49 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev If the NFT is staked in a gauge (held by the gauge contract, not by the vault),
-  ///      increaseLiquidity is not possible — skip silently so tokens remain idle.
-  function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+  /// @dev Handles gauge-staked positions: unstakes before increasing liquidity, then restakes.
+  ///      Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
+  function depositProportional(
+    address _nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
     if (amount0 == 0 && amount1 == 0) return;
-    if (IERC721(_nfpm).ownerOf(tokenId) != address(this)) return;
+
+    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
+    address clGauge;
+    if (isStaked) {
+      clGauge = _getGaugeFromTokenId(tokenId);
+      ICLGauge(clGauge).withdraw(tokenId);
+    }
+
     (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
     if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    uint256 amount0Min;
+    uint256 amount1Min;
+    if (slippageBps > 0) {
+      uint256 scale = 10000 - slippageBps;
+      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
+      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    }
     INonfungiblePositionManager(_nfpm).increaseLiquidity(
       INonfungiblePositionManager.IncreaseLiquidityParams({
         tokenId: tokenId,
         amount0Desired: amount0,
         amount1Desired: amount1,
-        amount0Min: 0,
-        amount1Min: 0,
+        amount0Min: amount0Min,
+        amount1Min: amount1Min,
         deadline: block.timestamp
       })
     );
+
+    if (isStaked) {
+      IERC721(_nfpm).approve(clGauge, tokenId);
+      ICLGauge(clGauge).deposit(tokenId);
+    }
   }
 
   function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address) {
@@ -410,6 +435,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length; ) {
       if (approveAmounts[i] > 0) {
+        _validateVaultToken(_tokens[i]);
         IERC20(_tokens[i]).safeResetAndApprove(target, approveAmounts[i]);
       }
       unchecked {

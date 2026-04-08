@@ -69,7 +69,15 @@ Execute actions against a vault using a user order signature.
 function cancelOrder(bytes32 hash, bytes signature) external
 ```
 
-Cancel an order so it can never be replayed
+Cancel an order identified by its EIP-712 digest so it cannot be executed.
+
+_Cancellation is keyed on the digest, not the raw signature bytes, so that
+     EIP-1271 multisig wallets (which may produce different signature bytes for the
+     same digest each time) cannot bypass cancellation with a fresh signature.
+     Note: cancellation is only permanent if the owner does not re-sign a struct with
+     identical field values (which would produce the same digest). AgentAllowance
+     includes `signatureTime` and `expirationTime` as entropy; choosing new values
+     yields a distinct hash that is not cancelled._
 
 #### Parameters
 
@@ -81,10 +89,10 @@ Cancel an order so it can never be replayed
 ### isOrderCancelled
 
 ```solidity
-function isOrderCancelled(bytes signature) external view returns (bool)
+function isOrderCancelled(bytes32 hash) external view returns (bool)
 ```
 
-Check whether an order signature has been cancelled
+Check whether an order (identified by its EIP-712 digest) has been cancelled
 
 ### grantOperator
 

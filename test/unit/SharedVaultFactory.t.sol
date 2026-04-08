@@ -41,7 +41,7 @@ contract MockFactoryStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping

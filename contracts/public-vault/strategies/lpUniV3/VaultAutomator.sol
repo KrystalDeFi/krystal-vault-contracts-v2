@@ -182,23 +182,24 @@ contract VaultAutomator is
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
     require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
-    require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
+    require(!_cancelledOrder[digest], OrderCancelled());
   }
 
   /// @notice Cancel an order
   /// @param abiEncodedUserOrder ABI encoded user order
   /// @param orderSignature Signature of the order
   function cancelOrder(bytes calldata abiEncodedUserOrder, bytes calldata orderSignature) external {
-    _validateOrder(abiEncodedUserOrder, orderSignature, msg.sender);
-    _cancelledOrder[keccak256(orderSignature)] = true;
+    bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
+    require(SignatureChecker.isValidSignatureNow(msg.sender, digest, orderSignature), InvalidSignature());
+    _cancelledOrder[digest] = true;
     emit CancelOrder(msg.sender, abiEncodedUserOrder, orderSignature);
   }
 
   /// @notice Check if an order is cancelled
-  /// @param orderSignature Signature of the order
+  /// @param hash EIP-712 digest of the order
   /// @return true if the order is cancelled
-  function isOrderCancelled(bytes calldata orderSignature) external view returns (bool) {
-    return _cancelledOrder[keccak256(orderSignature)];
+  function isOrderCancelled(bytes32 hash) external view returns (bool) {
+    return _cancelledOrder[hash];
   }
 
   /// @notice Grant operator role

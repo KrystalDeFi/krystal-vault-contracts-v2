@@ -44,13 +44,20 @@ interface ISharedVaultAutomator is ISharedCommon {
     bytes calldata orderSignature
   ) external;
 
-  /// @notice Cancel an order so it can never be replayed
+  /// @notice Cancel an order identified by its EIP-712 digest so it cannot be executed.
+  /// @dev Cancellation is keyed on the digest, not the raw signature bytes, so that
+  ///      EIP-1271 multisig wallets (which may produce different signature bytes for the
+  ///      same digest each time) cannot bypass cancellation with a fresh signature.
+  ///      Note: cancellation is only permanent if the owner does not re-sign a struct with
+  ///      identical field values (which would produce the same digest). AgentAllowance
+  ///      includes `signatureTime` and `expirationTime` as entropy; choosing new values
+  ///      yields a distinct hash that is not cancelled.
   /// @param hash EIP-712 digest that was signed
   /// @param signature The signature to cancel (must have been signed by msg.sender)
   function cancelOrder(bytes32 hash, bytes memory signature) external;
 
-  /// @notice Check whether an order signature has been cancelled
-  function isOrderCancelled(bytes calldata signature) external view returns (bool);
+  /// @notice Check whether an order (identified by its EIP-712 digest) has been cancelled
+  function isOrderCancelled(bytes32 hash) external view returns (bool);
 
   /// @notice Grant operator role to an address
   function grantOperator(address operator) external;

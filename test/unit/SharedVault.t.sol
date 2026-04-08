@@ -105,11 +105,9 @@ contract MockERC20 {
 
 // Mock strategy that validates tokens and sets a value
 contract MockSharedStrategy is ISharedStrategy {
-  uint256 public lastValue;
-
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    uint256 value = abi.decode(data, (uint256));
-    lastValue = value;
+    // No state written — this runs via delegatecall; writing to named slots would corrupt vault storage.
+    abi.decode(data, (uint256));
     changes = new PositionChange[](0);
   }
 
@@ -129,7 +127,7 @@ contract MockSharedStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock strategy whose exitProportional always reverts (simulates a buggy deployed strategy)
@@ -159,7 +157,7 @@ contract MockBrokenExitStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
@@ -190,7 +188,7 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
     return (100e18, 100e18);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external pure override {
+  function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
     revert("pool rugged");
   }
 }
@@ -217,7 +215,7 @@ contract MockFailingStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock swap target
@@ -287,7 +285,7 @@ contract MockDirectPositionCreator is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock ERC721 for sweep tests
@@ -420,7 +418,7 @@ contract MockLPExitStrategy is ISharedStrategy {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16) external override {
     if (amount0 == 0 && amount1 == 0) return;
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     (address token0, address token1, , ) = MockLPPool(lpPool).lps(key);
@@ -656,7 +654,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenB.balanceOf(address(vault)), 220e18);
   }
 
-  function test_deposit_fail_insufficient_shares() public {
+  function test_deposit_fail_invalid_slippage_bps() public {
     tokenA.mint(DEPOSITOR, 1e18);
     tokenB.mint(DEPOSITOR, 2e18);
 
@@ -665,8 +663,8 @@ contract SharedVaultTest is TestCommon {
     tokenB.approve(address(vault), type(uint256).max);
 
     uint256[4] memory depositAmounts = [uint256(1e18), uint256(2e18), uint256(0), uint256(0)];
-    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
-    vault.deposit(depositAmounts, type(uint256).max);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.deposit(depositAmounts, uint16(10001));
     vm.stopPrank();
   }
 

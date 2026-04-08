@@ -216,18 +216,34 @@ contract SharedV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+  /// @dev `slippageBps` lowers amount mins from desired (e.g. 100 = 1% tolerance). When 0, mins are
+  ///      0 so the pool may consume the usual partial split (see `ISharedStrategy.depositProportional`).
+  ///      Out-of-range positions have one desired amount zero, so that side's min stays 0.
+  function depositProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
     if (amount0 == 0 && amount1 == 0) return;
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0);
     if (amount1 > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1);
+    uint256 amount0Min;
+    uint256 amount1Min;
+    if (slippageBps > 0) {
+      uint256 scale = 10000 - slippageBps;
+      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
+      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    }
     INFPM(nfpm).increaseLiquidity(
       INFPM.IncreaseLiquidityParams({
         tokenId: tokenId,
         amount0Desired: amount0,
         amount1Desired: amount1,
-        amount0Min: 0,
-        amount1Min: 0,
+        amount0Min: amount0Min,
+        amount1Min: amount1Min,
         deadline: block.timestamp
       })
     );
@@ -288,6 +304,7 @@ contract SharedV3Strategy is ISharedStrategy {
     require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length; ) {
       if (approveAmounts[i] > 0) {
+        _validateVaultToken(_tokens[i]);
         IERC20(_tokens[i]).safeResetAndApprove(target, approveAmounts[i]);
       }
       unchecked {

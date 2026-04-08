@@ -81,6 +81,11 @@
         "internalType": "uint256",
         "name": "amount1",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint16",
+        "name": "slippageBps",
+        "type": "uint16"
       }
     ],
     "name": "depositProportional",

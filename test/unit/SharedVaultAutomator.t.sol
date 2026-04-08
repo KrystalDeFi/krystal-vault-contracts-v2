@@ -86,7 +86,7 @@ contract MockAutomatorStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock EIP-1271 multisig wallet — validates signatures from a set of approved signers
@@ -448,12 +448,12 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    assertFalse(automator.isOrderCancelled(sig));
+    assertFalse(automator.isOrderCancelled(digest));
 
     vm.prank(VAULT_OWNER);
     automator.cancelOrder(digest, sig);
 
-    assertTrue(automator.isOrderCancelled(sig));
+    assertTrue(automator.isOrderCancelled(digest));
   }
 
   function test_cancelOrder_fail_wrongSigner() public {
@@ -625,7 +625,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(address(multisig));
     msAutomator.cancelOrder(digest, sig);
 
-    assertTrue(msAutomator.isOrderCancelled(sig));
+    assertTrue(msAutomator.isOrderCancelled(digest));
 
     // Execution now fails
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));

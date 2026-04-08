@@ -53,13 +53,17 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   function cancelOrder(bytes32 hash, bytes memory signature) external override {
     // SignatureChecker: for EOA checks ECDSA recovery; for multisig calls EIP-1271.isValidSignature
     require(SignatureChecker.isValidSignatureNow(_msgSender(), hash, signature), InvalidSignature());
-    _cancelledOrder[keccak256(signature)] = true;
+    // Key on the EIP-712 digest, not the raw signature bytes.
+    // EIP-1271 multisig wallets can produce different valid signature bytes for the same digest
+    // on every call, so keying on signature bytes would allow the owner to bypass cancellation
+    // by generating a fresh signature. Keying on the digest makes cancellation order-based.
+    _cancelledOrder[hash] = true;
     emit CancelOrder(_msgSender(), hash, signature);
   }
 
   /// @inheritdoc ISharedVaultAutomator
-  function isOrderCancelled(bytes calldata signature) external view override returns (bool) {
-    return _cancelledOrder[keccak256(signature)];
+  function isOrderCancelled(bytes32 hash) external view override returns (bool) {
+    return _cancelledOrder[hash];
   }
 
   /// @inheritdoc ISharedVaultAutomator
@@ -110,7 +114,7 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
     address owner = ISharedVault(vault).vaultOwner();
     require(SignatureChecker.isValidSignatureNow(owner, digest, signature), InvalidSignature());
-    require(!_cancelledOrder[keccak256(signature)], OrderCancelled());
+    require(!_cancelledOrder[digest], OrderCancelled());
   }
 
   /// @dev Validate the order
@@ -120,6 +124,6 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
     require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
-    require(!_cancelledOrder[keccak256(orderSignature)], OrderCancelled());
+    require(!_cancelledOrder[digest], OrderCancelled());
   }
 }

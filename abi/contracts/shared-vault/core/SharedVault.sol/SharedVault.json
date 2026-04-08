@@ -824,9 +824,9 @@
         "type": "uint256[4]"
       },
       {
-        "internalType": "uint256",
-        "name": "minShares",
-        "type": "uint256"
+        "internalType": "uint16",
+        "name": "slippageBps",
+        "type": "uint16"
       }
     ],
     "name": "deposit",

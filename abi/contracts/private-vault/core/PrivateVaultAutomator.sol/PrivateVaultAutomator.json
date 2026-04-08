@@ -433,9 +433,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes",
-        "name": "signature",
-        "type": "bytes"
+        "internalType": "bytes32",
+        "name": "hash",
+        "type": "bytes32"
       }
     ],
     "name": "isOrderCancelled",

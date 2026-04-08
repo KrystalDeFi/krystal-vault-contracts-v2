@@ -3,8 +3,7 @@ pragma solidity ^0.8.28;
 
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { IMasterChefV3 } from "../../common/interfaces/protocols/pancakev3/IMasterChefV3.sol";
-import { INonfungiblePositionManager as INFPM } from
-  "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -258,9 +257,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
-    (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(
-      _nfpm
-    ).positions(tokenId);
+    (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(_nfpm).positions(
+      tokenId
+    );
 
     bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
 
@@ -308,25 +307,47 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev MasterChef-staked positions cannot have liquidity added without unstaking first.
-  ///      Staked positions are silently skipped — the proportional tokens remain idle in the vault.
-  function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+  /// @dev Handles MasterChef-staked positions: harvests rewards, withdraws from MasterChef,
+  ///      increases liquidity, then re-deposits. Non-zero `slippageBps` sets amount mins; 0 = no floor.
+  function depositProportional(
+    address _nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
     if (amount0 == 0 && amount1 == 0) return;
-    // Skip staked positions — NFT is held by MasterChef, not the vault
-    if (IERC721(_nfpm).ownerOf(tokenId) != address(this)) return;
+
+    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
+    if (isStaked) {
+      _harvestRewards(tokenId, 0, 0);
+      IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
+    }
+
     (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
     if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    uint256 amount0Min;
+    uint256 amount1Min;
+    if (slippageBps > 0) {
+      uint256 scale = 10000 - slippageBps;
+      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
+      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    }
     INFPM(_nfpm).increaseLiquidity(
       INFPM.IncreaseLiquidityParams({
         tokenId: tokenId,
         amount0Desired: amount0,
         amount1Desired: amount1,
-        amount0Min: 0,
-        amount1Min: 0,
+        amount0Min: amount0Min,
+        amount1Min: amount1Min,
         deadline: block.timestamp
       })
     );
+
+    if (isStaked) {
+      IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
+    }
   }
 
   /// @inheritdoc ISharedStrategy
@@ -386,6 +407,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length; ) {
       if (approveAmounts[i] > 0) {
+        _validateVaultToken(_tokens[i]);
         IERC20(_tokens[i]).safeResetAndApprove(target, approveAmounts[i]);
       }
       unchecked {

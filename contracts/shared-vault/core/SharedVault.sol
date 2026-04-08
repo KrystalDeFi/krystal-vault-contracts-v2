@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -30,7 +30,7 @@ import "../../public-vault/interfaces/IWETH9.sol";
 contract SharedVault is
   ERC20PermitUpgradeable,
   PausableUpgradeable,
-  ReentrancyGuard,
+  ReentrancyGuardUpgradeable,
   ERC721Holder,
   ERC1155Holder,
   IERC1271,
@@ -112,6 +112,7 @@ contract SharedVault is
     __ERC20_init(_name, _name);
     __ERC20Permit_init(_name);
     __Pausable_init();
+    __ReentrancyGuard_init();
 
     configManager = ISharedConfigManager(_configManager);
     vaultOwner = _owner;
@@ -171,7 +172,7 @@ contract SharedVault is
   ///      avoiding an unnecessary wrap→unwrap round-trip.
   function deposit(
     uint256[4] calldata amounts,
-    uint256 minShares
+    uint16 slippageBps
   ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
@@ -185,11 +186,12 @@ contract SharedVault is
       (transferAmounts, shares) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalances);
     }
 
-    require(shares >= minShares, InsufficientShares());
+    require(slippageBps <= 10000, ISharedCommon.InvalidAmount());
+    require(shares > 0, InsufficientShares());
 
     _wrapWethAndRefundExcess(wi, transferAmounts);
     _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
-    _depositProportionalToAllPositions(currentTotalSupply, totalBalances, transferAmounts);
+    _depositProportionalToAllPositions(currentTotalSupply, totalBalances, transferAmounts, slippageBps);
 
     _mint(_msgSender(), shares);
 
@@ -294,7 +296,8 @@ contract SharedVault is
   function _depositProportionalToAllPositions(
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances,
-    uint256[4] memory transferAmounts
+    uint256[4] memory transferAmounts,
+    uint16 slippageBps
   ) internal {
     if (currentTotalSupply == 0 || positions.length == 0) return;
 
@@ -319,7 +322,7 @@ contract SharedVault is
 
       if (toAdd0 > 0 || toAdd1 > 0) {
         (bool ok, bytes memory errData) = pos.strategy.delegatecall(
-          abi.encodeCall(ISharedStrategy.depositProportional, (pos.nfpm, pos.tokenId, toAdd0, toAdd1))
+          abi.encodeCall(ISharedStrategy.depositProportional, (pos.nfpm, pos.tokenId, toAdd0, toAdd1, slippageBps))
         );
         if (!ok) {
           if (errData.length == 0) revert StrategyCallFailed();
@@ -518,7 +521,7 @@ contract SharedVault is
           }
         }
 
-        _applyPositionChanges(action.target, result);
+        _applyPositionChangesChecked(action.target, result);
       }
 
       emit VaultExecute(vaultFactory, action.target, action.data);
@@ -529,13 +532,41 @@ contract SharedVault is
   }
 
   /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.
-  ///      Shared by DELEGATECALL and CALL_WITH_POSITIONS execution paths.
+  ///      Shared by DELEGATECALL execution path.
   function _applyPositionChanges(address strategy, bytes memory result) internal {
     if (result.length == 0) return;
 
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
+        _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
+      } else {
+        _removePosition(changes[c].nfpm, changes[c].tokenId);
+      }
+      unchecked {
+        c++;
+      }
+    }
+  }
+
+  /// @dev Same as _applyPositionChanges but used for the CALL_WITH_POSITIONS path.
+  ///      Before tracking a new position, verifies that `strategy` implements ISharedStrategy
+  ///      by probing `getPositionAmounts`. Positions stored here are later exited via
+  ///      delegatecall to `exitProportional`; a target that lacks that selector would brick
+  ///      all future withdrawals for every vault depositor.
+  function _applyPositionChangesChecked(address strategy, bytes memory result) internal {
+    if (result.length == 0) return;
+
+    ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+    for (uint256 c; c < changes.length; ) {
+      if (changes[c].isAdd) {
+        // Probe `getPositionAmounts` on the strategy (direct call, not delegatecall).
+        // A revert with non-empty data means the function exists (reverted from within).
+        // A revert with empty data means the selector is absent — reject the position.
+        (bool ok, bytes memory probeData) = strategy.staticcall(
+          abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
+        );
+        require(ok || probeData.length > 0, InvalidTarget(strategy));
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _removePosition(changes[c].nfpm, changes[c].tokenId);
@@ -599,6 +630,11 @@ contract SharedVault is
     }
   }
 
+  /// @notice Preview token amounts returned for burning `_shares`.
+  /// @dev Computes proportional share of total balances (idle + LP position principal + uncollected fees).
+  ///      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
+  ///      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
+  ///      Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
     uint256 currentTotalSupply = totalSupply();
     if (currentTotalSupply == 0) return amounts;

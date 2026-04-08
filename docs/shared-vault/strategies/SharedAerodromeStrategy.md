@@ -183,13 +183,13 @@ _Called via regular CALL (not staticcall) from non-view vault functions such as 
 ### depositProportional
 
 ```solidity
-function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external
+function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
-_If the NFT is staked in a gauge (held by the gauge contract, not by the vault),
-     increaseLiquidity is not possible — skip silently so tokens remain idle._
+_Handles gauge-staked positions: unstakes before increasing liquidity, then restakes.
+     Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`)._
 
 #### Parameters
 
@@ -199,6 +199,7 @@ _If the NFT is staked in a gauge (held by the gauge contract, not by the vault),
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
 
 ### _getPool
 

@@ -116,12 +116,19 @@ function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint256 minShares) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
 ```
 
 Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
         (msg.value must match amounts[wethIndex] exactly; only the proportional amount
          is wrapped — excess ETH is refunded directly without an unwrap round-trip).
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amounts | uint256[4] |  |
+| slippageBps | uint16 | Proportional LP `increaseLiquidity` min amounts: for each token, if non-zero,        amountMin = FullMath.mulDiv(amountDesired, 10000 - slippageBps, 10000). If 0, amount mins        are 0 (pool consumes the usual partial split; matches `ISharedStrategy.depositProportional`). |
 
 ### withdraw
 

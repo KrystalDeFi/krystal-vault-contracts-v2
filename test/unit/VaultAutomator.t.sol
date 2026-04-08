@@ -572,13 +572,13 @@ contract VaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(eoaKey, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    assertFalse(vaultAutomatorLpStrategy.isOrderCancelled(sig));
+    assertFalse(vaultAutomatorLpStrategy.isOrderCancelled(digest));
 
     // Cancel as the multisig — SignatureChecker delegates to multisig.isValidSignature
     vm.prank(address(multisig));
     vaultAutomatorLpStrategy.cancelOrder(encoded, sig);
 
-    assertTrue(vaultAutomatorLpStrategy.isOrderCancelled(sig));
+    assertTrue(vaultAutomatorLpStrategy.isOrderCancelled(digest));
   }
 
   /// @dev executeAllocate reads vault.vaultOwner() to identify who must sign.

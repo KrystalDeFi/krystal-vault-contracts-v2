@@ -189,7 +189,13 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
   ///      the required liquidity from amounts internally. Any unused tokens are swept back to the vault
   ///      by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
-  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1) external override {
+  function depositProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 // slippageBps unused: V4 INCREASE_LIQUIDITY_FROM_DELTAS has no amountMin parameter
+  ) external override {
     if (amount0 == 0 && amount1 == 0) return;
 
     IPositionManager pm = IPositionManager(posm);
@@ -197,9 +203,9 @@ contract SharedV4Strategy is ISharedStrategy {
     Currency currency0 = poolKey.currency0;
     Currency currency1 = poolKey.currency1;
 
-    // Permit2 allowance amounts are capped at uint160/uint128 max — values above these are
-    // impossible in practice (total ERC20 supply fits in uint128) but we guard explicitly.
-    require(amount0 <= type(uint160).max && amount1 <= type(uint160).max, ISharedCommon.InvalidAmount());
+    // Guard against silent truncation: token amounts must fit in uint128 (used in INCREASE_LIQUIDITY params).
+    // Total ERC20 supply can never exceed uint128.max in practice, but we guard explicitly.
+    require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
     // Approve via Permit2: vault → Permit2 → PositionManager
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
@@ -361,15 +367,17 @@ contract SharedV4Strategy is ISharedStrategy {
     fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
   }
 
-  /// @dev Returns fees owed. Uses a defensive check instead of V4 core's unchecked subtraction
-  ///      (which relies on uint256 overflow wrapping). This returns 0 on apparent underflow rather
-  ///      than risking an incorrect large value if fee growth tracking is out of sync.
+  /// @dev Returns fees owed, matching V4 core's unchecked subtraction pattern.
+  ///      Fee growth values are monotonically increasing accumulators that intentionally wrap
+  ///      around uint256. When feeGrowthInsideX128 < feeGrowthInsideLastX128 the accumulator
+  ///      has wrapped — the correct delta is (type(uint256).max - last + current + 1), which
+  ///      is exactly what `unchecked { current - last }` computes in uint256 arithmetic.
   function _feeOwed(
     uint256 feeGrowthInsideX128,
     uint256 feeGrowthInsideLastX128,
     uint256 liquidity
   ) private pure returns (uint128) {
-    if (feeGrowthInsideX128 < feeGrowthInsideLastX128 || liquidity == 0) return 0;
+    if (liquidity == 0) return 0;
     unchecked {
       return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
     }
