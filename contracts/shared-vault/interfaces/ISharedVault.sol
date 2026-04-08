@@ -142,8 +142,6 @@ interface ISharedVault is ISharedCommon {
 
   function revokeAdminRole(address _address) external;
 
-  function setOperator(address _operator) external;
-
   function setPaused(bool _paused) external;
 
   /// @notice Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).

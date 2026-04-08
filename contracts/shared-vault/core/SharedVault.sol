@@ -661,12 +661,6 @@ contract SharedVault is
     emit SetVaultAdmin(vaultFactory, _address, false);
   }
 
-  function setOperator(address _operator) external override onlyOwner {
-    require(_operator != address(0), ZeroAddress());
-    emit SetVaultOperator(vaultFactory, operator, _operator);
-    operator = _operator;
-  }
-
   function setPaused(bool _paused) external override onlyOwner {
     if (_paused) {
       _pause();

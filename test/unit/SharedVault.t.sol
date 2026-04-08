@@ -9,8 +9,6 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
 contract MockWETH9 {
@@ -242,7 +240,7 @@ contract MockDirectPositionCreator is ISharedStrategy {
     uint256 tokenId,
     address token0,
     address token1
-  ) external returns (PositionChange[] memory changes) {
+  ) external pure returns (PositionChange[] memory changes) {
     changes = new PositionChange[](1);
     changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
   }
@@ -273,12 +271,15 @@ contract MockDirectPositionCreator is ISharedStrategy {
     return new PositionChange[](0);
   }
 
-  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
-    external
-    pure
-    override
-    returns (PositionChange[] memory)
-  {
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint16
+  ) external pure override returns (PositionChange[] memory) {
     return new PositionChange[](0);
   }
 
@@ -492,7 +493,7 @@ contract SharedVaultTest is TestCommon {
     tokenA.transfer(address(vault), 100e18);
     tokenB.transfer(address(vault), 200e18);
 
-    // Initialize: vaultOwner is _owner; vaultFactory is msg.sender (both VAULT_OWNER in this direct-deploy setup)
+    // Initialize: vaultFactory is msg.sender; operator matches factory.owner() (SharedVaultFactory passes owner()).
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
@@ -501,14 +502,13 @@ contract SharedVaultTest is TestCommon {
       vaultTokens,
       initialAmounts,
       VAULT_OWNER,
-      address(0),
+      VAULT_OWNER,
       address(configManager),
       address(0)
     );
 
     // Setup roles
     vault.grantAdminRole(ADMIN);
-    vault.setOperator(OPERATOR);
     vm.stopPrank();
   }
 
@@ -553,7 +553,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0));
     vm.stopPrank();
 
     // First deposit
@@ -825,12 +825,12 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
-  // ==================== Sweep Tests (Operator) ====================
+  // ==================== Sweep Tests (factory owner is vault operator) ====================
 
   function test_sweep_non_vault_token() public {
     tokenE.mint(address(vault), 100e18);
 
-    vm.startPrank(OPERATOR);
+    vm.startPrank(VAULT_OWNER);
     address[] memory sweepTokens = new address[](1);
     sweepTokens[0] = address(tokenE);
     uint256[] memory sweepAmounts = new uint256[](1);
@@ -843,33 +843,33 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_sweep_fail_vault_token() public {
-    vm.startPrank(OPERATOR);
+    vm.startPrank(VAULT_OWNER);
     address[] memory sweepTokens = new address[](1);
     sweepTokens[0] = address(tokenA);
     uint256[] memory sweepAmounts = new uint256[](1);
     sweepAmounts[0] = 1e18;
     vm.expectRevert(ISharedCommon.CannotSweepVaultToken.selector);
-    vault.sweepTokens(sweepTokens, sweepAmounts, OPERATOR);
+    vault.sweepTokens(sweepTokens, sweepAmounts, VAULT_OWNER);
     vm.stopPrank();
   }
 
   function test_sweep_fail_non_operator() public {
     tokenE.mint(address(vault), 100e18);
 
-    vm.startPrank(VAULT_OWNER);
+    vm.startPrank(OPERATOR);
     address[] memory sweepTokens = new address[](1);
     sweepTokens[0] = address(tokenE);
     uint256[] memory sweepAmounts = new uint256[](1);
     sweepAmounts[0] = 100e18;
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.sweepTokens(sweepTokens, sweepAmounts, VAULT_OWNER);
+    vault.sweepTokens(sweepTokens, sweepAmounts, OPERATOR);
     vm.stopPrank();
   }
 
   function test_sweep_native_token() public {
     vm.deal(address(vault), 1 ether);
 
-    vm.startPrank(OPERATOR);
+    vm.startPrank(VAULT_OWNER);
     vault.sweepNativeToken(1 ether, OPERATOR);
     vm.stopPrank();
 
@@ -879,7 +879,7 @@ contract SharedVaultTest is TestCommon {
   function test_sweep_erc721() public {
     mockERC721.mint(address(vault), 1);
 
-    vm.startPrank(OPERATOR);
+    vm.startPrank(VAULT_OWNER);
     vault.sweepERC721(address(mockERC721), 1, OPERATOR);
     vm.stopPrank();
 
@@ -889,7 +889,7 @@ contract SharedVaultTest is TestCommon {
   function test_sweep_erc1155() public {
     mockERC1155.mint(address(vault), 1, 100);
 
-    vm.startPrank(OPERATOR);
+    vm.startPrank(VAULT_OWNER);
     vault.sweepERC1155(address(mockERC1155), 1, 50, OPERATOR);
     vm.stopPrank();
 
@@ -924,22 +924,6 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(newAdmin);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
-    vm.stopPrank();
-  }
-
-  function test_set_operator() public {
-    address newOp = address(0x888);
-    vm.startPrank(VAULT_OWNER);
-    vault.setOperator(newOp);
-    vm.stopPrank();
-
-    assertEq(vault.operator(), newOp);
-  }
-
-  function test_set_operator_fail_zero_address() public {
-    vm.startPrank(VAULT_OWNER);
-    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
-    vault.setOperator(address(0));
     vm.stopPrank();
   }
 
@@ -1009,7 +993,13 @@ contract SharedVaultTest is TestCommon {
     configManager.setWhitelistTargets(newTargets, true);
 
     vm.expectEmit(true, true, true, true);
-    emit ISharedVault.PositionStrategyMigrated(VAULT_OWNER, fakeNfpm, tokenId, address(brokenStrat), address(goodStrat));
+    emit ISharedVault.PositionStrategyMigrated(
+      VAULT_OWNER,
+      fakeNfpm,
+      tokenId,
+      address(brokenStrat),
+      address(goodStrat)
+    );
 
     vm.prank(VAULT_OWNER);
     vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, tokenId, address(goodStrat)));
@@ -1098,7 +1088,13 @@ contract SharedVaultTest is TestCommon {
     actions[0] = ISharedVault.Action(address(goodStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
 
     vm.expectEmit(true, true, true, true);
-    emit ISharedVault.PositionStrategyMigrated(VAULT_OWNER, fakeNfpm, tokenId, address(brokenStrat), address(goodStrat));
+    emit ISharedVault.PositionStrategyMigrated(
+      VAULT_OWNER,
+      fakeNfpm,
+      tokenId,
+      address(brokenStrat),
+      address(goodStrat)
+    );
     vm.prank(VAULT_OWNER);
     vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
 
@@ -1363,7 +1359,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [dep, dep, uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0));
+    v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
 
     vm.prank(VAULT_OWNER);
     v.setVaultOwnerFeeBasisPoint(1234);
@@ -1452,7 +1448,7 @@ contract SharedVaultTest is TestCommon {
       wvTokens,
       initAmounts,
       VAULT_OWNER,
-      address(0),
+      VAULT_OWNER,
       address(configManager),
       address(mockWeth)
     );
@@ -1588,7 +1584,7 @@ contract SharedVaultTest is TestCommon {
       wvTokens,
       initAmounts,
       VAULT_OWNER,
-      address(0),
+      VAULT_OWNER,
       address(configManager),
       address(mockWeth)
     );
@@ -1651,7 +1647,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
-    v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0));
+    v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
     vm.stopPrank();
 
     // Bob deposits the same amounts → gets equal shares
@@ -1858,7 +1854,14 @@ contract SharedVaultTest is TestCommon {
     tokenB.mint(address(pool), 10e18); // pool needs tokenB to return on exit
 
     vm.startPrank(VAULT_OWNER);
-    bytes memory stratData = abi.encode(mockNfpm, tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
+    bytes memory stratData = abi.encode(
+      mockNfpm,
+      tokenId,
+      address(tokenA),
+      address(tokenB),
+      uint256(10e18),
+      uint256(0)
+    );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
@@ -1968,10 +1971,7 @@ contract SharedVaultTest is TestCommon {
 
   /// @notice CALL_WITH_POSITIONS: non-whitelisted target → reverts with InvalidTarget.
   function test_execute_call_with_positions_non_whitelisted_target() public {
-    bytes memory callData = abi.encodeCall(
-      MockDirectPositionCreator.noChanges,
-      ()
-    );
+    bytes memory callData = abi.encodeCall(MockDirectPositionCreator.noChanges, ());
 
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -2001,7 +2001,12 @@ contract SharedVaultTest is TestCommon {
 
     // Action 1: DELEGATECALL — strategy creates LP position
     bytes memory dcData = abi.encode(
-      delegatecallNfpm, uint256(1), address(tokenA), address(tokenB), uint256(10e18), uint256(0)
+      delegatecallNfpm,
+      uint256(1),
+      address(tokenA),
+      address(tokenB),
+      uint256(10e18),
+      uint256(0)
     );
 
     // Action 2: CALL — token swap tokenA → tokenB

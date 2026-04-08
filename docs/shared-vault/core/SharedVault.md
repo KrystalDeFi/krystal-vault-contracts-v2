@@ -340,12 +340,6 @@ function grantAdminRole(address _address) external
 function revokeAdminRole(address _address) external
 ```
 
-### setOperator
-
-```solidity
-function setOperator(address _operator) external
-```
-
 ### setPaused
 
 ```solidity
