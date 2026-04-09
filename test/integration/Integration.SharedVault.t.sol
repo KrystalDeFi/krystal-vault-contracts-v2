@@ -316,7 +316,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vault), usdcIn);
 
     uint256[4] memory depositAmounts = [wethIn, usdcIn, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor should receive shares");
@@ -343,7 +343,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vault), usdcIn);
 
     uint256[4] memory amounts = [ethIn, usdcIn, uint256(0), 0];
-    uint256 shares = vault.deposit{ value: ethIn }(amounts, 0);
+    uint256 shares = vault.deposit{ value: ethIn }(amounts, 0, 0);
     assertGt(shares, 0, "should receive shares for ETH deposit");
 
     uint256 ethBalBefore = player.balance;

@@ -149,7 +149,7 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares.

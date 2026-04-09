@@ -172,8 +172,10 @@ contract SharedVault is
   ///      avoiding an unnecessary wrap→unwrap round-trip.
   function deposit(
     uint256[4] calldata amounts,
-    uint16 slippageBps
+    uint16 slippageBps,
+    uint256 minShares
   ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
+    require(slippageBps <= 10000, ISharedCommon.InvalidAmount());
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
     uint256[4] memory totalBalances = _getTotalBalances();
@@ -186,8 +188,7 @@ contract SharedVault is
       (transferAmounts, shares) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalances);
     }
 
-    require(slippageBps <= 10000, ISharedCommon.InvalidAmount());
-    require(shares > 0, InsufficientShares());
+    require(shares >= minShares, InsufficientShares());
 
     _wrapWethAndRefundExcess(wi, transferAmounts);
     _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
@@ -560,9 +561,15 @@ contract SharedVault is
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
-        // Probe `getPositionAmounts` on the strategy (direct call, not delegatecall).
-        // A revert with non-empty data means the function exists (reverted from within).
-        // A revert with empty data means the selector is absent — reject the position.
+        // Probe `getPositionAmounts` via staticcall to verify the strategy implements ISharedStrategy.
+        // A staticcall to a view function reliably distinguishes "selector present" from "selector absent":
+        //   ok == true → call succeeded and returned data
+        //   ok == false && probeData.length > 0 → function exists but reverted with a reason
+        //   ok == false && probeData.length == 0 → selector absent (or contract has no code)
+        // Note: `exitProportional` is NOT probed here because it is a state-mutating function.
+        // A staticcall to a non-view function that writes storage reverts with *empty* data — the same
+        // signal as "selector missing" — making the probe unreliable. The configManager whitelist is the
+        // primary trust boundary ensuring strategies implement the full ISharedStrategy interface.
         (bool ok, bytes memory probeData) = strategy.staticcall(
           abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
         );
