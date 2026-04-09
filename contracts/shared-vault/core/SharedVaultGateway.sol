@@ -29,6 +29,9 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error SlippageExceeded(uint256 index);
   error InsufficientShares();
   error InvalidSwapRouter();
+  error InsufficientMsgValue();
+  error InsufficientPostSwapBalance(uint256 tokenIndex);
+  error EthTransferFailed();
 
   // ==================== Events ====================
 
@@ -40,6 +43,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Structs ====================
 
+  /// @param tokenIn ERC20 to pull from the user, or `address(0)` for native ETH (consumed from `msg.value`).
+  ///                WETH as ERC20 must use `tokenIn == weth` and is always pulled via `transferFrom`, never mixed with `msg.value`.
   struct SwapParams {
     address tokenIn;
     uint256 amountIn; // 0 = use full balance of tokenIn held by gateway
@@ -51,7 +56,11 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   struct SwapAndDepositParams {
     ISharedVault vault;
     SwapParams[] swaps;
-    uint256[4] minDepositAmounts; // passed through as amounts[]; excess determines ratio
+    /// @notice Per vault-token slot: minimum balance the gateway must hold after swaps (slippage floor).
+    ///         If actual balance is below this for a configured vault token, the call reverts before `deposit`.
+    ///         Pass 0 to skip the check for that slot. Actual amounts sent to the vault are always the
+    ///         gateway's current ERC20 balances (never inflated above balance).
+    uint256[4] minDepositAmounts;
     uint16 slippageBps;
     uint256 minShares;
     address[] sweepTokens; // tokens to return leftovers for (vault tokens + any intermediaries)
@@ -104,6 +113,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   /// @notice Pull input tokens, execute swaps to vault tokens, deposit proportionally, return leftovers.
   /// @dev Swap calldata is built off-chain by the Krystal API swap aggregator.
   ///      The gateway briefly holds tokens during the tx; nothing persists across calls.
+  ///      **ETH**: `msg.value` must be at least the sum of `amountIn` on swaps with `tokenIn == address(0)`;
+  ///      surplus native balance is swept to the caller at the end. WETH as ERC20 uses `tokenIn == weth` and allowance.
   function swapAndDeposit(
     SwapAndDepositParams calldata params
   ) external payable nonReentrant whenNotPaused returns (uint256 shares) {
@@ -118,6 +129,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     shares = params.vault.deposit(depositAmounts, params.slippageBps, params.minShares);
     require(shares > 0, InsufficientShares());
+
+    _revokeVaultTokenApprovals(vaultTokens, address(params.vault));
 
     IERC20(address(params.vault)).safeTransfer(_msgSender(), shares);
 
@@ -146,25 +159,25 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Internal: Token Handling ====================
 
-  /// @dev Pull all non-zero input tokens from _msgSender(). Native ETH arrives via msg.value.
+  /// @dev Pull ERC20 inputs from `_msgSender()`. Native ETH is used only when `tokenIn == address(0)`:
+  ///      `amountIn` for those entries must be covered by `msg.value` (excess ETH is refunded via `_sweepNative`).
+  ///      WETH as ERC20 always uses `tokenIn == weth` and `transferFrom`, independent of `msg.value`.
   function _pullInputTokens(SwapParams[] calldata swaps) internal {
     uint256 totalNativeRequired;
     for (uint256 i; i < swaps.length; ) {
-      if (swaps[i].amountIn > 0 && swaps[i].tokenIn != address(0)) {
-        if (swaps[i].tokenIn == weth && msg.value > 0) {
-          // Will be handled by native ETH; skip ERC20 pull
-        } else {
-          IERC20(swaps[i].tokenIn).safeTransferFrom(_msgSender(), address(this), swaps[i].amountIn);
+      if (swaps[i].tokenIn == address(0)) {
+        if (swaps[i].amountIn > 0) {
+          totalNativeRequired += swaps[i].amountIn;
         }
-      }
-      if (swaps[i].tokenIn == address(0) || (swaps[i].tokenIn == weth && msg.value > 0)) {
-        totalNativeRequired += swaps[i].amountIn;
+      } else if (swaps[i].amountIn > 0) {
+        IERC20(swaps[i].tokenIn).safeTransferFrom(_msgSender(), address(this), swaps[i].amountIn);
       }
       unchecked {
         i++;
       }
     }
-    if (msg.value > 0 && totalNativeRequired > 0) {
+    if (totalNativeRequired > 0) {
+      if (msg.value < totalNativeRequired) revert InsufficientMsgValue();
       IWETH9(weth).deposit{ value: totalNativeRequired }();
     }
   }
@@ -209,9 +222,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Internal: Deposit Helpers ====================
 
-  /// @dev Build deposit amounts array. For each vault token, use the gateway's current balance
-  ///      (post-swaps) but cap at no less than minDepositAmounts (which acts as the user hint
-  ///      for the proportional deposit computation inside SharedVault).
+  /// @dev Use actual gateway balances as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
+  ///      post-swap slippage floor: revert if balance is below the minimum for that vault token slot.
   function _buildDepositAmounts(
     address[4] memory vaultTokens,
     uint256[4] calldata minDepositAmounts
@@ -219,7 +231,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     for (uint256 i; i < 4; ) {
       if (vaultTokens[i] != address(0)) {
         uint256 bal = IERC20(vaultTokens[i]).balanceOf(address(this));
-        amounts[i] = bal > minDepositAmounts[i] ? bal : minDepositAmounts[i];
+        if (bal < minDepositAmounts[i]) revert InsufficientPostSwapBalance(i);
+        amounts[i] = bal;
       }
       unchecked {
         i++;
@@ -231,6 +244,17 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     for (uint256 i; i < 4; ) {
       if (vaultTokens[i] != address(0) && amounts[i] > 0) {
         IERC20(vaultTokens[i]).safeResetAndApprove(vault, amounts[i]);
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _revokeVaultTokenApprovals(address[4] memory vaultTokens, address vault) internal {
+    for (uint256 i; i < 4; ) {
+      if (vaultTokens[i] != address(0)) {
+        IERC20(vaultTokens[i]).safeApprove(vault, 0);
       }
       unchecked {
         i++;
@@ -271,7 +295,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     uint256 bal = address(this).balance;
     if (bal > 0) {
       (bool ok, ) = to.call{ value: bal }("");
-      require(ok, "ETH transfer failed");
+      if (!ok) revert EthTransferFailed();
     }
   }
 

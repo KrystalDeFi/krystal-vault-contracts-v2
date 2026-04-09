@@ -39,6 +39,24 @@ error InsufficientShares()
 error InvalidSwapRouter()
 ```
 
+### InsufficientMsgValue
+
+```solidity
+error InsufficientMsgValue()
+```
+
+### InsufficientPostSwapBalance
+
+```solidity
+error InsufficientPostSwapBalance(uint256 tokenIndex)
+```
+
+### EthTransferFailed
+
+```solidity
+error EthTransferFailed()
+```
+
 ### SwapAndDeposit
 
 ```solidity
@@ -58,6 +76,11 @@ event SwapRouterUpdated(address oldRouter, address newRouter)
 ```
 
 ### SwapParams
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
 
 ```solidity
 struct SwapParams {
@@ -134,7 +157,9 @@ function swapAndDeposit(struct SharedVaultGateway.SwapAndDepositParams params) e
 Pull input tokens, execute swaps to vault tokens, deposit proportionally, return leftovers.
 
 _Swap calldata is built off-chain by the Krystal API swap aggregator.
-     The gateway briefly holds tokens during the tx; nothing persists across calls._
+     The gateway briefly holds tokens during the tx; nothing persists across calls.
+     **ETH**: `msg.value` must be at least the sum of `amountIn` on swaps with `tokenIn == address(0)`;
+     surplus native balance is swept to the caller at the end. WETH as ERC20 uses `tokenIn == weth` and allowance._
 
 ### withdrawAndSwap
 
@@ -150,7 +175,9 @@ Burn shares, receive vault tokens, execute swaps to desired output, return lefto
 function _pullInputTokens(struct SharedVaultGateway.SwapParams[] swaps) internal
 ```
 
-_Pull all non-zero input tokens from _msgSender(). Native ETH arrives via msg.value._
+_Pull ERC20 inputs from `_msgSender()`. Native ETH is used only when `tokenIn == address(0)`:
+     `amountIn` for those entries must be covered by `msg.value` (excess ETH is refunded via `_sweepNative`).
+     WETH as ERC20 always uses `tokenIn == weth` and `transferFrom`, independent of `msg.value`._
 
 ### _executeSwaps
 
@@ -173,14 +200,19 @@ function _executeSingleSwap(struct SharedVaultGateway.SwapParams swap, uint256 i
 function _buildDepositAmounts(address[4] vaultTokens, uint256[4] minDepositAmounts) internal view returns (uint256[4] amounts)
 ```
 
-_Build deposit amounts array. For each vault token, use the gateway's current balance
-     (post-swaps) but cap at no less than minDepositAmounts (which acts as the user hint
-     for the proportional deposit computation inside SharedVault)._
+_Use actual gateway balances as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
+     post-swap slippage floor: revert if balance is below the minimum for that vault token slot._
 
 ### _approveVaultTokens
 
 ```solidity
 function _approveVaultTokens(address[4] vaultTokens, uint256[4] amounts, address vault) internal
+```
+
+### _revokeVaultTokenApprovals
+
+```solidity
+function _revokeVaultTokenApprovals(address[4] vaultTokens, address vault) internal
 ```
 
 ### _sweepAll

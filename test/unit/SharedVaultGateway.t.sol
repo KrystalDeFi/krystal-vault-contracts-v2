@@ -1231,4 +1231,90 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenX.balanceOf(address(gateway)), 0);
     assertEq(vault.balanceOf(address(gateway)), 0);
   }
+
+  /// @notice Native ETH (`tokenIn == address(0)`) and WETH ERC20 (`tokenIn == weth`) are independent:
+  ///         only `address(0)` entries consume `msg.value`; WETH is always `transferFrom`.
+  function test_swapAndDeposit_native_eth_and_weth_erc20_together() public {
+    vm.deal(ALICE, 6 ether);
+    vm.startPrank(ALICE);
+    mockWeth.deposit{ value: 5 ether }();
+    mockWeth.approve(address(gateway), type(uint256).max);
+    vm.stopPrank();
+
+    tokenA.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](6);
+    swaps[0] = SharedVaultGateway.SwapParams(address(mockWeth), 5 ether, address(mockWeth), 0, "");
+    swaps[1] = SharedVaultGateway.SwapParams(address(0), 1 ether, address(0), 0, "");
+    swaps[2] = SharedVaultGateway.SwapParams(address(tokenA), 100e18, address(tokenA), 0, "");
+    swaps[3] = SharedVaultGateway.SwapParams(address(tokenB), 200e18, address(tokenB), 0, "");
+    swaps[4] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
+    swaps[5] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
+
+    address[] memory sweepTokens = new address[](1);
+    sweepTokens[0] = address(mockWeth);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: sweepTokens
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit{ value: 1 ether }(params);
+
+    assertGt(shares, 0);
+    assertEq(vault.balanceOf(ALICE), shares);
+    assertEq(mockWeth.balanceOf(ALICE), 6 ether, "unused WETH swept back");
+    assertEq(ALICE.balance, 0, "no stranded ETH on user after sweep");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0);
+  }
+
+  function test_swapAndDeposit_fail_insufficient_msg_value() public {
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(address(0), 2 ether, address(0), 0, "");
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.deal(ALICE, 1 ether);
+    vm.prank(ALICE);
+    vm.expectRevert(SharedVaultGateway.InsufficientMsgValue.selector);
+    gateway.swapAndDeposit{ value: 1 ether }(params);
+  }
+
+  function test_swapAndDeposit_fail_insufficient_post_swap_balance() public {
+    tokenA.mint(ALICE, 1e18);
+    vm.prank(ALICE);
+    GatewayMockERC20(address(tokenA)).approve(address(gateway), type(uint256).max);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(address(tokenA), 1e18, address(tokenA), 0, "");
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(type(uint256).max), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientPostSwapBalance.selector, 0));
+    gateway.swapAndDeposit(params);
+  }
 }
