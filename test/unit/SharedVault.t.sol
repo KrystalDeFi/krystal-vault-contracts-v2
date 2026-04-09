@@ -418,7 +418,13 @@ contract MockLPExitStrategy is ISharedStrategy {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16) external override {
+  function depositProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16
+  ) external override {
     if (amount0 == 0 && amount1 == 0) return;
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     (address token0, address token1, , ) = MockLPPool(lpPool).lps(key);
@@ -665,6 +671,31 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory depositAmounts = [uint256(1e18), uint256(2e18), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     vault.deposit(depositAmounts, uint16(10001), 0);
+    vm.stopPrank();
+  }
+
+  /// @notice `deposit` enforces `minShares` before pulling tokens; shortfall reverts with `InsufficientShares`.
+  function test_deposit_fail_min_shares() public {
+    // Vault already seeded 100A:200B with INITIAL_SHARES (10e18) total supply.
+    uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
+    uint256 expectedShares = vault.previewDeposit(depositAmounts);
+    assertGt(expectedShares, 0);
+
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256 aBefore = tokenA.balanceOf(DEPOSITOR);
+    uint256 bBefore = tokenB.balanceOf(DEPOSITOR);
+
+    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
+    vault.deposit(depositAmounts, 0, expectedShares + 1);
+
+    assertEq(tokenA.balanceOf(DEPOSITOR), aBefore, "minShares revert must not pull token A");
+    assertEq(tokenB.balanceOf(DEPOSITOR), bBefore, "minShares revert must not pull token B");
     vm.stopPrank();
   }
 
