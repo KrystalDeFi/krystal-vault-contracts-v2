@@ -69,6 +69,11 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     }
 
     ISharedVault(vault).transferOwnership(_msgSender());
+
+    uint256 sharesBal = IERC20(vault).balanceOf(address(this));
+    if (sharesBal > 0) {
+      IERC20(vault).safeTransfer(_msgSender(), sharesBal);
+    }
   }
 
   function _createVault(
