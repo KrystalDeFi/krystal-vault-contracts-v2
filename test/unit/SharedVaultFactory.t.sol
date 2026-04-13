@@ -351,6 +351,10 @@ contract SharedVaultFactoryTest is TestCommon {
     assertTrue(factory.isVault(vaultAddr));
     // Strategy was called and returned a PositionChange — vault should have tracked it
     assertEq(ISharedVault(vaultAddr).getPositionCount(), 1);
+
+    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
+    assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
 
   function test_createVault_with_multiple_strategies() public {
@@ -491,6 +495,10 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenA.balanceOf(vaultAddr), 100e18);
     assertEq(tokenB.balanceOf(vaultAddr), 100e18);
     assertEq(mockWeth.balanceOf(vaultAddr), 0);
+
+    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
+    assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
 
   /// @notice Batch createVault: native ETH msg.value must match WETH initial amount; strategies run with callValues from factory balance (zero here)
@@ -518,6 +526,10 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(mockWeth.balanceOf(vaultAddr), 1 ether, "WETH wrapped from ETH deposit");
     assertEq(tokenA.balanceOf(vaultAddr), 100e18, "tokenA transferred as ERC20");
     assertEq(address(factory).balance, 0);
+
+    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
+    assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
 
   /// @notice When paying WETH initial deposit via msg.value, it must equal initialAmounts[wethIndex] exactly
