@@ -69,6 +69,13 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     }
 
     ISharedVault(vault).transferOwnership(_msgSender());
+
+    // INITIAL_SHARES were minted to address(this) as the temporary vaultOwner during init.
+    // Transfer them to the actual caller now that setup is complete.
+    uint256 sharesBal = IERC20(vault).balanceOf(address(this));
+    if (sharesBal > 0) {
+      IERC20(vault).safeTransfer(_msgSender(), sharesBal);
+    }
   }
 
   function _createVault(
