@@ -190,7 +190,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
 
-    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
+    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor must receive shares");
@@ -271,7 +271,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     vm.startPrank(player);
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
-    vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
+    vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
     vm.stopPrank();
 
     // vaultOwner withdraws half their shares (partial exit)

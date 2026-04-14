@@ -9,7 +9,8 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 
 /// @title SharedStrategyFeeConfig
-/// @notice Platform bps `0` => config; gas X64 always caller-supplied for `execute`; withdraw exits use no gas fee.
+/// @notice Platform bps `0` => config; `type(uint16).max` => no platform fee. Gas X64 is caller-supplied for
+///         `execute` (no default); withdraw exits use no gas fee on principal.
 library SharedStrategyFeeConfig {
   uint256 private constant Q64 = 0x10000000000000000;
 
@@ -21,7 +22,9 @@ library SharedStrategyFeeConfig {
   }
 
   /// @dev Q64 for V3Utils `protocolFeeX64` / `Instructions.performanceFeeX64`.
+  ///      `type(uint16).max` forces zero protocol fee regardless of config (caller “waive platform fee”).
   function platformFeeX64(ISharedConfigManager cm, uint16 platformBpsOverride) internal view returns (uint64) {
+    if (platformBpsOverride == type(uint16).max) return 0;
     uint16 bps = resolvePlatformBps(cm, platformBpsOverride);
     if (bps == 0) return 0;
     return uint64(FullMath.mulDiv(uint256(bps), Q64, 10_000));

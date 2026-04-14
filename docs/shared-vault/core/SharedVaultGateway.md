@@ -100,7 +100,6 @@ struct SwapAndDepositParams {
   struct SharedVaultGateway.SwapParams[] swaps;
   uint256[4] minDepositAmounts;
   uint16 slippageBps;
-  uint256 minShares;
   address[] sweepTokens;
 }
 ```

@@ -19,6 +19,7 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedV3SafeTransferNftLib } from "../libraries/SharedV3SafeTransferNftLib.sol";
 
 /// @title SharedV3Strategy
 /// @notice Uniswap V3 LP operations for SharedVault with token validation and position tracking
@@ -106,18 +107,23 @@ contract SharedV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
-  ///      The caller can predict this via NFPM._nextId() or tx simulation.
+  /// @dev `CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
+  ///      Full exit: vault no longer holds `tokenId`, or on-chain position liquidity is zero.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (
       address nfpm,
       uint256 tokenId,
       IV3Utils.Instructions memory instructions,
-      bool isFullWithdraw,
-      uint256 newTokenId,
       uint16 platformFeeBasisPointOverride,
       uint64 gasFeeX64Override
-    ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, bool, uint256, uint16, uint64));
+    ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, uint16, uint64));
+
+    (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
+
+    uint256 lastGlobalIdBefore;
+    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+      lastGlobalIdBefore = SharedV3SafeTransferNftLib.lastGlobalNfpmTokenId(nfpm);
+    }
 
     instructions.recipient = address(this);
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
@@ -126,18 +132,24 @@ contract SharedV3Strategy is ISharedStrategy {
     IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
-      // Atomic: remove old + add new in same call
-      (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
-      require(newTokenId != 0, InvalidPoolTokens());
+      uint256 newTokenId;
+      unchecked {
+        newTokenId = lastGlobalIdBefore + 1;
+      }
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
       changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
-    } else if (isFullWithdraw) {
-      (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
+    } else if (!SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(nfpm, tokenId, address(this))) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
     } else {
-      changes = new PositionChange[](0);
+      (, , , , , , , uint128 liqAfter, , , , ) = INFPM(nfpm).positions(tokenId);
+      if (liqAfter == 0) {
+        changes = new PositionChange[](1);
+        changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+      } else {
+        changes = new PositionChange[](0);
+      }
     }
   }
 

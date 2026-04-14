@@ -172,27 +172,31 @@ contract SharedVault is
   ///      avoiding an unnecessary wrap→unwrap round-trip.
   function deposit(
     uint256[4] calldata amounts,
-    uint16 slippageBps,
-    uint256 minShares
+    uint16 slippageBps
   ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
     require(slippageBps <= 10000, ISharedCommon.InvalidAmount());
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
-    uint256[4] memory totalBalances = _getTotalBalances();
+    uint256[4] memory totalBalancesBefore = _getTotalBalances();
     uint256 wi = _validateWethDeposit(amounts);
 
     uint256[4] memory transferAmounts;
     if (currentTotalSupply == 0) {
       (transferAmounts, shares) = _firstDepositTransfers(amounts);
+      _wrapWethAndRefundExcess(wi, transferAmounts);
+      _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
+      // No LP positions exist on first deposit — INITIAL_SHARES is always the correct amount.
     } else {
-      (transferAmounts, shares) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalances);
+      (transferAmounts) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalancesBefore);
+      _wrapWethAndRefundExcess(wi, transferAmounts);
+      _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
+      // Push tokens into LP positions. Slippage may cause the LP to consume less than
+      // the full transferAmounts, so we re-snapshot balances after to measure what was
+      // actually deposited and compute shares from that delta.
+      _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, transferAmounts, slippageBps);
+      uint256[4] memory totalBalancesAfter = _getTotalBalances();
+      shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter);
     }
-
-    require(shares >= minShares, InsufficientShares());
-
-    _wrapWethAndRefundExcess(wi, transferAmounts);
-    _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
-    _depositProportionalToAllPositions(currentTotalSupply, totalBalances, transferAmounts, slippageBps);
 
     _mint(_msgSender(), shares);
 
@@ -228,13 +232,16 @@ contract SharedVault is
     sharesOut = INITIAL_SHARES;
   }
 
-  /// @dev Subsequent deposit — minimum ratio share calc and proportional `transferAmounts`.
+  /// @dev Subsequent deposit — compute how many tokens to pull based on minimum ratio across tokens.
+  ///      Shares are NOT computed here; they are derived from the post-LP-deposit balance delta so
+  ///      that slippage-induced partial LP consumption is reflected in the final share count.
   function _subsequentDepositTransfers(
     uint256[4] calldata amounts,
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances
-  ) internal view returns (uint256[4] memory transferAmounts, uint256 sharesOut) {
-    sharesOut = type(uint256).max;
+  ) internal view returns (uint256[4] memory transferAmounts) {
+    // Find the binding token: the one that would yield the fewest shares.
+    uint256 sharesOut = type(uint256).max;
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
         uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
@@ -259,6 +266,30 @@ contract SharedVault is
         i++;
       }
     }
+  }
+
+  /// @dev Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
+  ///      Uses the minimum ratio across all tokens (binding constraint) so that a token that saw less
+  ///      LP consumption due to slippage is not over-credited. Reverts if no balance increased.
+  function _computeSharesFromDelta(
+    uint256 currentTotalSupply,
+    uint256[4] memory balancesBefore,
+    uint256[4] memory balancesAfter
+  ) internal view returns (uint256 shares) {
+    shares = type(uint256).max;
+    for (uint256 i; i < 4; ) {
+      if (tokens[i] != address(0) && balancesBefore[i] > 0) {
+        uint256 added = balancesAfter[i] - balancesBefore[i];
+        if (added > 0) {
+          uint256 s = FullMath.mulDiv(added, currentTotalSupply, balancesBefore[i]);
+          if (s < shares) shares = s;
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+    require(shares != type(uint256).max, InsufficientShares());
   }
 
   /// @dev Wrap only needed WETH; refund excess as native ETH (see `deposit` NatSpec).

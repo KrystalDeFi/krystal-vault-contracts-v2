@@ -17,7 +17,8 @@ interface ISharedStrategy {
   ///      Since this runs via delegatecall, address(this) is the vault.
   /// @param data Encoded operation params (strategy-specific). V3-style strategies append
   ///        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.
-  ///        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed.
+  ///        Platform `0` uses `configManager.platformFeeBasisPoint()`; `type(uint16).max` forces no platform fee.
+  ///        Gas fee X64 is used as passed (no default; use `0` for no gas fee).
   /// @return changes Array of position changes (added/removed)
   function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
 
@@ -56,7 +57,13 @@ interface ISharedStrategy {
   /// @param amount1 Max amount of token1 to add
   /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%). Applied as
   ///        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor.
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external;
+  function depositProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external;
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
   /// @dev Called via regular CALL (not staticcall) from non-view vault functions such as deposit().

@@ -149,3 +149,11 @@ error InvalidVaultOwnerFeeBasisPoint()
 error InvalidFeeBasisPoint()
 ```
 
+### NfpmEnumerableRequired
+
+```solidity
+error NfpmEnumerableRequired()
+```
+
+NFPM must implement `IERC721Enumerable` to read `totalSupply` / `tokenByIndex` for `CHANGE_RANGE`.
+

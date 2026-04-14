@@ -62,7 +62,6 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     ///         gateway's current ERC20 balances (never inflated above balance).
     uint256[4] minDepositAmounts;
     uint16 slippageBps;
-    uint256 minShares;
     address[] sweepTokens; // tokens to return leftovers for (vault tokens + any intermediaries)
   }
 
@@ -127,7 +126,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _approveVaultTokens(vaultTokens, depositAmounts, address(params.vault));
 
-    shares = params.vault.deposit(depositAmounts, params.slippageBps, params.minShares);
+    shares = params.vault.deposit(depositAmounts, params.slippageBps);
     require(shares > 0, InsufficientShares());
 
     _revokeVaultTokenApprovals(vaultTokens, address(params.vault));

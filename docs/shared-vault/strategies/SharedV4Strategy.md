@@ -107,7 +107,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed. |
+| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; `type(uint16).max` forces no platform fee.        Gas fee X64 is used as passed (no default; use `0` for no gas fee). |
 
 #### Return Values
 

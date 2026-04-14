@@ -116,7 +116,7 @@ function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
 ```
 
 Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
@@ -129,7 +129,6 @@ Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
 | ---- | ---- | ----------- |
 | amounts | uint256[4] |  |
 | slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).        Must be ≤ 10000. Pass 0 to skip the amountMin floor. |
-| minShares | uint256 | Minimum vault shares the caller is willing to receive. Computed off-chain from        `previewDeposit(amounts)` minus acceptable share-price slippage; pass 0 to skip.        Guards against vault-balance manipulation between tx submission and on-chain inclusion. |
 
 ### withdraw
 

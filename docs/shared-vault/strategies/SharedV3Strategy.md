@@ -47,7 +47,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; gas is used as passed. |
+| data | bytes | Encoded operation params (strategy-specific). V3-style strategies append        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.        Platform `0` uses `configManager.platformFeeBasisPoint()`; `type(uint16).max` forces no platform fee.        Gas fee X64 is used as passed (no default; use `0` for no gas fee). |
 
 #### Return Values
 
@@ -73,8 +73,8 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-_For CHANGE_RANGE: caller must provide newTokenId (the NFT minted by V3Utils for the new position).
-     The caller can predict this via NFPM._nextId() or tx simulation._
+_`CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
+     Full exit: vault no longer holds `tokenId`, or on-chain position liquidity is zero._
 
 ### _decreaseVaultPosition
 

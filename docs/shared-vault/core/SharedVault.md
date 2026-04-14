@@ -149,7 +149,7 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares.
@@ -178,10 +178,22 @@ _First deposit — always mints `INITIAL_SHARES`; full `amounts` are transferred
 ### _subsequentDepositTransfers
 
 ```solidity
-function _subsequentDepositTransfers(uint256[4] amounts, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (uint256[4] transferAmounts, uint256 sharesOut)
+function _subsequentDepositTransfers(uint256[4] amounts, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (uint256[4] transferAmounts)
 ```
 
-_Subsequent deposit — minimum ratio share calc and proportional `transferAmounts`._
+_Subsequent deposit — compute how many tokens to pull based on minimum ratio across tokens.
+     Shares are NOT computed here; they are derived from the post-LP-deposit balance delta so
+     that slippage-induced partial LP consumption is reflected in the final share count._
+
+### _computeSharesFromDelta
+
+```solidity
+function _computeSharesFromDelta(uint256 currentTotalSupply, uint256[4] balancesBefore, uint256[4] balancesAfter) internal view returns (uint256 shares)
+```
+
+_Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
+     Uses the minimum ratio across all tokens (binding constraint) so that a token that saw less
+     LP consumption due to slippage is not over-credited. Reverts if no balance increased._
 
 ### _wrapWethAndRefundExcess
 

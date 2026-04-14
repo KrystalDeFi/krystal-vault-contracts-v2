@@ -135,6 +135,11 @@
   },
   {
     "inputs": [],
+    "name": "NfpmEnumerableRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoTokensConfigured",
     "type": "error"
   },

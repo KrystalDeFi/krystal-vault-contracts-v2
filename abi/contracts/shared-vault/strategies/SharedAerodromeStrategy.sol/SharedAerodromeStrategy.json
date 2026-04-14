@@ -66,6 +66,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "NfpmEnumerableRequired",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

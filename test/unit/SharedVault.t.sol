@@ -569,7 +569,7 @@ contract SharedVaultTest is TestCommon {
     tokenB.approve(address(vault2), type(uint256).max);
 
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
-    uint256 shares = vault2.deposit(depositAmounts, 0, 0);
+    uint256 shares = vault2.deposit(depositAmounts, 0);
 
     assertEq(shares, vault2.INITIAL_SHARES());
     assertEq(vault2.balanceOf(DEPOSITOR), shares);
@@ -589,7 +589,7 @@ contract SharedVaultTest is TestCommon {
 
     // Current ratio is 100:200 = 1:2, deposit 50:100 maintains ratio
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
-    uint256 shares = vault.deposit(depositAmounts, 0, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0);
 
     assertGt(shares, 0);
     assertEq(vault.balanceOf(DEPOSITOR), shares);
@@ -610,7 +610,7 @@ contract SharedVaultTest is TestCommon {
     uint256 aBalanceBefore = tokenA.balanceOf(DEPOSITOR);
 
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
-    uint256 shares = vault.deposit(depositAmounts, 0, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0);
 
     assertGt(shares, 0);
     // Only proportional A was taken: 50B / 200B * 100A = 25A
@@ -636,7 +636,7 @@ contract SharedVaultTest is TestCommon {
     // Force fail: provide 0B when B balance is 200e18 (required).
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.InvalidRatio.selector);
-    vault.deposit(depositAmounts, 0, 0);
+    vault.deposit(depositAmounts, 0);
     vm.stopPrank();
   }
 
@@ -651,7 +651,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256 supplyBefore = vault.totalSupply();
     uint256[4] memory depositAmounts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
-    uint256 shares = vault.deposit(depositAmounts, 0, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0);
     vm.stopPrank();
 
     // 10A / 100A == 20B / 200B == 10% of pool → shares = 10% of prior supply
@@ -670,32 +670,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256[4] memory depositAmounts = [uint256(1e18), uint256(2e18), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    vault.deposit(depositAmounts, uint16(10001), 0);
-    vm.stopPrank();
-  }
-
-  /// @notice `deposit` enforces `minShares` before pulling tokens; shortfall reverts with `InsufficientShares`.
-  function test_deposit_fail_min_shares() public {
-    // Vault already seeded 100A:200B with INITIAL_SHARES (10e18) total supply.
-    uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
-    uint256 expectedShares = vault.previewDeposit(depositAmounts);
-    assertGt(expectedShares, 0);
-
-    tokenA.mint(DEPOSITOR, 50e18);
-    tokenB.mint(DEPOSITOR, 100e18);
-
-    vm.startPrank(DEPOSITOR);
-    tokenA.approve(address(vault), type(uint256).max);
-    tokenB.approve(address(vault), type(uint256).max);
-
-    uint256 aBefore = tokenA.balanceOf(DEPOSITOR);
-    uint256 bBefore = tokenB.balanceOf(DEPOSITOR);
-
-    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
-    vault.deposit(depositAmounts, 0, expectedShares + 1);
-
-    assertEq(tokenA.balanceOf(DEPOSITOR), aBefore, "minShares revert must not pull token A");
-    assertEq(tokenB.balanceOf(DEPOSITOR), bBefore, "minShares revert must not pull token B");
+    vault.deposit(depositAmounts, uint16(10001));
     vm.stopPrank();
   }
 
@@ -990,7 +965,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(DEPOSITOR);
     tokenA.approve(address(vault), type(uint256).max);
     tokenB.approve(address(vault), type(uint256).max);
-    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0, 0);
+    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
     bytes memory stratData = abi.encode(fakeNfpm, tokenId, address(tokenA), address(tokenB));
@@ -1168,7 +1143,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(DEPOSITOR);
     tokenB.approve(address(vault), 300e18);
     vm.prank(DEPOSITOR);
-    vault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0, 0);
+    vault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
 
     // Add the broken position via execute
     address fakeNfpm = address(0xBEEF1);
@@ -1184,7 +1159,7 @@ contract SharedVaultTest is TestCommon {
     // The inner revert string propagates through the delegatecall bubble-up path.
     vm.prank(DEPOSITOR);
     vm.expectRevert("pool rugged");
-    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0, 0);
+    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
 
     // Drop the broken position — deposit must succeed afterwards
     vm.prank(VAULT_OWNER);
@@ -1192,7 +1167,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(vault.getPositionCount(), 0);
 
     vm.prank(DEPOSITOR);
-    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0, 0);
+    vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
   }
 
   function test_dropPosition_fail_not_tracked() public {
@@ -1221,7 +1196,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256[4] memory amounts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.deposit(amounts, 0, 0);
+    vault.deposit(amounts, 0);
     vm.stopPrank();
   }
 
@@ -1263,7 +1238,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256[4] memory amounts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.deposit(amounts, 0, 0);
+    vault.deposit(amounts, 0);
     vm.stopPrank();
   }
 
@@ -1497,7 +1472,7 @@ contract SharedVaultTest is TestCommon {
 
     // Deposit 50e18 tokenA + 50e18 ETH (→ WETH). Proportional: 50/100 ratio → exact match.
     uint256[4] memory amounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
-    uint256 shares = wethVault.deposit{ value: 50e18 }(amounts, 0, 0);
+    uint256 shares = wethVault.deposit{ value: 50e18 }(amounts, 0);
     vm.stopPrank();
 
     assertGt(shares, 0);
@@ -1523,7 +1498,7 @@ contract SharedVaultTest is TestCommon {
     tokenA.approve(address(wethVault), type(uint256).max);
 
     uint256[4] memory amounts = [uint256(40e18), uint256(80e18), uint256(0), uint256(0)];
-    wethVault.deposit{ value: 80e18 }(amounts, 0, 0);
+    wethVault.deposit{ value: 80e18 }(amounts, 0);
     vm.stopPrank();
 
     // 40e18 ETH refunded; depositor paid net 40e18 ETH
@@ -1539,7 +1514,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(1 ether), uint256(0), uint256(0)];
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    vault.deposit{ value: 1 ether }(amounts, 0, 0);
+    vault.deposit{ value: 1 ether }(amounts, 0);
   }
 
   /// @notice msg.value must equal amounts[wethIndex]; mismatch reverts
@@ -1551,7 +1526,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     // msg.value (60e18) != amounts[wethIndex] (50e18)
-    wethVault.deposit{ value: 60e18 }(amounts, 0, 0);
+    wethVault.deposit{ value: 60e18 }(amounts, 0);
   }
 
   /// @notice Withdraw with unwrap=true: WETH is unwrapped and caller receives native ETH
@@ -1632,7 +1607,7 @@ contract SharedVaultTest is TestCommon {
     uint256 sharesBefore = wv.balanceOf(depositor);
     uint256 ethBefore = depositor.balance;
 
-    wv.deposit{ value: 1 }(amounts, 0, 0);
+    wv.deposit{ value: 1 }(amounts, 0);
     vm.stopPrank();
 
     // Depositor receives shares (non-zero — tokenA contribution)
@@ -1687,7 +1662,7 @@ contract SharedVaultTest is TestCommon {
     tA.approve(address(v), type(uint256).max);
     tB.approve(address(v), type(uint256).max);
     uint256[4] memory bobDeposit = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
-    v.deposit(bobDeposit, 0, 0);
+    v.deposit(bobDeposit, 0);
     vm.stopPrank();
 
     // Move lpAmount of each into LP via strategy execute

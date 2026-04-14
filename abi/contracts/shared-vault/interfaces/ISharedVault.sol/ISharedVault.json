@@ -78,6 +78,11 @@
   },
   {
     "inputs": [],
+    "name": "NfpmEnumerableRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoTokensConfigured",
     "type": "error"
   },
@@ -397,11 +402,6 @@
         "internalType": "uint16",
         "name": "slippageBps",
         "type": "uint16"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minShares",
-        "type": "uint256"
       }
     ],
     "name": "deposit",

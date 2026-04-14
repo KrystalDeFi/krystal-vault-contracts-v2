@@ -381,11 +381,6 @@
             "type": "uint16"
           },
           {
-            "internalType": "uint256",
-            "name": "minShares",
-            "type": "uint256"
-          },
-          {
             "internalType": "address[]",
             "name": "sweepTokens",
             "type": "address[]"
