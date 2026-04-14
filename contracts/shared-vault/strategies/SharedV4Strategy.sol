@@ -322,13 +322,12 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @inheritdoc ISharedStrategy
   /// @dev Values principal liquidity via `LiquidityAmounts` and current `sqrtPrice` from the v4 PoolManager,
   ///      and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
+  ///      Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
+  ///      no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions.
   function getPositionAmounts(
     address posm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
-    // Same as `SharedV3Strategy.getPositionAmounts`: the vault invokes this externally, so POSM
-    // whitelist cannot use `ISharedVault(address(this))` here. Whitelist is enforced on delegatecall paths.
-
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     uint128 liquidity = pm.getPositionLiquidity(tokenId);
@@ -405,7 +404,16 @@ contract SharedV4Strategy is ISharedStrategy {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
   }
 
-  /// @dev When calldata targets `IV4Utils.execute` with `DECREASE_AND_SWAP`, validates Ox-style routers in each swap step.
+  /// @notice Best-effort Ox-style swap-router checks on calldata passed to `IV4UtilsRouter.execute`.
+  /// @dev **Scope (intentional):**
+  /// - Only calldata whose first 4 bytes equal `IV4Utils.execute(address,uint256,(uint8,bytes))` is decoded.
+  ///   Any other selector (other router entrypoints, wrapped calls, etc.) returns without further validation;
+  ///   those flows still run only when `posm` is whitelisted and the strategy is a whitelisted vault target.
+  /// - Inside `execute`, only `UtilActions.DECREASE_AND_SWAP` is unpacked to `DecreaseAndSwapParams` and each
+  ///   `swapParams[i].swapData` is validated. `ADJUST_RANGE`, `COMPOUND`, or future actions are not walked here;
+  ///   if they ever encode third-party swaps, extend this helper (or add parallel decoding) alongside ABI docs
+  ///   from the deployed V4Utils package.
+  /// - Silent early returns are normal: most `params` blobs are not `DECREASE_AND_SWAP` or not `execute` at all.
   function _validateV4ExecuteCalldataSwapRouters(
     bytes memory params,
     address posm,

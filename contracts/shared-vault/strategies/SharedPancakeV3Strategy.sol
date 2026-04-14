@@ -378,12 +378,13 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
+  /// @dev Same as `SharedAerodromeStrategy.getPositionAmounts` / `SharedV3Strategy.getPositionAmounts`:
+  ///      external valuation from the vault — no `configManager` whitelist on this path so admin
+  ///      NFPM de-listing does not block deposits/previews; `_requirePancakeNfpm` stays on delegatecall paths.
   function getPositionAmounts(
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
-    _requirePancakeNfpm(_nfpm);
-
     (
       ,
       ,

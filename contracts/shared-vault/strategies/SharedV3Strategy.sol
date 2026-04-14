@@ -285,6 +285,7 @@ contract SharedV3Strategy is ISharedStrategy {
     // Not gated by `configManager` here: the vault calls this via **external** `staticcall` / `call`
     // (`address(this)` is the strategy), so `ISharedVault(address(this)).configManager()` would read
     // the wrong contract. NFPM trust is enforced on `delegatecall` paths and on `_addPosition` in the vault.
+    // Aerodrome / Pancake shared strategies use the same rule on this function (no whitelist on valuation).
 
     (
       ,

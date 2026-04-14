@@ -190,7 +190,9 @@ function getPositionAmounts(address posm, uint256 tokenId) external view returns
 Get token amounts for a tracked LP position (liquidity + uncollected fees)
 
 _Values principal liquidity via `LiquidityAmounts` and current `sqrtPrice` from the v4 PoolManager,
-     and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath)._
+     and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
+     Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
+     no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions._
 
 #### Parameters
 

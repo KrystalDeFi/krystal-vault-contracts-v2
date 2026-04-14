@@ -160,9 +160,11 @@ function getPositionAmounts(address _nfpm, uint256 tokenId) external view return
 
 Get token amounts for a tracked LP position (liquidity + uncollected fees)
 
-_Called via regular CALL (not staticcall) from non-view vault functions such as deposit().
-     The function is declared `view` so Solidity prevents state mutation, but the EVM opcode
-     used by the caller is CALL, not STATICCALL, when invoked from a non-view context._
+_Same external-call contract as `SharedV3Strategy.getPositionAmounts`: the vault invokes this with
+     `ISharedStrategy(strategy).getPositionAmounts` (not delegatecall), so we do **not** apply
+     `configManager` whitelist here — de-whitelisting an NFPM must not brick `deposit` / previews that
+     only need valuation. Canonical NFPM is still implied by vault-tracked positions; whitelist +
+     `_nfpm == nfpm` remain on all mutating / delegatecall paths._
 
 #### Parameters
 

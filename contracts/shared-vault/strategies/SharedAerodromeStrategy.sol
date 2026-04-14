@@ -352,12 +352,15 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
+  /// @dev Same external-call contract as `SharedV3Strategy.getPositionAmounts`: the vault invokes this with
+  ///      `ISharedStrategy(strategy).getPositionAmounts` (not delegatecall), so we do **not** apply
+  ///      `configManager` whitelist here — de-whitelisting an NFPM must not brick `deposit` / previews that
+  ///      only need valuation. Canonical NFPM is still implied by vault-tracked positions; whitelist +
+  ///      `_nfpm == nfpm` remain on all mutating / delegatecall paths.
   function getPositionAmounts(
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
-    _requireAerodromeNfpm(_nfpm);
-
     (
       ,
       ,
