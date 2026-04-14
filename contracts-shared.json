@@ -1,0 +1,13 @@
+{
+   "base_mainnet": {
+      "sharedVault": "0xd02ecb0842fc59d8ca208aa6074f6f25e0e8ec35",
+      "sharedVaultFactory": "0x84f48ca03a5a318d290e3b1512fe09da9a09b058",
+      "sharedConfigManager": "0x78f209d426e2ba737902f6971b9554e28f476923",
+      "sharedVaultAutomator": "0x72a149d5e6243f24c91968160d0bd269d0e1fd79",
+      "sharedVaultGateway": "0x543d09558bbac0858564fc627d90d8b1a40850a0",
+      "sharedV3Strategy": "0xafb06a36664dea1dbc38876128fd6746aa0dc2f6",
+      "sharedV4Strategy": "0xa1096587021235271a66947341d770b841aa69c1",
+      "sharedAerodromeStrategy": "0xe0ef7e28aadde1beb2b4a93091eed127829029f4",
+      "sharedPancakeV3Strategy": "0xcaef7f72ba5cf03a916f7e99cafb6c57c2fbc9bc"
+   }
+}

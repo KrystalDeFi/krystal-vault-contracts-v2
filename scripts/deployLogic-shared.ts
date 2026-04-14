@@ -1,6 +1,6 @@
 import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
 import { ethers, network, run } from "hardhat";
-import { isArray } from "lodash";
+import { isArray, uniq } from "lodash";
 import { commonConfig } from "../configs/config_common";
 import { NetworkConfig } from "../configs/networkConfig";
 import { sleep } from "./helpers";
@@ -231,7 +231,10 @@ async function deployContracts(
       existingContract?.["sharedVaultAutomator"] || contracts.sharedVaultAutomator?.target,
     ].filter(Boolean) as string[];
 
-    const whitelistedNfpms = (networkConfig.nfpmAddresses ?? []) as string[];
+    const whitelistedNfpms = uniq([
+      ...(networkConfig.nfpmAddresses ?? []),
+      ...(networkConfig.aerodromeNfpmAddresses ?? []),
+    ]).filter(Boolean) as string[];
     const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
 
     await contracts.sharedConfigManager?.initialize(
