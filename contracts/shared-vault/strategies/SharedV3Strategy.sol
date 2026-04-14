@@ -21,6 +21,7 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedV3Strategy
 /// @notice Uniswap V3 LP operations for SharedVault with token validation and position tracking
@@ -71,10 +72,12 @@ contract SharedV3Strategy is ISharedStrategy {
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
 
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(cm, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
-
-    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     params.protocolFeeX64 = SharedStrategyFeeConfig.platformFeeX64(cm, platformFeeBasisPointOverride);
     params.gasFeeX64 = gasFeeX64Override;
 
@@ -95,10 +98,12 @@ contract SharedV3Strategy is ISharedStrategy {
       uint64 gasFeeX64Override
     ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256, uint16, uint64));
 
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(cm, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
-
-    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     params.protocolFeeX64 = SharedStrategyFeeConfig.platformFeeX64(cm, platformFeeBasisPointOverride);
     params.gasFeeX64 = gasFeeX64Override;
 
@@ -120,10 +125,13 @@ contract SharedV3Strategy is ISharedStrategy {
       uint64 gasFeeX64Override
     ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, uint16, uint64));
 
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(cm, instructions);
+
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
 
     instructions.recipient = address(this);
-    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     instructions.performanceFeeX64 = SharedStrategyFeeConfig.platformFeeX64(cm, platformFeeBasisPointOverride);
     instructions.gasFeeX64 = gasFeeX64Override;
     IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
@@ -193,6 +201,9 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, nfpm);
+
     (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(nfpm).positions(tokenId);
 
     if (posLiquidity == 0) {
@@ -240,6 +251,10 @@ contract SharedV3Strategy is ISharedStrategy {
     uint16 slippageBps
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
+
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, nfpm);
+
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0);
     if (amount1 > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1);
@@ -267,6 +282,10 @@ contract SharedV3Strategy is ISharedStrategy {
     address nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    // Not gated by `configManager` here: the vault calls this via **external** `staticcall` / `call`
+    // (`address(this)` is the strategy), so `ISharedVault(address(this)).configManager()` would read
+    // the wrong contract. NFPM trust is enforced on `delegatecall` paths and on `_addPosition` in the vault.
+
     (
       ,
       ,

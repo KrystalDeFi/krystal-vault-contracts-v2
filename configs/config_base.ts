@@ -1,4 +1,4 @@
-import { IConfig, IConfigAerodrome, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigAerodrome, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   base_mainnet: {
@@ -77,6 +77,47 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
     aerodromeGaugeFactories: [
       "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08", // Aerodrome CLGaugeFactory on Base
     ],
+  },
+};
+
+const SharedConfig: Record<string, IConfigShared> = {
+  base_mainnet: {
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedAerodromeStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedPancakeV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
   },
 };
 
@@ -163,5 +204,6 @@ export const BaseConfig: Record<string, IConfig> = {
     ],
     ...AerodromeConfig.base_mainnet,
     ...PrivateConfig.base_mainnet,
+    ...SharedConfig.base_mainnet,
   },
 };

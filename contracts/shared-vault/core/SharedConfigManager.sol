@@ -9,6 +9,8 @@ import "../interfaces/ISharedCommon.sol";
 contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   mapping(address => bool) public whitelistedTargets;
   mapping(address => bool) public whitelistedCallers;
+  mapping(address => bool) public whitelistedNfpms;
+  mapping(address => bool) public whitelistedSwapRouters;
 
   bool public override isVaultPaused = false;
   address public override feeRecipient;
@@ -18,7 +20,9 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     address _owner,
     address[] calldata _whitelistTargets,
     address[] calldata _whitelistCallers,
-    address _feeRecipient
+    address _feeRecipient,
+    address[] calldata _whitelistNfpms,
+    address[] calldata _whitelistSwapRouters
   ) public initializer {
     __Ownable_init(_owner);
 
@@ -38,10 +42,28 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       }
     }
 
+    length = _whitelistNfpms.length;
+    for (uint256 i; i < length; ) {
+      whitelistedNfpms[_whitelistNfpms[i]] = true;
+      unchecked {
+        i++;
+      }
+    }
+
+    length = _whitelistSwapRouters.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSwapRouters[_whitelistSwapRouters[i]] = true;
+      unchecked {
+        i++;
+      }
+    }
+
     feeRecipient = _feeRecipient;
 
     if (_whitelistTargets.length > 0) emit WhitelistTargetsUpdated(_whitelistTargets, true);
     if (_whitelistCallers.length > 0) emit WhitelistCallersUpdated(_whitelistCallers, true);
+    if (_whitelistNfpms.length > 0) emit WhitelistNfpmsUpdated(_whitelistNfpms, true);
+    if (_whitelistSwapRouters.length > 0) emit WhitelistSwapRoutersUpdated(_whitelistSwapRouters, true);
   }
 
   function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {
@@ -72,6 +94,36 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function isWhitelistedCaller(address caller) external view override returns (bool) {
     return whitelistedCallers[caller];
+  }
+
+  function setWhitelistNfpms(address[] calldata nfpms, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = nfpms.length;
+    for (uint256 i; i < length; ) {
+      whitelistedNfpms[nfpms[i]] = _isWhitelisted;
+      unchecked {
+        i++;
+      }
+    }
+    emit WhitelistNfpmsUpdated(nfpms, _isWhitelisted);
+  }
+
+  function isWhitelistedNfpm(address nfpm) external view override returns (bool) {
+    return whitelistedNfpms[nfpm];
+  }
+
+  function setWhitelistSwapRouters(address[] calldata swapRouters, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = swapRouters.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSwapRouters[swapRouters[i]] = _isWhitelisted;
+      unchecked {
+        i++;
+      }
+    }
+    emit WhitelistSwapRoutersUpdated(swapRouters, _isWhitelisted);
+  }
+
+  function isWhitelistedSwapRouter(address swapRouter) external view override returns (bool) {
+    return whitelistedSwapRouters[swapRouter];
   }
 
   function setVaultPaused(bool _isVaultPaused) external onlyOwner {

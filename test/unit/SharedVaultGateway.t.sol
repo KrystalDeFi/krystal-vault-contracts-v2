@@ -188,7 +188,7 @@ contract SharedVaultGatewayTest is TestCommon {
     configManager = new SharedConfigManager();
     address[] memory targets = new address[](0);
     address[] memory callers = new address[](0);
-    configManager.initialize(address(this), targets, callers, address(this));
+    configManager.initialize(address(this), targets, callers, address(this), new address[](0), new address[](0));
 
     // Deploy and initialize vault with 4 tokens
     vault = new SharedVault();

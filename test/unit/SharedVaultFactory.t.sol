@@ -160,7 +160,9 @@ contract SharedVaultFactoryTest is TestCommon {
     address[] memory targets = new address[](1);
     targets[0] = address(mockStrategy);
     address[] memory callers = new address[](0);
-    configManager.initialize(FACTORY_OWNER, targets, callers, FACTORY_OWNER);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = mockStrategy.MOCK_NFPM();
+    configManager.initialize(FACTORY_OWNER, targets, callers, FACTORY_OWNER, nfpms, new address[](0));
 
     vaultImplementation = new SharedVault();
 

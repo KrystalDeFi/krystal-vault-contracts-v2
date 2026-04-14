@@ -14,6 +14,18 @@ mapping(address => bool) whitelistedTargets
 mapping(address => bool) whitelistedCallers
 ```
 
+### whitelistedNfpms
+
+```solidity
+mapping(address => bool) whitelistedNfpms
+```
+
+### whitelistedSwapRouters
+
+```solidity
+mapping(address => bool) whitelistedSwapRouters
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -37,7 +49,7 @@ Platform fee on LP performance collections (basis points), sent to `feeRecipient
 ### initialize
 
 ```solidity
-function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient) public
+function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, address[] _whitelistNfpms, address[] _whitelistSwapRouters) public
 ```
 
 ### setWhitelistTargets
@@ -62,6 +74,30 @@ function setWhitelistCallers(address[] callers, bool _isWhitelisted) external
 
 ```solidity
 function isWhitelistedCaller(address caller) external view returns (bool)
+```
+
+### setWhitelistNfpms
+
+```solidity
+function setWhitelistNfpms(address[] nfpms, bool _isWhitelisted) external
+```
+
+### isWhitelistedNfpm
+
+```solidity
+function isWhitelistedNfpm(address nfpm) external view returns (bool)
+```
+
+### setWhitelistSwapRouters
+
+```solidity
+function setWhitelistSwapRouters(address[] swapRouters, bool _isWhitelisted) external
+```
+
+### isWhitelistedSwapRouter
+
+```solidity
+function isWhitelistedSwapRouter(address swapRouter) external view returns (bool)
 ```
 
 ### setVaultPaused

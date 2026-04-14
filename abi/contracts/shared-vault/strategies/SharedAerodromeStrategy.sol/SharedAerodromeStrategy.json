@@ -46,6 +46,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidNfpm",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "InvalidOperation",
     "type": "error"
@@ -58,6 +69,17 @@
   {
     "inputs": [],
     "name": "InvalidRewardFee",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidSwapRouter",
     "type": "error"
   },
   {

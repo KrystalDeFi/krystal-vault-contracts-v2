@@ -20,7 +20,14 @@ contract SharedStrategyFeeConfigTest is Test {
 
   function setUp() public {
     cm = new SharedConfigManager();
-    cm.initialize(address(this), new address[](0), new address[](0), address(0xABC));
+    cm.initialize(
+      address(this),
+      new address[](0),
+      new address[](0),
+      address(0xABC),
+      new address[](0),
+      new address[](0)
+    );
     cm.setPlatformFeeBasisPoint(100);
     h = new SharedStrategyFeeConfigHarness();
   }

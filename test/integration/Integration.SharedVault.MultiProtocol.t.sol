@@ -61,8 +61,11 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     // configManager must exist before PancakeStrategy (requires configManager address in constructor)
+    address[] memory nfpms = new address[](2);
+    nfpms[0] = NFPM;
+    nfpms[1] = PANCAKE_NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient);
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
     v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
@@ -404,10 +407,11 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       poolDeployer: address(0)
     });
 
-    return bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+      );
   }
 
   function _pancakeMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
@@ -447,9 +451,10 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
       poolDeployer: address(0)
     });
 
-    return bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_MINT),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_MINT),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+      );
   }
 }

@@ -47,4 +47,6 @@ interface ISharedCommon {
   error InvalidFeeBasisPoint();
   /// @notice NFPM must implement `IERC721Enumerable` to read `totalSupply` / `tokenByIndex` for `CHANGE_RANGE`.
   error NfpmEnumerableRequired();
+  error InvalidNfpm(address nfpm);
+  error InvalidSwapRouter(address swapRouter);
 }

@@ -509,9 +509,9 @@ contract SharedVault is
 
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
-      require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
 
       if (action.callType == CallType.DELEGATECALL) {
+        require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
         // --- Strategy: delegatecall through ISharedStrategy.execute() interface ---
         // Strategies handle both LP operations (non-empty PositionChange[]) and token-only
         // operations like harvest/swap (empty PositionChange[]).
@@ -528,6 +528,7 @@ contract SharedVault is
 
         _applyPositionChanges(action.target, result);
       } else if (action.callType == CallType.CALL) {
+        require(configManager.isWhitelistedSwapRouter(action.target), InvalidSwapRouter(action.target));
         // --- Swap: direct call to aggregator with token validation and slippage check ---
         (address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, bytes memory swapCalldata) = abi
           .decode(action.data, (address, address, uint256, uint256, bytes));
@@ -545,6 +546,7 @@ contract SharedVault is
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
         require(amountOut >= minAmountOut, InsufficientOutput());
       } else {
+        require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
         // --- CALL_WITH_POSITIONS: direct call whose return value is PositionChange[] ---
         (bool success, bytes memory result) = action.target.call(action.data);
 
@@ -801,6 +803,7 @@ contract SharedVault is
       return;
     }
 
+    require(configManager.isWhitelistedNfpm(nfpm), InvalidNfpm(nfpm));
     positions.push(Position(strategy, nfpm, tokenId, token0, token1));
     positionIndex[key] = positions.length; // index+1
   }

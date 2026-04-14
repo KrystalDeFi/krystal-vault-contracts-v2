@@ -24,6 +24,7 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedPancakeV3Strategy
 /// @notice PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
@@ -96,6 +97,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
 
+    _requirePancakeNfpm(params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(configManager, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
 
@@ -119,6 +123,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       uint64 gasFeeX64Override
     ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256, uint16, uint64));
 
+    _requirePancakeNfpm(params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(configManager, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
 
@@ -138,6 +145,9 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       uint16 platformFeeBasisPointOverride,
       uint64 gasFeeX64Override
     ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, uint16, uint64));
+
+    _requirePancakeNfpm(_nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(configManager, instructions);
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
 
@@ -180,6 +190,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     require(tokenId != 0, InvalidPoolTokens());
 
     address _nfpm = IMasterChefV3(masterChefV3).nonfungiblePositionManager();
+    _requirePancakeNfpm(_nfpm);
     IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
   }
 
@@ -269,6 +280,8 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
+    _requirePancakeNfpm(_nfpm);
+
     (, , address token0, address token1, uint24 fee, , , uint128 posLiquidity, , , , ) = INFPM(_nfpm).positions(
       tokenId
     );
@@ -330,6 +343,8 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
 
+    _requirePancakeNfpm(_nfpm);
+
     bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
     if (isStaked) {
       _harvestRewards(tokenId, 0, 0);
@@ -367,6 +382,8 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    _requirePancakeNfpm(_nfpm);
+
     (
       ,
       ,
@@ -434,5 +451,10 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     } catch {
       return false;
     }
+  }
+
+  function _requirePancakeNfpm(address _nfpm) private view {
+    require(_nfpm == IMasterChefV3(masterChefV3).nonfungiblePositionManager(), ISharedCommon.InvalidNfpm(_nfpm));
+    SharedStrategyGuards.requireWhitelistedNfpm(configManager, _nfpm);
   }
 }

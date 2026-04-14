@@ -482,7 +482,26 @@ contract SharedVaultTest is TestCommon {
     targets[1] = address(mockStrategy);
     targets[2] = address(directCreator);
     address[] memory callers = new address[](0);
-    configManager.initialize(address(this), targets, callers, address(this));
+    configManager.initialize(address(this), targets, callers, address(this), new address[](0), new address[](0));
+
+    // NFPM / swap-router allowlists used by `_addPosition` and `CALL` swap path in unit scenarios
+    {
+      address[] memory nfpms = new address[](8);
+      nfpms[0] = makeAddr("nfpmMigrate");
+      nfpms[1] = makeAddr("nfpmNotTracked");
+      nfpms[2] = address(0xBEEF);
+      nfpms[3] = address(0xBEEF1);
+      nfpms[4] = address(0xDEAD);
+      nfpms[5] = address(uint160(0xAAAA));
+      nfpms[6] = address(uint160(0xBBBB));
+      nfpms[7] = makeAddr("nfpm");
+      configManager.setWhitelistNfpms(nfpms, true);
+    }
+    {
+      address[] memory routers = new address[](1);
+      routers[0] = address(swapTarget);
+      configManager.setWhitelistSwapRouters(routers, true);
+    }
 
     // Deploy vault
     vault = new SharedVault();
@@ -824,7 +843,8 @@ contract SharedVaultTest is TestCommon {
     bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 0, "");
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(NON_AUTHORIZED, actionData, ISharedCommon.CallType.CALL);
-    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, NON_AUTHORIZED));
+    // `CALL` swap path checks swap-router allowlist before token validation.
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidSwapRouter.selector, NON_AUTHORIZED));
     vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
     vm.stopPrank();
   }
@@ -1349,7 +1369,9 @@ contract SharedVaultTest is TestCommon {
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(lpStrategy);
-    cm.initialize(VAULT_OWNER, targets, new address[](0), address(this));
+    address[] memory nfpmsFee = new address[](1);
+    nfpmsFee[0] = makeAddr("nfpmFee");
+    cm.initialize(VAULT_OWNER, targets, new address[](0), address(this), nfpmsFee, new address[](0));
 
     SharedVault v = new SharedVault();
     MockERC20 tA = new MockERC20("TA", "TA");
@@ -1636,7 +1658,9 @@ contract SharedVaultTest is TestCommon {
     address[] memory targets = new address[](1);
     targets[0] = address(lpStrategy);
     address[] memory callers = new address[](0);
-    cm.initialize(address(this), targets, callers, address(this));
+    address[] memory nfpmsLp = new address[](1);
+    nfpmsLp[0] = makeAddr("nfpm");
+    cm.initialize(address(this), targets, callers, address(this), nfpmsLp, new address[](0));
 
     v = new SharedVault();
     tA = new MockERC20("Token A", "A");

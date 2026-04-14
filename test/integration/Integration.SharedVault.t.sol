@@ -77,8 +77,10 @@ contract SharedVaultIntegrationTest is TestCommon {
     // Deploy config manager with strategy whitelisted
     address[] memory targets = new address[](1);
     targets[0] = address(v3Strategy);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient);
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, nfpms, new address[](0));
 
     // Deploy vault implementation + factory
     vaultImplementation = new SharedVault();

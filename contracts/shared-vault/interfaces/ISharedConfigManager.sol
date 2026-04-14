@@ -5,6 +5,8 @@ interface ISharedConfigManager {
   event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
   event WhitelistTargetsUpdated(address[] targets, bool isWhitelisted);
   event WhitelistCallersUpdated(address[] callers, bool isWhitelisted);
+  event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted);
+  event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted);
   event VaultPausedUpdated(bool isVaultPaused);
 
   function isVaultPaused() external view returns (bool);
@@ -25,6 +27,16 @@ interface ISharedConfigManager {
   function isWhitelistedCaller(address caller) external view returns (bool);
 
   function setWhitelistCallers(address[] calldata callers, bool isWhitelisted) external;
+
+  // NFPM whitelist (allowed NFT position managers for LP positions)
+  function isWhitelistedNfpm(address nfpm) external view returns (bool);
+
+  function setWhitelistNfpms(address[] calldata nfpms, bool isWhitelisted) external;
+
+  // Swap router whitelist (allowed swap aggregators for CALL actions)
+  function isWhitelistedSwapRouter(address swapRouter) external view returns (bool);
+
+  function setWhitelistSwapRouters(address[] calldata swapRouters, bool isWhitelisted) external;
 
   function setVaultPaused(bool _isVaultPaused) external;
 

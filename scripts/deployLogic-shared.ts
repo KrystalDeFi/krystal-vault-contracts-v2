@@ -4,7 +4,19 @@ import { isArray } from "lodash";
 import { commonConfig } from "../configs/config_common";
 import { NetworkConfig } from "../configs/networkConfig";
 import { sleep } from "./helpers";
-import { SharedVaultAutomator } from "../typechain-types";
+import type {
+  SharedConfigManager,
+  SharedVault,
+  SharedVaultAutomator,
+  SharedVaultFactory,
+  SharedVaultGateway,
+} from "../typechain-types/contracts/shared-vault/core";
+import type {
+  SharedAerodromeStrategy,
+  SharedPancakeV3Strategy,
+  SharedV3Strategy,
+} from "../typechain-types/contracts/shared-vault/strategies";
+import type { SharedV4Strategy } from "../typechain-types/contracts/shared-vault/strategies/SharedV4Strategy.sol";
 
 const { SALT } = process.env;
 
@@ -21,16 +33,15 @@ if (!networkConfig) {
 }
 
 export interface SharedContracts {
-  sharedVault?: BaseContract;
-  sharedVaultFactory?: BaseContract;
-  sharedConfigManager?: BaseContract;
+  sharedVault?: SharedVault;
+  sharedVaultFactory?: SharedVaultFactory;
+  sharedConfigManager?: SharedConfigManager;
   sharedVaultAutomator?: SharedVaultAutomator;
-  /** Deployed here when missing from `existingContract` and a V3-style shared strategy is enabled */
-  sharedLpFeeTaker?: BaseContract;
-  sharedV3Strategy?: BaseContract;
-  sharedV4Strategy?: BaseContract;
-  sharedAerodromeStrategy?: BaseContract;
-  sharedPancakeV3Strategy?: BaseContract;
+  sharedVaultGateway?: SharedVaultGateway;
+  sharedV3Strategy?: SharedV3Strategy;
+  sharedV4Strategy?: SharedV4Strategy;
+  sharedAerodromeStrategy?: SharedAerodromeStrategy;
+  sharedPancakeV3Strategy?: SharedPancakeV3Strategy;
 }
 
 export const deploy = async (
@@ -56,63 +67,44 @@ async function deployContracts(
 
   const contracts: SharedContracts = {};
 
-  let lpFeeTakerAddress: string | undefined =
-    typeof existingContract?.["lpFeeTaker"] === "string"
-      ? existingContract["lpFeeTaker"]
-      : (existingContract?.["lpFeeTaker"] as BaseContract | undefined)?.target?.toString();
-
-  const needsLpFeeTaker =
-    networkConfig.sharedV3Strategy?.enabled ||
-    networkConfig.sharedAerodromeStrategy?.enabled ||
-    networkConfig.sharedPancakeV3Strategy?.enabled;
-
-  if (needsLpFeeTaker && !lpFeeTakerAddress) {
-    contracts.sharedLpFeeTaker = await deployContract(
-      ++step,
-      networkConfig.lpFeeTaker?.autoVerifyContract,
-      "LpFeeTaker",
-      undefined,
-      "contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol:LpFeeTaker",
-    );
-    lpFeeTakerAddress = contracts.sharedLpFeeTaker.target as string;
-  }
+  const lpFeeTakerAddress: string | undefined = existingContract?.["lpFeeTaker"];
 
   // 1. Deploy SharedConfigManager
   if (networkConfig.sharedConfigManager?.enabled) {
-    contracts.sharedConfigManager = await deployContract(
+    contracts.sharedConfigManager = (await deployContract(
       ++step,
       networkConfig.sharedConfigManager?.autoVerifyContract,
       "SharedConfigManager",
       existingContract?.["sharedConfigManager"],
       "contracts/shared-vault/core/SharedConfigManager.sol:SharedConfigManager",
-    );
+    )) as SharedConfigManager;
   }
 
   // 2. Deploy SharedVault implementation
   if (networkConfig.sharedVault?.enabled) {
-    contracts.sharedVault = await deployContract(
+    contracts.sharedVault = (await deployContract(
       ++step,
       networkConfig.sharedVault?.autoVerifyContract,
       "SharedVault",
       existingContract?.["sharedVault"],
       "contracts/shared-vault/core/SharedVault.sol:SharedVault",
-    );
+    )) as SharedVault;
   }
 
   // 3. Deploy SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled) {
-    contracts.sharedVaultFactory = await deployContract(
+    contracts.sharedVaultFactory = (await deployContract(
       ++step,
       networkConfig.sharedVaultFactory?.autoVerifyContract,
       "SharedVaultFactory",
       existingContract?.["sharedVaultFactory"],
       "contracts/shared-vault/core/SharedVaultFactory.sol:SharedVaultFactory",
-    );
+    )) as SharedVaultFactory;
   }
 
   // 4. Deploy SharedV3Strategy
   if (networkConfig.sharedV3Strategy?.enabled) {
-    contracts.sharedV3Strategy = await deployContract(
+    contracts.sharedV3Strategy = (await deployContract(
       ++step,
       networkConfig.sharedV3Strategy?.autoVerifyContract,
       "SharedV3Strategy",
@@ -121,12 +113,12 @@ async function deployContracts(
       undefined,
       ["address", "address"],
       [networkConfig.v3UtilsAddress, lpFeeTakerAddress],
-    );
+    )) as SharedV3Strategy;
   }
 
   // 5. Deploy SharedV4Strategy
   if (networkConfig.sharedV4Strategy?.enabled) {
-    contracts.sharedV4Strategy = await deployContract(
+    contracts.sharedV4Strategy = (await deployContract(
       ++step,
       networkConfig.sharedV4Strategy?.autoVerifyContract,
       "SharedV4Strategy",
@@ -135,12 +127,12 @@ async function deployContracts(
       undefined,
       ["address"],
       [networkConfig.v4UtilsAddress],
-    );
+    )) as SharedV4Strategy;
   }
 
   // 6. Deploy SharedAerodromeStrategy
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
-    contracts.sharedAerodromeStrategy = await deployContract(
+    contracts.sharedAerodromeStrategy = (await deployContract(
       ++step,
       networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
       "SharedAerodromeStrategy",
@@ -154,12 +146,12 @@ async function deployContracts(
         networkConfig.aerodromeGaugeFactory,
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],
-    );
+    )) as SharedAerodromeStrategy;
   }
 
   // 7. Deploy SharedPancakeV3Strategy
   if (networkConfig.sharedPancakeV3Strategy?.enabled) {
-    contracts.sharedPancakeV3Strategy = await deployContract(
+    contracts.sharedPancakeV3Strategy = (await deployContract(
       ++step,
       networkConfig.sharedPancakeV3Strategy?.autoVerifyContract,
       "SharedPancakeV3Strategy",
@@ -173,7 +165,7 @@ async function deployContracts(
         networkConfig.pancakeV3MasterChef,
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],
-    );
+    )) as SharedPancakeV3Strategy;
   }
 
   // 8. Deploy SharedVaultAutomator
@@ -190,17 +182,43 @@ async function deployContracts(
     )) as SharedVaultAutomator;
   }
 
+  // 9. Deploy SharedVaultGateway (upgradeable: no constructor; `initialize` sets owner, swap router, WETH)
+  if (networkConfig.sharedVaultGateway?.enabled) {
+    const gatewaySwapRouter = networkConfig.sharedVaultGateway.swapRouter ?? networkConfig.swapRouters?.[0];
+    if (gatewaySwapRouter == null || gatewaySwapRouter === "") {
+      throw new Error(
+        "sharedVaultGateway: set `sharedVaultGateway.swapRouter` or at least one `swapRouters` entry on the network config",
+      );
+    }
+    if (!networkConfig.wrapToken) {
+      throw new Error("sharedVaultGateway: `wrapToken` is required on the network config");
+    }
+
+    const existingGateway = existingContract?.["sharedVaultGateway"];
+    contracts.sharedVaultGateway = (await deployContract(
+      ++step,
+      networkConfig.sharedVaultGateway.autoVerifyContract,
+      "SharedVaultGateway",
+      existingGateway,
+      "contracts/shared-vault/core/SharedVaultGateway.sol:SharedVaultGateway",
+    )) as SharedVaultGateway;
+
+    if (!existingGateway) {
+      await contracts.sharedVaultGateway.initialize(contractAdmin, gatewaySwapRouter, networkConfig.wrapToken);
+    }
+  }
+
   // Initialize SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled) {
-    await (contracts.sharedVaultFactory as any)?.initialize(
+    await contracts.sharedVaultFactory?.initialize(
       contractAdmin,
       existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       existingContract?.["sharedVault"] || contracts.sharedVault?.target,
+      networkConfig.wrapToken!,
     );
   }
 
   // Initialize SharedConfigManager
-  // Strategies use the same target whitelist as swap aggregators (unified whitelistedTargets)
   if (networkConfig.sharedConfigManager?.enabled) {
     const whitelistedTargets = [
       existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target,
@@ -213,11 +231,16 @@ async function deployContracts(
       existingContract?.["sharedVaultAutomator"] || contracts.sharedVaultAutomator?.target,
     ].filter(Boolean) as string[];
 
-    await (contracts.sharedConfigManager as any)?.initialize(
+    const whitelistedNfpms = (networkConfig.nfpmAddresses ?? []) as string[];
+    const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
+
+    await contracts.sharedConfigManager?.initialize(
       contractAdmin,
       whitelistedTargets,
       whitelistedCallers,
       commonConfig.feeCollector,
+      whitelistedNfpms,
+      whitelistedSwapRouters,
     );
   }
 

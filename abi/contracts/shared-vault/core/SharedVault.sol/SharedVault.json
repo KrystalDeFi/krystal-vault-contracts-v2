@@ -206,6 +206,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidNfpm",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "InvalidOperation",
     "type": "error"
@@ -224,6 +235,17 @@
       }
     ],
     "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidSwapRouter",
     "type": "error"
   },
   {

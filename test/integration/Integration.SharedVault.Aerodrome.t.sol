@@ -77,8 +77,10 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     // Deploy configManager first — strategy constructor requires its address
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient);
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
     aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker), GAUGE_FACTORY, address(configManager));
@@ -425,13 +427,18 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       poolDeployer: address(0)
     });
 
-    return bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+      );
   }
 
-  function _swapAndIncreaseData(uint256 tokenId, uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
+  function _swapAndIncreaseData(
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1
+  ) internal view returns (bytes memory) {
     address[] memory approveTokens = new address[](2);
     approveTokens[0] = WETH;
     approveTokens[1] = USDC;
@@ -462,9 +469,10 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       gasFeeX64: 0
     });
 
-    return bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
-    );
+    return
+      bytes.concat(
+        abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+      );
   }
 }

@@ -29,6 +29,7 @@ import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
 ///      Currency = address underneath, so address is used here for ABI-encoding compatibility.
@@ -118,6 +119,10 @@ contract SharedV4Strategy is ISharedStrategy {
       PositionChange[] memory positionChanges
     ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[], PositionChange[]));
 
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, posm);
+    _validateV4ExecuteCalldataSwapRouters(params, posm, tokenId, cm);
+
     // Validate approved tokens are vault tokens (these are the tokens actually used)
     for (uint256 i; i < approveTokens.length; ) {
       if (approveAmounts[i] > 0) {
@@ -172,6 +177,8 @@ contract SharedV4Strategy is ISharedStrategy {
       (address, uint256, bytes, PositionChange[])
     );
 
+    _requireWhitelistedPosm(posm);
+
     // Validate tokens from on-chain POSM data for the position being transferred
     {
       IPositionManager pm = IPositionManager(posm);
@@ -197,6 +204,8 @@ contract SharedV4Strategy is ISharedStrategy {
     uint16 // slippageBps unused: V4 INCREASE_LIQUIDITY_FROM_DELTAS has no amountMin parameter
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
+
+    _requireWhitelistedPosm(posm);
 
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
@@ -245,6 +254,8 @@ contract SharedV4Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
+    _requireWhitelistedPosm(posm);
+
     IPositionManager pm = IPositionManager(posm);
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
 
@@ -315,6 +326,9 @@ contract SharedV4Strategy is ISharedStrategy {
     address posm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    // Same as `SharedV3Strategy.getPositionAmounts`: the vault invokes this externally, so POSM
+    // whitelist cannot use `ISharedVault(address(this))` here. Whitelist is enforced on delegatecall paths.
+
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     uint128 liquidity = pm.getPositionLiquidity(tokenId);
@@ -385,5 +399,40 @@ contract SharedV4Strategy is ISharedStrategy {
 
   function _validateVaultToken(address token) internal view {
     require(ISharedVault(address(this)).isVaultToken(token), InvalidPoolTokens());
+  }
+
+  function _requireWhitelistedPosm(address posm) private view {
+    SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
+  }
+
+  /// @dev When calldata targets `IV4Utils.execute` with `DECREASE_AND_SWAP`, validates Ox-style routers in each swap step.
+  function _validateV4ExecuteCalldataSwapRouters(
+    bytes memory params,
+    address posm,
+    uint256 tokenId,
+    ISharedConfigManager cm
+  ) private view {
+    if (params.length < 4) return;
+    if (bytes4(params) != IV4Utils.execute.selector) return;
+    bytes memory body = new bytes(params.length - 4);
+    for (uint256 j; j < body.length; ) {
+      body[j] = params[j + 4];
+      unchecked {
+        ++j;
+      }
+    }
+    (address p, uint256 tid, IV4Utils.Instructions memory inst) = abi.decode(
+      body,
+      (address, uint256, IV4Utils.Instructions)
+    );
+    require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
+    if (inst.action != IV4Utils.UtilActions.DECREASE_AND_SWAP) return;
+    IV4Utils.DecreaseAndSwapParams memory dsp = abi.decode(inst.params, (IV4Utils.DecreaseAndSwapParams));
+    for (uint256 i; i < dsp.swapParams.length; ) {
+      SharedStrategyGuards.requireWhitelistedOxSwapData(cm, dsp.swapParams[i].swapData);
+      unchecked {
+        ++i;
+      }
+    }
   }
 }

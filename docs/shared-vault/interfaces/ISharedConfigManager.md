@@ -20,6 +20,18 @@ event WhitelistTargetsUpdated(address[] targets, bool isWhitelisted)
 event WhitelistCallersUpdated(address[] callers, bool isWhitelisted)
 ```
 
+### WhitelistNfpmsUpdated
+
+```solidity
+event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted)
+```
+
+### WhitelistSwapRoutersUpdated
+
+```solidity
+event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted)
+```
+
 ### VaultPausedUpdated
 
 ```solidity
@@ -74,6 +86,30 @@ function isWhitelistedCaller(address caller) external view returns (bool)
 
 ```solidity
 function setWhitelistCallers(address[] callers, bool isWhitelisted) external
+```
+
+### isWhitelistedNfpm
+
+```solidity
+function isWhitelistedNfpm(address nfpm) external view returns (bool)
+```
+
+### setWhitelistNfpms
+
+```solidity
+function setWhitelistNfpms(address[] nfpms, bool isWhitelisted) external
+```
+
+### isWhitelistedSwapRouter
+
+```solidity
+function isWhitelistedSwapRouter(address swapRouter) external view returns (bool)
+```
+
+### setWhitelistSwapRouters
+
+```solidity
+function setWhitelistSwapRouters(address[] swapRouters, bool isWhitelisted) external
 ```
 
 ### setVaultPaused

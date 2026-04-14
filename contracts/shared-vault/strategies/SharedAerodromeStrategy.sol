@@ -26,6 +26,7 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedAerodromeStrategy
 /// @notice Aerodrome CL LP + gauge farming for SharedVault with token validation and position tracking
@@ -100,6 +101,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
 
+    _requireAerodromeNfpm(params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(configManager, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
 
@@ -122,6 +126,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       uint64 gasFeeX64Override
     ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256, uint16, uint64));
 
+    _requireAerodromeNfpm(params.nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(configManager, params);
+
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
 
@@ -141,6 +148,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       uint16 platformFeeBasisPointOverride,
       uint64 gasFeeX64Override
     ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, uint16, uint64));
+
+    _requireAerodromeNfpm(_nfpm);
+    SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(configManager, instructions);
 
     (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 
@@ -273,6 +283,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 vaultOwnerFeeBasisPoint
   ) external override returns (PositionChange[] memory changes) {
+    _requireAerodromeNfpm(_nfpm);
+
     (
       ,
       ,
@@ -344,6 +356,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    _requireAerodromeNfpm(_nfpm);
+
     (
       ,
       ,
@@ -387,6 +401,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint16 slippageBps
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
+
+    _requireAerodromeNfpm(_nfpm);
 
     bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
     address clGauge;
@@ -462,5 +478,10 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     } catch {
       return false;
     }
+  }
+
+  function _requireAerodromeNfpm(address _nfpm) private view {
+    require(_nfpm == nfpm, ISharedCommon.InvalidNfpm(_nfpm));
+    SharedStrategyGuards.requireWhitelistedNfpm(configManager, _nfpm);
   }
 }

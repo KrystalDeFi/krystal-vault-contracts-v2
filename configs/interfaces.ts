@@ -91,6 +91,12 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  sharedVaultGateway?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+    /** Aggregator / router the gateway calls for swap calldata; defaults to `swapRouters[0]` on the network. */
+    swapRouter?: AddressLike;
+  };
   sharedV3Strategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;

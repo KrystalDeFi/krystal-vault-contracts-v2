@@ -163,3 +163,15 @@ error NfpmEnumerableRequired()
 
 NFPM must implement `IERC721Enumerable` to read `totalSupply` / `tokenByIndex` for `CHANGE_RANGE`.
 
+### InvalidNfpm
+
+```solidity
+error InvalidNfpm(address nfpm)
+```
+
+### InvalidSwapRouter
+
+```solidity
+error InvalidSwapRouter(address swapRouter)
+```
+

@@ -13,7 +13,20 @@ try {
   contracts = {};
 }
 
-deploy(contracts[network.name])
+let publicContracts: Record<string, Record<string, string>> = {};
+try {
+  const data = fs.readFileSync(`${__dirname}/../contracts.json`, "utf8");
+  publicContracts = JSON.parse(data);
+} catch {
+  publicContracts = {};
+}
+
+const existingContracts = {
+  ...contracts[network.name],
+  lpFeeTaker: publicContracts[network.name]?.["lpFeeTaker"],
+};
+
+deploy(existingContracts)
   .then((deployedContracts) => {
     contracts[network.name] = convertToAddressObject(deployedContracts);
     const json = JSON.stringify(sortObject(contracts), null, 2) + "\n";
