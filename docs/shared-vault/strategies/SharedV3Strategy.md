@@ -74,7 +74,8 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 ```
 
 _`CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
-     Full exit: vault no longer holds `tokenId`, or on-chain position liquidity is zero._
+     Reverts if the vault does not hold `newTokenId` after V3Utils. Full exit: vault no longer holds `tokenId`,
+     or on-chain position liquidity is zero._
 
 ### _decreaseVaultPosition
 

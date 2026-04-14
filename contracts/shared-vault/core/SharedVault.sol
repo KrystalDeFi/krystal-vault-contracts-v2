@@ -271,6 +271,7 @@ contract SharedVault is
   /// @dev Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
   ///      Uses the minimum ratio across all tokens (binding constraint) so that a token that saw less
   ///      LP consumption due to slippage is not over-credited. Reverts if no balance increased.
+  ///      Tokens whose total balance did not strictly increase are skipped (avoids underflow if LP marks move down).
   function _computeSharesFromDelta(
     uint256 currentTotalSupply,
     uint256[4] memory balancesBefore,
@@ -278,12 +279,10 @@ contract SharedVault is
   ) internal view returns (uint256 shares) {
     shares = type(uint256).max;
     for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0) && balancesBefore[i] > 0) {
+      if (tokens[i] != address(0) && balancesBefore[i] > 0 && balancesAfter[i] > balancesBefore[i]) {
         uint256 added = balancesAfter[i] - balancesBefore[i];
-        if (added > 0) {
-          uint256 s = FullMath.mulDiv(added, currentTotalSupply, balancesBefore[i]);
-          if (s < shares) shares = s;
-        }
+        uint256 s = FullMath.mulDiv(added, currentTotalSupply, balancesBefore[i]);
+        if (s < shares) shares = s;
       }
       unchecked {
         i++;

@@ -158,6 +158,10 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       unchecked {
         newTokenId = lastGlobalIdBefore + 1;
       }
+      require(
+        SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(_nfpm, newTokenId, address(this)),
+        InvalidPoolTokens()
+      );
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
       changes[1] = PositionChange(true, _nfpm, newTokenId, token0, token1);

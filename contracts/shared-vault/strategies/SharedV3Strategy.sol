@@ -108,7 +108,8 @@ contract SharedV3Strategy is ISharedStrategy {
   }
 
   /// @dev `CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
-  ///      Full exit: vault no longer holds `tokenId`, or on-chain position liquidity is zero.
+  ///      Reverts if the vault does not hold `newTokenId` after V3Utils. Full exit: vault no longer holds `tokenId`,
+  ///      or on-chain position liquidity is zero.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (
       address nfpm,
@@ -136,6 +137,7 @@ contract SharedV3Strategy is ISharedStrategy {
       unchecked {
         newTokenId = lastGlobalIdBefore + 1;
       }
+      require(SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(nfpm, newTokenId, address(this)), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
       changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
