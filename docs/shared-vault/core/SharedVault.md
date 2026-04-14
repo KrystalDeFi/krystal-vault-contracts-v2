@@ -156,8 +156,9 @@ Deposit tokens proportionally and receive shares.
 
 _Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
      Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
-     Only the needed WETH is wrapped — excess ETH is refunded as native ETH directly,
-     avoiding an unnecessary wrap→unwrap round-trip._
+     Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
+     minting shares so a malicious depositor cannot receive a refund callback between balance
+     snapshots and share finalization (AMM / LP valuation manipulation)._
 
 ### _validateWethDeposit
 
@@ -196,13 +197,13 @@ _Compute shares earned by a depositor from the delta between pre- and post-LP-de
      LP consumption due to slippage is not over-credited. Reverts if no balance increased.
      Tokens whose total balance did not strictly increase are skipped (avoids underflow if LP marks move down)._
 
-### _wrapWethAndRefundExcess
+### _wrapWethDeposit
 
 ```solidity
-function _wrapWethAndRefundExcess(uint256 wi, uint256[4] transferAmounts) internal
+function _wrapWethDeposit(uint256 wi, uint256[4] transferAmounts) internal returns (uint256 excessEth)
 ```
 
-_Wrap only needed WETH; refund excess as native ETH (see `deposit` NatSpec)._
+_Wrap only `transferAmounts[wi]` from `msg.value` into WETH; return excess native ETH (not sent here)._
 
 ### _pullDepositTokensExcludingWethSlot
 

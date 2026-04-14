@@ -168,8 +168,9 @@ contract SharedVault is
   /// @notice Deposit tokens proportionally and receive shares.
   /// @dev Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
   ///      Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
-  ///      Only the needed WETH is wrapped — excess ETH is refunded as native ETH directly,
-  ///      avoiding an unnecessary wrap→unwrap round-trip.
+  ///      Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
+  ///      minting shares so a malicious depositor cannot receive a refund callback between balance
+  ///      snapshots and share finalization (AMM / LP valuation manipulation).
   function deposit(
     uint256[4] calldata amounts,
     uint16 slippageBps
@@ -181,14 +182,15 @@ contract SharedVault is
     uint256 wi = _validateWethDeposit(amounts);
 
     uint256[4] memory transferAmounts;
+    uint256 excessEthRefund;
     if (currentTotalSupply == 0) {
       (transferAmounts, shares) = _firstDepositTransfers(amounts);
-      _wrapWethAndRefundExcess(wi, transferAmounts);
+      excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
       // No LP positions exist on first deposit — INITIAL_SHARES is always the correct amount.
     } else {
       (transferAmounts) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalancesBefore);
-      _wrapWethAndRefundExcess(wi, transferAmounts);
+      excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
       // Push tokens into LP positions. Slippage may cause the LP to consume less than
       // the full transferAmounts, so we re-snapshot balances after to measure what was
@@ -199,6 +201,11 @@ contract SharedVault is
     }
 
     _mint(_msgSender(), shares);
+
+    if (excessEthRefund > 0) {
+      (bool ok, ) = _msgSender().call{ value: excessEthRefund }("");
+      require(ok, TransferFailed());
+    }
 
     emit VaultDeposit(vaultFactory, _msgSender(), transferAmounts, shares);
   }
@@ -291,19 +298,15 @@ contract SharedVault is
     require(shares != type(uint256).max, InsufficientShares());
   }
 
-  /// @dev Wrap only needed WETH; refund excess as native ETH (see `deposit` NatSpec).
-  function _wrapWethAndRefundExcess(uint256 wi, uint256[4] memory transferAmounts) internal {
-    if (msg.value == 0) return;
+  /// @dev Wrap only `transferAmounts[wi]` from `msg.value` into WETH; return excess native ETH (not sent here).
+  function _wrapWethDeposit(uint256 wi, uint256[4] memory transferAmounts) internal returns (uint256 excessEth) {
+    if (msg.value == 0) return 0;
 
     uint256 wethNeeded = transferAmounts[wi];
     if (wethNeeded > 0) {
       IWETH9(weth).deposit{ value: wethNeeded }();
     }
-    uint256 excess = msg.value - wethNeeded;
-    if (excess > 0) {
-      (bool ok, ) = _msgSender().call{ value: excess }("");
-      require(ok, SwapFailed());
-    }
+    excessEth = msg.value - wethNeeded;
   }
 
   function _pullDepositTokensExcludingWethSlot(uint256 wi, uint256[4] memory transferAmounts) internal {

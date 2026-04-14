@@ -33,6 +33,7 @@ interface ISharedCommon {
   error InvalidTarget(address target);
   error InvalidStrategy(address strategy);
   error StrategyCallFailed();
+  error TransferFailed();
   error SwapFailed();
   error InsufficientShares();
   error InsufficientOutput();

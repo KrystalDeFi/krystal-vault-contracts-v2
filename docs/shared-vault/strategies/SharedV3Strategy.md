@@ -73,9 +73,9 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-_`CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
-     Reverts if the vault does not hold `newTokenId` after V3Utils. Full exit: vault no longer holds `tokenId`,
-     or on-chain position liquidity is zero._
+_`CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
+     Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
+     `tokenId`, or on-chain position liquidity is zero._
 
 ### _decreaseVaultPosition
 

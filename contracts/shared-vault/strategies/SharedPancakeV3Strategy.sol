@@ -6,6 +6,8 @@ import { IMasterChefV3 } from "../../common/interfaces/protocols/pancakev3/IMast
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -22,7 +24,6 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-import { SharedV3SafeTransferNftLib } from "../libraries/SharedV3SafeTransferNftLib.sol";
 
 /// @title SharedPancakeV3Strategy
 /// @notice PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
@@ -140,11 +141,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
 
-    uint256 lastGlobalIdBefore;
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
-      lastGlobalIdBefore = SharedV3SafeTransferNftLib.lastGlobalNfpmTokenId(_nfpm);
-    }
-
     instructions.recipient = address(this);
     instructions.performanceFeeX64 = SharedStrategyFeeConfig.platformFeeX64(
       configManager,
@@ -154,18 +150,18 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
-      uint256 newTokenId;
-      unchecked {
-        newTokenId = lastGlobalIdBefore + 1;
+      if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
+        revert ISharedCommon.NfpmEnumerableRequired();
       }
-      require(
-        SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(_nfpm, newTokenId, address(this)),
-        InvalidPoolTokens()
-      );
+      IERC721Enumerable e = IERC721Enumerable(_nfpm);
+      uint256 n = e.totalSupply();
+      require(n > 0, InvalidPoolTokens());
+      uint256 newTokenId = e.tokenByIndex(n - 1);
+      require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
       changes[1] = PositionChange(true, _nfpm, newTokenId, token0, token1);
-    } else if (!SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(_nfpm, tokenId, address(this))) {
+    } else if (!_nfpmNftOwnedByVault(_nfpm, tokenId)) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
     } else {
@@ -429,6 +425,14 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       unchecked {
         i++;
       }
+    }
+  }
+
+  function _nfpmNftOwnedByVault(address nfpmAddr, uint256 id) private view returns (bool) {
+    try IERC721(nfpmAddr).ownerOf(id) returns (address owner) {
+      return owner == address(this);
+    } catch {
+      return false;
     }
   }
 }

@@ -5,6 +5,8 @@ import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Util
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,7 +21,6 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-import { SharedV3SafeTransferNftLib } from "../libraries/SharedV3SafeTransferNftLib.sol";
 
 /// @title SharedV3Strategy
 /// @notice Uniswap V3 LP operations for SharedVault with token validation and position tracking
@@ -107,9 +108,9 @@ contract SharedV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev `CHANGE_RANGE`: `newTokenId = lastGlobalNfpmTokenId + 1` (sequential ids). NFPM must be `IERC721Enumerable`.
-  ///      Reverts if the vault does not hold `newTokenId` after V3Utils. Full exit: vault no longer holds `tokenId`,
-  ///      or on-chain position liquidity is zero.
+  /// @dev `CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
+  ///      Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
+  ///      `tokenId`, or on-chain position liquidity is zero.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (
       address nfpm,
@@ -121,11 +122,6 @@ contract SharedV3Strategy is ISharedStrategy {
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
 
-    uint256 lastGlobalIdBefore;
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
-      lastGlobalIdBefore = SharedV3SafeTransferNftLib.lastGlobalNfpmTokenId(nfpm);
-    }
-
     instructions.recipient = address(this);
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     instructions.performanceFeeX64 = SharedStrategyFeeConfig.platformFeeX64(cm, platformFeeBasisPointOverride);
@@ -133,15 +129,18 @@ contract SharedV3Strategy is ISharedStrategy {
     IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
-      uint256 newTokenId;
-      unchecked {
-        newTokenId = lastGlobalIdBefore + 1;
+      if (!IERC165(nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
+        revert ISharedCommon.NfpmEnumerableRequired();
       }
-      require(SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(nfpm, newTokenId, address(this)), InvalidPoolTokens());
+      IERC721Enumerable e = IERC721Enumerable(nfpm);
+      uint256 n = e.totalSupply();
+      require(n > 0, InvalidPoolTokens());
+      uint256 newTokenId = e.tokenByIndex(n - 1);
+      require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
       changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
-    } else if (!SharedV3SafeTransferNftLib.nfpmNftStillHeldByVault(nfpm, tokenId, address(this))) {
+    } else if (!_nfpmNftOwnedByVault(nfpm, tokenId)) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
     } else {
@@ -324,6 +323,14 @@ contract SharedV3Strategy is ISharedStrategy {
       unchecked {
         i++;
       }
+    }
+  }
+
+  function _nfpmNftOwnedByVault(address nfpm, uint256 id) private view returns (bool) {
+    try IERC721(nfpm).ownerOf(id) returns (address owner) {
+      return owner == address(this);
+    } catch {
+      return false;
     }
   }
 }

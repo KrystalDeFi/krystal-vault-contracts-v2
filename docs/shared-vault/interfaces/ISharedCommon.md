@@ -83,6 +83,12 @@ error InvalidStrategy(address strategy)
 error StrategyCallFailed()
 ```
 
+### TransferFailed
+
+```solidity
+error TransferFailed()
+```
+
 ### SwapFailed
 
 ```solidity
