@@ -276,10 +276,7 @@ export const deployAerodromeFarmingStrategyContract = async (
         "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
         undefined,
         ["address", "address"],
-        [
-          gaugeFactories[i],
-          existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
-        ],
+        [gaugeFactories[i], existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
       )) as AerodromeFarmingStrategy;
       aerodromeFarmingStrategies.push(strategy);
     }

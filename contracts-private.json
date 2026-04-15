@@ -15,7 +15,10 @@
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
-    "aerodromeFarmingStrategy": "0xe8b3f065158cf2a581d529875506217e6abbf0af",
+    "aerodromeFarmingStrategies": [
+      "0xe8b3f065158cf2a581d529875506217e6abbf0af",
+      "0xa2ba4d3b60435e87146188b27e4905c597d67721"
+    ],
     "pancakeV3FarmingStrategy": "0x5f8e7e03bfd8fb868c2777b2fa95eb59ce03f439",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
