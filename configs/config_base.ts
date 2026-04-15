@@ -81,7 +81,7 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
       "0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F",
     ],
     aerodromeGaugeFactories: [
-      "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08", // Aerodrome CLGaugeFactory on Base
+      "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
       "0xB630227a79707D517320b6c0f885806389dFcbB3",
     ],
   },

@@ -131,11 +131,10 @@ async function deployContracts(
       existingContract?.["privateVaultAutomator"] || contracts?.privateVaultAutomator?.target,
     ].filter(Boolean);
 
-    const existingAerodromeStrategies: string[] = existingContract?.["aerodromeFarmingStrategies"] ?? [];
     const deployedAerodromeStrategies = (contracts?.aerodromeFarmingStrategies ?? []).map((s) => s.target);
 
     const whitelistedTargets = [
-      ...(existingAerodromeStrategies.length ? existingAerodromeStrategies : deployedAerodromeStrategies),
+      ...deployedAerodromeStrategies,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
       existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
       existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
