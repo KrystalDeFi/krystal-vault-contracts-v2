@@ -40,7 +40,7 @@ export interface SharedContracts {
   sharedVaultGateway?: SharedVaultGateway;
   sharedV3Strategy?: SharedV3Strategy;
   sharedV4Strategy?: SharedV4Strategy;
-  sharedAerodromeStrategy?: SharedAerodromeStrategy;
+  sharedAerodromeStrategies?: SharedAerodromeStrategy[];
   sharedPancakeV3Strategy?: SharedPancakeV3Strategy;
 }
 
@@ -130,23 +130,31 @@ async function deployContracts(
     )) as SharedV4Strategy;
   }
 
-  // 6. Deploy SharedAerodromeStrategy
+  // 6. Deploy SharedAerodromeStrategy (one per gauge factory)
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
-    contracts.sharedAerodromeStrategy = (await deployContract(
-      ++step,
-      networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
-      "SharedAerodromeStrategy",
-      existingContract?.["sharedAerodromeStrategy"],
-      "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
-      undefined,
-      ["address", "address", "address", "address"],
-      [
-        networkConfig.v3UtilsAddress,
-        lpFeeTakerAddress,
-        networkConfig.aerodromeGaugeFactory,
-        existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
-      ],
-    )) as SharedAerodromeStrategy;
+    const gaugeFactories = networkConfig.aerodromeGaugeFactories ?? [];
+    const existingAddresses: (string | undefined)[] = existingContract?.["sharedAerodromeStrategies"] ?? [];
+    contracts.sharedAerodromeStrategies = [];
+
+    for (let i = 0; i < gaugeFactories.length; i++) {
+      const strategy = (await deployContract(
+        `${step}.${i + 1} >>`,
+        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+        "SharedAerodromeStrategy",
+        existingAddresses[i],
+        "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
+        undefined,
+        ["address", "address", "address", "address"],
+        [
+          networkConfig.v3UtilsAddress,
+          lpFeeTakerAddress,
+          gaugeFactories[i],
+          existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
+        ],
+      )) as SharedAerodromeStrategy;
+      contracts.sharedAerodromeStrategies.push(strategy);
+    }
+    ++step;
   }
 
   // 7. Deploy SharedPancakeV3Strategy
@@ -220,10 +228,12 @@ async function deployContracts(
 
   // Initialize SharedConfigManager
   if (networkConfig.sharedConfigManager?.enabled) {
+    const deployedAerodromeStrategies = (contracts.sharedAerodromeStrategies ?? []).map((s) => s.target);
+
     const whitelistedTargets = [
       existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target,
       existingContract?.["sharedV4Strategy"] || contracts.sharedV4Strategy?.target,
-      existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target,
+      ...deployedAerodromeStrategies,
       existingContract?.["sharedPancakeV3Strategy"] || contracts.sharedPancakeV3Strategy?.target,
     ].filter(Boolean) as string[];
 
