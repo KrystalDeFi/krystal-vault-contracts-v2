@@ -38,7 +38,7 @@ export interface PrivateContracts {
   privateVaultFactory?: PrivateVaultFactory;
   privateConfigManager?: PrivateConfigManager;
   privateVaultAutomator?: PrivateVaultAutomator;
-  aerodromeFarmingStrategy?: AerodromeFarmingStrategy;
+  aerodromeFarmingStrategies?: AerodromeFarmingStrategy[];
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
@@ -108,7 +108,7 @@ async function deployContracts(
     privateVault: privateVault.privateVault,
     privateVaultFactory: privateVaultFactory.privateVaultFactory,
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
-    aerodromeFarmingStrategy: aerodromeFarmingStrategy.aerodromeFarmingStrategy,
+    aerodromeFarmingStrategies: aerodromeFarmingStrategy.aerodromeFarmingStrategies,
     pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
     privateMerklStrategy: privateMerklStrategy.privateMerklStrategy,
     privateKyberFairFlowStrategy: privateKyberFairFlowStrategy.privateKyberFairFlowStrategy,
@@ -131,8 +131,10 @@ async function deployContracts(
       existingContract?.["privateVaultAutomator"] || contracts?.privateVaultAutomator?.target,
     ].filter(Boolean);
 
+    const deployedAerodromeStrategies = (contracts?.aerodromeFarmingStrategies ?? []).map((s) => s.target);
+
     const whitelistedTargets = [
-      existingContract?.["aerodromeFarmingStrategy"] || contracts?.aerodromeFarmingStrategy?.target,
+      ...deployedAerodromeStrategies,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
       existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
       existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
@@ -258,26 +260,29 @@ export const deployAerodromeFarmingStrategyContract = async (
 ): Promise<PrivateContracts> => {
   const config = { ...networkConfig, ...customNetworkConfig };
 
-  let aerodromeFarmingStrategy;
+  const aerodromeFarmingStrategies: AerodromeFarmingStrategy[] = [];
 
   if (config.privateAerodromeFarmingStrategy?.enabled) {
-    aerodromeFarmingStrategy = (await deployContract(
-      `${step} >>`,
-      config.privateAerodromeFarmingStrategy?.autoVerifyContract,
-      "AerodromeFarmingStrategy",
-      existingContract?.["aerodromeFarmingStrategy"],
-      "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
-      undefined,
-      ["address", "address"],
-      [
-        config.aerodromeGaugeFactory,
-        existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
-      ],
-    )) as AerodromeFarmingStrategy;
+    const gaugeFactories = config.aerodromeGaugeFactories ?? [];
+    const existingAddresses: (string | undefined)[] = existingContract?.["aerodromeFarmingStrategies"] ?? [];
+
+    for (let i = 0; i < gaugeFactories.length; i++) {
+      const strategy = (await deployContract(
+        `${step}.${i + 1} >>`,
+        config.privateAerodromeFarmingStrategy?.autoVerifyContract,
+        "AerodromeFarmingStrategy",
+        existingAddresses[i],
+        "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
+        undefined,
+        ["address", "address"],
+        [gaugeFactories[i], existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+      )) as AerodromeFarmingStrategy;
+      aerodromeFarmingStrategies.push(strategy);
+    }
   }
 
   return {
-    aerodromeFarmingStrategy,
+    aerodromeFarmingStrategies,
   };
 };
 
