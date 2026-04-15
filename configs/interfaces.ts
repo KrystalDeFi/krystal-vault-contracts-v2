@@ -43,7 +43,7 @@ export interface IConfigPrivate {
   };
   v3UtilsAddress?: AddressLike;
   v4UtilsAddress?: AddressLike;
-  aerodromeGaugeFactory?: AddressLike;
+  aerodromeGaugeFactories?: AddressLike[];
   pancakeV3MasterChef?: AddressLike;
   merklDistributor?: AddressLike;
   uniswapV4KEMHook?: AddressLike;
