@@ -15,10 +15,12 @@ interface ISharedStrategy {
   /// @notice Execute an LP operation. Called via delegatecall from SharedVault.
   /// @dev Strategy MUST validate that pool tokens are vault tokens.
   ///      Since this runs via delegatecall, address(this) is the vault.
-  /// @param data Encoded operation params (strategy-specific). V3-style strategies append
-  ///        `(uint16 platformFeeBps, uint64 gasFeeX64)` after swap/mint, swap/increase, and safe-transfer payloads.
-  ///        Platform `0` uses `configManager.platformFeeBasisPoint()`; `type(uint16).max` forces no platform fee.
-  ///        Gas fee X64 is used as passed (no default; use `0` for no gas fee).
+  /// @param data ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,
+  ///        `SharedPancakeV3Strategy`, `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:
+  ///        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /
+  ///        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.
+  ///        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a
+  ///        different layout.
   /// @return changes Array of position changes (added/removed)
   function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
 

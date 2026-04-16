@@ -1,49 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
-
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 
 /// @title SharedStrategyFeeConfig
-/// @notice Platform bps `0` => config; `type(uint16).max` => no platform fee. Gas X64 is caller-supplied for
-///         `execute` (no default); withdraw exits use no gas fee on principal.
+/// @notice `FeeConfig` for proportional LP exits (`LpFeeTaker`) when strategies run as the vault (delegatecall).
+///         V3-style `execute` paths set fee Q64 on `IV3Utils` calldata; V4 exit Q64 is built in `SharedV4Strategy`.
 library SharedStrategyFeeConfig {
-  uint256 private constant Q64 = 0x10000000000000000;
-
-  /// @dev `overrideBps == 0` uses stored config platform fee.
-  function resolvePlatformBps(ISharedConfigManager cm, uint16 overrideBps) internal view returns (uint16) {
-    uint16 bps = overrideBps == 0 ? cm.platformFeeBasisPoint() : overrideBps;
-    require(bps <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
-    return bps;
-  }
-
-  /// @dev Q64 for V3Utils `protocolFeeX64` / `Instructions.performanceFeeX64`.
-  ///      `type(uint16).max` forces zero protocol fee regardless of config (caller “waive platform fee”).
-  function platformFeeX64(ISharedConfigManager cm, uint16 platformBpsOverride) internal view returns (uint64) {
-    if (platformBpsOverride == type(uint16).max) return 0;
-    uint16 bps = resolvePlatformBps(cm, platformBpsOverride);
-    if (bps == 0) return 0;
-    return uint64(FullMath.mulDiv(uint256(bps), Q64, 10_000));
-  }
-
-  /// @dev Q64 for V4Utils `performanceFeeX64` (vault-owner performance share on LP exits).
-  function vaultOwnerFeeX64(uint16 basisPoints) internal pure returns (uint64) {
-    if (basisPoints == 0) return 0;
-    return uint64(FullMath.mulDiv(uint256(basisPoints), Q64, 10_000));
-  }
-
   /// @notice `FeeConfig` for proportional LP exit (`LpFeeTaker`). Platform bps from config; withdraw exits never charge gas on principal.
   function performanceFeeConfig(uint16 vaultOwnerFeeBasisPoint) internal view returns (ICommon.FeeConfig memory fc) {
     ISharedVault v = ISharedVault(address(this));
     ISharedConfigManager cm = v.configManager();
+    uint16 platformBps = cm.platformFeeBasisPoint();
+    require(platformBps <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     fc.vaultOwner = v.vaultOwner();
     fc.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
     fc.platformFeeRecipient = cm.feeRecipient();
-    fc.platformFeeBasisPoint = resolvePlatformBps(cm, 0);
+    fc.platformFeeBasisPoint = platformBps;
     fc.gasFeeX64 = 0;
     fc.gasFeeRecipient = address(0);
   }

@@ -438,7 +438,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_MINT),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }
 
@@ -480,7 +480,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_INCREASE),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }
 }

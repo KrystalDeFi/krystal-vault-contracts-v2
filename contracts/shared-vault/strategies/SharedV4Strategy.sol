@@ -28,7 +28,6 @@ import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
-import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
@@ -82,6 +81,8 @@ contract SharedV4Strategy is ISharedStrategy {
   using PositionInfoLibrary for PositionInfo;
   using SafeCast for uint256;
   using StateLibrary for IPoolManager;
+
+  uint256 private constant _FEE_Q64 = 0x10000000000000000;
 
   address public immutable v4UtilsRouter;
 
@@ -278,8 +279,8 @@ contract SharedV4Strategy is ISharedStrategy {
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
-    uint64 protocolX64 = SharedStrategyFeeConfig.platformFeeX64(cm, 0);
-    uint64 performanceX64 = SharedStrategyFeeConfig.vaultOwnerFeeX64(vaultOwnerFeeBasisPoint);
+    uint64 protocolX64 = _platformFeeX64FromConfig(cm);
+    uint64 performanceX64 = _vaultOwnerFeeX64(vaultOwnerFeeBasisPoint);
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
@@ -442,5 +443,17 @@ contract SharedV4Strategy is ISharedStrategy {
         ++i;
       }
     }
+  }
+
+  function _platformFeeX64FromConfig(ISharedConfigManager cm) private view returns (uint64) {
+    uint16 bps = cm.platformFeeBasisPoint();
+    if (bps == 0) return 0;
+    require(bps <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
+    return uint64(FullMath.mulDiv(uint256(bps), _FEE_Q64, 10_000));
+  }
+
+  function _vaultOwnerFeeX64(uint16 basisPoints) private pure returns (uint64) {
+    if (basisPoints == 0) return 0;
+    return uint64(FullMath.mulDiv(uint256(basisPoints), _FEE_Q64, 10_000));
   }
 }

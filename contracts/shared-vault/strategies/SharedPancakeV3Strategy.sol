@@ -89,10 +89,8 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       IV3Utils.SwapAndMintParams memory params,
       address[] memory approveTokens,
       uint256[] memory approveAmounts,
-      uint256 ethValue,
-      uint16 platformFeeBasisPointOverride,
-      uint64 gasFeeX64Override
-    ) = abi.decode(data, (IV3Utils.SwapAndMintParams, address[], uint256[], uint256, uint16, uint64));
+      uint256 ethValue
+    ) = abi.decode(data, (IV3Utils.SwapAndMintParams, address[], uint256[], uint256));
 
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
@@ -102,9 +100,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
-
-    params.protocolFeeX64 = SharedStrategyFeeConfig.platformFeeX64(configManager, platformFeeBasisPointOverride);
-    params.gasFeeX64 = gasFeeX64Override;
 
     IV3Utils.SwapAndMintResult memory result = IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
 
@@ -118,10 +113,8 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       IV3Utils.SwapAndIncreaseLiquidityParams memory params,
       address[] memory approveTokens,
       uint256[] memory approveAmounts,
-      uint256 ethValue,
-      uint16 platformFeeBasisPointOverride,
-      uint64 gasFeeX64Override
-    ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256, uint16, uint64));
+      uint256 ethValue
+    ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256));
 
     _requirePancakeNfpm(params.nfpm);
     SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(configManager, params);
@@ -129,22 +122,16 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
 
-    params.protocolFeeX64 = SharedStrategyFeeConfig.platformFeeX64(configManager, platformFeeBasisPointOverride);
-    params.gasFeeX64 = gasFeeX64Override;
-
     IV3Utils(v3utils).swapAndIncreaseLiquidity{ value: ethValue }(params);
 
     changes = new PositionChange[](0);
   }
 
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
-    (
-      address _nfpm,
-      uint256 tokenId,
-      IV3Utils.Instructions memory instructions,
-      uint16 platformFeeBasisPointOverride,
-      uint64 gasFeeX64Override
-    ) = abi.decode(data, (address, uint256, IV3Utils.Instructions, uint16, uint64));
+    (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
+      data,
+      (address, uint256, IV3Utils.Instructions)
+    );
 
     _requirePancakeNfpm(_nfpm);
     SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(configManager, instructions);
@@ -152,11 +139,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
 
     instructions.recipient = address(this);
-    instructions.performanceFeeX64 = SharedStrategyFeeConfig.platformFeeX64(
-      configManager,
-      platformFeeBasisPointOverride
-    );
-    instructions.gasFeeX64 = gasFeeX64Override;
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {

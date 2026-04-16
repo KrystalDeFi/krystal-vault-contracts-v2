@@ -203,7 +203,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     bytes memory data = bytes.concat(
       abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions, uint16(0), uint64(0))
+      abi.encode(NFPM, tokenId, instructions)
     );
 
     {
@@ -268,7 +268,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     bytes memory data = bytes.concat(
       abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions, uint16(0), uint64(0))
+      abi.encode(NFPM, tokenId, instructions)
     );
 
     {
@@ -502,7 +502,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }
 
@@ -544,7 +544,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     return
       bytes.concat(
         abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0), uint16(0), uint64(0))
+        abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }
 }
