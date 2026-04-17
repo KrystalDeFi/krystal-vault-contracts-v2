@@ -5,7 +5,6 @@ import { console } from "forge-std/console.sol";
 import { TestCommon, USER, WETH, USDC, PANCAKE_NFPM as NFPM } from "../TestCommon.t.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
@@ -40,11 +39,9 @@ interface INFPMPositions {
     );
 }
 
-/// @notice Integration tests for SharedPancakeV3Strategy — PancakeSwap V3 LP + MasterChef farming
+/// @notice Integration tests for SharedPancakeV3Strategy — PancakeSwap V3 LP operations
 contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
-  address constant MASTERCHEF_V3 = 0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3;
-  address constant CAKE_TOKEN = 0x3055913c90Fcc1A6CE9a358911721eEb942013A1;
 
   // PancakeSwap V3 WETH/USDC 0.01% pool on Base
   // protocol=0 (Uniswap V3-compatible ABI)
@@ -82,7 +79,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), MASTERCHEF_V3, address(configManager));
+    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
 
     // Whitelist the strategy after both are deployed
     address[] memory targets = new address[](1);
@@ -161,10 +158,10 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // DEPOSIT_MASTERCHEF: stake LP NFT in MasterChef
+  // vault.withdraw() — exitProportional removes proportional liquidity
   // =========================================================
 
-  function test_pancake_depositMasterChef_stakesNft() public {
+  function test_pancake_withdraw_exitsProportionally() public {
     vm.startPrank(vaultOwner);
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
@@ -174,151 +171,10 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
     vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    // Verify vault owns the NFT before staking
-    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault must own NFT before stake");
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.DEPOSIT_MASTERCHEF),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    // After staking, MasterChef holds the NFT
-    assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "MasterChef must hold NFT after stake");
-    assertEq(vault.getPositionCount(), 1, "position still tracked while staked");
-    console.log("Pancake DEPOSIT_MASTERCHEF: NFT staked, tokenId =", tokenId);
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // HARVEST_MASTERCHEF: collect CAKE rewards
-  // =========================================================
-
-  function test_pancake_harvestMasterChef_collectsRewards() public {
-    vm.startPrank(vaultOwner);
-
-    // Mint and stake
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.DEPOSIT_MASTERCHEF),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    // Advance time so rewards accrue
-    vm.warp(block.timestamp + 7 days);
-    vm.roll(block.number + 50_000);
-
-    uint256 cakeBefore = IERC20(CAKE_TOKEN).balanceOf(address(vault));
-
-    bytes memory harvestData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.HARVEST_MASTERCHEF),
-      abi.encode(tokenId, uint64(0), uint64(0))
-    );
-    ISharedVault.Action[] memory harvestActions = new ISharedVault.Action[](1);
-    harvestActions[0] = ISharedVault.Action(address(pancakeStrategy), harvestData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(harvestActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    uint256 cakeAfter = IERC20(CAKE_TOKEN).balanceOf(address(vault));
-    console.log("Pancake HARVEST: CAKE rewards =", cakeAfter - cakeBefore);
-    // Note: rewards may be 0 at exact fork block — assertion is non-regression only
-    assertGe(cakeAfter, cakeBefore, "CAKE balance must not decrease after harvest");
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // WITHDRAW_MASTERCHEF: unstake from MasterChef
-  // =========================================================
-
-  function test_pancake_withdrawMasterChef_unstakesNft() public {
-    vm.startPrank(vaultOwner);
-
-    // Mint and stake
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.DEPOSIT_MASTERCHEF),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-    assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "staked in MasterChef");
-
-    // Unstake
-    bytes memory withdrawData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.WITHDRAW_MASTERCHEF),
-      abi.encode(tokenId, uint64(0), uint64(0))
-    );
-    ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
-    withdrawActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
-      withdrawData,
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(withdrawActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault must own NFT after unstake");
-    assertEq(vault.getPositionCount(), 1, "position still tracked after unstake");
-    console.log("Pancake WITHDRAW_MASTERCHEF: NFT returned to vault, tokenId =", tokenId);
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // withdraw() with staked MasterChef position — exitProportional
-  // unstakes then removes proportional liquidity
-  // =========================================================
-
-  function test_pancake_withdraw_unstakesAndExits() public {
-    vm.startPrank(vaultOwner);
-
-    // Mint and stake into MasterChef
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedPancakeV3Strategy.OperationType.DEPOSIT_MASTERCHEF),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(pancakeStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-    assertEq(IERC721(NFPM).ownerOf(tokenId), MASTERCHEF_V3, "staked in MasterChef before withdraw");
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
     uint256 usdcBefore = IERC20(USDC).balanceOf(vaultOwner);
 
-    // Full withdrawal: exitProportional should auto-unstake then exit LP
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory minAmounts;
     uint256[4] memory withdrawn = vault.withdraw(shares, minAmounts, false);
@@ -327,7 +183,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     assertEq(vault.totalSupply(), 0, "no shares remaining");
     assertGt(IERC20(WETH).balanceOf(vaultOwner) - wethBefore + withdrawn[0], 0, "WETH returned");
     assertGt(IERC20(USDC).balanceOf(vaultOwner) - usdcBefore + withdrawn[1], 0, "USDC returned");
-    console.log("Pancake withdraw with staked LP: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
+    console.log("Pancake withdraw: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
 
     vm.stopPrank();
   }

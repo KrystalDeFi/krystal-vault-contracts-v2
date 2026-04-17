@@ -2,7 +2,7 @@
 
 ## SharedPancakeV3Strategy
 
-PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
+PancakeSwap V3 LP operations for SharedVault with token validation and position tracking
 
 ### v3utils
 
@@ -16,10 +16,10 @@ address v3utils
 address lpFeeTaker
 ```
 
-### masterChefV3
+### nfpm
 
 ```solidity
-address masterChefV3
+address nfpm
 ```
 
 ### configManager
@@ -34,17 +34,14 @@ contract ISharedConfigManager configManager
 enum OperationType {
   SWAP_AND_MINT,
   SWAP_AND_INCREASE,
-  SAFE_TRANSFER_NFT,
-  DEPOSIT_MASTERCHEF,
-  WITHDRAW_MASTERCHEF,
-  HARVEST_MASTERCHEF
+  SAFE_TRANSFER_NFT
 }
 ```
 
 ### constructor
 
 ```solidity
-constructor(address _v3utils, address _lpFeeTaker, address _masterChefV3, address _configManager) public
+constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) public
 ```
 
 ### execute
@@ -88,30 +85,6 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-### _depositMasterChef
-
-```solidity
-function _depositMasterChef(bytes data) internal
-```
-
-### _withdrawMasterChef
-
-```solidity
-function _withdrawMasterChef(bytes data) internal
-```
-
-### _harvestMasterChef
-
-```solidity
-function _harvestMasterChef(bytes data) internal
-```
-
-### _harvestRewards
-
-```solidity
-function _harvestRewards(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal
-```
-
 ### _decreaseVaultPosition
 
 ```solidity
@@ -128,8 +101,7 @@ function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint25
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Handles both direct (vault-held) and MasterChef-staked positions.
-     Proportional exit uses NFPM + `LpFeeTaker` like public `LpStrategy` (not V3Utils performance fees)._
+_Proportional exit uses NFPM + `LpFeeTaker` like public `LpStrategy` (not V3Utils performance fees)._
 
 #### Parameters
 
@@ -148,27 +120,6 @@ _Handles both direct (vault-held) and MasterChef-staked positions.
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
-
-### depositProportional
-
-```solidity
-function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
-```
-
-Add a proportional share of tokens to an existing LP position during vault deposit.
-
-_Handles MasterChef-staked positions: harvests rewards, withdraws from MasterChef,
-     increases liquidity, then re-deposits. Non-zero `slippageBps` sets amount mins; 0 = no floor._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _nfpm | address |  |
-| tokenId | uint256 | Position NFT ID |
-| amount0 | uint256 | Max amount of token0 to add |
-| amount1 | uint256 | Max amount of token1 to add |
-| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
 
 ### getPositionAmounts
 
@@ -195,6 +146,26 @@ _Same as `SharedAerodromeStrategy.getPositionAmounts` / `SharedV3Strategy.getPos
 | ---- | ---- | ----------- |
 | amount0 | uint256 | Amount of token0 in the position |
 | amount1 | uint256 | Amount of token1 in the position |
+
+### depositProportional
+
+```solidity
+function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _nfpm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
 
 ### _getPool
 

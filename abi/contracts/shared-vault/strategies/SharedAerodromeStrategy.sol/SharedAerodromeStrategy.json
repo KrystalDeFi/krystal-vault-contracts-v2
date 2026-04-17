@@ -13,7 +13,7 @@
       },
       {
         "internalType": "address",
-        "name": "_gaugeFactory",
+        "name": "_nfpm",
         "type": "address"
       },
       {
@@ -33,11 +33,6 @@
   {
     "inputs": [],
     "name": "ApproveFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FeeRecipientNotSet",
     "type": "error"
   },
   {
@@ -67,11 +62,6 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "InvalidRewardFee",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -93,17 +83,6 @@
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "T",
     "type": "error"
@@ -112,49 +91,6 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "feeAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint64",
-        "name": "rewardFeeX64",
-        "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum CollectFee.FeeType",
-        "name": "feeType",
-        "type": "uint8"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "sender",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      }
-    ],
-    "name": "FeeCollect",
-    "type": "event"
   },
   {
     "inputs": [],
@@ -322,19 +258,6 @@
       }
     ],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "gaugeFactory",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

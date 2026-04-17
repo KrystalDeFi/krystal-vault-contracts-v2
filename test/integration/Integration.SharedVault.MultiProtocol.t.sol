@@ -24,7 +24,6 @@ import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lp
 ///         withdrawals all fire the right strategy's exitProportional via delegatecall.
 contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
-  address constant MASTERCHEF_V3 = 0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3;
 
   // Uniswap V3 WETH/USDC 0.05% pool on Base
   uint24 constant UNI_FEE = 500;
@@ -69,7 +68,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     lpFeeTaker = new LpFeeTaker();
     v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
-    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), MASTERCHEF_V3, address(configManager));
+    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), PANCAKE_NFPM, address(configManager));
 
     // Whitelist both strategies
     address[] memory targets = new address[](2);

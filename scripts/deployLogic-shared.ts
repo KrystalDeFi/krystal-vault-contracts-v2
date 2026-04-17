@@ -130,13 +130,13 @@ async function deployContracts(
     )) as SharedV4Strategy;
   }
 
-  // 6. Deploy SharedAerodromeStrategy (one per gauge factory)
+  // 6. Deploy SharedAerodromeStrategy (one per NFPM)
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
-    const gaugeFactories = networkConfig.aerodromeGaugeFactories ?? [];
+    const aerodromeNfpms = networkConfig.aerodromeNfpmAddresses ?? [];
     const existingAddresses: (string | undefined)[] = existingContract?.["sharedAerodromeStrategies"] ?? [];
     contracts.sharedAerodromeStrategies = [];
 
-    for (let i = 0; i < gaugeFactories.length; i++) {
+    for (let i = 0; i < aerodromeNfpms.length; i++) {
       const strategy = (await deployContract(
         `${step}.${i + 1} >>`,
         networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
@@ -148,7 +148,7 @@ async function deployContracts(
         [
           networkConfig.v3UtilsAddress,
           lpFeeTakerAddress,
-          gaugeFactories[i],
+          aerodromeNfpms[i],
           existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
         ],
       )) as SharedAerodromeStrategy;
@@ -170,7 +170,7 @@ async function deployContracts(
       [
         networkConfig.v3UtilsAddress,
         lpFeeTakerAddress,
-        networkConfig.pancakeV3MasterChef,
+        networkConfig.pancakeV3NfpmAddress,
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],
     )) as SharedPancakeV3Strategy;

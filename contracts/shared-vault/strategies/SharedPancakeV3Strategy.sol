@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
-import { IMasterChefV3 } from "../../common/interfaces/protocols/pancakev3/IMasterChefV3.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -11,7 +10,6 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { CollectFee } from "../../private-vault/libraries/CollectFee.sol";
 
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
@@ -27,36 +25,30 @@ import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.so
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedPancakeV3Strategy
-/// @notice PancakeSwap V3 LP + MasterChef farming for SharedVault with token validation and position tracking
+/// @notice PancakeSwap V3 LP operations for SharedVault with token validation and position tracking
 contract SharedPancakeV3Strategy is ISharedStrategy {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
-  address public immutable masterChefV3;
+  address public immutable nfpm;
   ISharedConfigManager public immutable configManager;
 
   enum OperationType {
     SWAP_AND_MINT,
     SWAP_AND_INCREASE,
-    SAFE_TRANSFER_NFT,
-    DEPOSIT_MASTERCHEF,
-    WITHDRAW_MASTERCHEF,
-    HARVEST_MASTERCHEF
+    SAFE_TRANSFER_NFT
   }
 
-  constructor(address _v3utils, address _lpFeeTaker, address _masterChefV3, address _configManager) {
+  constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) {
     require(
-      _v3utils != address(0) &&
-        _lpFeeTaker != address(0) &&
-        _masterChefV3 != address(0) &&
-        _configManager != address(0),
+      _v3utils != address(0) && _lpFeeTaker != address(0) && _nfpm != address(0) && _configManager != address(0),
       ISharedCommon.ZeroAddress()
     );
     v3utils = _v3utils;
     lpFeeTaker = _lpFeeTaker;
-    masterChefV3 = _masterChefV3;
+    nfpm = _nfpm;
     configManager = ISharedConfigManager(_configManager);
   }
 
@@ -70,15 +62,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       return _swapAndIncreaseLiquidity(data[32:]);
     } else if (opType == OperationType.SAFE_TRANSFER_NFT) {
       return _safeTransferNft(data[32:]);
-    } else if (opType == OperationType.DEPOSIT_MASTERCHEF) {
-      _depositMasterChef(data[32:]);
-      return new PositionChange[](0);
-    } else if (opType == OperationType.WITHDRAW_MASTERCHEF) {
-      _withdrawMasterChef(data[32:]);
-      return new PositionChange[](0);
-    } else if (opType == OperationType.HARVEST_MASTERCHEF) {
-      _harvestMasterChef(data[32:]);
-      return new PositionChange[](0);
     } else {
       revert ISharedCommon.InvalidOperation();
     }
@@ -103,7 +86,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
     IV3Utils.SwapAndMintResult memory result = IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
 
-    // Get pool for position tracking
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, params.nfpm, result.tokenId, params.token0, params.token1);
   }
@@ -167,61 +149,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     }
   }
 
-  function _depositMasterChef(bytes calldata data) internal {
-    uint256 tokenId = abi.decode(data, (uint256));
-    require(tokenId != 0, InvalidPoolTokens());
-
-    address _nfpm = IMasterChefV3(masterChefV3).nonfungiblePositionManager();
-    _requirePancakeNfpm(_nfpm);
-    IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
-  }
-
-  function _withdrawMasterChef(bytes calldata data) internal {
-    (uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) = abi.decode(data, (uint256, uint64, uint64));
-
-    _harvestRewards(tokenId, rewardFeeX64, gasFeeX64);
-    IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
-  }
-
-  function _harvestMasterChef(bytes calldata data) internal {
-    (uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) = abi.decode(data, (uint256, uint64, uint64));
-
-    _harvestRewards(tokenId, rewardFeeX64, gasFeeX64);
-  }
-
-  function _harvestRewards(uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
-    address rewardToken = IMasterChefV3(masterChefV3).CAKE();
-    uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
-
-    IMasterChefV3(masterChefV3).harvest(tokenId, address(this));
-
-    uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
-    if (balanceAfter <= balanceBefore) return;
-
-    uint256 harvestedAmount = balanceAfter - balanceBefore;
-    uint256 feeAmount;
-
-    if (rewardFeeX64 > 0) {
-      feeAmount += CollectFee.collect(
-        configManager.feeRecipient(),
-        rewardToken,
-        harvestedAmount,
-        rewardFeeX64,
-        CollectFee.FeeType.FARM_REWARD
-      );
-    }
-
-    if (gasFeeX64 > 0) {
-      feeAmount += CollectFee.collect(
-        configManager.feeRecipient(),
-        rewardToken,
-        harvestedAmount,
-        gasFeeX64,
-        CollectFee.FeeType.GAS
-      );
-    }
-  }
-
   /// @dev Splits NFPM decrease to keep `exitProportional` stack shallow for IR builds.
   function _decreaseVaultPosition(
     address _nfpm,
@@ -251,8 +178,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Handles both direct (vault-held) and MasterChef-staked positions.
-  ///      Proportional exit uses NFPM + `LpFeeTaker` like public `LpStrategy` (not V3Utils performance fees).
+  /// @dev Proportional exit uses NFPM + `LpFeeTaker` like public `LpStrategy` (not V3Utils performance fees).
   function exitProportional(
     address _nfpm,
     uint256 tokenId,
@@ -268,13 +194,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       tokenId
     );
 
-    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
-
-    if (isStaked) {
-      _harvestRewards(tokenId, 0, 0);
-      IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
-    }
-
     if (posLiquidity == 0) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -283,7 +202,6 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
 
     uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
     if (liquidityToRemove == 0) {
-      if (isStaked) IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
       return new PositionChange[](0);
     }
 
@@ -301,61 +219,11 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
       vaultOwnerFeeBasisPoint
     );
 
-    if (!isFullExit && isStaked) {
-      IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
-    }
-
     if (isFullExit) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
     } else {
       changes = new PositionChange[](0);
-    }
-  }
-
-  /// @inheritdoc ISharedStrategy
-  /// @dev Handles MasterChef-staked positions: harvests rewards, withdraws from MasterChef,
-  ///      increases liquidity, then re-deposits. Non-zero `slippageBps` sets amount mins; 0 = no floor.
-  function depositProportional(
-    address _nfpm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16 slippageBps
-  ) external override {
-    if (amount0 == 0 && amount1 == 0) return;
-
-    _requirePancakeNfpm(_nfpm);
-
-    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
-    if (isStaked) {
-      _harvestRewards(tokenId, 0, 0);
-      IMasterChefV3(masterChefV3).withdraw(tokenId, address(this));
-    }
-
-    (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
-    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
-    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
-    uint256 amount0Min;
-    uint256 amount1Min;
-    if (slippageBps > 0) {
-      uint256 scale = 10000 - slippageBps;
-      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
-      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
-    }
-    INFPM(_nfpm).increaseLiquidity(
-      INFPM.IncreaseLiquidityParams({
-        tokenId: tokenId,
-        amount0Desired: amount0,
-        amount1Desired: amount1,
-        amount0Min: amount0Min,
-        amount1Min: amount1Min,
-        deadline: block.timestamp
-      })
-    );
-
-    if (isStaked) {
-      IERC721(_nfpm).safeTransferFrom(address(this), masterChefV3, tokenId);
     }
   }
 
@@ -406,6 +274,41 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
     amount1 += tokensOwed1;
   }
 
+  /// @inheritdoc ISharedStrategy
+  /// @dev Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
+  function depositProportional(
+    address _nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+
+    _requirePancakeNfpm(_nfpm);
+
+    (, , address token0, address token1, , , , , , , , ) = INFPM(_nfpm).positions(tokenId);
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    uint256 amount0Min;
+    uint256 amount1Min;
+    if (slippageBps > 0) {
+      uint256 scale = 10000 - slippageBps;
+      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
+      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    }
+    INFPM(_nfpm).increaseLiquidity(
+      INFPM.IncreaseLiquidityParams({
+        tokenId: tokenId,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
+        amount0Min: amount0Min,
+        amount1Min: amount1Min,
+        deadline: block.timestamp
+      })
+    );
+  }
+
   function _getPool(address _nfpm, address token0, address token1, uint24 fee) internal view returns (address) {
     address factory = INFPM(_nfpm).factory();
     return IUniswapV3Factory(factory).getPool(token0, token1, fee);
@@ -437,7 +340,7 @@ contract SharedPancakeV3Strategy is ISharedStrategy {
   }
 
   function _requirePancakeNfpm(address _nfpm) private view {
-    require(_nfpm == IMasterChefV3(masterChefV3).nonfungiblePositionManager(), ISharedCommon.InvalidNfpm(_nfpm));
+    require(_nfpm == nfpm, ISharedCommon.InvalidNfpm(_nfpm));
     SharedStrategyGuards.requireWhitelistedNfpm(configManager, _nfpm);
   }
 }

@@ -2,7 +2,7 @@
 
 ## SharedAerodromeStrategy
 
-Aerodrome CL LP + gauge farming for SharedVault with token validation and position tracking
+Aerodrome CL LP operations for SharedVault with token validation and position tracking
 
 ### v3utils
 
@@ -14,12 +14,6 @@ address v3utils
 
 ```solidity
 address lpFeeTaker
-```
-
-### gaugeFactory
-
-```solidity
-address gaugeFactory
 ```
 
 ### nfpm
@@ -40,17 +34,14 @@ contract ISharedConfigManager configManager
 enum OperationType {
   SWAP_AND_MINT,
   SWAP_AND_INCREASE,
-  SAFE_TRANSFER_NFT,
-  DEPOSIT_GAUGE,
-  WITHDRAW_GAUGE,
-  HARVEST_GAUGE
+  SAFE_TRANSFER_NFT
 }
 ```
 
 ### constructor
 
 ```solidity
-constructor(address _v3utils, address _lpFeeTaker, address _gaugeFactory, address _configManager) public
+constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) public
 ```
 
 ### execute
@@ -94,29 +85,9 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-### _depositGauge
-
-```solidity
-function _depositGauge(bytes data) internal
-```
-
-### _withdrawGauge
-
-```solidity
-function _withdrawGauge(bytes data) internal
-```
-
-### _harvestGauge
-
-```solidity
-function _harvestGauge(bytes data) internal
-```
-
-### _harvestRewards
-
-```solidity
-function _harvestRewards(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal
-```
+_`CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
+     Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
+     `tokenId`, or on-chain position liquidity is zero._
 
 ### _decreaseVaultPosition
 
@@ -132,7 +103,7 @@ function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint25
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Handles gauge-staked and direct positions. Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern)._
+_Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern)._
 
 #### Parameters
 
@@ -188,8 +159,8 @@ function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, ui
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
-_Handles gauge-staked positions: unstakes before increasing liquidity, then restakes.
-     Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`)._
+_Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
+     Out-of-range positions have one desired amount zero, so that side's min stays 0._
 
 #### Parameters
 
@@ -205,12 +176,6 @@ _Handles gauge-staked positions: unstakes before increasing liquidity, then rest
 
 ```solidity
 function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address)
-```
-
-### _getGaugeFromTokenId
-
-```solidity
-function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address gauge)
 ```
 
 ### _validateVaultToken

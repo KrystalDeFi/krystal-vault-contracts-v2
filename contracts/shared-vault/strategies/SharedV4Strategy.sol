@@ -116,49 +116,18 @@ contract SharedV4Strategy is ISharedStrategy {
       bytes memory params,
       uint256 ethValue,
       address[] memory approveTokens,
-      uint256[] memory approveAmounts,
-      PositionChange[] memory positionChanges
-    ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[], PositionChange[]));
+      uint256[] memory approveAmounts
+    ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[]));
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, posm);
     _validateV4ExecuteCalldataSwapRouters(params, posm, tokenId, cm);
 
-    // Validate approved tokens are vault tokens (these are the tokens actually used)
-    for (uint256 i; i < approveTokens.length; ) {
-      if (approveAmounts[i] > 0) {
-        _validateVaultToken(approveTokens[i]);
-      }
-      unchecked {
-        i++;
-      }
-    }
-
-    // Also validate position change tokens from on-chain data when adding existing positions
-    for (uint256 i; i < positionChanges.length; ) {
-      if (positionChanges[i].isAdd && positionChanges[i].tokenId != 0) {
-        // Verify tokens from actual POSM position data, not caller-supplied values
-        IPositionManager pm = IPositionManager(posm);
-        (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(positionChanges[i].tokenId);
-        address c0 = Currency.unwrap(poolKey.currency0);
-        address c1 = Currency.unwrap(poolKey.currency1);
-        _validateVaultToken(c0);
-        _validateVaultToken(c1);
-        positionChanges[i].token0 = c0;
-        positionChanges[i].token1 = c1;
-      } else {
-        if (positionChanges[i].token0 != address(0)) _validateVaultToken(positionChanges[i].token0);
-        if (positionChanges[i].token1 != address(0)) _validateVaultToken(positionChanges[i].token1);
-      }
-      unchecked {
-        i++;
-      }
-    }
-
-    // Approve tokens
+    // Validate approved tokens are vault tokens
     require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < approveTokens.length; ) {
       if (approveAmounts[i] > 0) {
+        _validateVaultToken(approveTokens[i]);
         IERC20(approveTokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
       }
       unchecked {
@@ -166,31 +135,73 @@ contract SharedV4Strategy is ISharedStrategy {
       }
     }
 
+    IPositionManager pm = IPositionManager(posm);
+
+    // Snapshot next tokenId before the call to detect newly minted positions
+    uint256 nextIdBefore = pm.nextTokenId();
+
     if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
     IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
 
-    return positionChanges;
+    // Compute position changes from on-chain state — never trust caller-supplied values
+    if (tokenId == 0) {
+      // New mint: position minted at nextIdBefore
+      uint256 newId = nextIdBefore;
+      require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(newId);
+      address c0 = Currency.unwrap(key.currency0);
+      address c1 = Currency.unwrap(key.currency1);
+      _validateVaultToken(c0);
+      _validateVaultToken(c1);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(true, posm, newId, c0, c1);
+    } else if (pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)) {
+      // ADJUST_RANGE: old position exited, new position minted to vault
+      (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(oldKey.currency0), Currency.unwrap(oldKey.currency1));
+      changes[1] = PositionChange(true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1));
+    } else if (pm.getPositionLiquidity(tokenId) == 0) {
+      // Full exit: liquidity drained to zero
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(tokenId);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
+    } else {
+      // Partial decrease, compound, or increase — no tracked position change
+      changes = new PositionChange[](0);
+    }
   }
 
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
-    (address posm, uint256 tokenId, bytes memory instruction, PositionChange[] memory positionChanges) = abi.decode(
-      data,
-      (address, uint256, bytes, PositionChange[])
-    );
+    (address posm, uint256 tokenId, bytes memory instruction) = abi.decode(data, (address, uint256, bytes));
 
     _requireWhitelistedPosm(posm);
 
-    // Validate tokens from on-chain POSM data for the position being transferred
-    {
-      IPositionManager pm = IPositionManager(posm);
-      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
-      _validateVaultToken(Currency.unwrap(poolKey.currency0));
-      _validateVaultToken(Currency.unwrap(poolKey.currency1));
-    }
+    IPositionManager pm = IPositionManager(posm);
+
+    // Read tokens and snapshot nextTokenId before transferring
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address c0 = Currency.unwrap(poolKey.currency0);
+    address c1 = Currency.unwrap(poolKey.currency1);
+    _validateVaultToken(c0);
+    _validateVaultToken(c1);
+    uint256 nextIdBefore = pm.nextTokenId();
 
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
 
-    return positionChanges;
+    // Compute position changes from on-chain state after the transfer
+    if (pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)) {
+      // ADJUST_RANGE: old position removed, new position minted to vault
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+      changes[1] = PositionChange(true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1));
+    } else {
+      // Full exit or any non-minting operation
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+    }
   }
 
   /// @inheritdoc ISharedStrategy
@@ -394,6 +405,14 @@ contract SharedV4Strategy is ISharedStrategy {
     if (liquidity == 0) return 0;
     unchecked {
       return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
+    }
+  }
+
+  function _posmNftOwnedByVault(address posm, uint256 id) private view returns (bool) {
+    try IERC721(posm).ownerOf(id) returns (address owner) {
+      return owner == address(this);
+    } catch {
+      return false;
     }
   }
 

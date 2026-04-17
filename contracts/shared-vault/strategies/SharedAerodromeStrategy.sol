@@ -2,9 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
-import { ICLGauge } from "../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
 import { INonfungiblePositionManager } from "../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
-import { ICLGaugeFactory } from "../../common/interfaces/protocols/aerodrome/ICLGaugeFactory.sol";
 import { ICLFactory } from "../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
 import { ICLPool } from "../../common/interfaces/protocols/aerodrome/ICLPool.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -13,7 +11,6 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { CollectFee } from "../../private-vault/libraries/CollectFee.sol";
 
 import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
@@ -29,38 +26,30 @@ import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.so
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedAerodromeStrategy
-/// @notice Aerodrome CL LP + gauge farming for SharedVault with token validation and position tracking
+/// @notice Aerodrome CL LP operations for SharedVault with token validation and position tracking
 contract SharedAerodromeStrategy is ISharedStrategy {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
-  address public immutable gaugeFactory;
   address public immutable nfpm;
   ISharedConfigManager public immutable configManager;
 
   enum OperationType {
     SWAP_AND_MINT,
     SWAP_AND_INCREASE,
-    SAFE_TRANSFER_NFT,
-    DEPOSIT_GAUGE,
-    WITHDRAW_GAUGE,
-    HARVEST_GAUGE
+    SAFE_TRANSFER_NFT
   }
 
-  constructor(address _v3utils, address _lpFeeTaker, address _gaugeFactory, address _configManager) {
+  constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) {
     require(
-      _v3utils != address(0) &&
-        _lpFeeTaker != address(0) &&
-        _gaugeFactory != address(0) &&
-        _configManager != address(0),
+      _v3utils != address(0) && _lpFeeTaker != address(0) && _nfpm != address(0) && _configManager != address(0),
       ISharedCommon.ZeroAddress()
     );
     v3utils = _v3utils;
     lpFeeTaker = _lpFeeTaker;
-    gaugeFactory = _gaugeFactory;
-    nfpm = ICLGaugeFactory(_gaugeFactory).nft();
+    nfpm = _nfpm;
     configManager = ISharedConfigManager(_configManager);
   }
 
@@ -74,15 +63,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       return _swapAndIncreaseLiquidity(data[32:]);
     } else if (opType == OperationType.SAFE_TRANSFER_NFT) {
       return _safeTransferNft(data[32:]);
-    } else if (opType == OperationType.DEPOSIT_GAUGE) {
-      _depositGauge(data[32:]);
-      return new PositionChange[](0);
-    } else if (opType == OperationType.WITHDRAW_GAUGE) {
-      _withdrawGauge(data[32:]);
-      return new PositionChange[](0);
-    } else if (opType == OperationType.HARVEST_GAUGE) {
-      _harvestGauge(data[32:]);
-      return new PositionChange[](0);
     } else {
       revert ISharedCommon.InvalidOperation();
     }
@@ -130,6 +110,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
+  /// @dev `CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
+  ///      Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
+  ///      `tokenId`, or on-chain position liquidity is zero.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -170,63 +153,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     }
   }
 
-  function _depositGauge(bytes calldata data) internal {
-    uint256 tokenId = abi.decode(data, (uint256));
-    require(tokenId != 0, InvalidPoolTokens());
-
-    address clGauge = _getGaugeFromTokenId(tokenId);
-    IERC721(nfpm).approve(clGauge, tokenId);
-    ICLGauge(clGauge).deposit(tokenId);
-  }
-
-  function _withdrawGauge(bytes calldata data) internal {
-    (uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) = abi.decode(data, (uint256, uint64, uint64));
-
-    address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvestRewards(clGauge, tokenId, rewardFeeX64, gasFeeX64);
-    ICLGauge(clGauge).withdraw(tokenId);
-  }
-
-  function _harvestGauge(bytes calldata data) internal {
-    (uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) = abi.decode(data, (uint256, uint64, uint64));
-
-    address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvestRewards(clGauge, tokenId, rewardFeeX64, gasFeeX64);
-  }
-
-  function _harvestRewards(address clGauge, uint256 tokenId, uint64 rewardFeeX64, uint64 gasFeeX64) internal {
-    address rewardToken = ICLGauge(clGauge).rewardToken();
-    uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
-
-    ICLGauge(clGauge).getReward(tokenId);
-
-    uint256 balanceAfter = IERC20(rewardToken).balanceOf(address(this));
-    if (balanceAfter <= balanceBefore) return;
-
-    uint256 harvestedAmount = balanceAfter - balanceBefore;
-    uint256 feeAmount;
-
-    if (rewardFeeX64 > 0) {
-      feeAmount += CollectFee.collect(
-        configManager.feeRecipient(),
-        rewardToken,
-        harvestedAmount,
-        rewardFeeX64,
-        CollectFee.FeeType.FARM_REWARD
-      );
-    }
-
-    if (gasFeeX64 > 0) {
-      feeAmount += CollectFee.collect(
-        configManager.feeRecipient(),
-        rewardToken,
-        harvestedAmount,
-        gasFeeX64,
-        CollectFee.FeeType.GAS
-      );
-    }
-  }
-
   function _decreaseVaultPosition(
     address _nfpm,
     uint256 tokenId,
@@ -255,7 +181,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Handles gauge-staked and direct positions. Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern).
+  /// @dev Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern).
   function exitProportional(
     address _nfpm,
     uint256 tokenId,
@@ -282,15 +208,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 
-    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
-    address clGauge;
-
-    if (isStaked) {
-      clGauge = _getGaugeFromTokenId(tokenId);
-      _harvestRewards(clGauge, tokenId, 0, 0);
-      ICLGauge(clGauge).withdraw(tokenId);
-    }
-
     if (posLiquidity == 0) {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -299,10 +216,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
     if (liquidityToRemove == 0) {
-      if (isStaked) {
-        IERC721(_nfpm).approve(clGauge, tokenId);
-        ICLGauge(clGauge).deposit(tokenId);
-      }
       return new PositionChange[](0);
     }
 
@@ -319,11 +232,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       tickSpacing,
       vaultOwnerFeeBasisPoint
     );
-
-    if (!isFullExit && isStaked) {
-      IERC721(_nfpm).approve(clGauge, tokenId);
-      ICLGauge(clGauge).deposit(tokenId);
-    }
 
     if (isFullExit) {
       changes = new PositionChange[](1);
@@ -376,8 +284,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Handles gauge-staked positions: unstakes before increasing liquidity, then restakes.
-  ///      Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
+  /// @dev Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
+  ///      Out-of-range positions have one desired amount zero, so that side's min stays 0.
   function depositProportional(
     address _nfpm,
     uint256 tokenId,
@@ -388,13 +296,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (amount0 == 0 && amount1 == 0) return;
 
     _requireAerodromeNfpm(_nfpm);
-
-    bool isStaked = IERC721(_nfpm).ownerOf(tokenId) != address(this);
-    address clGauge;
-    if (isStaked) {
-      clGauge = _getGaugeFromTokenId(tokenId);
-      ICLGauge(clGauge).withdraw(tokenId);
-    }
 
     (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
@@ -416,28 +317,11 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         deadline: block.timestamp
       })
     );
-
-    if (isStaked) {
-      IERC721(_nfpm).approve(clGauge, tokenId);
-      ICLGauge(clGauge).deposit(tokenId);
-    }
   }
 
   function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address) {
     address factory = INonfungiblePositionManager(nfpm).factory();
     return ICLFactory(factory).getPool(token0, token1, tickSpacing);
-  }
-
-  function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address gauge) {
-    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(nfpm).positions(
-      tokenId
-    );
-    if (token0 > token1) (token0, token1) = (token1, token0);
-    address factory = INonfungiblePositionManager(nfpm).factory();
-    address pool = ICLFactory(factory).getPool(token0, token1, tickSpacing);
-    require(pool != address(0), InvalidPoolTokens());
-    gauge = ICLPool(pool).gauge();
-    require(gauge != address(0), InvalidPoolTokens());
   }
 
   function _validateVaultToken(address token) internal view {

@@ -17,7 +17,6 @@ import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
-import { ICLGaugeFactory } from "../../contracts/common/interfaces/protocols/aerodrome/ICLGaugeFactory.sol";
 
 interface INFPMAerodrome {
   function positions(
@@ -41,11 +40,9 @@ interface INFPMAerodrome {
     );
 }
 
-/// @notice Integration tests for SharedAerodromeStrategy — Aerodrome CL LP + gauge farming
+/// @notice Integration tests for SharedAerodromeStrategy — Aerodrome CL LP operations
 contract SharedVaultAerodromeIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
-  address constant GAUGE_FACTORY = 0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08;
-  address constant AERO_TOKEN = 0x940181a94A35A4569E4529A3CDfB74e38FD98631;
 
   // Aerodrome CL WETH/USDC volatile pool — tickSpacing=100 (1% tier)
   // protocol=3 tells V3Utils to use the Aerodrome-specific pool factory ABI
@@ -83,7 +80,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker), GAUGE_FACTORY, address(configManager));
+    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
 
     address[] memory targets = new address[](1);
     targets[0] = address(aeroStrategy);
@@ -161,10 +158,10 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // DEPOSIT_GAUGE: stake LP NFT into the Aerodrome gauge
+  // vault.withdraw() — exitProportional removes proportional liquidity
   // =========================================================
 
-  function test_aerodrome_depositGauge_stakesNft() public {
+  function test_aerodrome_withdraw_exitsProportionally() public {
     vm.startPrank(vaultOwner);
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
@@ -174,139 +171,6 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
     vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault owns NFT before gauge deposit");
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.DEPOSIT_GAUGE),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    // After staking, vault no longer directly owns the NFT
-    assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "gauge holds NFT after deposit");
-    assertEq(vault.getPositionCount(), 1, "position still tracked while staked in gauge");
-    console.log("Aerodrome DEPOSIT_GAUGE: NFT staked, tokenId =", tokenId);
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // HARVEST_GAUGE: collect AERO rewards while staked
-  // =========================================================
-
-  function test_aerodrome_harvestGauge_collectsAero() public {
-    vm.startPrank(vaultOwner);
-
-    // Mint and stake into gauge
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.DEPOSIT_GAUGE),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    // Advance time so AERO rewards accrue
-    vm.warp(block.timestamp + 7 days);
-    vm.roll(block.number + 50_000);
-
-    uint256 aeroBefore = IERC20(AERO_TOKEN).balanceOf(address(vault));
-
-    bytes memory harvestData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.HARVEST_GAUGE),
-      abi.encode(tokenId, uint64(0), uint64(0))
-    );
-    ISharedVault.Action[] memory harvestActions = new ISharedVault.Action[](1);
-    harvestActions[0] = ISharedVault.Action(address(aeroStrategy), harvestData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(harvestActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    uint256 aeroAfter = IERC20(AERO_TOKEN).balanceOf(address(vault));
-    console.log("Aerodrome HARVEST_GAUGE: AERO rewards =", aeroAfter - aeroBefore);
-    assertGe(aeroAfter, aeroBefore, "AERO balance must not decrease after harvest");
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // WITHDRAW_GAUGE: unstake from gauge, position returns to vault
-  // =========================================================
-
-  function test_aerodrome_withdrawGauge_unstakesNft() public {
-    vm.startPrank(vaultOwner);
-
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    // Stake into gauge
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.DEPOSIT_GAUGE),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-    assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "staked: vault does not own NFT");
-
-    // Unstake
-    bytes memory withdrawData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.WITHDRAW_GAUGE),
-      abi.encode(tokenId, uint64(0), uint64(0))
-    );
-    ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
-    withdrawActions[0] = ISharedVault.Action(address(aeroStrategy), withdrawData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(withdrawActions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    assertEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "vault owns NFT after gauge withdraw");
-    assertEq(vault.getPositionCount(), 1, "position still tracked after unstake");
-    console.log("Aerodrome WITHDRAW_GAUGE: NFT returned to vault, tokenId =", tokenId);
-
-    vm.stopPrank();
-  }
-
-  // =========================================================
-  // vault.withdraw() with gauge-staked position — exitProportional
-  // auto-unstakes from gauge then removes proportional liquidity
-  // =========================================================
-
-  function test_aerodrome_withdraw_unstakesGaugeAndExits() public {
-    vm.startPrank(vaultOwner);
-
-    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
-    mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
-    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
-
-    bytes memory depositData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.DEPOSIT_GAUGE),
-      abi.encode(tokenId)
-    );
-    ISharedVault.Action[] memory depositActions = new ISharedVault.Action[](1);
-    depositActions[0] = ISharedVault.Action(address(aeroStrategy), depositData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(depositActions, new ISharedVault.PositionStrategyUpdate[](0));
-    assertNotEq(IERC721(NFPM).ownerOf(tokenId), address(vault), "staked before withdraw");
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
     uint256 usdcBefore = IERC20(USDC).balanceOf(vaultOwner);
@@ -319,7 +183,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     assertEq(vault.totalSupply(), 0, "no shares remaining");
     assertGt(IERC20(WETH).balanceOf(vaultOwner) - wethBefore + withdrawn[0], 0, "WETH returned");
     assertGt(IERC20(USDC).balanceOf(vaultOwner) - usdcBefore + withdrawn[1], 0, "USDC returned");
-    console.log("Aerodrome withdraw with staked LP: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
+    console.log("Aerodrome withdraw: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
 
     vm.stopPrank();
   }

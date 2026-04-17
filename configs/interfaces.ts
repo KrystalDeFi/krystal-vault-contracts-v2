@@ -113,6 +113,7 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  pancakeV3NfpmAddress?: AddressLike;
 }
 
 export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {
