@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { SharedStrategyBeacon } from "./SharedStrategyBeacon.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
+import { Withdrawable } from "../../common/Withdrawable.sol";
 
 /// @title SharedStrategyProxy
 /// @notice Upgradeable proxy for a SharedVault strategy type.
@@ -32,7 +33,7 @@ import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 /// @dev Deploy one proxy per strategy type (V3, Aerodrome, PancakeV3, V4).
 ///      Whitelist the proxy address in SharedConfigManager — never needs re-whitelisting on upgrade.
 ///      To upgrade: call SharedStrategyBeacon.setImplementation(newImpl).
-contract SharedStrategyProxy {
+contract SharedStrategyProxy is Withdrawable {
   /// @notice The beacon that holds the current implementation address.
   ///         Stored as immutable to avoid storage-collision with SharedVault when delegatecalled.
   SharedStrategyBeacon public immutable beacon;
@@ -40,6 +41,11 @@ contract SharedStrategyProxy {
   constructor(address _beacon) {
     require(_beacon != address(0), ISharedCommon.ZeroAddress());
     beacon = SharedStrategyBeacon(_beacon);
+  }
+
+  /// @dev Only the beacon owner can sweep accidentally stuck tokens.
+  function _checkWithdrawPermission() internal view override {
+    require(msg.sender == beacon.owner(), ISharedCommon.Unauthorized());
   }
 
   /// @dev Forwards every call to the current implementation via delegatecall.
@@ -56,5 +62,6 @@ contract SharedStrategyProxy {
     }
   }
 
+  /// @dev Accept ETH so accidentally sent native tokens can be recovered via sweepNativeToken().
   receive() external payable {}
 }

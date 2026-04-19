@@ -45,6 +45,14 @@ The beacon that holds the current implementation address.
 constructor(address _beacon) public
 ```
 
+### _checkWithdrawPermission
+
+```solidity
+function _checkWithdrawPermission() internal view
+```
+
+_Only the beacon owner can sweep accidentally stuck tokens._
+
 ### fallback
 
 ```solidity
@@ -59,4 +67,6 @@ _Forwards every call to the current implementation via delegatecall.
 ```solidity
 receive() external payable
 ```
+
+_Accept ETH so accidentally sent native tokens can be recovered via sweepNativeToken()._
 
