@@ -754,7 +754,7 @@ contract SharedVaultTest is TestCommon {
       abi.encode(uint256(42)),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -766,7 +766,7 @@ contract SharedVaultTest is TestCommon {
       abi.encode(uint256(42)),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -779,7 +779,7 @@ contract SharedVaultTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -792,7 +792,7 @@ contract SharedVaultTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -809,7 +809,7 @@ contract SharedVaultTest is TestCommon {
     uint256 balanceBefore = tokenB.balanceOf(address(vault));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     uint256 balanceAfter = tokenB.balanceOf(address(vault));
 
     assertEq(balanceAfter - balanceBefore, 10e18);
@@ -823,7 +823,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -834,7 +834,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -845,7 +845,7 @@ contract SharedVaultTest is TestCommon {
     actions[0] = ISharedVault.Action(NON_AUTHORIZED, actionData, ISharedCommon.CallType.CALL);
     // `CALL` swap path checks swap-router allowlist before token validation.
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidSwapRouter.selector, NON_AUTHORIZED));
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -937,7 +937,7 @@ contract SharedVaultTest is TestCommon {
       abi.encode(uint256(42)),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     // Revoke
@@ -947,7 +947,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(newAdmin);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -992,143 +992,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
-  }
-
-  function _makeUpdate(
-    address nfpm,
-    uint256 tokenId,
-    address strategy
-  ) internal pure returns (ISharedVault.PositionStrategyUpdate[] memory updates) {
-    updates = new ISharedVault.PositionStrategyUpdate[](1);
-    updates[0] = ISharedVault.PositionStrategyUpdate(nfpm, tokenId, strategy);
-  }
-
-  function test_execute_strategy_update_happy_path() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
-
-    (address storedBefore, , , , ) = vault.getPosition(0);
-    assertEq(storedBefore, address(brokenStrat));
-
-    MockLPPool lpPool = new MockLPPool();
-    MockLPExitStrategy goodStrat = new MockLPExitStrategy(address(lpPool));
-    address[] memory newTargets = new address[](1);
-    newTargets[0] = address(goodStrat);
-    configManager.setWhitelistTargets(newTargets, true);
-
-    vm.expectEmit(true, true, true, true);
-    emit ISharedVault.PositionStrategyMigrated(
-      VAULT_OWNER,
-      fakeNfpm,
-      tokenId,
-      address(brokenStrat),
-      address(goodStrat)
-    );
-
-    vm.prank(VAULT_OWNER);
-    vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, tokenId, address(goodStrat)));
-
-    (address storedAfter, , , , ) = vault.getPosition(0);
-    assertEq(storedAfter, address(goodStrat));
-  }
-
-  function test_execute_strategy_update_fail_unauthorized() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
-    MockLPPool lpPool = new MockLPPool();
-    MockLPExitStrategy goodStrat = new MockLPExitStrategy(address(lpPool));
-    address[] memory newTargets = new address[](1);
-    newTargets[0] = address(goodStrat);
-    configManager.setWhitelistTargets(newTargets, true);
-
-    vm.prank(NON_AUTHORIZED);
-    vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, tokenId, address(goodStrat)));
-    (brokenStrat);
-  }
-
-  function test_execute_strategy_update_fail_not_whitelisted() public {
-    (, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
-    address notWhitelisted = makeAddr("notWhitelisted");
-
-    vm.prank(VAULT_OWNER);
-    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, notWhitelisted));
-    vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, tokenId, notWhitelisted));
-  }
-
-  function test_execute_strategy_update_fail_position_not_tracked() public {
-    address fakeNfpm = makeAddr("nfpmNotTracked");
-    address[] memory newTargets = new address[](1);
-    newTargets[0] = address(mockStrategy);
-    configManager.setWhitelistTargets(newTargets, true);
-
-    vm.prank(VAULT_OWNER);
-    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
-    vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, 123, address(mockStrategy)));
-  }
-
-  function test_execute_strategy_update_unblocks_withdrawal() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
-
-    // Withdrawal reverts while broken strategy is stored
-    uint256 shares = vault.balanceOf(DEPOSITOR);
-    vm.prank(DEPOSITOR);
-    vm.expectRevert();
-    vault.withdraw(shares, [uint256(0), uint256(0), uint256(0), uint256(0)], false);
-
-    // Migrate via execute() strategyUpdates — no separate owner function needed
-    MockLPPool lpPool = new MockLPPool();
-    MockLPExitStrategy goodStrat = new MockLPExitStrategy(address(lpPool));
-    address[] memory newTargets = new address[](1);
-    newTargets[0] = address(goodStrat);
-    configManager.setWhitelistTargets(newTargets, true);
-
-    vm.prank(VAULT_OWNER);
-    vault.execute(new ISharedVault.Action[](0), _makeUpdate(fakeNfpm, tokenId, address(goodStrat)));
-
-    // Now withdrawal succeeds
-    vm.prank(DEPOSITOR);
-    vault.withdraw(shares, [uint256(0), uint256(0), uint256(0), uint256(0)], false);
-    (brokenStrat);
-  }
-
-  /// @notice _addPosition auto-updates pos.strategy when a strategy returns isAdd=true for an already-tracked position.
-  function test_execute_via_new_strategy_auto_updates_position_strategy() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
-
-    (address storedBefore, , , , ) = vault.getPosition(0);
-    assertEq(storedBefore, address(brokenStrat));
-
-    // Deploy a good replacement and whitelist it
-    MockLPPool lpPool = new MockLPPool();
-    MockLPExitStrategy goodStrat = new MockLPExitStrategy(address(lpPool));
-    address[] memory newTargets = new address[](1);
-    newTargets[0] = address(goodStrat);
-    configManager.setWhitelistTargets(newTargets, true);
-
-    // Execute an action via goodStrat that returns isAdd=true for the same (nfpm, tokenId)
-    // MockLPExitStrategy.execute decodes (nfpm, tokenId, token0, token1, amount0, amount1)
-    bytes memory stratData = abi.encode(fakeNfpm, tokenId, address(tokenA), address(tokenB), uint256(0), uint256(0));
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(goodStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
-
-    vm.expectEmit(true, true, true, true);
-    emit ISharedVault.PositionStrategyMigrated(
-      VAULT_OWNER,
-      fakeNfpm,
-      tokenId,
-      address(brokenStrat),
-      address(goodStrat)
-    );
-    vm.prank(VAULT_OWNER);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
-
-    (address storedAfter, , , , ) = vault.getPosition(0);
-    assertEq(storedAfter, address(goodStrat));
-
-    // Withdrawal now works because pos.strategy points to goodStrat
-    uint256 shares = vault.balanceOf(DEPOSITOR);
-    vm.prank(DEPOSITOR);
-    vault.withdraw(shares, [uint256(0), uint256(0), uint256(0), uint256(0)], false);
+    vault.execute(actions);
   }
 
   // ==================== dropPosition Tests ====================
@@ -1172,7 +1036,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenDepStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     assertEq(vault.getPositionCount(), 1);
 
     // Second deposit fails — getPositionAmounts returns non-zero so toAdd > 0, then depositProportional reverts.
@@ -1231,7 +1095,7 @@ contract SharedVaultTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -1243,7 +1107,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -1272,7 +1136,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -1292,7 +1156,7 @@ contract SharedVaultTest is TestCommon {
     assertFalse(vault.paused());
 
     // Can execute again
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -1308,7 +1172,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     // Per-vault unpaused, global paused
@@ -1317,7 +1181,7 @@ contract SharedVaultTest is TestCommon {
     configManager.setVaultPaused(true);
     vm.startPrank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -1396,7 +1260,7 @@ contract SharedVaultTest is TestCommon {
     bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), 50e18, 50e18);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
-    v.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    v.execute(actions);
     vm.stopPrank();
 
     uint256 shares = v.balanceOf(VAULT_OWNER);
@@ -1696,7 +1560,7 @@ contract SharedVaultTest is TestCommon {
       bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), lpAmount, lpAmount);
       ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
       actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
-      v.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+      v.execute(actions);
       vm.stopPrank();
     }
   }
@@ -1853,7 +1717,7 @@ contract SharedVaultTest is TestCommon {
       abi.encode(uint256(0)),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     // No position changes expected
@@ -1892,7 +1756,7 @@ contract SharedVaultTest is TestCommon {
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 1, "one LP position should be tracked");
@@ -1917,7 +1781,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 1, "position should be added");
@@ -1948,7 +1812,7 @@ contract SharedVaultTest is TestCommon {
     bytes memory addData = abi.encode(mockNfpm, tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
     ISharedVault.Action[] memory addActions = new ISharedVault.Action[](1);
     addActions[0] = ISharedVault.Action(address(lpStrategy), addData, ISharedCommon.CallType.DELEGATECALL);
-    vault.execute(addActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(addActions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 1, "position added");
@@ -1966,7 +1830,7 @@ contract SharedVaultTest is TestCommon {
       removeCallData,
       ISharedCommon.CallType.CALL_WITH_POSITIONS
     );
-    vault.execute(removeActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(removeActions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 0, "position should be removed");
@@ -1979,7 +1843,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 0, "no positions should be added");
@@ -1993,7 +1857,7 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
     vm.expectRevert("DirectCreator: always fails");
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -2006,7 +1870,7 @@ contract SharedVaultTest is TestCommon {
     // Use failingStrategy address which is NOT whitelisted
     actions[0] = ISharedVault.Action(address(failingStrategy), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
   }
 
@@ -2053,7 +1917,7 @@ contract SharedVaultTest is TestCommon {
     actions[2] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
 
     vm.startPrank(VAULT_OWNER);
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     // Two LP positions tracked (one from DELEGATECALL, one from CALL_WITH_POSITIONS)

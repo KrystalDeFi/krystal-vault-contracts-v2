@@ -488,25 +488,8 @@ contract SharedVault is
   ///                          the external contract manages its own token transfers (unlike CALL,
   ///                          where the vault is the initiator and owns the approval flow).
   function execute(
-    Action[] calldata actions,
-    PositionStrategyUpdate[] calldata strategyUpdates
+    Action[] calldata actions
   ) external override nonReentrant onlyAuthorized whenVaultNotPaused {
-    for (uint256 u; u < strategyUpdates.length; ) {
-      PositionStrategyUpdate calldata upd = strategyUpdates[u];
-      require(configManager.isWhitelistedTarget(upd.strategy), InvalidTarget(upd.strategy));
-      bytes32 key = keccak256(abi.encodePacked(upd.nfpm, upd.tokenId));
-      uint256 idx = positionIndex[key];
-      require(idx != 0, InvalidOperation());
-      address oldStrategy = positions[idx - 1].strategy;
-      if (oldStrategy != upd.strategy) {
-        positions[idx - 1].strategy = upd.strategy;
-        emit PositionStrategyMigrated(vaultFactory, upd.nfpm, upd.tokenId, oldStrategy, upd.strategy);
-      }
-      unchecked {
-        u++;
-      }
-    }
-
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
 
@@ -791,17 +774,7 @@ contract SharedVault is
 
   function _addPosition(address strategy, address nfpm, uint256 tokenId, address token0, address token1) internal {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    uint256 idx = positionIndex[key];
-    if (idx != 0) {
-      // Position already tracked — update strategy to reflect current executor.
-      // Mirrors Vault.sol's _addAssets pattern: re-executing via a new strategy naturally migrates the pointer.
-      address oldStrategy = positions[idx - 1].strategy;
-      if (oldStrategy != strategy) {
-        positions[idx - 1].strategy = strategy;
-        emit PositionStrategyMigrated(vaultFactory, nfpm, tokenId, oldStrategy, strategy);
-      }
-      return;
-    }
+    if (positionIndex[key] != 0) return; // already tracked
 
     require(configManager.isWhitelistedNfpm(nfpm), InvalidNfpm(nfpm));
     positions.push(Position(strategy, nfpm, tokenId, token0, token1));

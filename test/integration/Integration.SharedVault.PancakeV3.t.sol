@@ -13,6 +13,8 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedPancakeV3Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV3Strategy.sol";
+import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
+import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
@@ -55,6 +57,8 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   SharedVault public vaultImplementation;
   LpFeeTaker public lpFeeTaker;
   SharedPancakeV3Strategy public pancakeStrategy;
+  SharedStrategyBeacon public pancakeBeacon;
+  SharedStrategyProxy public pancakeProxy;
   SharedVault public vault;
 
   address public vaultOwner = USER;
@@ -80,10 +84,12 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     lpFeeTaker = new LpFeeTaker();
     pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
+    pancakeBeacon = new SharedStrategyBeacon(address(pancakeStrategy), vaultOwner);
+    pancakeProxy = new SharedStrategyProxy(address(pancakeBeacon));
 
-    // Whitelist the strategy after both are deployed
+    // Whitelist the proxy — proxy address is stable across upgrades
     address[] memory targets = new address[](1);
-    targets[0] = address(pancakeStrategy);
+    targets[0] = address(pancakeProxy);
     configManager.setWhitelistTargets(targets, true);
 
     vaultImplementation = new SharedVault();
@@ -109,11 +115,11 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked Pancake LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -132,22 +138,22 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     (, , , , , , , uint128 liquidityBefore, , , , ) = INFPMPositions(NFPM).positions(tokenId);
 
     ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
     increaseActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(increaseActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(increaseActions);
 
     (, , , , , , , uint128 liquidityAfter, , , , ) = INFPMPositions(NFPM).positions(tokenId);
     assertGt(liquidityAfter, liquidityBefore, "liquidity must increase after SWAP_AND_INCREASE");
@@ -166,11 +172,11 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
     uint256 usdcBefore = IERC20(USDC).balanceOf(vaultOwner);
@@ -196,11 +202,11 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
     vm.stopPrank();
 
     address player = makeAddr("player2");
@@ -234,11 +240,11 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory preview = vault.previewWithdraw(shares);
@@ -246,6 +252,36 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     assertGt(preview[0], 0, "WETH preview should reflect Pancake LP value");
     assertGt(preview[1], 0, "USDC preview should reflect Pancake LP value");
     console.log("Pancake previewWithdraw: WETH =", preview[0], "USDC =", preview[1]);
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // Beacon upgrade — proxy address unchanged, new impl takes effect
+  // =========================================================
+
+  function test_pancake_beaconUpgrade_newImplUsedWithoutRewhitelisting() public {
+    vm.startPrank(vaultOwner);
+
+    // Mint a position via the proxy pointing at v1 impl
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeProxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
+
+    // Upgrade: deploy a new impl and point the beacon at it
+    SharedPancakeV3Strategy newImpl = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
+    pancakeBeacon.setImplementation(address(newImpl));
+    assertEq(pancakeBeacon.implementation(), address(newImpl), "beacon updated to new impl");
+
+    // Proxy address and whitelist unchanged — can still execute with same action.target
+    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
+    ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
+    increaseActions[0] = ISharedVault.Action(address(pancakeProxy), _swapAndIncreaseData(tokenId, 0.1 ether, 300e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(increaseActions);
+
+    assertEq(vault.getPositionCount(), 1, "position still tracked after upgrade");
+    console.log("Pancake beacon upgrade: new impl =", address(newImpl));
 
     vm.stopPrank();
   }

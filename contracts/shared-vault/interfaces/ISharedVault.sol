@@ -13,14 +13,6 @@ interface ISharedVault is ISharedCommon {
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
   event VaultOwnerFeeBasisPointUpdated(address indexed vaultFactory, uint16 basisPoints);
-  event PositionStrategyMigrated(
-    address indexed vaultFactory,
-    address indexed nfpm,
-    uint256 indexed tokenId,
-    address oldStrategy,
-    address newStrategy
-  );
-
   /// @notice Emitted when the vault owner forcibly drops a position from tracking.
   ///         The underlying LP liquidity is NOT exited — the NFT remains in the vault
   ///         but is no longer valued or interacted with. Used to unblock deposits when
@@ -41,15 +33,6 @@ interface ISharedVault is ISharedCommon {
     address target;
     bytes data;
     CallType callType;
-  }
-
-  /// @dev Explicit strategy pointer update bundled with execute().
-  ///      Allows migrating a position to a new whitelisted strategy in the same transaction as the
-  ///      first action executed via that strategy, without a separate owner-only call.
-  struct PositionStrategyUpdate {
-    address nfpm;
-    uint256 tokenId;
-    address strategy; // must be whitelisted in configManager
   }
 
   // --- Initialization ---
@@ -98,10 +81,7 @@ interface ISharedVault is ISharedCommon {
   ///         For strategy actions the vault tracks LP position changes.
   ///         For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
   ///         that the output meets minAmountOut.
-  /// @param strategyUpdates Optional list of position→strategy pointer updates applied before
-  ///        actions run. Use to migrate a broken strategy in the same tx as the first action
-  ///        via its replacement. Each strategy must be whitelisted in configManager.
-  function execute(Action[] calldata actions, PositionStrategyUpdate[] calldata strategyUpdates) external;
+  function execute(Action[] calldata actions) external;
 
   // --- Views ---
   function getTokens() external view returns (address[4] memory);
@@ -136,7 +116,7 @@ interface ISharedVault is ISharedCommon {
   ///         The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
   ///         iterated during `withdraw()`, or deposited into during `deposit()`.
   ///         Use when a position's pool is permanently rugged or the strategy is irreparably
-  ///         broken and `strategyUpdates` cannot fix it (e.g. the NFPM itself is bricked).
+  ///         broken and the NFPM itself is bricked.
   ///         After dropping, any tokens still locked in the position are effectively lost —
   ///         use `sweepERC721` to recover the NFT if it's still transferable.
   /// @param nfpm  NFT position manager that issued the position

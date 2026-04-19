@@ -286,7 +286,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -302,7 +301,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -318,7 +316,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -344,7 +341,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -371,7 +367,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -393,7 +388,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -411,7 +405,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -427,7 +420,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -442,14 +434,12 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
     automator.executeWithUserOrder(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -477,7 +467,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(
       ISharedVault(address(otherVault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -492,7 +481,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -513,7 +501,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(
       ISharedVault(address(vault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -664,7 +651,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     msAutomator.executeWithAgentAllowance(
       ISharedVault(address(msVault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -688,14 +674,12 @@ contract SharedVaultAutomatorTest is TestCommon {
     msAutomator.executeWithUserOrder(
       ISharedVault(address(msVault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
     msAutomator.executeWithUserOrder(
       ISharedVault(address(msVault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );
@@ -730,7 +714,6 @@ contract SharedVaultAutomatorTest is TestCommon {
     msAutomator.executeWithAgentAllowance(
       ISharedVault(address(msVault)),
       ops,
-      new ISharedVault.PositionStrategyUpdate[](0),
       encoded,
       sig
     );

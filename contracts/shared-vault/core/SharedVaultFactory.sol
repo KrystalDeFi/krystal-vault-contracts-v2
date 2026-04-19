@@ -65,7 +65,7 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     vault = _createVault(name, tokens, initialAmounts, address(this));
 
     if (actions.length > 0) {
-      ISharedVault(vault).execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+      ISharedVault(vault).execute(actions);
     }
 
     ISharedVault(vault).transferOwnership(_msgSender());

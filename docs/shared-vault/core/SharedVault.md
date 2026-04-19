@@ -250,7 +250,7 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 ### execute
 
 ```solidity
-function execute(struct ISharedVault.Action[] actions, struct ISharedVault.PositionStrategyUpdate[] strategyUpdates) external
+function execute(struct ISharedVault.Action[] actions) external
 ```
 
 Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.
@@ -403,7 +403,7 @@ Forcibly remove a position from vault tracking without exiting liquidity.
         The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
         iterated during `withdraw()`, or deposited into during `deposit()`.
         Use when a position's pool is permanently rugged or the strategy is irreparably
-        broken and `strategyUpdates` cannot fix it (e.g. the NFPM itself is bricked).
+        broken and the NFPM itself is bricked.
         After dropping, any tokens still locked in the position are effectively lost —
         use `sweepERC721` to recover the NFT if it's still transferable.
 

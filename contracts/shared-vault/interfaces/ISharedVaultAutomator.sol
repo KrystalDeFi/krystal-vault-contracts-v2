@@ -25,7 +25,6 @@ interface ISharedVaultAutomator is ISharedCommon {
   function executeWithAgentAllowance(
     ISharedVault vault,
     ISharedVault.Action[] calldata actions,
-    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
     bytes memory abiEncodedAgentAllowance,
     bytes memory signature
   ) external;
@@ -33,13 +32,11 @@ interface ISharedVaultAutomator is ISharedCommon {
   /// @notice Execute actions against a vault using a user order signature.
   /// @param vault Vault to operate on
   /// @param actions Same shape as `ISharedVault.execute`
-  /// @param strategyUpdates Position strategy pointer updates applied before actions run
   /// @param abiEncodedUserOrder ABI encoded user order
   /// @param orderSignature Signature of the order
   function executeWithUserOrder(
     ISharedVault vault,
     ISharedVault.Action[] calldata actions,
-    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
     bytes calldata abiEncodedUserOrder,
     bytes calldata orderSignature
   ) external;

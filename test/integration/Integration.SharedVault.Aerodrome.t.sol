@@ -14,6 +14,8 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
+import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
+import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
@@ -56,6 +58,8 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
   SharedVault public vaultImplementation;
   LpFeeTaker public lpFeeTaker;
   SharedAerodromeStrategy public aeroStrategy;
+  SharedStrategyBeacon public aeroBeacon;
+  SharedStrategyProxy public aeroProxy;
   SharedVault public vault;
 
   address public vaultOwner = USER;
@@ -81,9 +85,12 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     lpFeeTaker = new LpFeeTaker();
     aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
+    aeroBeacon = new SharedStrategyBeacon(address(aeroStrategy), vaultOwner);
+    aeroProxy = new SharedStrategyProxy(address(aeroBeacon));
 
+    // Whitelist the proxy — proxy address is stable across upgrades
     address[] memory targets = new address[](1);
-    targets[0] = address(aeroStrategy);
+    targets[0] = address(aeroProxy);
     configManager.setWhitelistTargets(targets, true);
 
     vaultImplementation = new SharedVault();
@@ -109,11 +116,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 1, "should have 1 tracked Aerodrome LP position");
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
@@ -132,22 +139,22 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     (, , , , , , , uint128 liquidityBefore, , , , ) = INFPMAerodrome(NFPM).positions(tokenId);
 
     ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
     increaseActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(increaseActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(increaseActions);
 
     (, , , , , , , uint128 liquidityAfter, , , , ) = INFPMAerodrome(NFPM).positions(tokenId);
     assertGt(liquidityAfter, liquidityBefore, "liquidity must increase after SWAP_AND_INCREASE");
@@ -166,11 +173,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
 
     uint256 wethBefore = IERC20(WETH).balanceOf(vaultOwner);
     uint256 usdcBefore = IERC20(USDC).balanceOf(vaultOwner);
@@ -196,11 +203,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(mintActions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(mintActions);
     vm.stopPrank();
 
     address player = makeAddr("player3");
@@ -234,11 +241,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(aeroStrategy),
+      address(aeroProxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory preview = vault.previewWithdraw(shares);
@@ -246,6 +253,36 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     assertGt(preview[0], 0, "WETH preview should reflect Aerodrome LP value");
     assertGt(preview[1], 0, "USDC preview should reflect Aerodrome LP value");
     console.log("Aerodrome previewWithdraw: WETH =", preview[0], "USDC =", preview[1]);
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // Beacon upgrade — proxy address unchanged, new impl takes effect
+  // =========================================================
+
+  function test_aerodrome_beaconUpgrade_newImplUsedWithoutRewhitelisting() public {
+    vm.startPrank(vaultOwner);
+
+    // Mint a position via the proxy pointing at v1 impl
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(aeroProxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
+
+    // Upgrade: deploy a new impl and point the beacon at it
+    SharedAerodromeStrategy newImpl = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
+    aeroBeacon.setImplementation(address(newImpl));
+    assertEq(aeroBeacon.implementation(), address(newImpl), "beacon updated to new impl");
+
+    // Proxy address and whitelist unchanged — can still execute with same action.target
+    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
+    ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
+    increaseActions[0] = ISharedVault.Action(address(aeroProxy), _swapAndIncreaseData(tokenId, 0.1 ether, 300e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(increaseActions);
+
+    assertEq(vault.getPositionCount(), 1, "position still tracked after upgrade");
+    console.log("Aerodrome beacon upgrade: new impl =", address(newImpl));
 
     vm.stopPrank();
   }

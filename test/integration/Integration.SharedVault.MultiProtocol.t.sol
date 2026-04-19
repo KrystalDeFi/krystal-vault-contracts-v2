@@ -14,6 +14,8 @@ import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaul
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedPancakeV3Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV3Strategy.sol";
+import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
+import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
@@ -41,7 +43,11 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   SharedVault public vaultImplementation;
   LpFeeTaker public lpFeeTaker;
   SharedV3Strategy public v3Strategy;
+  SharedStrategyBeacon public v3Beacon;
+  SharedStrategyProxy public v3Proxy;
   SharedPancakeV3Strategy public pancakeStrategy;
+  SharedStrategyBeacon public pancakeBeacon;
+  SharedStrategyProxy public pancakeProxy;
   SharedVault public vault;
 
   address public vaultOwner = USER;
@@ -68,12 +74,17 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     lpFeeTaker = new LpFeeTaker();
     v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
-    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), PANCAKE_NFPM, address(configManager));
+    v3Beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
+    v3Proxy = new SharedStrategyProxy(address(v3Beacon));
 
-    // Whitelist both strategies
+    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), PANCAKE_NFPM, address(configManager));
+    pancakeBeacon = new SharedStrategyBeacon(address(pancakeStrategy), vaultOwner);
+    pancakeProxy = new SharedStrategyProxy(address(pancakeBeacon));
+
+    // Whitelist proxy addresses for both strategies
     address[] memory targets = new address[](2);
-    targets[0] = address(v3Strategy);
-    targets[1] = address(pancakeStrategy);
+    targets[0] = address(v3Proxy);
+    targets[1] = address(pancakeProxy);
     configManager.setWhitelistTargets(targets, true);
 
     vaultImplementation = new SharedVault();
@@ -99,16 +110,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 2, "should have 2 tracked LP positions (one per protocol)");
 
@@ -133,16 +144,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     uint256[4] memory idleAfter = vault.getIdleBalances();
     uint256[4] memory totalAfter = vault.getTotalBalances();
@@ -166,16 +177,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     address player = makeAddr("player4");
@@ -210,16 +221,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     assertEq(vault.getPositionCount(), 2, "two positions before withdraw");
 
@@ -249,16 +260,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
     vm.stopPrank();
 
     // Second depositor joins to ensure total supply > withdrawer's shares
@@ -304,16 +315,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
-    vault.execute(actions, new ISharedVault.PositionStrategyUpdate[](0));
+    vault.execute(actions);
 
     uint256[4] memory previewAfter = vault.previewWithdraw(vault.balanceOf(vaultOwner));
 
@@ -343,12 +354,12 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
+      address(v3Proxy),
       _uniV3MintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
     actions[1] = ISharedVault.Action(
-      address(pancakeStrategy),
+      address(pancakeProxy),
       _pancakeMintData(0.4 ether, 1200e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -361,6 +372,37 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     assertEq(vault2.getPositionCount(), 2, "vault created with 2 LP positions atomically");
     console.log("createVault with 2 strategies: position count =", vault2.getPositionCount());
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // Beacon upgrade — each proxy independently upgradeable
+  // =========================================================
+
+  function test_multiProtocol_beaconUpgrade_independentPerStrategy() public {
+    vm.startPrank(vaultOwner);
+
+    // Create positions via both proxies
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
+    actions[0] = ISharedVault.Action(address(v3Proxy), _uniV3MintData(0.4 ether, 1200e6), ISharedCommon.CallType.DELEGATECALL);
+    actions[1] = ISharedVault.Action(address(pancakeProxy), _pancakeMintData(0.4 ether, 1200e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 2, "two positions before upgrade");
+
+    // Upgrade only the V3 strategy — PancakeV3 proxy is unaffected
+    SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Beacon.setImplementation(address(newV3Impl));
+    assertEq(v3Beacon.implementation(), address(newV3Impl), "v3 beacon updated");
+
+    // Both proxies still work — ConfigManager whitelist unchanged
+    ISharedVault.Action[] memory actions2 = new ISharedVault.Action[](2);
+    actions2[0] = ISharedVault.Action(address(v3Proxy), _uniV3MintData(0.2 ether, 600e6), ISharedCommon.CallType.DELEGATECALL);
+    actions2[1] = ISharedVault.Action(address(pancakeProxy), _pancakeMintData(0.2 ether, 600e6), ISharedCommon.CallType.DELEGATECALL);
+    vault.execute(actions2);
+
+    assertEq(vault.getPositionCount(), 4, "two more positions after upgrade");
+    console.log("Multi-protocol beacon upgrade: v3 new impl =", address(newV3Impl));
 
     vm.stopPrank();
   }

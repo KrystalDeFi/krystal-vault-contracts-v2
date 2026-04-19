@@ -14,6 +14,8 @@ import type {
 import type {
   SharedAerodromeStrategy,
   SharedPancakeV3Strategy,
+  SharedStrategyBeacon,
+  SharedStrategyProxy,
   SharedV3Strategy,
 } from "../typechain-types/contracts/shared-vault/strategies";
 import type { SharedV4Strategy } from "../typechain-types/contracts/shared-vault/strategies/SharedV4Strategy.sol";
@@ -38,10 +40,21 @@ export interface SharedContracts {
   sharedConfigManager?: SharedConfigManager;
   sharedVaultAutomator?: SharedVaultAutomator;
   sharedVaultGateway?: SharedVaultGateway;
+  // Strategy implementations (logic only — not whitelisted directly)
   sharedV3Strategy?: SharedV3Strategy;
   sharedV4Strategy?: SharedV4Strategy;
   sharedAerodromeStrategies?: SharedAerodromeStrategy[];
   sharedPancakeV3Strategy?: SharedPancakeV3Strategy;
+  // Beacons — one per strategy type; call setImplementation() to upgrade
+  sharedV3StrategyBeacon?: SharedStrategyBeacon;
+  sharedV4StrategyBeacon?: SharedStrategyBeacon;
+  sharedAerodromeBeacons?: SharedStrategyBeacon[];
+  sharedPancakeV3StrategyBeacon?: SharedStrategyBeacon;
+  // Proxies — whitelisted in ConfigManager; address never changes on upgrade
+  sharedV3StrategyProxy?: SharedStrategyProxy;
+  sharedV4StrategyProxy?: SharedStrategyProxy;
+  sharedAerodromeProxies?: SharedStrategyProxy[];
+  sharedPancakeV3StrategyProxy?: SharedStrategyProxy;
 }
 
 export const deploy = async (
@@ -102,7 +115,7 @@ async function deployContracts(
     )) as SharedVaultFactory;
   }
 
-  // 4. Deploy SharedV3Strategy
+  // 4. Deploy SharedV3Strategy + beacon + proxy
   if (networkConfig.sharedV3Strategy?.enabled) {
     contracts.sharedV3Strategy = (await deployContract(
       ++step,
@@ -114,9 +127,33 @@ async function deployContracts(
       ["address", "address"],
       [networkConfig.v3UtilsAddress, lpFeeTakerAddress],
     )) as SharedV3Strategy;
+
+    const implAddr = existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target;
+    contracts.sharedV3StrategyBeacon = (await deployContract(
+      `${step}.beacon`,
+      networkConfig.sharedV3Strategy?.autoVerifyContract,
+      "SharedStrategyBeacon",
+      existingContract?.["sharedV3StrategyBeacon"],
+      "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
+      `${SALT ?? ""}-v3-beacon`,
+      ["address", "address"],
+      [implAddr, contractAdmin],
+    )) as SharedStrategyBeacon;
+
+    const beaconAddr = existingContract?.["sharedV3StrategyBeacon"] || contracts.sharedV3StrategyBeacon?.target;
+    contracts.sharedV3StrategyProxy = (await deployContract(
+      `${step}.proxy`,
+      networkConfig.sharedV3Strategy?.autoVerifyContract,
+      "SharedStrategyProxy",
+      existingContract?.["sharedV3StrategyProxy"],
+      "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
+      `${SALT ?? ""}-v3-proxy`,
+      ["address"],
+      [beaconAddr],
+    )) as SharedStrategyProxy;
   }
 
-  // 5. Deploy SharedV4Strategy
+  // 5. Deploy SharedV4Strategy + beacon + proxy
   if (networkConfig.sharedV4Strategy?.enabled) {
     contracts.sharedV4Strategy = (await deployContract(
       ++step,
@@ -128,20 +165,48 @@ async function deployContracts(
       ["address"],
       [networkConfig.v4UtilsAddress],
     )) as SharedV4Strategy;
+
+    const implAddr = existingContract?.["sharedV4Strategy"] || contracts.sharedV4Strategy?.target;
+    contracts.sharedV4StrategyBeacon = (await deployContract(
+      `${step}.beacon`,
+      networkConfig.sharedV4Strategy?.autoVerifyContract,
+      "SharedStrategyBeacon",
+      existingContract?.["sharedV4StrategyBeacon"],
+      "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
+      `${SALT ?? ""}-v4-beacon`,
+      ["address", "address"],
+      [implAddr, contractAdmin],
+    )) as SharedStrategyBeacon;
+
+    const beaconAddr = existingContract?.["sharedV4StrategyBeacon"] || contracts.sharedV4StrategyBeacon?.target;
+    contracts.sharedV4StrategyProxy = (await deployContract(
+      `${step}.proxy`,
+      networkConfig.sharedV4Strategy?.autoVerifyContract,
+      "SharedStrategyProxy",
+      existingContract?.["sharedV4StrategyProxy"],
+      "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
+      `${SALT ?? ""}-v4-proxy`,
+      ["address"],
+      [beaconAddr],
+    )) as SharedStrategyProxy;
   }
 
-  // 6. Deploy SharedAerodromeStrategy (one per NFPM)
+  // 6. Deploy SharedAerodromeStrategy (one per NFPM) + beacon + proxy per NFPM
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
     const aerodromeNfpms = networkConfig.aerodromeNfpmAddresses ?? [];
-    const existingAddresses: (string | undefined)[] = existingContract?.["sharedAerodromeStrategies"] ?? [];
+    const existingImpls: (string | undefined)[] = existingContract?.["sharedAerodromeStrategies"] ?? [];
+    const existingBeacons: (string | undefined)[] = existingContract?.["sharedAerodromeBeacons"] ?? [];
+    const existingProxies: (string | undefined)[] = existingContract?.["sharedAerodromeProxies"] ?? [];
     contracts.sharedAerodromeStrategies = [];
+    contracts.sharedAerodromeBeacons = [];
+    contracts.sharedAerodromeProxies = [];
 
     for (let i = 0; i < aerodromeNfpms.length; i++) {
       const strategy = (await deployContract(
         `${step}.${i + 1} >>`,
         networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
         "SharedAerodromeStrategy",
-        existingAddresses[i],
+        existingImpls[i],
         "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
         undefined,
         ["address", "address", "address", "address"],
@@ -153,11 +218,37 @@ async function deployContracts(
         ],
       )) as SharedAerodromeStrategy;
       contracts.sharedAerodromeStrategies.push(strategy);
+
+      const implAddr = existingImpls[i] || strategy.target;
+      const beacon = (await deployContract(
+        `${step}.${i + 1}.beacon >>`,
+        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+        "SharedStrategyBeacon",
+        existingBeacons[i],
+        "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
+        `${SALT ?? ""}-aero-${i}-beacon`,
+        ["address", "address"],
+        [implAddr, contractAdmin],
+      )) as SharedStrategyBeacon;
+      contracts.sharedAerodromeBeacons.push(beacon);
+
+      const beaconAddr = existingBeacons[i] || beacon.target;
+      const proxy = (await deployContract(
+        `${step}.${i + 1}.proxy >>`,
+        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+        "SharedStrategyProxy",
+        existingProxies[i],
+        "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
+        `${SALT ?? ""}-aero-${i}-proxy`,
+        ["address"],
+        [beaconAddr],
+      )) as SharedStrategyProxy;
+      contracts.sharedAerodromeProxies.push(proxy);
     }
     ++step;
   }
 
-  // 7. Deploy SharedPancakeV3Strategy
+  // 7. Deploy SharedPancakeV3Strategy + beacon + proxy
   if (networkConfig.sharedPancakeV3Strategy?.enabled) {
     contracts.sharedPancakeV3Strategy = (await deployContract(
       ++step,
@@ -174,6 +265,30 @@ async function deployContracts(
         existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
       ],
     )) as SharedPancakeV3Strategy;
+
+    const implAddr = existingContract?.["sharedPancakeV3Strategy"] || contracts.sharedPancakeV3Strategy?.target;
+    contracts.sharedPancakeV3StrategyBeacon = (await deployContract(
+      `${step}.beacon`,
+      networkConfig.sharedPancakeV3Strategy?.autoVerifyContract,
+      "SharedStrategyBeacon",
+      existingContract?.["sharedPancakeV3StrategyBeacon"],
+      "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
+      `${SALT ?? ""}-pancake-beacon`,
+      ["address", "address"],
+      [implAddr, contractAdmin],
+    )) as SharedStrategyBeacon;
+
+    const beaconAddr = existingContract?.["sharedPancakeV3StrategyBeacon"] || contracts.sharedPancakeV3StrategyBeacon?.target;
+    contracts.sharedPancakeV3StrategyProxy = (await deployContract(
+      `${step}.proxy`,
+      networkConfig.sharedPancakeV3Strategy?.autoVerifyContract,
+      "SharedStrategyProxy",
+      existingContract?.["sharedPancakeV3StrategyProxy"],
+      "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
+      `${SALT ?? ""}-pancake-proxy`,
+      ["address"],
+      [beaconAddr],
+    )) as SharedStrategyProxy;
   }
 
   // 8. Deploy SharedVaultAutomator
@@ -228,13 +343,15 @@ async function deployContracts(
 
   // Initialize SharedConfigManager
   if (networkConfig.sharedConfigManager?.enabled) {
-    const deployedAerodromeStrategies = (contracts.sharedAerodromeStrategies ?? []).map((s) => s.target);
+    // Whitelist proxy addresses — never the raw implementations.
+    // On upgrade: beacon.setImplementation(newImpl) — no re-whitelisting needed.
+    const deployedAerodromeProxies = (contracts.sharedAerodromeProxies ?? []).map((p) => p.target);
 
     const whitelistedTargets = [
-      existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target,
-      existingContract?.["sharedV4Strategy"] || contracts.sharedV4Strategy?.target,
-      ...deployedAerodromeStrategies,
-      existingContract?.["sharedPancakeV3Strategy"] || contracts.sharedPancakeV3Strategy?.target,
+      existingContract?.["sharedV3StrategyProxy"] || contracts.sharedV3StrategyProxy?.target,
+      existingContract?.["sharedV4StrategyProxy"] || contracts.sharedV4StrategyProxy?.target,
+      ...deployedAerodromeProxies,
+      existingContract?.["sharedPancakeV3StrategyProxy"] || contracts.sharedPancakeV3StrategyProxy?.target,
     ].filter(Boolean) as string[];
 
     const whitelistedCallers = [

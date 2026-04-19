@@ -429,28 +429,6 @@
         "type": "tuple[]"
       },
       {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "nfpm",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct ISharedVault.PositionStrategyUpdate[]",
-        "name": "strategyUpdates",
-        "type": "tuple[]"
-      },
-      {
         "internalType": "bytes",
         "name": "abiEncodedAgentAllowance",
         "type": "bytes"
@@ -493,28 +471,6 @@
         ],
         "internalType": "struct ISharedVault.Action[]",
         "name": "actions",
-        "type": "tuple[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "nfpm",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "strategy",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct ISharedVault.PositionStrategyUpdate[]",
-        "name": "strategyUpdates",
         "type": "tuple[]"
       },
       {
