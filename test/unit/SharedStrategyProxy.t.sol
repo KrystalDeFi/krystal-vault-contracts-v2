@@ -61,6 +61,42 @@ contract MockERC20Sweep {
   }
 }
 
+/// @dev Minimal ERC721 for sweep tests.
+contract MockERC721Sweep {
+  mapping(uint256 => address) private _owners;
+
+  function mint(address to, uint256 tokenId) external {
+    _owners[tokenId] = to;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    return _owners[tokenId];
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(_owners[tokenId] == from, "Not owner");
+    _owners[tokenId] = to;
+  }
+}
+
+/// @dev Minimal ERC1155 for sweep tests.
+contract MockERC1155Sweep {
+  mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+  function mint(address to, uint256 tokenId, uint256 amount) external {
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes calldata) external {
+    require(balanceOf[from][tokenId] >= amount, "Insufficient");
+    balanceOf[from][tokenId] -= amount;
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function setApprovalForAll(address, bool) external {}
+  function isApprovedForAll(address, address) external pure returns (bool) { return false; }
+}
+
 /// @dev Cast-helper so tests can call mock functions through the proxy address.
 interface IMockImpl {
   function getValue() external view returns (uint256);
@@ -204,6 +240,73 @@ contract SharedStrategyProxyTest is TestCommon {
     vm.prank(NON_OWNER);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     proxy.sweepERC20(tokens, amounts);
+  }
+
+  // ========== sweepERC721 — gated to beacon.owner() ==========
+
+  function test_sweepERC721_byBeaconOwner() public {
+    MockERC721Sweep nft = new MockERC721Sweep();
+    nft.mint(address(proxy), 1);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 1;
+
+    vm.prank(OWNER);
+    proxy.sweepERC721(tokens, tokenIds);
+
+    assertEq(nft.ownerOf(1), OWNER);
+  }
+
+  function test_sweepERC721_revertsForNonOwner() public {
+    MockERC721Sweep nft = new MockERC721Sweep();
+    nft.mint(address(proxy), 1);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 1;
+
+    vm.prank(NON_OWNER);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    proxy.sweepERC721(tokens, tokenIds);
+  }
+
+  // ========== sweepERC1155 — gated to beacon.owner() ==========
+
+  function test_sweepERC1155_byBeaconOwner() public {
+    MockERC1155Sweep token1155 = new MockERC1155Sweep();
+    token1155.mint(address(proxy), 5, 100);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 5;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100;
+
+    vm.prank(OWNER);
+    proxy.sweepERC1155(tokens, tokenIds, amounts);
+
+    assertEq(token1155.balanceOf(OWNER, 5), 100);
+    assertEq(token1155.balanceOf(address(proxy), 5), 0);
+  }
+
+  function test_sweepERC1155_revertsForNonOwner() public {
+    MockERC1155Sweep token1155 = new MockERC1155Sweep();
+    token1155.mint(address(proxy), 5, 100);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 5;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100;
+
+    vm.prank(NON_OWNER);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    proxy.sweepERC1155(tokens, tokenIds, amounts);
   }
 
   // ========== Permission tracks beacon ownership dynamically ==========

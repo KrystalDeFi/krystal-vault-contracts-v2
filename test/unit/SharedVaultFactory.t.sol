@@ -12,6 +12,7 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Withdrawable } from "../../contracts/common/Withdrawable.sol";
 
 /// @dev Mock strategy that returns a PositionChange so vault execution is observable via getPositionCount()
 contract MockFactoryStrategy is ISharedStrategy {
@@ -556,4 +557,172 @@ contract SharedVaultFactoryTest is TestCommon {
     factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, actions);
     vm.stopPrank();
   }
+
+  // ==================== setVaultImplementation zero-address ====================
+
+  function test_setVaultImplementation_fail_zero() public {
+    vm.startPrank(FACTORY_OWNER);
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    factory.setVaultImplementation(address(0));
+    vm.stopPrank();
+  }
+
+  // ==================== Sweep tests (factory inherits Withdrawable) ====================
+
+  function test_sweepNativeToken_success() public {
+    vm.deal(address(factory), 1 ether);
+    uint256 before = FACTORY_OWNER.balance;
+
+    vm.prank(FACTORY_OWNER);
+    factory.sweepNativeToken(1 ether);
+
+    assertEq(FACTORY_OWNER.balance, before + 1 ether);
+    assertEq(address(factory).balance, 0);
+  }
+
+  function test_sweepNativeToken_partialAmount() public {
+    vm.deal(address(factory), 0.5 ether);
+    uint256 before = FACTORY_OWNER.balance;
+
+    vm.prank(FACTORY_OWNER);
+    factory.sweepNativeToken(1 ether); // request more than balance — sweeps available
+
+    assertEq(FACTORY_OWNER.balance, before + 0.5 ether);
+    assertEq(address(factory).balance, 0);
+  }
+
+  function test_sweepNativeToken_revertsForNonOwner() public {
+    vm.deal(address(factory), 1 ether);
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.sweepNativeToken(1 ether);
+  }
+
+  function test_sweepERC20_success() public {
+    tokenA.mint(address(factory), 1000e18);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(tokenA);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 1000e18;
+
+    vm.prank(FACTORY_OWNER);
+    factory.sweepERC20(tokens, amounts);
+
+    assertEq(tokenA.balanceOf(FACTORY_OWNER), 1000e18);
+    assertEq(tokenA.balanceOf(address(factory)), 0);
+  }
+
+  function test_sweepERC20_revertsForNonOwner() public {
+    tokenA.mint(address(factory), 1000e18);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(tokenA);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 1000e18;
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.sweepERC20(tokens, amounts);
+  }
+
+  function test_sweepERC721_success() public {
+    MockFactoryERC721 nft = new MockFactoryERC721();
+    nft.mint(address(factory), 42);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 42;
+
+    vm.prank(FACTORY_OWNER);
+    factory.sweepERC721(tokens, tokenIds);
+
+    assertEq(nft.ownerOf(42), FACTORY_OWNER);
+  }
+
+  function test_sweepERC721_revertsForNonOwner() public {
+    MockFactoryERC721 nft = new MockFactoryERC721();
+    nft.mint(address(factory), 42);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 42;
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.sweepERC721(tokens, tokenIds);
+  }
+
+  function test_sweepERC1155_success() public {
+    MockFactoryERC1155 token1155 = new MockFactoryERC1155();
+    token1155.mint(address(factory), 1, 100);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 1;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100;
+
+    vm.prank(FACTORY_OWNER);
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+
+    assertEq(token1155.balanceOf(FACTORY_OWNER, 1), 100);
+    assertEq(token1155.balanceOf(address(factory), 1), 0);
+  }
+
+  function test_sweepERC1155_revertsForNonOwner() public {
+    MockFactoryERC1155 token1155 = new MockFactoryERC1155();
+    token1155.mint(address(factory), 1, 100);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 1;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100;
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.sweepERC1155(tokens, tokenIds, amounts);
+  }
+}
+
+// ─── Minimal token mocks for sweep tests ──────────────────────────────────
+
+contract MockFactoryERC721 {
+  mapping(uint256 => address) private _owners;
+
+  function mint(address to, uint256 tokenId) external {
+    _owners[tokenId] = to;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    return _owners[tokenId];
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(_owners[tokenId] == from, "Not owner");
+    _owners[tokenId] = to;
+  }
+}
+
+contract MockFactoryERC1155 {
+  mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+  function mint(address to, uint256 tokenId, uint256 amount) external {
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes calldata) external {
+    require(balanceOf[from][tokenId] >= amount, "Insufficient");
+    balanceOf[from][tokenId] -= amount;
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function setApprovalForAll(address, bool) external {}
+  function isApprovedForAll(address, address) external pure returns (bool) { return false; }
 }

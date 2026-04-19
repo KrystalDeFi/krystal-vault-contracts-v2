@@ -686,6 +686,127 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.stopPrank();
   }
 
+  // ============ receive() + sweep (automator inherits Withdrawable) ============
+
+  function test_receive_acceptsETH() public {
+    vm.deal(address(this), 1 ether);
+    (bool ok, ) = address(automator).call{ value: 1 ether }("");
+    assertTrue(ok);
+    assertEq(address(automator).balance, 1 ether);
+  }
+
+  function test_sweepNativeToken_byAdmin() public {
+    vm.deal(address(automator), 1 ether);
+    uint256 before = ADMIN.balance;
+
+    vm.prank(ADMIN);
+    automator.sweepNativeToken(1 ether);
+
+    assertEq(ADMIN.balance, before + 1 ether);
+    assertEq(address(automator).balance, 0);
+  }
+
+  function test_sweepNativeToken_revertsForNonAdmin() public {
+    vm.deal(address(automator), 1 ether);
+
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepNativeToken(1 ether);
+  }
+
+  function test_sweepERC20_byAdmin() public {
+    MockERC20 token = new MockERC20("Stuck", "STK");
+    token.mint(address(automator), 500e18);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 500e18;
+
+    vm.prank(ADMIN);
+    automator.sweepERC20(tokens, amounts);
+
+    assertEq(token.balanceOf(ADMIN), 500e18);
+    assertEq(token.balanceOf(address(automator)), 0);
+  }
+
+  function test_sweepERC20_revertsForNonAdmin() public {
+    MockERC20 token = new MockERC20("Stuck", "STK");
+    token.mint(address(automator), 500e18);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 500e18;
+
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepERC20(tokens, amounts);
+  }
+
+  function test_sweepERC721_byAdmin() public {
+    MockAutomatorERC721 nft = new MockAutomatorERC721();
+    nft.mint(address(automator), 7);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 7;
+
+    vm.prank(ADMIN);
+    automator.sweepERC721(tokens, tokenIds);
+
+    assertEq(nft.ownerOf(7), ADMIN);
+  }
+
+  function test_sweepERC721_revertsForNonAdmin() public {
+    MockAutomatorERC721 nft = new MockAutomatorERC721();
+    nft.mint(address(automator), 7);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 7;
+
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepERC721(tokens, tokenIds);
+  }
+
+  function test_sweepERC1155_byAdmin() public {
+    MockAutomatorERC1155 token1155 = new MockAutomatorERC1155();
+    token1155.mint(address(automator), 3, 200);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 3;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 200;
+
+    vm.prank(ADMIN);
+    automator.sweepERC1155(tokens, tokenIds, amounts);
+
+    assertEq(token1155.balanceOf(ADMIN, 3), 200);
+    assertEq(token1155.balanceOf(address(automator), 3), 0);
+  }
+
+  function test_sweepERC1155_revertsForNonAdmin() public {
+    MockAutomatorERC1155 token1155 = new MockAutomatorERC1155();
+    token1155.mint(address(automator), 3, 200);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(token1155);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 3;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 200;
+
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
   function test_multisig_cancelOrder_success() public {
     (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
 
@@ -718,4 +839,40 @@ contract SharedVaultAutomatorTest is TestCommon {
       sig
     );
   }
+}
+
+// ─── Minimal token mocks for sweep tests ──────────────────────────────────
+
+contract MockAutomatorERC721 {
+  mapping(uint256 => address) private _owners;
+
+  function mint(address to, uint256 tokenId) external {
+    _owners[tokenId] = to;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    return _owners[tokenId];
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(_owners[tokenId] == from, "Not owner");
+    _owners[tokenId] = to;
+  }
+}
+
+contract MockAutomatorERC1155 {
+  mapping(address => mapping(uint256 => uint256)) public balanceOf;
+
+  function mint(address to, uint256 tokenId, uint256 amount) external {
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId, uint256 amount, bytes calldata) external {
+    require(balanceOf[from][tokenId] >= amount, "Insufficient");
+    balanceOf[from][tokenId] -= amount;
+    balanceOf[to][tokenId] += amount;
+  }
+
+  function setApprovalForAll(address, bool) external {}
+  function isApprovedForAll(address, address) external pure returns (bool) { return false; }
 }
