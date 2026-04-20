@@ -42,15 +42,15 @@ export interface SharedContracts {
   // Strategy implementations (logic only — not whitelisted directly)
   sharedV3Strategy?: SharedV3Strategy;
   sharedV4Strategy?: SharedV4Strategy;
-  sharedAerodromeStrategies?: SharedAerodromeStrategy[];
+  sharedAerodromeStrategy?: SharedAerodromeStrategy;
   // Beacons — one per strategy type; call setImplementation() to upgrade
   sharedV3StrategyBeacon?: SharedStrategyBeacon;
   sharedV4StrategyBeacon?: SharedStrategyBeacon;
-  sharedAerodromeBeacons?: SharedStrategyBeacon[];
+  sharedAerodromeBeacon?: SharedStrategyBeacon;
   // Proxies — whitelisted in ConfigManager; address never changes on upgrade
   sharedV3StrategyProxy?: SharedStrategyProxy;
   sharedV4StrategyProxy?: SharedStrategyProxy;
-  sharedAerodromeProxies?: SharedStrategyProxy[];
+  sharedAerodromeProxy?: SharedStrategyProxy;
 }
 
 export const deploy = async (
@@ -187,61 +187,46 @@ async function deployContracts(
     )) as SharedStrategyProxy;
   }
 
-  // 6. Deploy SharedAerodromeStrategy (one per NFPM) + beacon + proxy per NFPM
+  // 6. Deploy SharedAerodromeStrategy + beacon + proxy (single; nfpm passed per-call, validated by ConfigManager)
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
-    const aerodromeNfpms = networkConfig.aerodromeNfpmAddresses ?? [];
-    const existingImpls: (string | undefined)[] = existingContract?.["sharedAerodromeStrategies"] ?? [];
-    const existingBeacons: (string | undefined)[] = existingContract?.["sharedAerodromeBeacons"] ?? [];
-    const existingProxies: (string | undefined)[] = existingContract?.["sharedAerodromeProxies"] ?? [];
-    contracts.sharedAerodromeStrategies = [];
-    contracts.sharedAerodromeBeacons = [];
-    contracts.sharedAerodromeProxies = [];
+    contracts.sharedAerodromeStrategy = (await deployContract(
+      ++step,
+      networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+      "SharedAerodromeStrategy",
+      existingContract?.["sharedAerodromeStrategy"],
+      "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
+      undefined,
+      ["address", "address", "address"],
+      [
+        networkConfig.v3UtilsAddress,
+        lpFeeTakerAddress,
+        existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
+      ],
+    )) as SharedAerodromeStrategy;
 
-    for (let i = 0; i < aerodromeNfpms.length; i++) {
-      const strategy = (await deployContract(
-        `${step}.${i + 1} >>`,
-        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
-        "SharedAerodromeStrategy",
-        existingImpls[i],
-        "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
-        undefined,
-        ["address", "address", "address", "address"],
-        [
-          networkConfig.v3UtilsAddress,
-          lpFeeTakerAddress,
-          aerodromeNfpms[i],
-          existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
-        ],
-      )) as SharedAerodromeStrategy;
-      contracts.sharedAerodromeStrategies.push(strategy);
+    const implAddr = existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target;
+    contracts.sharedAerodromeBeacon = (await deployContract(
+      `${step}.beacon`,
+      networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+      "SharedStrategyBeacon",
+      existingContract?.["sharedAerodromeBeacon"],
+      "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
+      `${SALT ?? ""}-aero-b`,
+      ["address", "address"],
+      [implAddr, contractAdmin],
+    )) as SharedStrategyBeacon;
 
-      const implAddr = existingImpls[i] || strategy.target;
-      const beacon = (await deployContract(
-        `${step}.${i + 1}.beacon >>`,
-        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
-        "SharedStrategyBeacon",
-        existingBeacons[i],
-        "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
-        `${SALT ?? ""}-aero-${i}-b`,
-        ["address", "address"],
-        [implAddr, contractAdmin],
-      )) as SharedStrategyBeacon;
-      contracts.sharedAerodromeBeacons.push(beacon);
-
-      const beaconAddr = existingBeacons[i] || beacon.target;
-      const proxy = (await deployContract(
-        `${step}.${i + 1}.proxy >>`,
-        networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
-        "SharedStrategyProxy",
-        existingProxies[i],
-        "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
-        `${SALT ?? ""}-aero-${i}-p`,
-        ["address"],
-        [beaconAddr],
-      )) as SharedStrategyProxy;
-      contracts.sharedAerodromeProxies.push(proxy);
-    }
-    ++step;
+    const beaconAddr = existingContract?.["sharedAerodromeBeacon"] || contracts.sharedAerodromeBeacon?.target;
+    contracts.sharedAerodromeProxy = (await deployContract(
+      `${step}.proxy`,
+      networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
+      "SharedStrategyProxy",
+      existingContract?.["sharedAerodromeProxy"],
+      "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
+      `${SALT ?? ""}-aero-p`,
+      ["address"],
+      [beaconAddr],
+    )) as SharedStrategyProxy;
   }
 
   // 7. Deploy SharedVaultAutomator
@@ -300,12 +285,10 @@ async function deployContracts(
   if (networkConfig.sharedConfigManager?.enabled) {
     // Whitelist proxy addresses — never the raw implementations.
     // On upgrade: beacon.setImplementation(newImpl) — no re-whitelisting needed.
-    const deployedAerodromeProxies = (contracts.sharedAerodromeProxies ?? []).map((p) => p.target);
-
     const whitelistedTargets = [
       existingContract?.["sharedV3StrategyProxy"] || contracts.sharedV3StrategyProxy?.target,
       existingContract?.["sharedV4StrategyProxy"] || contracts.sharedV4StrategyProxy?.target,
-      ...deployedAerodromeProxies,
+      existingContract?.["sharedAerodromeProxy"] || contracts.sharedAerodromeProxy?.target,
     ].filter(Boolean) as string[];
 
     const whitelistedCallers = [

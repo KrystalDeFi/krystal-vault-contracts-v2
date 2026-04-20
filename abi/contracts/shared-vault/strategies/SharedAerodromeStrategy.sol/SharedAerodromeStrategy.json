@@ -13,11 +13,6 @@
       },
       {
         "internalType": "address",
-        "name": "_nfpm",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_configManager",
         "type": "address"
       }
@@ -292,19 +287,6 @@
   {
     "inputs": [],
     "name": "lpFeeTaker",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "nfpm",
     "outputs": [
       {
         "internalType": "address",

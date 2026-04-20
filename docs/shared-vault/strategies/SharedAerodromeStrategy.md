@@ -18,12 +18,6 @@ address v3utils
 address lpFeeTaker
 ```
 
-### nfpm
-
-```solidity
-address nfpm
-```
-
 ### configManager
 
 ```solidity
@@ -43,7 +37,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) public
+constructor(address _v3utils, address _lpFeeTaker, address _configManager) public
 ```
 
 ### execute
@@ -176,7 +170,7 @@ _Called via delegatecall from SharedVault.deposit so address(this) is the vault.
 ### _getPool
 
 ```solidity
-function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address)
+function _getPool(address _nfpm, address token0, address token1, int24 tickSpacing) internal view returns (address)
 ```
 
 ### _validateVaultToken

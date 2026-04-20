@@ -35,7 +35,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
-  address public immutable nfpm;
   ISharedConfigManager public immutable configManager;
 
   enum OperationType {
@@ -44,14 +43,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     SAFE_TRANSFER_NFT
   }
 
-  constructor(address _v3utils, address _lpFeeTaker, address _nfpm, address _configManager) {
+  constructor(address _v3utils, address _lpFeeTaker, address _configManager) {
     require(
-      _v3utils != address(0) && _lpFeeTaker != address(0) && _nfpm != address(0) && _configManager != address(0),
+      _v3utils != address(0) && _lpFeeTaker != address(0) && _configManager != address(0),
       ISharedCommon.ZeroAddress()
     );
     v3utils = _v3utils;
     lpFeeTaker = _lpFeeTaker;
-    nfpm = _nfpm;
     configManager = ISharedConfigManager(_configManager);
   }
 
@@ -162,7 +160,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     int24 tickSpacing,
     uint16 vaultOwnerFeeBasisPoint
   ) internal {
-    address pool = _getPool(token0, token1, tickSpacing);
+    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
     ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
     SharedNfpmProportionalExit.decreaseLiquidityProportional(
       _nfpm,
@@ -263,7 +261,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (liquidity == 0 && tokensOwed0 == 0 && tokensOwed1 == 0) return (0, 0);
 
     if (liquidity > 0) {
-      address pool = _getPool(token0, token1, tickSpacing);
+      address pool = _getPool(_nfpm, token0, token1, tickSpacing);
       (uint160 sqrtPriceX96, , , , , ) = ICLPool(pool).slot0();
       (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
         sqrtPriceX96,
@@ -311,8 +309,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     );
   }
 
-  function _getPool(address token0, address token1, int24 tickSpacing) internal view returns (address) {
-    address factory = INonfungiblePositionManager(nfpm).factory();
+  function _getPool(address _nfpm, address token0, address token1, int24 tickSpacing) internal view returns (address) {
+    address factory = INonfungiblePositionManager(_nfpm).factory();
     return ICLFactory(factory).getPool(token0, token1, tickSpacing);
   }
 
@@ -342,7 +340,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   function _requireAerodromeNfpm(address _nfpm) private view {
-    require(_nfpm == nfpm, ISharedCommon.InvalidNfpm(_nfpm));
     SharedStrategyGuards.requireWhitelistedNfpm(configManager, _nfpm);
   }
 }
