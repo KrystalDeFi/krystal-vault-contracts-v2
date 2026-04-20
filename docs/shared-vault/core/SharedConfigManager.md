@@ -46,6 +46,15 @@ uint16 platformFeeBasisPoint
 
 Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
 
+### maxPositions
+
+```solidity
+uint16 maxPositions
+```
+
+Maximum number of LP positions a vault may hold simultaneously.
+        Limits the per-deposit and per-withdraw loop cost. Default: 20.
+
 ### initialize
 
 ```solidity
@@ -116,5 +125,11 @@ function setFeeRecipient(address newFeeRecipient) external
 
 ```solidity
 function setPlatformFeeBasisPoint(uint16 basisPoints) external
+```
+
+### setMaxPositions
+
+```solidity
+function setMaxPositions(uint16 _maxPositions) external
 ```
 

@@ -1925,4 +1925,109 @@ contract SharedVaultTest is TestCommon {
     // Swap was also successful
     assertGt(tokenB.balanceOf(address(vault)), 0, "tokenB balance increased from swap");
   }
+
+  // ==================== Position Limit Tests ====================
+
+  // Helper: add a unique position via CALL_WITH_POSITIONS using directCreator.
+  // tokenId is used to make each (nfpm, tokenId) pair unique.
+  function _addPositionViaDirectCreator(uint256 tokenId) internal {
+    address nfpm = makeAddr("nfpm");
+    bytes memory cwpData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (nfpm, tokenId, address(tokenA), address(tokenB))
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+  }
+
+  function test_maxPositions_defaultIs20() public view {
+    assertEq(configManager.maxPositions(), 20);
+  }
+
+  function test_maxPositions_revertsWhenLimitReached() public {
+    // Set limit to 2, add 2 positions, then verify the 3rd reverts
+    configManager.setMaxPositions(2);
+
+    _addPositionViaDirectCreator(1);
+    _addPositionViaDirectCreator(2);
+    assertEq(vault.getPositionCount(), 2);
+
+    address nfpm = makeAddr("nfpm");
+    bytes memory cwpData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (nfpm, 3, address(tokenA), address(tokenB))
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.TooManyPositions.selector);
+    vault.execute(actions);
+  }
+
+  function test_maxPositions_allowsExactlyLimitPositions() public {
+    configManager.setMaxPositions(3);
+
+    _addPositionViaDirectCreator(1);
+    _addPositionViaDirectCreator(2);
+    _addPositionViaDirectCreator(3);
+
+    assertEq(vault.getPositionCount(), 3);
+  }
+
+  function test_maxPositions_raisingLimitAllowsMorePositions() public {
+    configManager.setMaxPositions(1);
+    _addPositionViaDirectCreator(1);
+    assertEq(vault.getPositionCount(), 1);
+
+    // Raise the limit
+    configManager.setMaxPositions(2);
+    _addPositionViaDirectCreator(2);
+    assertEq(vault.getPositionCount(), 2);
+  }
+
+  function test_maxPositions_loweringLimitDoesNotBlockWithdraw() public {
+    // Add 3 positions, then lower limit to 1 — withdrawal must still work
+    configManager.setMaxPositions(3);
+    _addPositionViaDirectCreator(1);
+    _addPositionViaDirectCreator(2);
+    _addPositionViaDirectCreator(3);
+    assertEq(vault.getPositionCount(), 3);
+
+    configManager.setMaxPositions(1);
+
+    // Full withdrawal succeeds even though position count (3) exceeds new limit (1)
+    uint256 shares = vault.balanceOf(VAULT_OWNER);
+    uint256[4] memory minOut;
+    vm.prank(VAULT_OWNER);
+    vault.withdraw(shares, minOut, false);
+
+    // exitProportional on MockDirectPositionCreator returns empty changes, so positions stay
+    // tracked (no removal) — the point is withdraw doesn't revert
+    assertEq(vault.totalSupply(), 0);
+  }
+
+  function test_maxPositions_duplicatePositionDoesNotConsumeSlot() public {
+    // Adding the same (nfpm, tokenId) twice must not count as two positions
+    configManager.setMaxPositions(1);
+
+    address nfpm = makeAddr("nfpm");
+    bytes memory cwpData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (nfpm, 99, address(tokenA), address(tokenB))
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 1);
+
+    // Same (nfpm, tokenId) again — _addPosition returns early, no TooManyPositions
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 1);
+  }
 }

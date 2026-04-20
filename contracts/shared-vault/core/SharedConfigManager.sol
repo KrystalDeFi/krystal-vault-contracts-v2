@@ -15,6 +15,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   bool public override isVaultPaused = false;
   address public override feeRecipient;
   uint16 public override platformFeeBasisPoint;
+  uint16 public override maxPositions = 20;
 
   function initialize(
     address _owner,
@@ -142,5 +143,11 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   function setPlatformFeeBasisPoint(uint16 basisPoints) external override onlyOwner {
     require(basisPoints <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     platformFeeBasisPoint = basisPoints;
+  }
+
+  function setMaxPositions(uint16 _maxPositions) external override onlyOwner {
+    require(_maxPositions > 0, ISharedCommon.InvalidAmount());
+    maxPositions = _maxPositions;
+    emit MaxPositionsUpdated(_maxPositions);
   }
 }

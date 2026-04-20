@@ -38,6 +38,12 @@ event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted)
 event VaultPausedUpdated(bool isVaultPaused)
 ```
 
+### MaxPositionsUpdated
+
+```solidity
+event MaxPositionsUpdated(uint16 maxPositions)
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -122,5 +128,20 @@ function setVaultPaused(bool _isVaultPaused) external
 
 ```solidity
 function setFeeRecipient(address newFeeRecipient) external
+```
+
+### maxPositions
+
+```solidity
+function maxPositions() external view returns (uint16)
+```
+
+Maximum number of LP positions a vault may hold simultaneously.
+        Limits the per-deposit and per-withdraw loop cost. Default: 20.
+
+### setMaxPositions
+
+```solidity
+function setMaxPositions(uint16 _maxPositions) external
 ```
 

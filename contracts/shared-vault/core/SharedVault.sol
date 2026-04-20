@@ -777,6 +777,7 @@ contract SharedVault is
     if (positionIndex[key] != 0) return; // already tracked
 
     require(configManager.isWhitelistedNfpm(nfpm), InvalidNfpm(nfpm));
+    require(positions.length < configManager.maxPositions(), TooManyPositions());
     positions.push(Position(strategy, nfpm, tokenId, token0, token1));
     positionIndex[key] = positions.length; // index+1
   }

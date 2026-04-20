@@ -322,6 +322,11 @@
   },
   {
     "inputs": [],
+    "name": "TooManyPositions",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TransferFailed",
     "type": "error"
   },

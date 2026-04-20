@@ -175,3 +175,9 @@ error InvalidNfpm(address nfpm)
 error InvalidSwapRouter(address swapRouter)
 ```
 
+### TooManyPositions
+
+```solidity
+error TooManyPositions()
+```
+

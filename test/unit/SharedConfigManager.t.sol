@@ -384,4 +384,60 @@ contract SharedConfigManagerTest is TestCommon {
     vm.expectRevert();
     configManager.setPlatformFeeBasisPoint(500);
   }
+
+  // ========== setMaxPositions ==========
+
+  function test_initialize_defaultMaxPositionsIs20() public view {
+    assertEq(configManager.maxPositions(), 20);
+  }
+
+  function test_setMaxPositions_updatesValue() public {
+    vm.prank(OWNER);
+    configManager.setMaxPositions(5);
+
+    assertEq(configManager.maxPositions(), 5);
+  }
+
+  function test_setMaxPositions_allowsOne() public {
+    vm.prank(OWNER);
+    configManager.setMaxPositions(1);
+
+    assertEq(configManager.maxPositions(), 1);
+  }
+
+  function test_setMaxPositions_allowsLargeValue() public {
+    vm.prank(OWNER);
+    configManager.setMaxPositions(type(uint16).max);
+
+    assertEq(configManager.maxPositions(), type(uint16).max);
+  }
+
+  function test_setMaxPositions_revertsOnZero() public {
+    vm.prank(OWNER);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    configManager.setMaxPositions(0);
+  }
+
+  function test_setMaxPositions_revertsForNonOwner() public {
+    vm.prank(NON_OWNER);
+    vm.expectRevert();
+    configManager.setMaxPositions(5);
+  }
+
+  function test_setMaxPositions_emitsEvent() public {
+    vm.prank(OWNER);
+    vm.expectEmit(false, false, false, true, address(configManager));
+    emit ISharedConfigManager.MaxPositionsUpdated(5);
+    configManager.setMaxPositions(5);
+  }
+
+  function test_setMaxPositions_canBeUpdatedMultipleTimes() public {
+    vm.startPrank(OWNER);
+    configManager.setMaxPositions(10);
+    assertEq(configManager.maxPositions(), 10);
+
+    configManager.setMaxPositions(3);
+    assertEq(configManager.maxPositions(), 3);
+    vm.stopPrank();
+  }
 }

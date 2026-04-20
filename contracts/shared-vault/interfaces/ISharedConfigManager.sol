@@ -8,6 +8,7 @@ interface ISharedConfigManager {
   event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted);
   event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted);
   event VaultPausedUpdated(bool isVaultPaused);
+  event MaxPositionsUpdated(uint16 maxPositions);
 
   function isVaultPaused() external view returns (bool);
 
@@ -41,4 +42,10 @@ interface ISharedConfigManager {
   function setVaultPaused(bool _isVaultPaused) external;
 
   function setFeeRecipient(address newFeeRecipient) external;
+
+  /// @notice Maximum number of LP positions a vault may hold simultaneously.
+  ///         Limits the per-deposit and per-withdraw loop cost. Default: 20.
+  function maxPositions() external view returns (uint16);
+
+  function setMaxPositions(uint16 _maxPositions) external;
 }

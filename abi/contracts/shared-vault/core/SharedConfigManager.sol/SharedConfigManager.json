@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "InvalidAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidFeeBasisPoint",
     "type": "error"
   },
@@ -71,6 +76,19 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "maxPositions",
+        "type": "uint16"
+      }
+    ],
+    "name": "MaxPositionsUpdated",
     "type": "event"
   },
   {
@@ -323,6 +341,19 @@
   },
   {
     "inputs": [],
+    "name": "maxPositions",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "owner",
     "outputs": [
       {
@@ -363,6 +394,19 @@
       }
     ],
     "name": "setFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "_maxPositions",
+        "type": "uint16"
+      }
+    ],
+    "name": "setMaxPositions",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
