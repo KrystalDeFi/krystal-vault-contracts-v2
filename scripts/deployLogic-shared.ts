@@ -135,7 +135,7 @@ async function deployContracts(
       "SharedStrategyBeacon",
       existingContract?.["sharedV3StrategyBeacon"],
       "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
-      `${SALT ?? ""}-v3-beacon`,
+      `${SALT ?? ""}-v3-b`,
       ["address", "address"],
       [implAddr, contractAdmin],
     )) as SharedStrategyBeacon;
@@ -147,7 +147,7 @@ async function deployContracts(
       "SharedStrategyProxy",
       existingContract?.["sharedV3StrategyProxy"],
       "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
-      `${SALT ?? ""}-v3-proxy`,
+      `${SALT ?? ""}-v3-p`,
       ["address"],
       [beaconAddr],
     )) as SharedStrategyProxy;
@@ -173,7 +173,7 @@ async function deployContracts(
       "SharedStrategyBeacon",
       existingContract?.["sharedV4StrategyBeacon"],
       "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
-      `${SALT ?? ""}-v4-beacon`,
+      `${SALT ?? ""}-v4-b`,
       ["address", "address"],
       [implAddr, contractAdmin],
     )) as SharedStrategyBeacon;
@@ -185,7 +185,7 @@ async function deployContracts(
       "SharedStrategyProxy",
       existingContract?.["sharedV4StrategyProxy"],
       "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
-      `${SALT ?? ""}-v4-proxy`,
+      `${SALT ?? ""}-v4-p`,
       ["address"],
       [beaconAddr],
     )) as SharedStrategyProxy;
@@ -226,7 +226,7 @@ async function deployContracts(
         "SharedStrategyBeacon",
         existingBeacons[i],
         "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
-        `${SALT ?? ""}-aero-${i}-beacon`,
+        `${SALT ?? ""}-aero-${i}-b`,
         ["address", "address"],
         [implAddr, contractAdmin],
       )) as SharedStrategyBeacon;
@@ -239,7 +239,7 @@ async function deployContracts(
         "SharedStrategyProxy",
         existingProxies[i],
         "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
-        `${SALT ?? ""}-aero-${i}-proxy`,
+        `${SALT ?? ""}-aero-${i}-p`,
         ["address"],
         [beaconAddr],
       )) as SharedStrategyProxy;
@@ -273,7 +273,7 @@ async function deployContracts(
       "SharedStrategyBeacon",
       existingContract?.["sharedPancakeV3StrategyBeacon"],
       "contracts/shared-vault/strategies/SharedStrategyBeacon.sol:SharedStrategyBeacon",
-      `${SALT ?? ""}-pancake-beacon`,
+      `${SALT ?? ""}-pan-b`,
       ["address", "address"],
       [implAddr, contractAdmin],
     )) as SharedStrategyBeacon;
@@ -285,7 +285,7 @@ async function deployContracts(
       "SharedStrategyProxy",
       existingContract?.["sharedPancakeV3StrategyProxy"],
       "contracts/shared-vault/strategies/SharedStrategyProxy.sol:SharedStrategyProxy",
-      `${SALT ?? ""}-pancake-proxy`,
+      `${SALT ?? ""}-pan-p`,
       ["address"],
       [beaconAddr],
     )) as SharedStrategyProxy;
@@ -327,12 +327,14 @@ async function deployContracts(
     )) as SharedVaultGateway;
 
     if (!existingGateway) {
+      sleep(10000);
       await contracts.sharedVaultGateway.initialize(contractAdmin, gatewaySwapRouter, networkConfig.wrapToken);
     }
   }
 
   // Initialize SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled) {
+    sleep(10000);
     await contracts.sharedVaultFactory?.initialize(
       contractAdmin,
       existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
@@ -363,6 +365,8 @@ async function deployContracts(
       ...(networkConfig.aerodromeNfpmAddresses ?? []),
     ]).filter(Boolean) as string[];
     const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
+
+    sleep(10000);
 
     await contracts.sharedConfigManager?.initialize(
       contractAdmin,

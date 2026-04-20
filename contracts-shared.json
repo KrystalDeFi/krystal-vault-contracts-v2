@@ -1,13 +1,33 @@
 {
-   "base_mainnet": {
-      "sharedVault": "0xd02ecb0842fc59d8ca208aa6074f6f25e0e8ec35",
-      "sharedVaultFactory": "0x84f48ca03a5a318d290e3b1512fe09da9a09b058",
-      "sharedConfigManager": "0x78f209d426e2ba737902f6971b9554e28f476923",
-      "sharedVaultAutomator": "0x72a149d5e6243f24c91968160d0bd269d0e1fd79",
-      "sharedVaultGateway": "0x543d09558bbac0858564fc627d90d8b1a40850a0",
-      "sharedV3Strategy": "0xafb06a36664dea1dbc38876128fd6746aa0dc2f6",
-      "sharedV4Strategy": "0xa1096587021235271a66947341d770b841aa69c1",
-      "sharedAerodromeStrategy": "0xe0ef7e28aadde1beb2b4a93091eed127829029f4",
-      "sharedPancakeV3Strategy": "0xcaef7f72ba5cf03a916f7e99cafb6c57c2fbc9bc"
-   }
+  "base_mainnet": {
+    "sharedConfigManager": "0xce242a06fa9daec9d04574a6d5bf1bcce7bd4e92",
+    "sharedVault": "0xad2eadb6337c74c1f64dab21224aec943cd67848",
+    "sharedVaultFactory": "0xc906e1a0a6ff229cd079bdddcb807abb45ef3399",
+    "sharedV3Strategy": "0xf91a2f5ac7b3b9737898d41c80b489d9a88b9a97",
+    "sharedV3StrategyBeacon": "0x5333598a897e17e02a151a4580da1c899750f221",
+    "sharedV3StrategyProxy": "0x4515eeaf7800c5c5f066348e0d2841b6727c7fd0",
+    "sharedV4Strategy": "0xa992db45dc08a3f82812ba2807194b7a1f3b272d",
+    "sharedV4StrategyBeacon": "0xa0a601f90912cd218a350fcea8ec14612b50f834",
+    "sharedV4StrategyProxy": "0xec33afb74af010ceccb22c6649996a360a637553",
+    "sharedAerodromeStrategies": [
+      "0x82c444b6cd68542258fc7319de7d2fb965c849e7",
+      "0x36f9382f29dc633c686dd4711b97a945fb559d70",
+      "0x7a40e69a887e9ce7fb1a98205a949fcd53140fb4"
+    ],
+    "sharedAerodromeBeacons": [
+      "0x29df8796b7f78cb330c08890ec4c6c17282f6821",
+      "0x9f422345211f1da02adf563f08cf29e775551e91",
+      "0xb296222eb98cd71fa08975b2362550a55d125746"
+    ],
+    "sharedAerodromeProxies": [
+      "0xeaac23774c6eff7048f6f2ee79e296b5c4e6e776",
+      "0x6b4721b923ca2de43c363331638998bb41b4aa79",
+      "0xbef6af18292633ea63fb5b367864972eaca4229c"
+    ],
+    "sharedPancakeV3Strategy": "0x1504c3cbd0d9c53e879a6f358582b3112ee3e016",
+    "sharedPancakeV3StrategyBeacon": "0x11773a0f5184751b77f4fff94e24c30658bcc6d2",
+    "sharedPancakeV3StrategyProxy": "0xb9e71378d55dce1c0869b93cf2598bda62785f27",
+    "sharedVaultAutomator": "0x02212cd9d30a62b91d0f6b55ec689a9cc3b1fa7d",
+    "sharedVaultGateway": "0x3e461ceee75a93ac87d07782b08f7cd4da6e3991"
+  }
 }
