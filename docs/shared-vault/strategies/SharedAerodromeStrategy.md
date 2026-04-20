@@ -2,7 +2,9 @@
 
 ## SharedAerodromeStrategy
 
-Aerodrome CL LP operations for SharedVault with token validation and position tracking
+Aerodrome CL LP operations for SharedVault with token validation and position tracking.
+        Uses Aerodrome's tickSpacing-based pool lookup (ICLFactory.getPool(address,address,int24))
+        instead of Uniswap V3's fee-based lookup — the only structural difference from SharedV3Strategy.
 
 ### v3utils
 
@@ -59,7 +61,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedPancakeV3Strategy`, `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
 
 #### Return Values
 
@@ -85,10 +87,6 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-_`CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
-     Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
-     `tokenId`, or on-chain position liquidity is zero._
-
 ### _decreaseVaultPosition
 
 ```solidity
@@ -103,7 +101,10 @@ function exitProportional(address _nfpm, uint256 tokenId, uint256 shares, uint25
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern)._
+_Called via delegatecall from SharedVault.withdraw so address(this) is the vault.
+     Must remove `shares/totalShares` of the position's liquidity, collect fees,
+     and leave resulting tokens in the vault. Returns position changes so the vault
+     can untrack the position if fully exited._
 
 #### Parameters
 
@@ -131,11 +132,8 @@ function getPositionAmounts(address _nfpm, uint256 tokenId) external view return
 
 Get token amounts for a tracked LP position (liquidity + uncollected fees)
 
-_Same external-call contract as `SharedV3Strategy.getPositionAmounts`: the vault invokes this with
-     `ISharedStrategy(strategy).getPositionAmounts` (not delegatecall), so we do **not** apply
-     `configManager` whitelist here — de-whitelisting an NFPM must not brick `deposit` / previews that
-     only need valuation. Canonical NFPM is still implied by vault-tracked positions; whitelist +
-     `_nfpm == nfpm` remain on all mutating / delegatecall paths._
+_Not gated by configManager whitelist — called via external CALL from the vault (not delegatecall),
+     so `address(this)` is the strategy; NFPM trust is enforced on all mutating delegatecall paths._
 
 #### Parameters
 
@@ -159,8 +157,11 @@ function depositProportional(address _nfpm, uint256 tokenId, uint256 amount0, ui
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
-_Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
-     Out-of-range positions have one desired amount zero, so that side's min stays 0._
+_Called via delegatecall from SharedVault.deposit so address(this) is the vault.
+     Increases liquidity with the given amounts; tokens not consumed by the position
+     (due to price range mismatch) remain as idle vault balance automatically.
+     Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
+     MUST return silently — the caller leaves unused tokens as idle._
 
 #### Parameters
 

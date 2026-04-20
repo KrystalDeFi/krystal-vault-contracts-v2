@@ -13,7 +13,6 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
-import { SharedPancakeV3Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV3Strategy.sol";
 import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
 import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
@@ -21,9 +20,9 @@ import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFe
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 /// @notice Integration tests for a SharedVault with multiple protocol strategies active simultaneously.
-///         Validates that UniswapV3 (SharedV3Strategy) and PancakeSwap V3 (SharedPancakeV3Strategy)
-///         positions coexist correctly — share pricing, proportional deposits, and multi-position
-///         withdrawals all fire the right strategy's exitProportional via delegatecall.
+///         Validates that UniswapV3 and PancakeSwap V3 positions coexist correctly via SharedV3Strategy.
+///         Both protocols share the same strategy implementation; separate beacon+proxy pairs give
+///         independent whitelist control (revoking one doesn't affect the other).
 contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
@@ -42,10 +41,10 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   SharedVaultFactory public vaultFactory;
   SharedVault public vaultImplementation;
   LpFeeTaker public lpFeeTaker;
+  // Both protocols use SharedV3Strategy; separate beacons/proxies allow independent revocation & upgrades
   SharedV3Strategy public v3Strategy;
   SharedStrategyBeacon public v3Beacon;
   SharedStrategyProxy public v3Proxy;
-  SharedPancakeV3Strategy public pancakeStrategy;
   SharedStrategyBeacon public pancakeBeacon;
   SharedStrategyProxy public pancakeProxy;
   SharedVault public vault;
@@ -65,7 +64,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     vm.startPrank(vaultOwner);
 
-    // configManager must exist before PancakeStrategy (requires configManager address in constructor)
+    // Both NFPMs whitelisted — SharedV3Strategy enforces per-call via configManager
     address[] memory nfpms = new address[](2);
     nfpms[0] = NFPM;
     nfpms[1] = PANCAKE_NFPM;
@@ -73,15 +72,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
+    // Single implementation shared by both protocol proxies
     v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+
     v3Beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
     v3Proxy = new SharedStrategyProxy(address(v3Beacon));
 
-    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), PANCAKE_NFPM, address(configManager));
-    pancakeBeacon = new SharedStrategyBeacon(address(pancakeStrategy), vaultOwner);
+    pancakeBeacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
     pancakeProxy = new SharedStrategyProxy(address(pancakeBeacon));
 
-    // Whitelist proxy addresses for both strategies
+    // Whitelist both proxy addresses independently
     address[] memory targets = new address[](2);
     targets[0] = address(v3Proxy);
     targets[1] = address(pancakeProxy);
@@ -158,7 +158,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     uint256[4] memory idleAfter = vault.getIdleBalances();
     uint256[4] memory totalAfter = vault.getTotalBalances();
 
-    // Idle drops as liquidity was deployed; total (idle + LP) remains approximately the same
     assertLt(idleAfter[0], idleBefore[0], "WETH idle must drop after LP deployment");
     assertLt(idleAfter[1], idleBefore[1], "USDC idle must drop after LP deployment");
     assertGt(totalAfter[0], idleAfter[0], "total WETH must exceed idle (LP positions add value)");
@@ -213,7 +212,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
   // =========================================================
   // Full withdrawal: exitProportional fires for both strategies
-  // Each position uses its originating strategy's delegatecall
   // =========================================================
 
   function test_multiProtocol_fullWithdraw_exitsAllPositions() public {
@@ -255,7 +253,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   // =========================================================
 
   function test_multiProtocol_partialWithdraw_reducesLiquidity() public {
-    // Second depositor joins so we can do a partial withdrawal
     vm.startPrank(vaultOwner);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
@@ -272,7 +269,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     vault.execute(actions);
     vm.stopPrank();
 
-    // Second depositor joins to ensure total supply > withdrawer's shares
     address player = makeAddr("player5");
     setErc20Balance(WETH, player, 10 ether);
     setErc20Balance(USDC, player, 30_000e6);
@@ -287,7 +283,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
     vm.stopPrank();
 
-    // vaultOwner withdraws half their shares (partial exit)
     vm.startPrank(vaultOwner);
     uint256 ownerShares = vault.balanceOf(vaultOwner);
     uint256 halfShares = ownerShares / 2;
@@ -296,7 +291,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     uint256[4] memory minAmounts;
     uint256[4] memory withdrawn = vault.withdraw(halfShares, minAmounts, false);
 
-    // Positions should still exist (partial exit, not full)
     assertEq(vault.getPositionCount(), posCountBefore, "positions should remain after partial withdraw");
     assertGt(withdrawn[0] + withdrawn[1], 0, "tokens must be returned for partial withdraw");
     console.log("Multi-protocol partial withdraw: WETH =", withdrawn[0], "USDC =", withdrawn[1]);
@@ -328,7 +322,6 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     uint256[4] memory previewAfter = vault.previewWithdraw(vault.balanceOf(vaultOwner));
 
-    // Idle drops but total (preview) should remain close — small slippage on LP entry accepted
     assertGt(previewAfter[0], 0, "WETH preview must be non-zero with active LP");
     assertGt(previewAfter[1], 0, "USDC preview must be non-zero with active LP");
     console.log("Multi-protocol preview WETH before LP:", previewBefore[0], "after LP:", previewAfter[0]);
@@ -383,14 +376,13 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
   function test_multiProtocol_beaconUpgrade_independentPerStrategy() public {
     vm.startPrank(vaultOwner);
 
-    // Create positions via both proxies
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action(address(v3Proxy), _uniV3MintData(0.4 ether, 1200e6), ISharedCommon.CallType.DELEGATECALL);
     actions[1] = ISharedVault.Action(address(pancakeProxy), _pancakeMintData(0.4 ether, 1200e6), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     assertEq(vault.getPositionCount(), 2, "two positions before upgrade");
 
-    // Upgrade only the V3 strategy — PancakeV3 proxy is unaffected
+    // Upgrade only the V3 beacon — pancakeProxy's beacon is unaffected
     SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
     v3Beacon.setImplementation(address(newV3Impl));
     assertEq(v3Beacon.implementation(), address(newV3Impl), "v3 beacon updated");
@@ -465,7 +457,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     approveAmounts[1] = amount1;
 
     IV3Utils.SwapAndMintParams memory params = IV3Utils.SwapAndMintParams({
-      protocol: 0, // PancakeSwap V3 = Uniswap V3-compatible
+      protocol: 0, // PancakeSwap V3 is Uniswap V3-compatible
       nfpm: PANCAKE_NFPM,
       token0: WETH,
       token1: USDC,
@@ -494,7 +486,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     return
       bytes.concat(
-        abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_MINT),
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
         abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }

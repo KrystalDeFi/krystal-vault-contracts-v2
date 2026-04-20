@@ -124,11 +124,6 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    sharedPancakeV3Strategy: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    pancakeV3NfpmAddress: "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
   },
 };
 

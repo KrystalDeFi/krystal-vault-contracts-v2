@@ -109,11 +109,6 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
-  sharedPancakeV3Strategy?: {
-    enabled?: boolean;
-    autoVerifyContract?: boolean;
-  };
-  pancakeV3NfpmAddress?: AddressLike;
 }
 
 export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {

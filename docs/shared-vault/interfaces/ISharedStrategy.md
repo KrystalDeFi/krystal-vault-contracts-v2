@@ -35,7 +35,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedPancakeV3Strategy`, `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
 
 #### Return Values
 

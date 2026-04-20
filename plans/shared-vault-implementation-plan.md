@@ -127,8 +127,7 @@ contracts/shared-vault/
   strategies/
     SharedV3Strategy.sol           — Uniswap V3 LP ops via V3Utils + depositProportional
     SharedV4Strategy.sol           — Uniswap V4 LP ops via V4Utils + depositProportional (Permit2 flow)
-    SharedAerodromeStrategy.sol    — Aerodrome LP ops + gauge farming + depositProportional (skips staked)
-    SharedPancakeV3Strategy.sol    — PancakeSwap V3 LP ops + MasterChef farming + depositProportional (skips staked)
+    SharedAerodromeStrategy.sol    — Aerodrome CL LP ops (tickSpacing-based pool lookup via ICLFactory)
   libraries/
     SharedNfpmProportionalExit.sol — Shared V3-family proportional exit logic
     SharedStrategyFeeConfig.sol    — Fee config helpers shared across strategies
@@ -511,17 +510,11 @@ Only needed for gauge-specific operations: `SWAP_AND_MINT`, `SWAP_AND_INCREASE`,
 `depositProportional`: `ownerOf` guard (returns silently if staked). Otherwise `safeResetAndApprove` →
 `INFPM.increaseLiquidity`.
 
-### 4d. `SharedPancakeV3Strategy.sol` — PancakeSwap V3 MasterChef farming
+### 4d. PancakeSwap V3
 
-Only needed for MasterChef operations: `SWAP_AND_MINT`, `SWAP_AND_INCREASE`, `SAFE_TRANSFER_NFT`,
-`DEPOSIT_MASTERCHEF`, `WITHDRAW_MASTERCHEF`, `HARVEST_MASTERCHEF`. Basic LP → use `SharedV3Strategy`.
-
-`exitProportional`: Detects staking via `ownerOf(tokenId) != address(this)`. If staked: harvests CAKE,
-`masterChefV3.withdraw(tokenId, address(this))`, V3Utils proportional decrease. Partial exits re-stake via
-`safeTransferFrom(this, masterChefV3, tokenId)`.
-
-`depositProportional`: `ownerOf` guard (returns silently if staked in MasterChef). Otherwise
-`safeResetAndApprove` → `INFPM.increaseLiquidity`.
+PancakeSwap V3 is ABI-compatible with Uniswap V3 (`uint24 fee`, same factory selector, same NFPM struct).
+Use `SharedV3Strategy` directly — whitelist the PancakeSwap V3 NFPM in `SharedConfigManager`. No dedicated
+strategy needed. Separate beacon+proxy pairs allow independent whitelist revocation per protocol.
 
 ---
 
@@ -588,21 +581,19 @@ Deploy sequence:
 1. Deploy `SharedVault` implementation
 2. Deploy `SharedConfigManager` (upgradeable proxy)
 3. Deploy `SharedVaultFactory` (upgradeable proxy → initialize with configManager, vault impl, weth)
-4. Deploy `SharedV3Strategy`
+4. Deploy `SharedV3Strategy` (serves Uniswap V3 and PancakeSwap V3)
 5. Deploy `SharedV4Strategy`
-6. Deploy `SharedAerodromeStrategy`
-7. Deploy `SharedPancakeV3Strategy`
-8. Deploy `SharedVaultAutomator` (constructor: `_owner`, `_operators`)
-9. Initialize `SharedConfigManager`:
-   - `whitelistedTargets` = all 4 strategy addresses
+6. Deploy `SharedAerodromeStrategy` (one per Aerodrome NFPM)
+7. Deploy `SharedVaultAutomator` (constructor: `_owner`, `_operators`)
+8. Initialize `SharedConfigManager`:
+   - `whitelistedTargets` = proxy addresses for all strategies
    - `whitelistedCallers` = [automator address]
    - `feeRecipient` = `commonConfig.feeCollector`
 
 ### `configs/interfaces.ts`
 
 `IConfigShared` extends `IConfig` with: `sharedVault`, `sharedVaultFactory`, `sharedConfigManager`,
-`sharedV3Strategy`, `sharedV4Strategy`, `sharedAerodromeStrategy`, `sharedPancakeV3Strategy`,
-`sharedVaultAutomator`.
+`sharedV3Strategy`, `sharedV4Strategy`, `sharedAerodromeStrategy`, `sharedVaultAutomator`.
 
 ---
 

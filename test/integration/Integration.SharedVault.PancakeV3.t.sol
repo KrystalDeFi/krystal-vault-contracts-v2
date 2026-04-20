@@ -12,7 +12,7 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
-import { SharedPancakeV3Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV3Strategy.sol";
+import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
 import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
@@ -30,7 +30,7 @@ interface INFPMPositions {
       address,
       address,
       address,
-      int24,
+      uint24,
       int24,
       int24,
       uint128 liquidity,
@@ -41,14 +41,16 @@ interface INFPMPositions {
     );
 }
 
-/// @notice Integration tests for SharedPancakeV3Strategy — PancakeSwap V3 LP operations
+/// @notice Integration tests for PancakeSwap V3 LP operations via SharedV3Strategy.
+///         PancakeSwap V3 is ABI-compatible with Uniswap V3: same positions() layout (uint24 fee),
+///         same IUniswapV3Factory.getPool(address,address,uint24) selector, same increaseLiquidity struct.
+///         The only PancakeSwap quirk (non-canonical slot0 encoding) is already handled in SharedV3Strategy
+///         via staticcall + assembly, so no dedicated strategy is needed.
 contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
-  // PancakeSwap V3 WETH/USDC 0.01% pool on Base
-  // protocol=0 (Uniswap V3-compatible ABI)
+  // PancakeSwap V3 WETH/USDC 0.01% pool on Base — protocol=0 (Uniswap V3-compatible ABI)
   uint24 constant FEE_TIER = 100;
-  int24 constant TICK_SPACING = 1;
   int24 constant TICK_LOWER = -887_000;
   int24 constant TICK_UPPER = 887_000;
 
@@ -56,9 +58,9 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   SharedVaultFactory public vaultFactory;
   SharedVault public vaultImplementation;
   LpFeeTaker public lpFeeTaker;
-  SharedPancakeV3Strategy public pancakeStrategy;
-  SharedStrategyBeacon public pancakeBeacon;
-  SharedStrategyProxy public pancakeProxy;
+  SharedV3Strategy public v3Strategy;
+  SharedStrategyBeacon public beacon;
+  SharedStrategyProxy public proxy;
   SharedVault public vault;
 
   address public vaultOwner = USER;
@@ -76,20 +78,19 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     vm.startPrank(vaultOwner);
 
-    // Deploy configManager first with no targets (strategy needs configManager address — deploy order matters)
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    pancakeStrategy = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
-    pancakeBeacon = new SharedStrategyBeacon(address(pancakeStrategy), vaultOwner);
-    pancakeProxy = new SharedStrategyProxy(address(pancakeBeacon));
+    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
+    proxy = new SharedStrategyProxy(address(beacon));
 
     // Whitelist the proxy — proxy address is stable across upgrades
     address[] memory targets = new address[](1);
-    targets[0] = address(pancakeProxy);
+    targets[0] = address(proxy);
     configManager.setWhitelistTargets(targets, true);
 
     vaultImplementation = new SharedVault();
@@ -115,7 +116,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -138,7 +139,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -149,7 +150,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
     increaseActions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -172,7 +173,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -202,7 +203,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
     ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
     mintActions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -240,7 +241,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(pancakeProxy),
+      address(proxy),
       _swapAndMintData(0.5 ether, 1500e6),
       ISharedCommon.CallType.DELEGATECALL
     );
@@ -263,21 +264,20 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   function test_pancake_beaconUpgrade_newImplUsedWithoutRewhitelisting() public {
     vm.startPrank(vaultOwner);
 
-    // Mint a position via the proxy pointing at v1 impl
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(pancakeProxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
+    actions[0] = ISharedVault.Action(address(proxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
 
-    // Upgrade: deploy a new impl and point the beacon at it
-    SharedPancakeV3Strategy newImpl = new SharedPancakeV3Strategy(V3_UTILS, address(lpFeeTaker), NFPM, address(configManager));
-    pancakeBeacon.setImplementation(address(newImpl));
-    assertEq(pancakeBeacon.implementation(), address(newImpl), "beacon updated to new impl");
+    // Upgrade: deploy new impl and update beacon
+    SharedV3Strategy newImpl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    beacon.setImplementation(address(newImpl));
+    assertEq(beacon.implementation(), address(newImpl), "beacon updated to new impl");
 
-    // Proxy address and whitelist unchanged — can still execute with same action.target
+    // Proxy address and whitelist unchanged — same action.target works
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
     ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
-    increaseActions[0] = ISharedVault.Action(address(pancakeProxy), _swapAndIncreaseData(tokenId, 0.1 ether, 300e6), ISharedCommon.CallType.DELEGATECALL);
+    increaseActions[0] = ISharedVault.Action(address(proxy), _swapAndIncreaseData(tokenId, 0.1 ether, 300e6), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(increaseActions);
 
     assertEq(vault.getPositionCount(), 1, "position still tracked after upgrade");
@@ -305,7 +305,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
       token0: WETH,
       token1: USDC,
       fee: FEE_TIER,
-      tickSpacing: TICK_SPACING,
+      tickSpacing: 1,
       tickLower: TICK_LOWER,
       tickUpper: TICK_UPPER,
       protocolFeeX64: 0,
@@ -329,7 +329,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     return
       bytes.concat(
-        abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_MINT),
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
         abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }
@@ -371,7 +371,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     return
       bytes.concat(
-        abi.encode(SharedPancakeV3Strategy.OperationType.SWAP_AND_INCREASE),
+        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
         abi.encode(params, approveTokens, approveAmounts, uint256(0))
       );
   }

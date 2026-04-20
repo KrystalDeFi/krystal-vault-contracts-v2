@@ -26,7 +26,9 @@ import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.so
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedAerodromeStrategy
-/// @notice Aerodrome CL LP operations for SharedVault with token validation and position tracking
+/// @notice Aerodrome CL LP operations for SharedVault with token validation and position tracking.
+///         Uses Aerodrome's tickSpacing-based pool lookup (ICLFactory.getPool(address,address,int24))
+///         instead of Uniswap V3's fee-based lookup — the only structural difference from SharedV3Strategy.
 contract SharedAerodromeStrategy is ISharedStrategy {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
@@ -78,7 +80,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
-
     _requireAerodromeNfpm(params.nfpm);
     SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(configManager, params);
 
@@ -110,9 +111,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev `CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
-  ///      Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
-  ///      `tokenId`, or on-chain position liquidity is zero.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -181,7 +179,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Proportional exit: NFPM + `LpFeeTaker` (public LpStrategy pattern).
   function exitProportional(
     address _nfpm,
     uint256 tokenId,
@@ -242,11 +239,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Same external-call contract as `SharedV3Strategy.getPositionAmounts`: the vault invokes this with
-  ///      `ISharedStrategy(strategy).getPositionAmounts` (not delegatecall), so we do **not** apply
-  ///      `configManager` whitelist here — de-whitelisting an NFPM must not brick `deposit` / previews that
-  ///      only need valuation. Canonical NFPM is still implied by vault-tracked positions; whitelist +
-  ///      `_nfpm == nfpm` remain on all mutating / delegatecall paths.
+  /// @dev Not gated by configManager whitelist — called via external CALL from the vault (not delegatecall),
+  ///      so `address(this)` is the strategy; NFPM trust is enforced on all mutating delegatecall paths.
   function getPositionAmounts(
     address _nfpm,
     uint256 tokenId
@@ -284,8 +278,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Non-zero `slippageBps` sets amount mins below desired; 0 means no floor (see `ISharedStrategy`).
-  ///      Out-of-range positions have one desired amount zero, so that side's min stays 0.
   function depositProportional(
     address _nfpm,
     uint256 tokenId,
@@ -341,8 +333,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     }
   }
 
-  function _nfpmNftOwnedByVault(address nfpmAddr, uint256 id) private view returns (bool) {
-    try IERC721(nfpmAddr).ownerOf(id) returns (address owner) {
+  function _nfpmNftOwnedByVault(address _nfpm, uint256 id) private view returns (bool) {
+    try IERC721(_nfpm).ownerOf(id) returns (address owner) {
       return owner == address(this);
     } catch {
       return false;
