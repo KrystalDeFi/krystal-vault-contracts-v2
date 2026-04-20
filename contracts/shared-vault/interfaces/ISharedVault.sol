@@ -55,10 +55,7 @@ interface ISharedVault is ISharedCommon {
   /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP
   ///        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).
   ///        Must be ≤ 10000. Pass 0 to skip the amountMin floor.
-  function deposit(
-    uint256[4] calldata amounts,
-    uint16 slippageBps
-  ) external payable returns (uint256 shares);
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps) external payable returns (uint256 shares);
 
   /// @notice Burn shares and withdraw proportional tokens.
   ///         If the vault has active LP positions, each strategy exits its proportional share
@@ -114,9 +111,12 @@ interface ISharedVault is ISharedCommon {
   // --- Position management (onlyOwner) ---
 
   /// @notice Forcibly remove a position from vault tracking without exiting liquidity.
-  ///         If an operator is set, the position NFT is transferred to the operator so the
-  ///         underlying liquidity can be recovered later via `recoverPosition`.
-  ///         If no operator is set, the NFT remains in the vault and can be swept via `sweepERC721`.
+  /// @dev **Custody / trust:** When `operator` is non-zero, the position NFT is transferred from this vault
+  ///      to `operator`. The vault owner initiates `dropPosition` but **cannot** unilaterally retrieve the
+  ///      NFT on-chain afterward—only `recoverPosition`, callable by `operator` only, returns custody to the
+  ///      vault. There is no alternative on-chain path for the vault owner if the operator is unavailable or
+  ///      compromised (unlike the no-`operator` case: the NFT stays in the vault and may be recovered via
+  ///      `sweepERC721`). Assume the operator is trusted for NFT custody between drop and recover.
   /// @param nfpm  NFT position manager that issued the position
   /// @param tokenId  The position token ID to drop
   function dropPosition(address nfpm, uint256 tokenId) external;
@@ -125,11 +125,14 @@ interface ISharedVault is ISharedCommon {
   ///         Pulls the NFT from the operator (caller must have approved this vault as spender),
   ///         re-adds the position to tracking, and re-enables LP valuation and proportional exits.
   ///         The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
+  /// @dev `token0` and `token1` must match the pool’s currencies; both must be tokens configured on this vault
+  ///      (`isVaultToken`). Wrong addresses break LP valuation and proportional exits. The operator is trusted
+  ///      to supply the correct pair (validated on-chain against the vault token set).
   /// @param nfpm      NFT position manager that issued the position
   /// @param tokenId   The position token ID to recover
   /// @param strategy  Whitelisted strategy to use for this position (must implement ISharedStrategy)
-  /// @param token0    Pool token0
-  /// @param token1    Pool token1
+  /// @param token0    Pool token0 (must be a configured vault token)
+  /// @param token1    Pool token1 (must be a configured vault token)
   function recoverPosition(address nfpm, uint256 tokenId, address strategy, address token0, address token1) external;
 
   // --- Roles (onlyOwner) ---

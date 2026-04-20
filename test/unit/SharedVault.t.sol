@@ -1116,7 +1116,15 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    vaultNoOp.initialize("No-Op Vault", vaultTokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vaultNoOp.initialize(
+      "No-Op Vault",
+      vaultTokens,
+      initAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(0)
+    );
 
     // Mint the NFT to the vault and add the position
     nfpm.mint(address(vaultNoOp), tokenId);
@@ -1187,6 +1195,21 @@ contract SharedVaultTest is TestCommon {
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
+  }
+
+  function test_recoverPosition_revertsIfTokenNotConfiguredOnVault() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+    address badToken = address(0xBEEF);
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), badToken, address(tokenB));
   }
 
   function test_recoverPosition_revertsIfStrategyNotWhitelisted() public {

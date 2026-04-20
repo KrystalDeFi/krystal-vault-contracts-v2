@@ -400,9 +400,8 @@ function dropPosition(address nfpm, uint256 tokenId) external
 ```
 
 Forcibly remove a position from vault tracking without exiting liquidity.
-        If an operator is set, the position NFT is transferred to the operator so the
-        underlying liquidity can be recovered later via `recoverPosition`.
-        If no operator is set, the NFT remains in the vault and can be swept via `sweepERC721`.
+
+_See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set._
 
 #### Parameters
 
@@ -422,6 +421,8 @@ Recover a previously dropped position back into vault tracking.
         re-adds the position to tracking, and re-enables LP valuation and proportional exits.
         The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
 
+_See `ISharedVault.recoverPosition` re `token0` / `token1` and vault token validation._
+
 #### Parameters
 
 | Name | Type | Description |
@@ -429,8 +430,8 @@ Recover a previously dropped position back into vault tracking.
 | nfpm | address | NFT position manager that issued the position |
 | tokenId | uint256 | The position token ID to recover |
 | strategy | address | Whitelisted strategy to use for this position (must implement ISharedStrategy) |
-| token0 | address | Pool token0 |
-| token1 | address | Pool token1 |
+| token0 | address | Pool token0 (must be a configured vault token) |
+| token1 | address | Pool token1 (must be a configured vault token) |
 
 ### isValidSignature
 

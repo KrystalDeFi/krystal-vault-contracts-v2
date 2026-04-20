@@ -225,9 +225,13 @@ function dropPosition(address nfpm, uint256 tokenId) external
 ```
 
 Forcibly remove a position from vault tracking without exiting liquidity.
-        If an operator is set, the position NFT is transferred to the operator so the
-        underlying liquidity can be recovered later via `recoverPosition`.
-        If no operator is set, the NFT remains in the vault and can be swept via `sweepERC721`.
+
+_**Custody / trust:** When `operator` is non-zero, the position NFT is transferred from this vault
+     to `operator`. The vault owner initiates `dropPosition` but **cannot** unilaterally retrieve the
+     NFT on-chain afterward—only `recoverPosition`, callable by `operator` only, returns custody to the
+     vault. There is no alternative on-chain path for the vault owner if the operator is unavailable or
+     compromised (unlike the no-`operator` case: the NFT stays in the vault and may be recovered via
+     `sweepERC721`). Assume the operator is trusted for NFT custody between drop and recover._
 
 #### Parameters
 
@@ -247,6 +251,10 @@ Recover a previously dropped position back into vault tracking.
         re-adds the position to tracking, and re-enables LP valuation and proportional exits.
         The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
 
+_`token0` and `token1` must match the pool’s currencies; both must be tokens configured on this vault
+     (`isVaultToken`). Wrong addresses break LP valuation and proportional exits. The operator is trusted
+     to supply the correct pair (validated on-chain against the vault token set)._
+
 #### Parameters
 
 | Name | Type | Description |
@@ -254,8 +262,8 @@ Recover a previously dropped position back into vault tracking.
 | nfpm | address | NFT position manager that issued the position |
 | tokenId | uint256 | The position token ID to recover |
 | strategy | address | Whitelisted strategy to use for this position (must implement ISharedStrategy) |
-| token0 | address | Pool token0 |
-| token1 | address | Pool token1 |
+| token0 | address | Pool token0 (must be a configured vault token) |
+| token1 | address | Pool token1 (must be a configured vault token) |
 
 ### grantAdminRole
 

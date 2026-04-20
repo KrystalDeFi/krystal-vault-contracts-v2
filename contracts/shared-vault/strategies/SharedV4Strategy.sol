@@ -155,13 +155,29 @@ contract SharedV4Strategy is ISharedStrategy {
       _validateVaultToken(c1);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(true, posm, newId, c0, c1);
-    } else if (pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)) {
-      // ADJUST_RANGE: old position exited, new position minted to vault
+    } else if (
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
+    ) {
+      // ADJUST_RANGE: old position fully exited, new position minted to vault
       (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
-      changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(oldKey.currency0), Currency.unwrap(oldKey.currency1));
-      changes[1] = PositionChange(true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1));
+      changes[0] = PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(oldKey.currency0),
+        Currency.unwrap(oldKey.currency1)
+      );
+      changes[1] = PositionChange(
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
+      );
     } else if (pm.getPositionLiquidity(tokenId) == 0) {
       // Full exit: liquidity drained to zero
       (PoolKey memory key, ) = pm.getPoolAndPositionInfo(tokenId);
@@ -191,12 +207,22 @@ contract SharedV4Strategy is ISharedStrategy {
     IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
 
     // Compute position changes from on-chain state after the transfer
-    if (pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)) {
-      // ADJUST_RANGE: old position removed, new position minted to vault
+    if (
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
+    ) {
+      // ADJUST_RANGE: old position fully removed, new position minted to vault
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
-      changes[1] = PositionChange(true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1));
+      changes[1] = PositionChange(
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
+      );
     } else {
       // Full exit or any non-minting operation
       changes = new PositionChange[](1);

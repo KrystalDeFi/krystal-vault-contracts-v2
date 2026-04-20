@@ -487,9 +487,7 @@ contract SharedVault is
   ///                          No token pre-approval or balance check is performed on this path:
   ///                          the external contract manages its own token transfers (unlike CALL,
   ///                          where the vault is the initiator and owns the approval flow).
-  function execute(
-    Action[] calldata actions
-  ) external override nonReentrant onlyAuthorized whenVaultNotPaused {
+  function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
     for (uint256 i; i < actions.length; ) {
       Action calldata action = actions[i];
 
@@ -748,6 +746,7 @@ contract SharedVault is
   }
 
   /// @inheritdoc ISharedVault
+  /// @dev See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set.
   function dropPosition(address nfpm, uint256 tokenId) external override onlyOwner {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     require(positionIndex[key] != 0, InvalidOperation());
@@ -759,6 +758,7 @@ contract SharedVault is
   }
 
   /// @inheritdoc ISharedVault
+  /// @dev See `ISharedVault.recoverPosition` re `token0` / `token1` and vault token validation.
   function recoverPosition(
     address nfpm,
     uint256 tokenId,
@@ -766,6 +766,7 @@ contract SharedVault is
     address token0,
     address token1
   ) external override onlyOperator {
+    require(isVaultToken[token0] && isVaultToken[token1], TokenNotConfigured());
     require(configManager.isWhitelistedTarget(strategy), InvalidTarget(strategy));
     IERC721(nfpm).transferFrom(operator, address(this), tokenId);
     _addPosition(strategy, nfpm, tokenId, token0, token1);
