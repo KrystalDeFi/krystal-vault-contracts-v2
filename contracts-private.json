@@ -17,7 +17,8 @@
     "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
     "aerodromeFarmingStrategies": [
       "0xe8b3f065158cf2a581d529875506217e6abbf0af",
-      "0xa2ba4d3b60435e87146188b27e4905c597d67721"
+      "0xa2ba4d3b60435e87146188b27e4905c597d67721",
+      "0x7b6a535c608c5b4b6e171c9ae07650236426b20f"
     ],
     "pancakeV3FarmingStrategy": "0x5f8e7e03bfd8fb868c2777b2fa95eb59ce03f439",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",

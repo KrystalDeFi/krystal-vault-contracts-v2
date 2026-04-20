@@ -47,6 +47,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     aerodromeGaugeFactories: [
       "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
       "0xB630227a79707D517320b6c0f885806389dFcbB3",
+      "0x385293CaE378C813F16f0C1334d774AdDDf56AbB",
     ],
     pancakeV3MasterChef: "0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
@@ -79,10 +80,12 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
     aerodromeNfpmAddresses: [
       "0x827922686190790b37229fd06084350E74485b72",
       "0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F",
+      "0xe1f8cd9AC4e4A65F54f38a5CdAfCA44f6dD68b53",
     ],
     aerodromeGaugeFactories: [
       "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
       "0xB630227a79707D517320b6c0f885806389dFcbB3",
+      "0x385293CaE378C813F16f0C1334d774AdDDf56AbB",
     ],
   },
 };
