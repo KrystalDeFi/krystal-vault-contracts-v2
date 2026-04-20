@@ -14,10 +14,11 @@ interface ISharedVault is ISharedCommon {
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
   event VaultOwnerFeeBasisPointUpdated(address indexed vaultFactory, uint16 basisPoints);
   /// @notice Emitted when the vault owner forcibly drops a position from tracking.
-  ///         The underlying LP liquidity is NOT exited — the NFT remains in the vault
-  ///         but is no longer valued or interacted with. Used to unblock deposits when
-  ///         a position's strategy is broken or the pool is permanently rugged.
+  ///         The NFT is transferred to the operator (if set) so liquidity can be recovered later;
+  ///         if no operator is set the NFT remains in the vault.
   event PositionDropped(address indexed vaultFactory, address indexed nfpm, uint256 indexed tokenId);
+  /// @notice Emitted when the operator recovers a previously dropped position back into tracking.
+  event PositionRecovered(address indexed vaultFactory, address indexed nfpm, uint256 indexed tokenId);
 
   /// @dev Tracked LP position
   struct Position {
@@ -113,15 +114,23 @@ interface ISharedVault is ISharedCommon {
   // --- Position management (onlyOwner) ---
 
   /// @notice Forcibly remove a position from vault tracking without exiting liquidity.
-  ///         The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
-  ///         iterated during `withdraw()`, or deposited into during `deposit()`.
-  ///         Use when a position's pool is permanently rugged or the strategy is irreparably
-  ///         broken and the NFPM itself is bricked.
-  ///         After dropping, any tokens still locked in the position are effectively lost —
-  ///         use `sweepERC721` to recover the NFT if it's still transferable.
+  ///         If an operator is set, the position NFT is transferred to the operator so the
+  ///         underlying liquidity can be recovered later via `recoverPosition`.
+  ///         If no operator is set, the NFT remains in the vault and can be swept via `sweepERC721`.
   /// @param nfpm  NFT position manager that issued the position
   /// @param tokenId  The position token ID to drop
   function dropPosition(address nfpm, uint256 tokenId) external;
+
+  /// @notice Recover a previously dropped position back into vault tracking.
+  ///         Pulls the NFT from the operator (caller must have approved this vault as spender),
+  ///         re-adds the position to tracking, and re-enables LP valuation and proportional exits.
+  ///         The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
+  /// @param nfpm      NFT position manager that issued the position
+  /// @param tokenId   The position token ID to recover
+  /// @param strategy  Whitelisted strategy to use for this position (must implement ISharedStrategy)
+  /// @param token0    Pool token0
+  /// @param token1    Pool token1
+  function recoverPosition(address nfpm, uint256 tokenId, address strategy, address token0, address token1) external;
 
   // --- Roles (onlyOwner) ---
   function grantAdminRole(address _address) external;

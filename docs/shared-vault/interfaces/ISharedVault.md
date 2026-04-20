@@ -57,9 +57,16 @@ event PositionDropped(address vaultFactory, address nfpm, uint256 tokenId)
 ```
 
 Emitted when the vault owner forcibly drops a position from tracking.
-        The underlying LP liquidity is NOT exited — the NFT remains in the vault
-        but is no longer valued or interacted with. Used to unblock deposits when
-        a position's strategy is broken or the pool is permanently rugged.
+        The NFT is transferred to the operator (if set) so liquidity can be recovered later;
+        if no operator is set the NFT remains in the vault.
+
+### PositionRecovered
+
+```solidity
+event PositionRecovered(address vaultFactory, address nfpm, uint256 tokenId)
+```
+
+Emitted when the operator recovers a previously dropped position back into tracking.
 
 ### Position
 
@@ -218,12 +225,9 @@ function dropPosition(address nfpm, uint256 tokenId) external
 ```
 
 Forcibly remove a position from vault tracking without exiting liquidity.
-        The NFT remains in the vault but is no longer valued in `getTotalBalances()`,
-        iterated during `withdraw()`, or deposited into during `deposit()`.
-        Use when a position's pool is permanently rugged or the strategy is irreparably
-        broken and the NFPM itself is bricked.
-        After dropping, any tokens still locked in the position are effectively lost —
-        use `sweepERC721` to recover the NFT if it's still transferable.
+        If an operator is set, the position NFT is transferred to the operator so the
+        underlying liquidity can be recovered later via `recoverPosition`.
+        If no operator is set, the NFT remains in the vault and can be swept via `sweepERC721`.
 
 #### Parameters
 
@@ -231,6 +235,27 @@ Forcibly remove a position from vault tracking without exiting liquidity.
 | ---- | ---- | ----------- |
 | nfpm | address | NFT position manager that issued the position |
 | tokenId | uint256 | The position token ID to drop |
+
+### recoverPosition
+
+```solidity
+function recoverPosition(address nfpm, uint256 tokenId, address strategy, address token0, address token1) external
+```
+
+Recover a previously dropped position back into vault tracking.
+        Pulls the NFT from the operator (caller must have approved this vault as spender),
+        re-adds the position to tracking, and re-enables LP valuation and proportional exits.
+        The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT position manager that issued the position |
+| tokenId | uint256 | The position token ID to recover |
+| strategy | address | Whitelisted strategy to use for this position (must implement ISharedStrategy) |
+| token0 | address | Pool token0 |
+| token1 | address | Pool token1 |
 
 ### grantAdminRole
 

@@ -752,7 +752,24 @@ contract SharedVault is
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     require(positionIndex[key] != 0, InvalidOperation());
     _removePosition(nfpm, tokenId);
+    if (operator != address(0)) {
+      IERC721(nfpm).safeTransferFrom(address(this), operator, tokenId);
+    }
     emit PositionDropped(vaultFactory, nfpm, tokenId);
+  }
+
+  /// @inheritdoc ISharedVault
+  function recoverPosition(
+    address nfpm,
+    uint256 tokenId,
+    address strategy,
+    address token0,
+    address token1
+  ) external override onlyOperator {
+    require(configManager.isWhitelistedTarget(strategy), InvalidTarget(strategy));
+    IERC721(nfpm).transferFrom(operator, address(this), tokenId);
+    _addPosition(strategy, nfpm, tokenId, token0, token1);
+    emit PositionRecovered(vaultFactory, nfpm, tokenId);
   }
 
   // ==================== EIP-1271 ====================

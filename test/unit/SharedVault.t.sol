@@ -291,9 +291,21 @@ contract MockDirectPositionCreator is ISharedStrategy {
 // Mock ERC721 for sweep tests
 contract MockERC721 {
   mapping(uint256 => address) public ownerOf;
+  mapping(uint256 => address) private _approved;
 
   function mint(address to, uint256 tokenId) external {
     ownerOf[tokenId] = to;
+  }
+
+  function approve(address spender, uint256 tokenId) external {
+    _approved[tokenId] = spender;
+  }
+
+  function transferFrom(address from, address to, uint256 tokenId) external {
+    require(ownerOf[tokenId] == from, "Not owner");
+    require(msg.sender == from || msg.sender == _approved[tokenId], "Not approved");
+    ownerOf[tokenId] = to;
+    _approved[tokenId] = address(0);
   }
 
   function safeTransferFrom(address from, address to, uint256 tokenId) external {
@@ -970,15 +982,22 @@ contract SharedVaultTest is TestCommon {
 
   function _setupVaultWithBrokenStrategy()
     internal
-    returns (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId)
+    returns (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId)
   {
     brokenStrat = new MockBrokenExitStrategy();
-    fakeNfpm = makeAddr("nfpmMigrate");
+    mockNfpm = new MockERC721();
     tokenId = 99;
 
+    // Whitelist the strategy and the mock NFPM
     address[] memory newTargets = new address[](1);
     newTargets[0] = address(brokenStrat);
     configManager.setWhitelistTargets(newTargets, true);
+    address[] memory newNfpms = new address[](1);
+    newNfpms[0] = address(mockNfpm);
+    configManager.setWhitelistNfpms(newNfpms, true);
+
+    // Mint the position NFT to the vault (simulates the NFPM having issued it)
+    mockNfpm.mint(address(vault), tokenId);
 
     tokenA.mint(DEPOSITOR, 50e18);
     tokenB.mint(DEPOSITOR, 50e18);
@@ -988,7 +1007,7 @@ contract SharedVaultTest is TestCommon {
     vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    bytes memory stratData = abi.encode(fakeNfpm, tokenId, address(tokenA), address(tokenB));
+    bytes memory stratData = abi.encode(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
@@ -998,16 +1017,19 @@ contract SharedVaultTest is TestCommon {
   // ==================== dropPosition Tests ====================
 
   function test_dropPosition_happy_path() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
 
     assertEq(vault.getPositionCount(), 1);
+    assertEq(mockNfpm.ownerOf(tokenId), address(vault));
 
     vm.expectEmit(true, true, true, true);
-    emit ISharedVault.PositionDropped(VAULT_OWNER, fakeNfpm, tokenId);
+    emit ISharedVault.PositionDropped(VAULT_OWNER, address(mockNfpm), tokenId);
     vm.prank(VAULT_OWNER);
-    vault.dropPosition(fakeNfpm, tokenId);
+    vault.dropPosition(address(mockNfpm), tokenId);
 
+    // Position removed from tracking and NFT transferred to operator (VAULT_OWNER)
     assertEq(vault.getPositionCount(), 0);
+    assertEq(mockNfpm.ownerOf(tokenId), VAULT_OWNER, "NFT should be with operator after drop");
     (brokenStrat);
   }
 
@@ -1018,6 +1040,13 @@ contract SharedVaultTest is TestCommon {
     address[] memory targets = new address[](1);
     targets[0] = address(brokenDepStrat);
     configManager.setWhitelistTargets(targets, true);
+
+    MockERC721 mockNfpm = new MockERC721();
+    uint256 tokenId = 42;
+    address[] memory newNfpms = new address[](1);
+    newNfpms[0] = address(mockNfpm);
+    configManager.setWhitelistNfpms(newNfpms, true);
+    mockNfpm.mint(address(vault), tokenId);
 
     // Initial deposit so we have a non-zero totalSupply to work against
     tokenA.mint(DEPOSITOR, 300e18);
@@ -1030,9 +1059,7 @@ contract SharedVaultTest is TestCommon {
     vault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
 
     // Add the broken position via execute
-    address fakeNfpm = address(0xBEEF1);
-    uint256 tokenId = 42;
-    bytes memory stratData = abi.encode(fakeNfpm, tokenId, address(tokenA), address(tokenB));
+    bytes memory stratData = abi.encode(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenDepStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
@@ -1040,14 +1067,13 @@ contract SharedVaultTest is TestCommon {
     assertEq(vault.getPositionCount(), 1);
 
     // Second deposit fails — getPositionAmounts returns non-zero so toAdd > 0, then depositProportional reverts.
-    // The inner revert string propagates through the delegatecall bubble-up path.
     vm.prank(DEPOSITOR);
     vm.expectRevert("pool rugged");
     vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
 
     // Drop the broken position — deposit must succeed afterwards
     vm.prank(VAULT_OWNER);
-    vault.dropPosition(fakeNfpm, tokenId);
+    vault.dropPosition(address(mockNfpm), tokenId);
     assertEq(vault.getPositionCount(), 0);
 
     vm.prank(DEPOSITOR);
@@ -1061,12 +1087,159 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_dropPosition_fail_unauthorized() public {
-    (MockBrokenExitStrategy brokenStrat, address fakeNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
 
     vm.prank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.dropPosition(fakeNfpm, tokenId);
+    vault.dropPosition(address(mockNfpm), tokenId);
     (brokenStrat);
+  }
+
+  function test_dropPosition_keepsNftInVault_whenNoOperator() public {
+    // Deploy a fresh vault with operator = address(0) — no operator configured
+    SharedVault vaultNoOp = new SharedVault();
+    MockERC721 nfpm = new MockERC721();
+    uint256 tokenId = 7;
+
+    // Whitelist the nfpm and brokenStrat in configManager (same configManager)
+    MockBrokenExitStrategy brokenStrat = new MockBrokenExitStrategy();
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(brokenStrat);
+    configManager.setWhitelistTargets(newTargets, true);
+    address[] memory newNfpms = new address[](1);
+    newNfpms[0] = address(nfpm);
+    configManager.setWhitelistNfpms(newNfpms, true);
+
+    // Seed vault with tokens and initialize (operator = address(0))
+    tokenA.mint(address(vaultNoOp), 100e18);
+    tokenB.mint(address(vaultNoOp), 200e18);
+    address[4] memory vaultTokens = [address(tokenA), address(tokenB), address(tokenC), address(tokenD)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    vaultNoOp.initialize("No-Op Vault", vaultTokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+
+    // Mint the NFT to the vault and add the position
+    nfpm.mint(address(vaultNoOp), tokenId);
+    bytes memory stratData = abi.encode(address(nfpm), tokenId, address(tokenA), address(tokenB));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    vaultNoOp.execute(actions);
+    assertEq(vaultNoOp.getPositionCount(), 1);
+
+    // Drop the position — no operator, so NFT must stay in vault
+    vm.prank(VAULT_OWNER);
+    vaultNoOp.dropPosition(address(nfpm), tokenId);
+
+    assertEq(vaultNoOp.getPositionCount(), 0, "position removed from tracking");
+    assertEq(nfpm.ownerOf(tokenId), address(vaultNoOp), "NFT stays in vault when no operator");
+  }
+
+  // ==================== recoverPosition Tests ====================
+
+  function test_recoverPosition_reAddsPositionToTracking() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+    address strategy = address(brokenStrat);
+
+    // Drop: NFT goes to operator (VAULT_OWNER)
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+    assertEq(vault.getPositionCount(), 0);
+    assertEq(mockNfpm.ownerOf(tokenId), VAULT_OWNER);
+
+    // Operator approves vault to pull NFT back
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    // Recover: re-adds position to tracking
+    vm.prank(VAULT_OWNER);
+    vault.recoverPosition(address(mockNfpm), tokenId, strategy, address(tokenA), address(tokenB));
+
+    assertEq(vault.getPositionCount(), 1, "position back in tracking");
+    assertEq(mockNfpm.ownerOf(tokenId), address(vault), "NFT back in vault");
+    (address storedStrategy, address storedNfpm, uint256 storedTokenId, , ) = vault.getPosition(0);
+    assertEq(storedStrategy, strategy);
+    assertEq(storedNfpm, address(mockNfpm));
+    assertEq(storedTokenId, tokenId);
+  }
+
+  function test_recoverPosition_emitsEvent() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    vm.expectEmit(true, true, true, true);
+    emit ISharedVault.PositionRecovered(VAULT_OWNER, address(mockNfpm), tokenId);
+    vm.prank(VAULT_OWNER);
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
+  }
+
+  function test_recoverPosition_revertsForNonOperator() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
+  }
+
+  function test_recoverPosition_revertsIfStrategyNotWhitelisted() public {
+    (, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    // Use failingStrategy which is not whitelisted in configManager
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
+    vault.recoverPosition(address(mockNfpm), tokenId, address(failingStrategy), address(tokenA), address(tokenB));
+  }
+
+  function test_recoverPosition_revertsIfNfpmNotWhitelisted() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    // De-whitelist the NFPM after the drop
+    address[] memory delistNfpms = new address[](1);
+    delistNfpms[0] = address(mockNfpm);
+    configManager.setWhitelistNfpms(delistNfpms, false);
+
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidNfpm.selector, address(mockNfpm)));
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
+  }
+
+  function test_recoverPosition_enforcesMaxPositionsLimit() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    // Drop the position
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+    assertEq(vault.getPositionCount(), 0);
+
+    // Fill up to the limit with other positions
+    configManager.setMaxPositions(1);
+    _addPositionViaDirectCreator(101);
+    assertEq(vault.getPositionCount(), 1);
+
+    // Now recover should fail — limit already reached
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.TooManyPositions.selector);
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
   }
 
   // ==================== Pause Tests ====================
