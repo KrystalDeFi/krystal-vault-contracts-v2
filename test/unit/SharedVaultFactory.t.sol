@@ -42,6 +42,10 @@ contract MockFactoryStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
@@ -724,5 +728,8 @@ contract MockFactoryERC1155 {
   }
 
   function setApprovalForAll(address, bool) external {}
-  function isApprovedForAll(address, address) external pure returns (bool) { return false; }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
 }

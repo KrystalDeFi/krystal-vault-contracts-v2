@@ -366,6 +366,27 @@ contract SharedV4Strategy is ISharedStrategy {
     address posm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) = _positionAmountsSplit(posm, tokenId);
+    amount0 = principal0 + fees0;
+    amount1 = principal1 + fees1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionPrincipalAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1, , ) = _positionAmountsSplit(posm, tokenId);
+  }
+
+  /// @dev See ISharedStrategy.getPositionPrincipalAmounts. V4 splits principal (from liquidity at
+  ///      current sqrtPrice) and uncollected fees (from fee-growth deltas) via the same StateLibrary
+  ///      pattern as `getPositionAmounts`, just returned separately so the vault can pick the correct
+  ///      one for top-ups vs valuation.
+  function _positionAmountsSplit(
+    address posm,
+    uint256 tokenId
+  ) private view returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     uint128 liquidity = pm.getPositionLiquidity(tokenId);
@@ -377,7 +398,7 @@ contract SharedV4Strategy is ISharedStrategy {
     (uint160 sqrtPriceX96, , , ) = manager.getSlot0(poolId);
 
     if (liquidity > 0) {
-      (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
+      (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
         sqrtPriceX96,
         TickMath.getSqrtPriceAtTick(tickLower),
         TickMath.getSqrtPriceAtTick(tickUpper),
@@ -385,9 +406,7 @@ contract SharedV4Strategy is ISharedStrategy {
       );
     }
 
-    (uint256 fees0, uint256 fees1) = _uncollectedFees(pm, manager, poolId, tickLower, tickUpper, tokenId);
-    amount0 += fees0;
-    amount1 += fees1;
+    (fees0, fees1) = _uncollectedFees(pm, manager, poolId, tickLower, tickUpper, tokenId);
   }
 
   /// @notice Uncollected fees for a v4 position (mirrors v4utils `FeeMath.getFeesOwed` without test-only imports).

@@ -274,6 +274,31 @@ contract SharedV3Strategy is ISharedStrategy {
     // the wrong contract. NFPM trust is enforced on `delegatecall` paths and on `_addPosition` in the vault.
     // Aerodrome / Pancake shared strategies use the same rule on this function (no whitelist on valuation).
 
+    (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) = _positionAmountsSplit(
+      nfpm,
+      tokenId
+    );
+    amount0 = principal0 + tokensOwed0;
+    amount1 = principal1 + tokensOwed1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionPrincipalAmounts(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    // Principal-only: excludes tokensOwed so SharedVault tops up existing positions at the exact
+    // range ratio increaseLiquidity requires. See ISharedStrategy.getPositionPrincipalAmounts.
+    (amount0, amount1, , ) = _positionAmountsSplit(nfpm, tokenId);
+  }
+
+  /// @dev Splits a position's on-chain amounts into principal (from in-range liquidity at current price)
+  ///      and uncollected fees (`tokensOwed*`). Returns (0, 0, 0, 0) for fully-zeroed positions to match
+  ///      the short-circuit in `getPositionAmounts` and avoid an unnecessary pool `slot0` staticcall.
+  function _positionAmountsSplit(
+    address nfpm,
+    uint256 tokenId
+  ) private view returns (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) {
     (
       ,
       ,
@@ -285,30 +310,28 @@ contract SharedV3Strategy is ISharedStrategy {
       uint128 liquidity,
       ,
       ,
-      uint128 tokensOwed0,
-      uint128 tokensOwed1
+      uint128 owed0,
+      uint128 owed1
     ) = INFPM(nfpm).positions(tokenId);
 
-    if (liquidity == 0 && tokensOwed0 == 0 && tokensOwed1 == 0) return (0, 0);
+    tokensOwed0 = owed0;
+    tokensOwed1 = owed1;
 
-    if (liquidity > 0) {
-      address pool = _getPool(nfpm, token0, token1, fee);
-      (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
-      require(success, ISharedCommon.StrategyCallFailed());
-      uint160 sqrtPriceX96;
-      assembly {
-        sqrtPriceX96 := mload(add(returnedData, 0x20))
-      }
-      (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96,
-        TickMath.getSqrtRatioAtTick(tickLower),
-        TickMath.getSqrtRatioAtTick(tickUpper),
-        liquidity
-      );
+    if (liquidity == 0) return (0, 0, tokensOwed0, tokensOwed1);
+
+    address pool = _getPool(nfpm, token0, token1, fee);
+    (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
+    require(success, ISharedCommon.StrategyCallFailed());
+    uint160 sqrtPriceX96;
+    assembly {
+      sqrtPriceX96 := mload(add(returnedData, 0x20))
     }
-
-    amount0 += tokensOwed0;
-    amount1 += tokensOwed1;
+    (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      TickMath.getSqrtRatioAtTick(tickLower),
+      TickMath.getSqrtRatioAtTick(tickUpper),
+      liquidity
+    );
   }
 
   function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address) {

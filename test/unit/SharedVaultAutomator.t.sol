@@ -86,6 +86,10 @@ contract MockAutomatorStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
@@ -283,12 +287,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
     // No revert = success; strategy ran inside vault
   }
 
@@ -298,12 +297,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(NON_OPERATOR);
     vm.expectRevert();
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithAgentAllowance_fail_wrongVault() public {
@@ -313,12 +307,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithAgentAllowance_fail_expired() public {
@@ -338,12 +327,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithAgentAllowance_fail_wrongSigner() public {
@@ -364,12 +348,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithAgentAllowance_fail_cancelled() public {
@@ -385,12 +364,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithAgentAllowance_fail_paused() public {
@@ -402,12 +376,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert();
-    automator.executeWithAgentAllowance(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   // ============ executeWithUserOrder ============
@@ -417,12 +386,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
-    automator.executeWithUserOrder(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   /// @dev executeWithUserOrder does not mark signatures consumed; replay is allowed until cancelOrder
@@ -431,18 +395,8 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
-    automator.executeWithUserOrder(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
-    automator.executeWithUserOrder(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
     vm.stopPrank();
   }
 
@@ -464,12 +418,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
-    automator.executeWithUserOrder(
-      ISharedVault(address(otherVault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithUserOrder(ISharedVault(address(otherVault)), ops, encoded, sig);
   }
 
   function test_executeWithUserOrder_fail_nonOperator() public {
@@ -478,12 +427,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(NON_OPERATOR);
     vm.expectRevert();
-    automator.executeWithUserOrder(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   function test_executeWithUserOrder_fail_cancelledManually() public {
@@ -498,12 +442,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
-    automator.executeWithUserOrder(
-      ISharedVault(address(vault)),
-      ops,
-      encoded,
-      sig
-    );
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
   // ============ cancelOrder ============
@@ -648,12 +587,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
     // Execute — this would revert with ECDSA-only verification
     vm.prank(OPERATOR);
-    msAutomator.executeWithAgentAllowance(
-      ISharedVault(address(msVault)),
-      ops,
-      encoded,
-      sig
-    );
+    msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);
   }
 
   function test_multisig_executeWithUserOrder_replayable() public {
@@ -671,18 +605,8 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.startPrank(OPERATOR);
-    msAutomator.executeWithUserOrder(
-      ISharedVault(address(msVault)),
-      ops,
-      encoded,
-      sig
-    );
-    msAutomator.executeWithUserOrder(
-      ISharedVault(address(msVault)),
-      ops,
-      encoded,
-      sig
-    );
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
     vm.stopPrank();
   }
 
@@ -832,12 +756,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
-    msAutomator.executeWithAgentAllowance(
-      ISharedVault(address(msVault)),
-      ops,
-      encoded,
-      sig
-    );
+    msAutomator.executeWithAgentAllowance(ISharedVault(address(msVault)), ops, encoded, sig);
   }
 }
 
@@ -874,5 +793,8 @@ contract MockAutomatorERC1155 {
   }
 
   function setApprovalForAll(address, bool) external {}
-  function isApprovedForAll(address, address) external pure returns (bool) { return false; }
+
+  function isApprovedForAll(address, address) external pure returns (bool) {
+    return false;
+  }
 }

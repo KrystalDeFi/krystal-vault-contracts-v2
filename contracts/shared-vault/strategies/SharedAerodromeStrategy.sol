@@ -243,6 +243,28 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
+    (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) = _positionAmountsSplit(
+      _nfpm,
+      tokenId
+    );
+    amount0 = principal0 + tokensOwed0;
+    amount1 = principal1 + tokensOwed1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionPrincipalAmounts(
+    address _nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1, , ) = _positionAmountsSplit(_nfpm, tokenId);
+  }
+
+  /// @dev See note on `SharedV3Strategy._positionAmountsSplit`. Identical semantics, adapted for the
+  ///      Aerodrome tickSpacing-based pool lookup.
+  function _positionAmountsSplit(
+    address _nfpm,
+    uint256 tokenId
+  ) private view returns (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) {
     (
       ,
       ,
@@ -254,25 +276,23 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       uint128 liquidity,
       ,
       ,
-      uint128 tokensOwed0,
-      uint128 tokensOwed1
+      uint128 owed0,
+      uint128 owed1
     ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 
-    if (liquidity == 0 && tokensOwed0 == 0 && tokensOwed1 == 0) return (0, 0);
+    tokensOwed0 = owed0;
+    tokensOwed1 = owed1;
 
-    if (liquidity > 0) {
-      address pool = _getPool(_nfpm, token0, token1, tickSpacing);
-      (uint160 sqrtPriceX96, , , , , ) = ICLPool(pool).slot0();
-      (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96,
-        TickMath.getSqrtRatioAtTick(tickLower),
-        TickMath.getSqrtRatioAtTick(tickUpper),
-        liquidity
-      );
-    }
+    if (liquidity == 0) return (0, 0, tokensOwed0, tokensOwed1);
 
-    amount0 += tokensOwed0;
-    amount1 += tokensOwed1;
+    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
+    (uint160 sqrtPriceX96, , , , , ) = ICLPool(pool).slot0();
+    (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      TickMath.getSqrtRatioAtTick(tickLower),
+      TickMath.getSqrtRatioAtTick(tickUpper),
+      liquidity
+    );
   }
 
   /// @inheritdoc ISharedStrategy

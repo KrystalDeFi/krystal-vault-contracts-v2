@@ -128,6 +128,10 @@ contract MockSharedStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
@@ -155,6 +159,10 @@ contract MockBrokenExitStrategy is ISharedStrategy {
   }
 
   function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
   }
 
@@ -189,6 +197,12 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
     return (100e18, 100e18);
   }
 
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    // Return non-zero so SharedVault computes a non-zero `toAdd` and actually calls depositProportional,
+    // which in turn reverts — mirroring the pre-fix behavior of this broken-strategy scenario.
+    return (100e18, 100e18);
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
     revert("pool rugged");
   }
@@ -213,6 +227,10 @@ contract MockFailingStrategy is ISharedStrategy {
   }
 
   function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
   }
 
@@ -283,6 +301,10 @@ contract MockDirectPositionCreator is ISharedStrategy {
   }
 
   function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
   }
 
@@ -431,6 +453,15 @@ contract MockLPExitStrategy is ISharedStrategy {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
+  /// @dev Mock pool doesn't separate principal vs rewards — treat the whole balance as principal.
+  ///      Integration coverage for the real split lives in SharedV3/V4/Aerodrome strategy tests.
+  function getPositionPrincipalAmounts(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
   function depositProportional(
     address nfpm,
     uint256 tokenId,
@@ -444,6 +475,132 @@ contract MockLPExitStrategy is ISharedStrategy {
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+  }
+}
+
+/// @dev Tracks the last (amount0, amount1) passed to depositProportional through a delegatecall.
+///      Used by `MockRewardsAwareStrategy` — the strategy cannot write to its own storage under
+///      delegatecall (that would corrupt the vault's storage layout), so it calls out to this tracker.
+contract DepositProportionalRecorder {
+  uint256 public lastAmount0;
+  uint256 public lastAmount1;
+  uint16 public lastSlippageBps;
+  uint256 public callCount;
+
+  function record(uint256 amount0, uint256 amount1, uint16 slippageBps) external {
+    lastAmount0 = amount0;
+    lastAmount1 = amount1;
+    lastSlippageBps = slippageBps;
+    callCount++;
+  }
+}
+
+/// @dev Mock strategy that mirrors a real Uniswap V3 position with:
+///      - a principal (token amounts computed from in-range liquidity at current price), AND
+///      - uncollected fees / rewards (tokensOwed).
+///
+///      `getPositionAmounts` returns `principal + rewards` (total value, used by the vault
+///      for share pricing). `getPositionPrincipalAmounts` returns `principal` only (used by
+///      the vault when scaling per-depositor top-ups to an existing position).
+///
+///      `depositProportional` simulates V3's `increaseLiquidity` slippage semantics: when
+///      `slippageBps > 0` it reverts with `"OffRatioDeposit"` if the `(amount0, amount1)`
+///      ratio diverges from `(principal0, principal1)` beyond the allowed tolerance.
+///      This is how the bug manifests in production: mixing rewards into the top-up desired
+///      amounts skews the ratio off-range and the pool rejects the slippage check.
+contract MockRewardsAwareStrategy is ISharedStrategy {
+  DepositProportionalRecorder public immutable recorder;
+  address public immutable lpPool;
+  uint256 public immutable principal0;
+  uint256 public immutable principal1;
+  uint256 public immutable rewards0;
+  uint256 public immutable rewards1;
+
+  constructor(address _lpPool, address _recorder, uint256 _p0, uint256 _p1, uint256 _r0, uint256 _r1) {
+    lpPool = _lpPool;
+    recorder = DepositProportionalRecorder(_recorder);
+    principal0 = _p0;
+    principal1 = _p1;
+    rewards0 = _r0;
+    rewards1 = _r1;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
+      data,
+      (address, uint256, address, address)
+    );
+    // Seed the mock pool with the configured principal amounts so getPositionPrincipalAmounts
+    // is consistent with actual pool-side accounting used by exitProportional.
+    if (principal0 > 0) IERC20(token0).transfer(lpPool, principal0);
+    if (principal1 > 0) IERC20(token1).transfer(lpPool, principal1);
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, principal0, principal1);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256,
+    uint16
+  ) external override returns (PositionChange[] memory changes) {
+    MockLPPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external view override returns (uint256, uint256) {
+    return (principal0 + rewards0, principal1 + rewards1);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external view override returns (uint256, uint256) {
+    return (principal0, principal1);
+  }
+
+  /// @dev Simulates Uniswap V3's `increaseLiquidity` behavior when `amount*Min > 0`:
+  ///      derives the liquidity that would actually be added (binding side), computes what each
+  ///      side would *actually* consume, then reverts if the consumed amount is below amountMin.
+  ///      When `slippageBps == 0` it mirrors real V3 by just consuming whatever the pool accepts
+  ///      (no revert) — so idle leftovers can be verified by the test.
+  function depositProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
+    // Record via external CALL (can't use storage under delegatecall without corrupting vault).
+    recorder.record(amount0, amount1, slippageBps);
+    if (amount0 == 0 && amount1 == 0) return;
+
+    // Compute what Uniswap V3 would actually consume given the current principal ratio.
+    // This is the MIN liquidity constraint: L = min(amount0 / factor0, amount1 / factor1),
+    // which in our token-amount space reduces to:
+    //   consumed0 = min(amount0, amount1 * principal0 / principal1)
+    //   consumed1 = min(amount1, amount0 * principal1 / principal0)
+    uint256 consumed0 = amount0;
+    uint256 consumed1 = amount1;
+    if (principal0 > 0 && principal1 > 0) {
+      uint256 cap0 = (amount1 * principal0) / principal1;
+      uint256 cap1 = (amount0 * principal1) / principal0;
+      if (cap0 < consumed0) consumed0 = cap0;
+      if (cap1 < consumed1) consumed1 = cap1;
+    }
+
+    if (slippageBps > 0) {
+      uint256 min0 = (amount0 * (10000 - slippageBps)) / 10000;
+      uint256 min1 = (amount1 * (10000 - slippageBps)) / 10000;
+      require(consumed0 >= min0 && consumed1 >= min1, "OffRatioDeposit");
+    }
+
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (address token0, address token1, , ) = MockLPPool(lpPool).lps(key);
+    if (consumed0 > 0) IERC20(token0).transfer(lpPool, consumed0);
+    if (consumed1 > 0) IERC20(token1).transfer(lpPool, consumed1);
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, consumed0, consumed1);
   }
 }
 
@@ -2487,5 +2644,252 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     vault.execute(actions);
     assertEq(vault.getPositionCount(), 1);
+  }
+
+  // ==================== Rewards-Ratio Fix: Principal-Only Scaling Tests ====================
+  //
+  // Regression suite for the bug where `_depositProportionalToAllPositions` scaled per-position
+  // top-ups by `getPositionAmounts` (principal + uncollected fees). When a position's principal
+  // ratio (set by the current tick range) diverges from its uncollected-fees ratio (set by
+  // historical swap flow), this would produce off-range `(amount0, amount1)` desireds that the
+  // underlying AMM's `increaseLiquidity` cannot consume in proportion — leading to either
+  // silent idle leakage (slippageBps == 0) or a revert via `amount*Min` (slippageBps > 0).
+  //
+  // Scenario throughout this section (chosen so the two ratios diverge cleanly):
+  //   - position principal:        30 A : 70 B   (3:7 range ratio)
+  //   - position uncollected fees: 10 A : 10 B   (1:1 rewards ratio — different from range)
+  //   - getPositionAmounts:        40 A : 80 B   (sum; 1:2 total ratio)
+  //   - getPositionPrincipalAmounts: 30 A : 70 B (fix uses this for the LP top-up)
+  //
+  // The fix guarantees top-ups go in at the 3:7 principal ratio, regardless of how fees have
+  // accrued — and the depositor's proportional share of the fees simply stays idle in the vault.
+
+  /// @dev Builds a fresh vault with one `MockRewardsAwareStrategy` position whose principal
+  ///      and rewards ratios diverge. Returns the vault, tokens, recorder, and the (nfpm,
+  ///      tokenId) of the position. Post-setup state:
+  ///        - vault idle: 20 A, 80 B (initial 50/150 minus 30/70 moved into the position)
+  ///        - position: 30 A / 70 B principal  +  10 A / 10 B virtual rewards
+  ///        - totalSupply = INITIAL_SHARES (owner holds all shares)
+  function _setupVaultWithRewardsAwarePosition()
+    internal
+    returns (
+      SharedVault rewardsVault,
+      MockERC20 tA,
+      MockERC20 tB,
+      DepositProportionalRecorder recorder,
+      MockERC721 nfpm,
+      uint256 tokenId,
+      MockRewardsAwareStrategy strat
+    )
+  {
+    // --- Arrange: deploy isolated token/pool/recorder/strategy for this scenario -------------
+    tA = new MockERC20("RewardsA", "RA");
+    tB = new MockERC20("RewardsB", "RB");
+    MockLPPool pool = new MockLPPool();
+    recorder = new DepositProportionalRecorder();
+    strat = new MockRewardsAwareStrategy(
+      address(pool),
+      address(recorder),
+      30e18, // principal0
+      70e18, // principal1
+      10e18, // rewards0 (uncollected fees, virtual)
+      10e18 // rewards1
+    );
+    nfpm = new MockERC721();
+    tokenId = 1;
+
+    // --- Arrange: whitelist strategy + nfpm in an isolated config manager --------------------
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(nfpm);
+    cm.initialize(address(this), targets, new address[](0), address(this), nfpms, new address[](0));
+
+    // --- Arrange: seed the vault with idle balances large enough to cover principal transfer
+    rewardsVault = new SharedVault();
+    tA.mint(address(this), 50e18);
+    tB.mint(address(this), 150e18);
+    tA.transfer(address(rewardsVault), 50e18);
+    tB.transfer(address(rewardsVault), 150e18);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(50e18), uint256(150e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    rewardsVault.initialize("RewardsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
+
+    // --- Act: register the position by delegatecall-executing the strategy -------------------
+    nfpm.mint(address(rewardsVault), tokenId);
+    bytes memory stratData = abi.encode(address(nfpm), tokenId, address(tA), address(tB));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    rewardsVault.execute(actions);
+
+    // --- Assert: setup preconditions (sanity guard for the rest of the suite) ----------------
+    assertEq(tA.balanceOf(address(rewardsVault)), 20e18, "setup: vault idle A = initial - principal0");
+    assertEq(tB.balanceOf(address(rewardsVault)), 80e18, "setup: vault idle B = initial - principal1");
+    assertEq(rewardsVault.getPositionCount(), 1, "setup: one position tracked");
+
+    (uint256 totalA, uint256 totalB) = strat.getPositionAmounts(address(nfpm), tokenId);
+    assertEq(totalA, 40e18, "setup: getPositionAmounts includes fees (30 + 10)");
+    assertEq(totalB, 80e18, "setup: getPositionAmounts includes fees (70 + 10)");
+
+    (uint256 princA, uint256 princB) = strat.getPositionPrincipalAmounts(address(nfpm), tokenId);
+    assertEq(princA, 30e18, "setup: getPositionPrincipalAmounts excludes fees");
+    assertEq(princB, 70e18, "setup: getPositionPrincipalAmounts excludes fees");
+  }
+
+  /// @notice The vault's LP top-up is scaled by *principal* amounts, not by total (principal + rewards).
+  ///         With 40:80 totals but 30:70 principal, a 30:80 proportional deposit must be split
+  ///         into a 15:35 LP top-up (3:7 range ratio) — NOT 20:40 (1:2 totals ratio), which is the
+  ///         pre-fix behavior and would push tokens in at the wrong range ratio.
+  function test_deposit_rewardsRatio_usesPrincipalAmountsForLPTopup() public {
+    // Arrange: fresh vault with a rewards-bearing position. State documented in helper.
+    (
+      SharedVault rv,
+      MockERC20 tA,
+      MockERC20 tB,
+      DepositProportionalRecorder recorder,
+      ,
+      ,
+
+    ) = _setupVaultWithRewardsAwarePosition();
+
+    // totalBalances = (20 idle + 40 position, 80 idle + 80 position) = (60, 160).
+    // A 50% proportional deposit therefore transfers (30, 80).
+    tA.mint(DEPOSITOR, 30e18);
+    tB.mint(DEPOSITOR, 80e18);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(rv), type(uint256).max);
+    tB.approve(address(rv), type(uint256).max);
+
+    // Act: proportional deposit with zero slippage guard (so the recorder captures intent
+    //      regardless of how the mock pool ends up absorbing the tokens).
+    uint256[4] memory amounts = [uint256(30e18), uint256(80e18), uint256(0), uint256(0)];
+    rv.deposit(amounts, 0);
+    vm.stopPrank();
+
+    // Assert: exactly one LP top-up happened, and at the principal (3:7) ratio, not the total (1:2) ratio.
+    assertEq(recorder.callCount(), 1, "depositProportional called exactly once");
+    // FIX: toAdd0 = transferAmount0 * principal0 / total0 = 30 * 30 / 60 = 15
+    assertEq(recorder.lastAmount0(), 15e18, "LP top-up token0 scaled by principal, not totals");
+    // FIX: toAdd1 = transferAmount1 * principal1 / total1 = 80 * 70 / 160 = 35
+    assertEq(recorder.lastAmount1(), 35e18, "LP top-up token1 scaled by principal, not totals");
+
+    // Cross-check the ratio explicitly — the bug manifests as a non-3:7 ratio here.
+    assertEq(
+      recorder.lastAmount0() * 7,
+      recorder.lastAmount1() * 3,
+      "LP top-up ratio must equal principal ratio (3:7), regardless of uncollected fees"
+    );
+  }
+
+  /// @notice With the fix, a deposit carrying a reasonable slippage guard (1%) no longer reverts
+  ///         just because the position's rewards ratio diverges from its principal ratio. Before
+  ///         the fix this would revert with `"OffRatioDeposit"` because the pre-fix top-up at the
+  ///         totals-ratio consumes less than `amountMin` on the binding side.
+  function test_deposit_rewardsRatio_doesNotRevertUnderSlippageCheck() public {
+    (SharedVault rv, MockERC20 tA, MockERC20 tB, , , , ) = _setupVaultWithRewardsAwarePosition();
+
+    tA.mint(DEPOSITOR, 30e18);
+    tB.mint(DEPOSITOR, 80e18);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(rv), type(uint256).max);
+    tB.approve(address(rv), type(uint256).max);
+
+    uint256[4] memory amounts = [uint256(30e18), uint256(80e18), uint256(0), uint256(0)];
+    // 1% slippage on the LP top-up. The mock's depositProportional mirrors real V3 semantics
+    // and reverts `"OffRatioDeposit"` if the binding-side consumption falls below amountMin.
+    uint256 sharesMinted = rv.deposit(amounts, uint16(100));
+    vm.stopPrank();
+
+    // Assert: deposit succeeded and minted non-zero shares proportional to the 50% contribution.
+    assertGt(sharesMinted, 0, "deposit minted shares");
+    assertEq(rv.balanceOf(DEPOSITOR), sharesMinted, "depositor holds the minted shares");
+  }
+
+  /// @notice With the fix, the rewards-proportional slice of the depositor's contribution stays
+  ///         in the vault as idle balance (instead of being force-fed to the LP at the wrong ratio
+  ///         and silently leaking). This is the "fees-count-as-idle" invariant the fix establishes.
+  function test_deposit_rewardsRatio_leavesRewardsSliceAsIdle() public {
+    (
+      SharedVault rv,
+      MockERC20 tA,
+      MockERC20 tB,
+      ,
+      MockERC721 nfpm,
+      uint256 tokenId,
+      MockRewardsAwareStrategy strat
+    ) = _setupVaultWithRewardsAwarePosition();
+
+    uint256 idleABefore = tA.balanceOf(address(rv));
+    uint256 idleBBefore = tB.balanceOf(address(rv));
+
+    tA.mint(DEPOSITOR, 30e18);
+    tB.mint(DEPOSITOR, 80e18);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(rv), type(uint256).max);
+    tB.approve(address(rv), type(uint256).max);
+    uint256[4] memory amounts = [uint256(30e18), uint256(80e18), uint256(0), uint256(0)];
+    rv.deposit(amounts, 0);
+    vm.stopPrank();
+
+    // Of the 30 A pulled in, 15 went to the LP and 15 should have stayed idle (the rewards slice).
+    // Symmetrically for B: 80 pulled, 35 to LP, 45 stays idle.
+    assertEq(tA.balanceOf(address(rv)), idleABefore + 30e18 - 15e18, "rewards-slice of tokenA stays idle in vault");
+    assertEq(tB.balanceOf(address(rv)), idleBBefore + 80e18 - 35e18, "rewards-slice of tokenB stays idle in vault");
+
+    // And the LP position's principal grew by exactly the 3:7 top-up. MockLPPool tracks actual
+    // balances separately from the virtual rewards, so its balance reflects principal-only.
+    MockLPPool lpPool = MockLPPool(strat.lpPool());
+    (uint256 poolA, uint256 poolB) = lpPool.getAmounts(address(nfpm), tokenId);
+    assertEq(poolA, 30e18 + 15e18, "pool principal grew by 15 A at 3:7 ratio");
+    assertEq(poolB, 70e18 + 35e18, "pool principal grew by 35 B at 3:7 ratio");
+  }
+
+  /// @notice Direct counter-proof: if we feed the strategy the "buggy" totals-ratio top-up amounts
+  ///         (20:40 instead of 15:35) through the same slippage-checked path, the pool rejects them
+  ///         as off-ratio. This pins down *why* the fix is needed — the pre-fix amounts can't clear
+  ///         the `amount*Min` bar when principal and rewards ratios diverge.
+  function test_depositProportional_withBuggyTotalsRatio_revertsUnderSlippageCheck() public {
+    // Arrange: the mock strategy does not need to be registered on a vault — we call its
+    // depositProportional directly to simulate what the pre-fix SharedVault would have sent.
+    MockLPPool pool = new MockLPPool();
+    DepositProportionalRecorder recorder = new DepositProportionalRecorder();
+    MockRewardsAwareStrategy strat = new MockRewardsAwareStrategy(
+      address(pool),
+      address(recorder),
+      30e18,
+      70e18,
+      10e18,
+      10e18
+    );
+
+    // Seed the pool with principal so the ratio-consumption math in depositProportional lines up
+    // with the registered position's principal slot.
+    MockERC20 tA = new MockERC20("A", "A");
+    MockERC20 tB = new MockERC20("B", "B");
+    tA.mint(address(this), 1000e18);
+    tB.mint(address(this), 1000e18);
+    tA.transfer(address(pool), 30e18);
+    tB.transfer(address(pool), 70e18);
+    MockERC721 nfpm = new MockERC721();
+    uint256 tokenId = 42;
+    pool.deposit(address(nfpm), tokenId, address(tA), address(tB), 30e18, 70e18);
+
+    // Act + Assert: 1% slippage tolerance is not enough to cover the off-ratio deficit on the A side.
+    // The revert happens BEFORE any token transfer, so no balance setup is needed for this call.
+    //   consumed0 = min(20, 40 * 30/70) ≈ 17.14e18
+    //   min0     = 20 * 0.99             = 19.8e18    →  17.14 < 19.8  → revert.
+    vm.expectRevert(bytes("OffRatioDeposit"));
+    strat.depositProportional(address(nfpm), tokenId, 20e18, 40e18, uint16(100));
+
+    // Contrast: the principal-ratio amounts clear the same slippage check cleanly. This call
+    // DOES reach the token-transfer step, so the strategy must hold the exact consumed amounts
+    // (called directly, msg.sender == strat, so transfers originate from strat's own balance).
+    tA.transfer(address(strat), 15e18);
+    tB.transfer(address(strat), 35e18);
+    strat.depositProportional(address(nfpm), tokenId, 15e18, 35e18, uint16(100));
   }
 }

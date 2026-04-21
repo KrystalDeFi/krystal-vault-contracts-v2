@@ -343,6 +343,17 @@ contract SharedVault is
   }
 
   /// @dev Push proportional slices into tracked LP positions; no-op on first deposit or empty positions.
+  ///
+  ///      **Principal-only scaling**: the per-position top-up ratio is derived from each position's
+  ///      *principal* (liquidity at the current price), NOT from `getPositionAmounts` which bundles
+  ///      uncollected fees. `increaseLiquidity` can only consume tokens at the range ratio dictated
+  ///      by the current tick, so mixing fee balances (whose ratio is set by historical swap flow, not
+  ///      the range) into the desired amounts would either leak into idle silently (slippageBps == 0)
+  ///      or revert via `amount*Min` (slippageBps > 0). Uncollected fees are therefore effectively
+  ///      treated as idle: they still count toward `_getTotalBalances` for share pricing, but they do
+  ///      not participate in the LP top-up. The depositor's proportional share of those fees remains
+  ///      in the vault as a slightly higher idle reserve (or gets collected and proportionally returned
+  ///      on the next `exitProportional`).
   function _depositProportionalToAllPositions(
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances,
@@ -355,7 +366,10 @@ contract SharedVault is
     for (uint256 p; p < posLen; ) {
       Position memory pos = positions[p];
 
-      (uint256 posAmt0, uint256 posAmt1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+      (uint256 posAmt0, uint256 posAmt1) = ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(
+        pos.nfpm,
+        pos.tokenId
+      );
 
       uint256 toAdd0;
       uint256 toAdd1;
