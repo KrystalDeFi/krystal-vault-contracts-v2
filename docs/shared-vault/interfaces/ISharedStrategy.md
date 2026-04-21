@@ -124,3 +124,41 @@ _Called via regular CALL (not staticcall) from non-view vault functions such as 
 | amount0 | uint256 | Amount of token0 in the position |
 | amount1 | uint256 | Amount of token1 in the position |
 
+### getPositionPrincipalAmounts
+
+```solidity
+function getPositionPrincipalAmounts(address nfpm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
+```
+
+Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.
+
+_Returns the token amounts computed purely from the position's in-range liquidity at the current price.
+     This is the correct ratio for topping up an existing position via `increaseLiquidity` — uncollected
+     fees live in the NFPM as `tokensOwed*` and accrue in a ratio set by historical swap flow, NOT by
+     the current price range. Mixing them into the top-up desired amounts would make the
+     `amount0Desired : amount1Desired` ratio diverge from the range, so `increaseLiquidity` would either
+     (a) consume far less on the "off-ratio" side, leaving dust idle, or
+     (b) revert the slippage check when `amount*Min > 0` because the actually consumed amount on the
+         binding side falls below the `amount*Min` derived from the desired value.
+     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups,
+     treating uncollected fees as idle vault balance for share-pricing purposes (they are still counted
+     in `getPositionAmounts`, which remains the total-value view).
+
+     Strategies that cannot meaningfully increase liquidity (e.g. staked / locked positions whose
+     `depositProportional` returns silently) MAY return (0, 0); the caller skips the LP top-up and
+     leaves tokens as idle._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager address |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | Principal-only amount of token0 (excludes uncollected fees/rewards) |
+| amount1 | uint256 | Principal-only amount of token1 (excludes uncollected fees/rewards) |
+
