@@ -701,14 +701,22 @@ contract SharedVault is
   ///      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
   ///      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
   ///      Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
+  ///
+  ///      Applies the same **dust floor** as `withdraw()`: any computed amount strictly between 0 and
+  ///      `configManager.minTokenAmount()` is shown as 0, matching execution-time zeroing.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
     uint256 currentTotalSupply = totalSupply();
     if (currentTotalSupply == 0) return amounts;
 
+    uint256 minAmt = configManager.minTokenAmount();
     uint256[4] memory totalBalances = _getTotalBalances();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
-        amounts[i] = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
+        uint256 computed = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
+        if (computed > 0 && computed < minAmt) {
+          computed = 0;
+        }
+        amounts[i] = computed;
       }
       unchecked {
         i++;

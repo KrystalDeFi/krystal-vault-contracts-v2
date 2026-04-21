@@ -2587,6 +2587,18 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenB.balanceOf(VAULT_OWNER), bOwnerBefore, "owner received no dust");
   }
 
+  /// @notice `previewWithdraw` applies the same dust floor as `withdraw()` so integrators do not
+  ///         see non-zero amounts for tokens that execute as zero.
+  function test_previewWithdraw_zeroes_dust_below_floor_like_withdraw() public {
+    configManager.setMinTokenAmount(1e12);
+
+    uint256 sharesToPreview = 1;
+    uint256[4] memory preview = vault.previewWithdraw(sharesToPreview);
+
+    assertEq(preview[0], 0, "preview tokenA: sub-floor slice shown as 0");
+    assertEq(preview[1], 0, "preview tokenB: sub-floor slice shown as 0");
+  }
+
   /// @notice A withdrawal producing amounts above the floor is unaffected.
   function test_withdraw_above_floor_transfers_normally() public {
     configManager.setMinTokenAmount(1);
