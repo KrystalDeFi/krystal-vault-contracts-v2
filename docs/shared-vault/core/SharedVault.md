@@ -358,7 +358,10 @@ Preview token amounts returned for burning `_shares`.
 _Computes proportional share of total balances (idle + LP position principal + uncollected fees).
      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
-     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`._
+     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
+
+     Applies the same **dust floor** as `withdraw()`: any computed amount strictly between 0 and
+     `configManager.minTokenAmount()` is shown as 0, matching execution-time zeroing._
 
 ### sweepTokens
 
