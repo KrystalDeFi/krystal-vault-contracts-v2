@@ -8,6 +8,7 @@ import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedCon
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
+import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
@@ -1648,16 +1649,19 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenA.balanceOf(VAULT_OWNER), received[0]);
   }
 
-  /// @notice When WETH transferAmount rounds to zero (dust), wrapped ETH is fully refunded
-  /// @dev Constructs: tokenA=1e18, mockWeth=1 wei → totalSupply=1e36
-  ///      Deposit 1 wei ETH: shares=1e18, transferAmounts[weth]=mulDiv(1e18,1,1e36)=0
-  ///      Before fix: wrapped ETH locked in vault. After fix: fully refunded.
-  function test_deposit_eth_dust_amount_refunded() public {
-    // Vault: 1e18 tokenA, 1 wei WETH — totalSupply = 1e36 (tokenA * SHARES_PRECISION)
+  /// @notice With the dust-proof rounding-up rule, a sub-1-wei proportional WETH slice is
+  ///         raised to 1 wei and fully consumed — not refunded, not locked in the vault.
+  /// @dev Constructs: tokenA=1e18, mockWeth=1 wei → totalSupply=INITIAL_SHARES
+  ///      Deposit amounts=[1 wei tokenA, 1 wei ETH]: sharesOut=min-ratio=10, transferAmounts[weth]
+  ///      computed as mulDivRoundingUp(10, 1, INITIAL_SHARES) = 1 wei (ceiling of ~0).
+  ///      The 1 wei ETH is wrapped and used — excess refund is 0. The legacy behaviour (floor
+  ///      division → transferAmounts[weth]=0 and wrapped WETH locked) is eliminated at the
+  ///      source: no zero-slice is ever produced when totalBalances[i] > 0.
+  function test_deposit_eth_dust_amount_is_consumed_via_roundup() public {
     SharedVault wv = new SharedVault();
     tokenA.mint(address(this), 1e18);
     vm.deal(address(this), 100 ether);
-    mockWeth.deposit{ value: 1 }(); // 1 wei WETH backed by 1 wei ETH
+    mockWeth.deposit{ value: 1 }();
 
     tokenA.transfer(address(wv), 1e18);
     mockWeth.transfer(address(wv), 1);
@@ -1675,7 +1679,6 @@ contract SharedVaultTest is TestCommon {
       address(mockWeth)
     );
     vm.stopPrank();
-    // totalSupply = 1e18 * 1e18 = 1e36
 
     address depositor = makeAddr("dustDepositor");
     vm.deal(depositor, 1 wei);
@@ -1684,20 +1687,18 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(depositor);
     tokenA.approve(address(wv), 1);
 
-    // amounts[1] = 1 wei ETH; transferAmounts[1] will round to zero
     uint256[4] memory amounts = [uint256(1), uint256(1), uint256(0), uint256(0)];
     uint256 sharesBefore = wv.balanceOf(depositor);
-    uint256 ethBefore = depositor.balance;
 
+    uint256 vaultWethBefore = mockWeth.balanceOf(address(wv));
     wv.deposit{ value: 1 }(amounts, 0);
     vm.stopPrank();
 
-    // Depositor receives shares (non-zero — tokenA contribution)
     assertGt(wv.balanceOf(depositor), sharesBefore, "should receive shares");
-    // The 1 wei ETH must be fully refunded (transferAmounts[weth] was 0)
-    assertEq(depositor.balance, ethBefore, "dust ETH must be refunded, not locked");
-    // Vault WETH balance unchanged (1 wei — no extra WETH was actually deposited)
-    assertEq(mockWeth.balanceOf(address(wv)), 1, "vault WETH balance unchanged");
+    // 1 wei ETH fully consumed (ceiling-rounded transferAmounts[weth]=1 ⇒ excess=0)
+    assertEq(depositor.balance, 0, "dust ETH must be consumed, not refunded -- slice rounded up to 1 wei");
+    // Vault WETH gained exactly 1 wei from the wrapped ETH
+    assertEq(mockWeth.balanceOf(address(wv)), vaultWethBefore + 1, "vault WETH grew by 1 wei");
   }
 
   // ==================== Double-Dilution Regression Tests ====================
@@ -2203,6 +2204,267 @@ contract SharedVaultTest is TestCommon {
     // exitProportional on MockDirectPositionCreator returns empty changes, so positions stay
     // tracked (no removal) — the point is withdraw doesn't revert
     assertEq(vault.totalSupply(), 0);
+  }
+
+  // ==================== Dust-Floor Tests (minTokenAmount) ====================
+  //
+  // These tests exercise the two asymmetric defences added for dust handling. The floor is
+  // a single global `uint256 configManager.minTokenAmount()` applied uniformly to every token
+  // in every vault (the config owner cannot know which tokens a given vault will be created
+  // with, so a per-token mapping would be unmanageable in practice):
+  //
+  //   1. DEPOSIT -- proportional slices are rounded UP (ceiling) and then raised to the
+  //      global floor. Depositor must always provide >= that floor. This blocks the dilution
+  //      attack where a depositor skipped paying for dust tokens because floor(tiny_ratio) = 0.
+  //   2. WITHDRAW -- proportional slices below the global floor are zeroed out (dust stays
+  //      in the vault, accruing to remaining holders). Mirrors the deposit defence without
+  //      enabling an inverse "withdraw more than proportional" exploit.
+
+  // ---- config: setMinTokenAmount ----
+
+  function test_setMinTokenAmount_owner_stores_value_and_emits() public {
+    vm.expectEmit(true, true, true, true);
+    emit ISharedConfigManager.MinTokenAmountUpdated(42);
+    configManager.setMinTokenAmount(42);
+
+    assertEq(configManager.minTokenAmount(), 42, "global floor stored");
+  }
+
+  function test_setMinTokenAmount_reverts_for_non_owner() public {
+    // OwnableUpgradeable reverts with `OwnableUnauthorizedAccount` -- we just assert the call
+    // reverts (for any reason) when a non-owner attempts it.
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert();
+    configManager.setMinTokenAmount(10);
+  }
+
+  function test_setMinTokenAmount_zero_value_disables_floor() public {
+    configManager.setMinTokenAmount(10);
+    assertEq(configManager.minTokenAmount(), 10);
+
+    configManager.setMinTokenAmount(0);
+    assertEq(configManager.minTokenAmount(), 0, "floor cleared");
+  }
+
+  // ---- deposit: rounding up + min floor ----
+
+  /// @dev Builds a fresh vault whose tokenB holds only dust (50 wei) while tokenA is abundant.
+  ///      Post-setup state:
+  ///        totalBalances = [100e18, 50]
+  ///        totalSupply  = INITIAL_SHARES (10e18)
+  function _setupDustVault() internal returns (SharedVault v) {
+    v = new SharedVault();
+    tokenA.mint(address(this), 100e18);
+    tokenB.mint(address(this), 50);
+    tokenA.transfer(address(v), 100e18);
+    tokenB.transfer(address(v), 50);
+
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(50), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("DustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0));
+  }
+
+  /// @notice Regression for the dilution attack: without rounding-up, a depositor could supply
+  ///         only the majority token (tokenA) and receive shares for free on the dust token
+  ///         (tokenB), because floor(tiny * totalSupply / 100e18) = 0. With ceiling rounding
+  ///         the required tokenB slice is >= 1 wei and the deposit now reverts when the
+  ///         depositor provides 0 tokenB.
+  function test_deposit_blocks_dust_dilution_attack_via_ceiling() public {
+    SharedVault v = _setupDustVault();
+
+    tokenA.mint(DEPOSITOR, 1e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+
+    // sharesOut derives from tokenA alone (amounts[B] = 0 is skipped); ceiling then raises
+    // transferAmounts[B] to >= 1 wei and the `amounts[B] >= transferAmounts[B]` check fails.
+    uint256[4] memory attackAmounts = [uint256(1e18), uint256(0), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    v.deposit(attackAmounts, 0);
+    vm.stopPrank();
+  }
+
+  /// @notice With the global floor configured, the proportional slice is raised to the floor
+  ///         even when the ceiling-rounded proportional is below it. Depositor must provide
+  ///         at least `minTokenAmount` of every token whose proportional slice is sub-floor.
+  function test_deposit_requires_at_least_min_token_amount_for_dust_slice() public {
+    SharedVault v = _setupDustVault();
+
+    // Global floor of 10 base units -- any token slice below this is lifted to 10.
+    configManager.setMinTokenAmount(10);
+
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 5);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256[4] memory tooLittle = [uint256(1e18), uint256(5), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    v.deposit(tooLittle, 0);
+    vm.stopPrank();
+  }
+
+  /// @notice Happy path with the floor: depositor supplies enough tokenB to clear the min,
+  ///         deposit succeeds, and the vault pulls exactly `minTokenAmount` of the dust token.
+  function test_deposit_pulls_exactly_min_when_proportional_is_below_floor() public {
+    SharedVault v = _setupDustVault();
+
+    configManager.setMinTokenAmount(10);
+
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 20); // more than enough
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+
+    uint256 bBalBefore = tokenB.balanceOf(DEPOSITOR);
+    uint256[4] memory amts = [uint256(1e18), uint256(20), uint256(0), uint256(0)];
+    uint256 shares = v.deposit(amts, 0);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "shares minted");
+    assertEq(tokenB.balanceOf(DEPOSITOR), bBalBefore - 10, "depositor pays exactly the floor on the dust slice");
+    assertEq(tokenB.balanceOf(address(v)), 60, "vault dust pool grew by exactly 10 wei");
+  }
+
+  /// @notice Without any floor set, ceiling alone still blocks the 0-dust exploit: proportional
+  ///         is raised from 0 to 1 wei. Depositor must supply >= 1 wei tokenB to pass.
+  function test_deposit_ceiling_only_without_min_still_blocks_zero_slice() public {
+    SharedVault v = _setupDustVault();
+    // minTokenAmount defaults to 0 (storage zero); only the ceiling defence is active.
+
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 1);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+
+    uint256[4] memory amts = [uint256(1e18), uint256(1), uint256(0), uint256(0)];
+    uint256 shares = v.deposit(amts, 0);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "shares minted when >=1 wei dust supplied");
+    assertEq(tokenB.balanceOf(address(v)), 51, "ceiling consumes exactly 1 wei of dust");
+  }
+
+  /// @notice Proportional amounts already above the floor behave unchanged.
+  function test_deposit_above_floor_behaves_normally() public {
+    // Existing `vault` (100e18 tokenA + 200e18 tokenB). A 10% deposit gives 10e18 A + 20e18 B
+    // -- both far above a 1-wei global floor, so the floor is a no-op.
+    configManager.setMinTokenAmount(1);
+
+    tokenA.mint(DEPOSITOR, 10e18);
+    tokenB.mint(DEPOSITOR, 20e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256[4] memory amts = [uint256(10e18), uint256(20e18), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amts, 0);
+    vm.stopPrank();
+
+    assertEq(shares, vault.INITIAL_SHARES() / 10, "10% of INITIAL_SHARES");
+    assertEq(tokenA.balanceOf(address(vault)), 110e18);
+    assertEq(tokenB.balanceOf(address(vault)), 220e18);
+  }
+
+  /// @notice The global floor applies uniformly to every vault token. When the floor is larger
+  ///         than every ceiling-rounded proportional slice, the depositor must supply exactly
+  ///         `minTokenAmount` of each token -- confirming the floor is applied per-token using
+  ///         one shared value (not one value per token as in the earlier per-token design).
+  function test_deposit_global_floor_applies_uniformly_to_all_tokens() public {
+    // Existing vault: 100e18 A, 200e18 B, totalSupply = 10e18. Request sharesOut = 1 (tiny)
+    // by supplying 10 wei A (ratio = 1) and 20 wei B (ratio = 1). Ceiling proportional is then
+    // 10 wei A and 20 wei B. With a global floor of 100, BOTH slices get raised to 100.
+    configManager.setMinTokenAmount(100);
+
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 1e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    // 50/50 is under the 100-wei floor on tokenA -- reverts.
+    uint256[4] memory underFloor = [uint256(50), uint256(50), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    vault.deposit(underFloor, 0);
+
+    // Exactly 100/100 meets the floor on both -- succeeds and pulls exactly 100 wei each.
+    uint256 aVBefore = tokenA.balanceOf(address(vault));
+    uint256 bVBefore = tokenB.balanceOf(address(vault));
+    uint256[4] memory atFloor = [uint256(100), uint256(100), uint256(0), uint256(0)];
+    vault.deposit(atFloor, 0);
+    vm.stopPrank();
+
+    assertEq(tokenA.balanceOf(address(vault)), aVBefore + 100, "tokenA pulled at floor");
+    assertEq(tokenB.balanceOf(address(vault)), bVBefore + 100, "tokenB pulled at floor");
+  }
+
+  // ---- withdraw: dust zeroing ----
+
+  /// @notice A partial withdraw whose proportional slice on a token is below the floor
+  ///         returns 0 for that token (dust stays in the vault for remaining holders).
+  ///         Uses the existing 100e18:200e18 vault -- tiny share burn produces sub-min slices.
+  function test_withdraw_zeroes_dust_below_floor_leaves_dust_in_vault() public {
+    // totalSupply = 10e18, idle A = 100e18. Burning 1 wei share yields mulDiv(1, 100e18, 10e18)
+    // = 10 wei A and 20 wei B. A global floor of 1e12 zeroes both slices.
+    configManager.setMinTokenAmount(1e12);
+
+    uint256 sharesToBurn = 1;
+    uint256 aVaultBefore = tokenA.balanceOf(address(vault));
+    uint256 bVaultBefore = tokenB.balanceOf(address(vault));
+    uint256 aOwnerBefore = tokenA.balanceOf(VAULT_OWNER);
+    uint256 bOwnerBefore = tokenB.balanceOf(VAULT_OWNER);
+
+    uint256[4] memory minAmounts;
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory received = vault.withdraw(sharesToBurn, minAmounts, false);
+
+    assertEq(received[0], 0, "sub-floor slice zeroed out (tokenA)");
+    assertEq(received[1], 0, "sub-floor slice zeroed out (tokenB)");
+    assertEq(tokenA.balanceOf(address(vault)), aVaultBefore, "dust stays in vault");
+    assertEq(tokenB.balanceOf(address(vault)), bVaultBefore, "dust stays in vault");
+    assertEq(tokenA.balanceOf(VAULT_OWNER), aOwnerBefore, "owner received no dust");
+    assertEq(tokenB.balanceOf(VAULT_OWNER), bOwnerBefore, "owner received no dust");
+  }
+
+  /// @notice A withdrawal producing amounts above the floor is unaffected.
+  function test_withdraw_above_floor_transfers_normally() public {
+    configManager.setMinTokenAmount(1);
+
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256 halfShares = ownerShares / 2;
+    uint256[4] memory minAmounts;
+
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory received = vault.withdraw(halfShares, minAmounts, false);
+
+    assertEq(received[0], 50e18, "normal withdrawal unaffected by a low floor");
+    assertEq(received[1], 100e18, "normal withdrawal unaffected by a low floor");
+  }
+
+  /// @notice Mixed case: some tokens above the global floor, others below. Each slice is
+  ///         evaluated independently against the same single floor, so only sub-floor slices
+  ///         are zeroed.
+  function test_withdraw_global_floor_zeroes_only_sub_floor_slices() public {
+    // Half-share burn: tokenA slice = 50e18, tokenB slice = 100e18. Floor = 75e18:
+    //   - tokenA (50e18) < 75e18 => zeroed
+    //   - tokenB (100e18) >= 75e18 => transferred in full
+    configManager.setMinTokenAmount(75e18);
+
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256 halfShares = ownerShares / 2;
+    uint256[4] memory minAmounts;
+
+    uint256 aVaultBefore = tokenA.balanceOf(address(vault));
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory received = vault.withdraw(halfShares, minAmounts, false);
+
+    assertEq(received[0], 0, "tokenA slice below global floor -- zeroed");
+    assertEq(received[1], 100e18, "tokenB slice above global floor -- transferred");
+    assertEq(tokenA.balanceOf(address(vault)), aVaultBefore, "tokenA dust stayed in vault");
   }
 
   function test_maxPositions_duplicatePositionDoesNotConsumeSlot() public {

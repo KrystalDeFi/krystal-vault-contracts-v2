@@ -242,12 +242,23 @@ contract SharedVault is
   /// @dev Subsequent deposit — compute how many tokens to pull based on minimum ratio across tokens.
   ///      Shares are NOT computed here; they are derived from the post-LP-deposit balance delta so
   ///      that slippage-induced partial LP consumption is reflected in the final share count.
+  ///
+  ///      **Dust-proof rounding**: proportional slices are rounded UP (ceiling) and then floored to
+  ///      the global `configManager.minTokenAmount()`. Without this:
+  ///        (a) when a vault holds dust (e.g., 50 wei USDT + 100e18 tokenA), a depositor providing
+  ///            `amounts = [1 USDT-worth of tokenA, 0]` would compute `transferAmounts[dust] = 0`
+  ///            (floor of 0.5 wei) and receive shares for free, diluting existing holders; and
+  ///        (b) when a token slot resolves to 1–few wei, SharedVaultGateway's swap aggregator
+  ///            cannot produce that exact micro-amount to satisfy the deposit.
+  ///      Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
+  ///      existing holders are never diluted and the gateway always sees a swappable amount.
   function _subsequentDepositTransfers(
     uint256[4] calldata amounts,
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances
   ) internal view returns (uint256[4] memory transferAmounts) {
-    // Find the binding token: the one that would yield the fewest shares.
+    // Find the binding token: the one that would yield the fewest shares. Floor division here is
+    // deliberate — sharesOut is a conservative lower bound on what the depositor is entitled to.
     uint256 sharesOut = type(uint256).max;
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
@@ -260,12 +271,17 @@ contract SharedVault is
     }
     require(sharesOut != type(uint256).max, InvalidAmount());
 
+    // Read the global dust floor once — it is uniform across all vault tokens.
+    uint256 minAmt = configManager.minTokenAmount();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         if (totalBalances[i] == 0) {
           require(amounts[i] == 0, InvalidRatio());
         } else {
-          transferAmounts[i] = FullMath.mulDiv(sharesOut, totalBalances[i], currentTotalSupply);
+          // Ceiling division so a sub-1-wei proportional slice never rounds to zero (which would
+          // otherwise let a depositor skip paying for dust tokens while still receiving shares).
+          uint256 proportional = FullMath.mulDivRoundingUp(sharesOut, totalBalances[i], currentTotalSupply);
+          transferAmounts[i] = proportional < minAmt ? minAmt : proportional;
           require(amounts[i] >= transferAmounts[i], InvalidRatio());
         }
       }
@@ -446,11 +462,24 @@ contract SharedVault is
     //   proportional share of original idle  +  full LP exit return
     // This avoids double-dilution where the LP return was previously re-multiplied
     // by shares/totalSupply.
+    //
+    // **Dust floor** — if the computed `amounts[i]` is below the global `configManager.minTokenAmount()`,
+    // it is zeroed out (the dust stays in the vault, accruing to remaining holders). Two reasons:
+    //   1. SharedVaultGateway cannot swap sub-minimum amounts through an aggregator, so returning
+    //      dust to a gateway caller would either fail or just leak a transfer.
+    //   2. Rounding UP on withdraw — the symmetric of the deposit fix — would let a tiny-share
+    //      holder extract MORE than their proportional claim, mirroring the deposit-dilution
+    //      exploit. Zeroing instead ensures withdrawers never receive more than proportional.
+    uint256 minAmt = configManager.minTokenAmount();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         uint256 idleAfter = IERC20(tokens[i]).balanceOf(address(this));
         uint256 lpExitReturn = idleAfter - idleBefore[i];
-        amounts[i] = FullMath.mulDiv(shares, idleBefore[i], currentTotalSupply) + lpExitReturn;
+        uint256 computed = FullMath.mulDiv(shares, idleBefore[i], currentTotalSupply) + lpExitReturn;
+        if (computed > 0 && computed < minAmt) {
+          computed = 0;
+        }
+        amounts[i] = computed;
         require(amounts[i] >= minAmounts[i], InsufficientOutput());
         if (amounts[i] > 0) {
           if (unwrap && tokens[i] == weth) {

@@ -184,7 +184,17 @@ function _subsequentDepositTransfers(uint256[4] amounts, uint256 currentTotalSup
 
 _Subsequent deposit — compute how many tokens to pull based on minimum ratio across tokens.
      Shares are NOT computed here; they are derived from the post-LP-deposit balance delta so
-     that slippage-induced partial LP consumption is reflected in the final share count._
+     that slippage-induced partial LP consumption is reflected in the final share count.
+
+     **Dust-proof rounding**: proportional slices are rounded UP (ceiling) and then floored to
+     the global `configManager.minTokenAmount()`. Without this:
+       (a) when a vault holds dust (e.g., 50 wei USDT + 100e18 tokenA), a depositor providing
+           `amounts = [1 USDT-worth of tokenA, 0]` would compute `transferAmounts[dust] = 0`
+           (floor of 0.5 wei) and receive shares for free, diluting existing holders; and
+       (b) when a token slot resolves to 1–few wei, SharedVaultGateway's swap aggregator
+           cannot produce that exact micro-amount to satisfy the deposit.
+     Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
+     existing holders are never diluted and the gateway always sees a swappable amount._
 
 ### _computeSharesFromDelta
 

@@ -17,6 +17,9 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   uint16 public override platformFeeBasisPoint;
   uint16 public override maxPositions = 20;
 
+  /// @inheritdoc ISharedConfigManager
+  uint256 public override minTokenAmount;
+
   function initialize(
     address _owner,
     address[] calldata _whitelistTargets,
@@ -149,5 +152,10 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     require(_maxPositions > 0, ISharedCommon.InvalidAmount());
     maxPositions = _maxPositions;
     emit MaxPositionsUpdated(_maxPositions);
+  }
+
+  function setMinTokenAmount(uint256 _minTokenAmount) external override onlyOwner {
+    minTokenAmount = _minTokenAmount;
+    emit MinTokenAmountUpdated(_minTokenAmount);
   }
 }

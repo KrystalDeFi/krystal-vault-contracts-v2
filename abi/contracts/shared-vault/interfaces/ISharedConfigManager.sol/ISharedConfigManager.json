@@ -36,6 +36,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint256",
+        "name": "minTokenAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinTokenAmountUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "bool",
         "name": "isVaultPaused",
         "type": "bool"
@@ -237,6 +250,19 @@
   },
   {
     "inputs": [],
+    "name": "minTokenAmount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "platformFeeBasisPoint",
     "outputs": [
       {
@@ -270,6 +296,19 @@
       }
     ],
     "name": "setMaxPositions",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_minTokenAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinTokenAmount",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -55,6 +55,34 @@ uint16 maxPositions
 Maximum number of LP positions a vault may hold simultaneously.
         Limits the per-deposit and per-withdraw loop cost. Default: 20.
 
+### minTokenAmount
+
+```solidity
+uint256 minTokenAmount
+```
+
+Global minimum "swappable" amount enforced uniformly on every vault token during
+        proportional deposit/withdraw computations. A single protocol-wide value is used
+        rather than a per-token mapping because the config owner does not control which
+        tokens any given vault is created with. Protects against two dust-related issues:
+
+        1. DEPOSIT DILUTION ATTACK — without a minimum, when a vault holds tiny balances of
+           some token (e.g. 50 wei of USDT alongside 100e18 of another token), floor-division
+           rounds the depositor's proportional slice of that dust token down to zero. The
+           depositor then receives shares without paying for the dust token — dilution over
+           many small deposits. SharedVault rounds the proportional slice UP and then raises
+           it to `minTokenAmount` on deposit, so the depositor always overpays for sub-min
+           slices (existing holders protected).
+
+        2. GATEWAY SWAP FAILURES — swap aggregators cannot produce/consume micro amounts
+           (e.g. 1 wei of USDT). SharedVaultGateway therefore cannot fulfill proportional
+           deposits or swap back proportional withdrawals when a slice is sub-threshold.
+           Setting a modest floor (e.g. 10 base units) ensures the gateway always sees
+           swappable amounts, regardless of the underlying token's decimals.
+
+        Unit: raw base units (wei-like). A value of 0 disables the minimum entirely and
+        restores the legacy floor-division behaviour.
+
 ### initialize
 
 ```solidity
@@ -132,4 +160,12 @@ function setPlatformFeeBasisPoint(uint16 basisPoints) external
 ```solidity
 function setMaxPositions(uint16 _maxPositions) external
 ```
+
+### setMinTokenAmount
+
+```solidity
+function setMinTokenAmount(uint256 _minTokenAmount) external
+```
+
+Set the global minimum token amount. Pass 0 to disable the minimum.
 
