@@ -39,12 +39,6 @@ error InsufficientShares()
 error InvalidSwapRouter()
 ```
 
-### InsufficientMsgValue
-
-```solidity
-error InsufficientMsgValue()
-```
-
 ### InsufficientPostSwapBalance
 
 ```solidity
@@ -157,8 +151,10 @@ Pull input tokens, execute swaps to vault tokens, deposit proportionally, return
 
 _Swap calldata is built off-chain by the Krystal API swap aggregator.
      The gateway briefly holds tokens during the tx; nothing persists across calls.
-     **ETH**: `msg.value` must be at least the sum of `amountIn` on swaps with `tokenIn == address(0)`;
-     surplus native balance is swept to the caller at the end. WETH as ERC20 uses `tokenIn == weth` and allowance._
+     **Native ETH**: if `msg.value > 0` it is wrapped to WETH before any swap runs, so the swap
+     router only ever sees WETH. Swap entries that consume this WETH use `tokenIn == weth` with
+     `amountIn == 0` (full balance) or a specific sub-amount. Any WETH that remains after swaps
+     and deposit is unwrapped back to ETH and returned to the caller._
 
 ### withdrawAndSwap
 
@@ -171,12 +167,21 @@ Burn shares, receive vault tokens, execute swaps to desired output, return lefto
 ### _pullInputTokens
 
 ```solidity
-function _pullInputTokens(struct SharedVaultGateway.SwapParams[] swaps) internal
+function _pullInputTokens(struct SharedVaultGateway.SwapParams[] swaps) internal returns (bool nativeWrapped)
 ```
 
-_Pull ERC20 inputs from `_msgSender()`. Native ETH is used only when `tokenIn == address(0)`:
-     `amountIn` for those entries must be covered by `msg.value` (excess ETH is refunded via `_sweepNative`).
-     WETH as ERC20 always uses `tokenIn == weth` and `transferFrom`, independent of `msg.value`._
+_Wrap any native ETH to WETH first, then pull each ERC20 input from the caller.
+     `tokenIn` must always be a real ERC20 address — `address(0)` is never valid here.
+     Native ETH is provided via `msg.value`; the full amount is wrapped to WETH so the swap
+     router always receives WETH. Swap entries that spend this WETH set `tokenIn = weth` with
+     `amountIn == 0` (full balance) or a specific partial amount (pulled via transferFrom from
+     the caller's ERC20 balance, independently of the native wrap)._
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nativeWrapped | bool | True when `msg.value > 0`; tells `_sweepAll` to unwrap any residual         WETH and return it as native ETH. |
 
 ### _executeSwaps
 
@@ -217,10 +222,12 @@ function _revokeVaultTokenApprovals(address[4] vaultTokens, address vault) inter
 ### _sweepAll
 
 ```solidity
-function _sweepAll(address[] sweepTokens, address[4] vaultTokens, address recipient) internal
+function _sweepAll(address[] sweepTokens, address[4] vaultTokens, address recipient, bool unwrapWeth) internal
 ```
 
 _Return all remaining balances of sweep tokens + vault tokens to the recipient.
+     If `unwrapWeth` is true (native ETH was wrapped on the way in), any WETH still held by the
+     gateway after token sweeps is unwrapped to ETH so the caller receives native ETH, not WETH.
      Also refunds any leftover native ETH._
 
 ### _sweepToken

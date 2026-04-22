@@ -369,6 +369,19 @@ _Computes proportional share of total balances (idle + LP position principal + u
      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
      Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`._
 
+### getMinDepositAmounts
+
+```solidity
+function getMinDepositAmounts() external view returns (uint256[4] minAmounts)
+```
+
+Per-token minimum amounts required for a subsequent deposit.
+
+_Returns zeros on first deposit (totalSupply == 0) because no proportional floor applies.
+     For subsequent deposits each non-zero-balance slot returns
+     `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`.
+     Slots whose total balance is zero must be deposited at exactly zero; their entry is 0._
+
 ### sweepTokens
 
 ```solidity

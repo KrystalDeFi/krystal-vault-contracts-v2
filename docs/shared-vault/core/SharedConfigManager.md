@@ -90,6 +90,16 @@ Decimal-place precision that defines the protocol-wide dust floor.
 function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, uint16 _platformFeeBasisPoint, address[] _whitelistNfpms, address[] _whitelistSwapRouters) public
 ```
 
+One-time initializer. Argument order is intentional; pass-by-position callers must
+        match this exact sequence to avoid silently misrouting values:
+        1. _owner                  — OwnableUpgradeable owner
+        2. _whitelistTargets       — strategy addresses to whitelist as delegatecall targets
+        3. _whitelistCallers       — addresses authorized as whitelisted callers
+        4. _feeRecipient           — address that receives platform fees
+        5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
+        6. _whitelistNfpms         — NFT position managers to whitelist
+        7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
+
 ### setWhitelistTargets
 
 ```solidity

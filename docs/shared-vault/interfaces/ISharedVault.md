@@ -188,6 +188,19 @@ function previewDeposit(uint256[4] amounts) external view returns (uint256 share
 function previewWithdraw(uint256 shares) external view returns (uint256[4] amounts)
 ```
 
+### getMinDepositAmounts
+
+```solidity
+function getMinDepositAmounts() external view returns (uint256[4] minAmounts)
+```
+
+Per-token minimum amounts required for a subsequent deposit.
+
+_Returns zeros on first deposit (totalSupply == 0) because no proportional floor applies.
+     For subsequent deposits each non-zero-balance slot returns
+     `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`.
+     Slots whose total balance is zero must be deposited at exactly zero; their entry is 0._
+
 ### isVaultToken
 
 ```solidity

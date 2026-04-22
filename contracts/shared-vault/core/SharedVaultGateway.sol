@@ -29,7 +29,6 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error SlippageExceeded(uint256 index);
   error InsufficientShares();
   error InvalidSwapRouter();
-  error InsufficientMsgValue();
   error InsufficientPostSwapBalance(uint256 tokenIndex);
   error EthTransferFailed();
 
@@ -43,14 +42,17 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Structs ====================
 
-  /// @param tokenIn ERC20 to pull from the user, or `address(0)` for native ETH (consumed from `msg.value`).
-  ///                WETH as ERC20 must use `tokenIn == weth` and is always pulled via `transferFrom`, never mixed with `msg.value`.
+  /// @param tokenIn  ERC20 to pull from the user via `transferFrom` (`amountIn > 0`) or to draw from
+  ///                 the gateway's own balance (`amountIn == 0`). Always a real token address — never
+  ///                 `address(0)`. For native ETH input, send `msg.value`; the gateway wraps it to WETH
+  ///                 automatically before any swap runs.
+  /// @param tokenOut ERC20 the swap produces. Always a real token address — never `address(0)`.
   struct SwapParams {
     address tokenIn;
     uint256 amountIn; // 0 = use full balance of tokenIn held by gateway
     address tokenOut;
     uint256 amountOutMin;
-    bytes swapData; // calldata for swapRouter; empty = skip (e.g. WETH↔ETH wrap)
+    bytes swapData; // calldata for swapRouter; empty = skip
   }
 
   struct SwapAndDepositParams {
@@ -112,12 +114,14 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   /// @notice Pull input tokens, execute swaps to vault tokens, deposit proportionally, return leftovers.
   /// @dev Swap calldata is built off-chain by the Krystal API swap aggregator.
   ///      The gateway briefly holds tokens during the tx; nothing persists across calls.
-  ///      **ETH**: `msg.value` must be at least the sum of `amountIn` on swaps with `tokenIn == address(0)`;
-  ///      surplus native balance is swept to the caller at the end. WETH as ERC20 uses `tokenIn == weth` and allowance.
+  ///      **Native ETH**: if `msg.value > 0` it is wrapped to WETH before any swap runs, so the swap
+  ///      router only ever sees WETH. Swap entries that consume this WETH use `tokenIn == weth` with
+  ///      `amountIn == 0` (full balance) or a specific sub-amount. Any WETH that remains after swaps
+  ///      and deposit is unwrapped back to ETH and returned to the caller.
   function swapAndDeposit(
     SwapAndDepositParams calldata params
   ) external payable nonReentrant whenNotPaused returns (uint256 shares) {
-    _pullInputTokens(params.swaps);
+    bool nativeWrapped = _pullInputTokens(params.swaps);
 
     _executeSwaps(params.swaps);
 
@@ -133,7 +137,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     IERC20(address(params.vault)).safeTransfer(_msgSender(), shares);
 
-    _sweepAll(params.sweepTokens, vaultTokens, _msgSender());
+    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), nativeWrapped);
 
     emit SwapAndDeposit(address(params.vault), _msgSender(), shares);
   }
@@ -151,33 +155,33 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     _executeSwaps(params.swaps);
 
     address[4] memory vaultTokens = params.vault.getTokens();
-    _sweepAll(params.sweepTokens, vaultTokens, _msgSender());
+    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), false);
 
     emit WithdrawAndSwap(address(params.vault), _msgSender(), params.shares);
   }
 
   // ==================== Internal: Token Handling ====================
 
-  /// @dev Pull ERC20 inputs from `_msgSender()`. Native ETH is used only when `tokenIn == address(0)`:
-  ///      `amountIn` for those entries must be covered by `msg.value` (excess ETH is refunded via `_sweepNative`).
-  ///      WETH as ERC20 always uses `tokenIn == weth` and `transferFrom`, independent of `msg.value`.
-  function _pullInputTokens(SwapParams[] calldata swaps) internal {
-    uint256 totalNativeRequired;
+  /// @dev Wrap any native ETH to WETH first, then pull each ERC20 input from the caller.
+  ///      `tokenIn` must always be a real ERC20 address — `address(0)` is never valid here.
+  ///      Native ETH is provided via `msg.value`; the full amount is wrapped to WETH so the swap
+  ///      router always receives WETH. Swap entries that spend this WETH set `tokenIn = weth` with
+  ///      `amountIn == 0` (full balance) or a specific partial amount (pulled via transferFrom from
+  ///      the caller's ERC20 balance, independently of the native wrap).
+  /// @return nativeWrapped True when `msg.value > 0`; tells `_sweepAll` to unwrap any residual
+  ///         WETH and return it as native ETH.
+  function _pullInputTokens(SwapParams[] calldata swaps) internal returns (bool nativeWrapped) {
+    if (msg.value > 0) {
+      nativeWrapped = true;
+      IWETH9(weth).deposit{ value: msg.value }();
+    }
     for (uint256 i; i < swaps.length; ) {
-      if (swaps[i].tokenIn == address(0)) {
-        if (swaps[i].amountIn > 0) {
-          totalNativeRequired += swaps[i].amountIn;
-        }
-      } else if (swaps[i].amountIn > 0) {
+      if (swaps[i].amountIn > 0) {
         IERC20(swaps[i].tokenIn).safeTransferFrom(_msgSender(), address(this), swaps[i].amountIn);
       }
       unchecked {
         i++;
       }
-    }
-    if (totalNativeRequired > 0) {
-      if (msg.value < totalNativeRequired) revert InsufficientMsgValue();
-      IWETH9(weth).deposit{ value: totalNativeRequired }();
     }
   }
 
@@ -197,8 +201,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   }
 
   function _executeSingleSwap(SwapParams calldata swap, uint256 index) internal {
-    address tokenIn = swap.tokenIn == address(0) ? weth : swap.tokenIn;
-    address tokenOut = swap.tokenOut == address(0) ? weth : swap.tokenOut;
+    address tokenIn = swap.tokenIn;
+    address tokenOut = swap.tokenOut;
 
     uint256 amountIn = swap.amountIn;
     if (amountIn == 0) {
@@ -264,8 +268,15 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   // ==================== Internal: Sweep ====================
 
   /// @dev Return all remaining balances of sweep tokens + vault tokens to the recipient.
+  ///      If `unwrapWeth` is true (native ETH was wrapped on the way in), any WETH still held by the
+  ///      gateway after token sweeps is unwrapped to ETH so the caller receives native ETH, not WETH.
   ///      Also refunds any leftover native ETH.
-  function _sweepAll(address[] calldata sweepTokens, address[4] memory vaultTokens, address recipient) internal {
+  function _sweepAll(
+    address[] calldata sweepTokens,
+    address[4] memory vaultTokens,
+    address recipient,
+    bool unwrapWeth
+  ) internal {
     for (uint256 i; i < sweepTokens.length; ) {
       _sweepToken(sweepTokens[i], recipient);
       unchecked {
@@ -279,6 +290,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
       unchecked {
         i++;
       }
+    }
+    if (unwrapWeth) {
+      uint256 wethBal = IERC20(weth).balanceOf(address(this));
+      if (wethBal > 0) IWETH9(weth).withdraw(wethBal);
     }
     _sweepNative(recipient);
   }

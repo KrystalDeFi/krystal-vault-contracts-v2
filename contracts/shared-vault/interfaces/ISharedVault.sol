@@ -98,6 +98,13 @@ interface ISharedVault is ISharedCommon {
 
   function previewWithdraw(uint256 shares) external view returns (uint256[4] memory amounts);
 
+  /// @notice Per-token minimum amounts required for a subsequent deposit.
+  /// @dev Returns zeros on first deposit (totalSupply == 0) because no proportional floor applies.
+  ///      For subsequent deposits each non-zero-balance slot returns
+  ///      `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`.
+  ///      Slots whose total balance is zero must be deposited at exactly zero; their entry is 0.
+  function getMinDepositAmounts() external view returns (uint256[4] memory minAmounts);
+
   function isVaultToken(address token) external view returns (bool);
 
   function vaultOwner() external view returns (address);

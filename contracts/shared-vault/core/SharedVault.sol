@@ -131,6 +131,12 @@ contract SharedVault is
             j++;
           }
         }
+        // Eagerly validate that decimals() is queryable so _minTokenAmt cannot revert
+        // on subsequent deposits if the token only implements plain IERC20 without the
+        // metadata extension. Failing here at init is far preferable to bricking deposits.
+        try IERC20Metadata(_tokens[i]).decimals() returns (uint8) {} catch {
+          revert InvalidToken();
+        }
         tokens[i] = _tokens[i];
         isVaultToken[_tokens[i]] = true;
         unchecked {
@@ -713,6 +719,22 @@ contract SharedVault is
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         amounts[i] = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  /// @inheritdoc ISharedVault
+  function getMinDepositAmounts() external view override returns (uint256[4] memory minAmounts) {
+    if (totalSupply() == 0) return minAmounts;
+
+    uint8 prec = configManager.minTokenPrecision();
+    uint256[4] memory totalBalances = _getTotalBalances();
+    for (uint256 i; i < 4; ) {
+      if (tokens[i] != address(0) && totalBalances[i] > 0) {
+        minAmounts[i] = _minTokenAmt(tokens[i], prec);
       }
       unchecked {
         i++;

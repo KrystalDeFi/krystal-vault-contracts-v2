@@ -104,6 +104,48 @@ contract MockERC20 {
   }
 }
 
+// Mock ERC20 token with configurable decimals for testing non-18-decimal tokens
+contract MockERC20LowDecimals {
+  string public name;
+  string public symbol;
+  uint8 public decimals;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+    name = _name;
+    symbol = _symbol;
+    decimals = _decimals;
+  }
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+      allowance[from][msg.sender] -= amount;
+    }
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
 // Mock strategy that validates tokens and sets a value
 contract MockSharedStrategy is ISharedStrategy {
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
@@ -2913,5 +2955,194 @@ contract SharedVaultTest is TestCommon {
     tA.transfer(address(strat), 15e18);
     tB.transfer(address(strat), 35e18);
     strat.depositProportional(address(nfpm), tokenId, 15e18, 35e18, uint16(100));
+  }
+
+  // ==================== getMinDepositAmounts Tests ====================
+  //
+  // _minTokenAmt(token, prec):
+  //   prec == 0          → 0  (floor disabled)
+  //   dec > prec         → 10 ** (dec - prec)
+  //   dec <= prec        → 1  (smallest representable unit)
+  //
+  // getMinDepositAmounts():
+  //   totalSupply == 0   → all zeros (first deposit has no proportional floor)
+  //   tokens[i] == 0     → 0  (empty slot)
+  //   totalBalances[i] == 0 → 0  (token present but no balance yet)
+  //   otherwise          → _minTokenAmt(tokens[i], prec)
+
+  /// @notice Before any deposit the vault has no shares outstanding, so every slot
+  ///         returns 0 — the first depositor sets the initial share price freely.
+  function test_getMinDepositAmounts_returnsZeroWhenNoSharesOutstanding() public {
+    // Arrange: fresh vault with no initial amounts
+    SharedVault emptyVault = new SharedVault();
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory noAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    emptyVault.initialize(
+      "EmptyVault",
+      vtokens,
+      noAmounts,
+      VAULT_OWNER,
+      address(0),
+      address(configManager),
+      address(0)
+    );
+
+    // Act
+    uint256[4] memory mins = emptyVault.getMinDepositAmounts();
+
+    // Assert: totalSupply == 0 → all zeros
+    assertEq(mins[0], 0, "slot 0 must be 0 when no shares exist");
+    assertEq(mins[1], 0, "slot 1 must be 0 when no shares exist");
+    assertEq(mins[2], 0, "slot 2 must be 0 when no shares exist");
+    assertEq(mins[3], 0, "slot 3 must be 0 when no shares exist");
+  }
+
+  /// @notice Active 18-decimal tokens with default precision 5 each require
+  ///         at least 10**(18-5) = 1e13 per deposit.
+  ///         The setUp vault has 100e18 tokenA and 200e18 tokenB idle, so both
+  ///         slots should report 1e13.
+  function test_getMinDepositAmounts_18decimalTokens_defaultPrecision5() public view {
+    // Default precision is 5 (SharedConfigManager initialises to 5).
+    // Both tokenA and tokenB have 18 decimals → floor = 10**(18-5) = 1e13.
+    uint256[4] memory mins = vault.getMinDepositAmounts();
+
+    assertEq(mins[0], 1e13, "tokenA (18 dec, prec 5): floor = 1e13");
+    assertEq(mins[1], 1e13, "tokenB (18 dec, prec 5): floor = 1e13");
+  }
+
+  /// @notice Slots that hold a vault token address but have zero total balance
+  ///         must return 0 — the depositor is required to supply exactly 0 for
+  ///         those slots anyway, so a non-zero floor would block all deposits.
+  function test_getMinDepositAmounts_zeroBalanceSlotReturnsZero() public view {
+    // tokenC and tokenD are vault tokens (setUp registers them) but the vault
+    // has no balance of either, so totalBalances[2] == totalBalances[3] == 0.
+    uint256[4] memory mins = vault.getMinDepositAmounts();
+
+    assertEq(mins[2], 0, "tokenC has zero balance -> min must be 0");
+    assertEq(mins[3], 0, "tokenD has zero balance -> min must be 0");
+  }
+
+  /// @notice When minTokenPrecision is set to 0, the floor is completely disabled
+  ///         and getMinDepositAmounts returns 0 for every slot regardless of balance.
+  function test_getMinDepositAmounts_precisionZeroDisablesFloor() public {
+    // Arrange: disable the minimum-precision floor
+    configManager.setMinTokenPrecision(0);
+
+    // Act
+    uint256[4] memory mins = vault.getMinDepositAmounts();
+
+    // Assert: _minTokenAmt(_, 0) == 0 for every token
+    assertEq(mins[0], 0, "floor disabled: tokenA slot must be 0");
+    assertEq(mins[1], 0, "floor disabled: tokenB slot must be 0");
+    assertEq(mins[2], 0, "floor disabled: tokenC slot must be 0");
+    assertEq(mins[3], 0, "floor disabled: tokenD slot must be 0");
+  }
+
+  /// @notice A custom precision value (e.g., 3) produces a different per-token floor.
+  ///         For 18-decimal tokens: 10**(18-3) = 1e15.
+  function test_getMinDepositAmounts_customPrecision_3() public {
+    configManager.setMinTokenPrecision(3);
+
+    uint256[4] memory mins = vault.getMinDepositAmounts();
+
+    assertEq(mins[0], 1e15, "tokenA (18 dec, prec 3): floor = 1e15");
+    assertEq(mins[1], 1e15, "tokenB (18 dec, prec 3): floor = 1e15");
+    // Zero-balance slots are still 0 even with a non-zero precision.
+    assertEq(mins[2], 0, "tokenC has zero balance -> min = 0 regardless of precision");
+    assertEq(mins[3], 0, "tokenD has zero balance -> min = 0 regardless of precision");
+  }
+
+  /// @notice A token whose decimal count is less than the precision level gets a
+  ///         floor of 1 (the smallest representable unit of that token).
+  ///         Here a 3-decimal token with precision 5: dec(3) <= prec(5) → 1.
+  function test_getMinDepositAmounts_tokenDecimalsLessThanPrecision_returnsOne() public {
+    // Deploy a 3-decimal token and create a vault seeded with it alongside a normal token.
+    MockERC20LowDecimals lowDecToken = new MockERC20LowDecimals("Low Dec", "LDC", 3);
+
+    SharedVault v = new SharedVault();
+    lowDecToken.mint(address(v), 1000); // 1.000 in 3-decimal units
+    tokenA.mint(address(v), 100e18);
+
+    address[4] memory vtokens = [address(tokenA), address(lowDecToken), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(1000), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("LowDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+
+    // precision = 5, decimals = 3: dec <= prec → _minTokenAmt returns 1
+    uint256[4] memory mins = v.getMinDepositAmounts();
+
+    assertEq(mins[0], 1e13, "tokenA (18 dec, prec 5): floor = 1e13");
+    assertEq(mins[1], 1, "lowDecToken (3 dec, prec 5): dec <= prec -> floor = 1");
+  }
+
+  /// @notice A token whose decimal count equals the precision level also gets a
+  ///         floor of 1 — the branch condition is strictly `dec > prec`.
+  function test_getMinDepositAmounts_tokenDecimalsEqualPrecision_returnsOne() public {
+    // Deploy a 5-decimal token (same as the default precision = 5).
+    MockERC20LowDecimals fiveDecToken = new MockERC20LowDecimals("Five Dec", "FDC", 5);
+
+    SharedVault v = new SharedVault();
+    fiveDecToken.mint(address(v), 100_000); // 1.00000 in 5-decimal units
+    tokenA.mint(address(v), 100e18);
+
+    address[4] memory vtokens = [address(tokenA), address(fiveDecToken), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(100_000), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("FiveDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+
+    uint256[4] memory mins = v.getMinDepositAmounts();
+
+    assertEq(mins[0], 1e13, "tokenA (18 dec, prec 5): floor = 1e13");
+    // dec(5) == prec(5) → dec > prec is false → returns 1
+    assertEq(mins[1], 1, "fiveDecToken (5 dec, prec 5): dec == prec -> floor = 1");
+  }
+
+  /// @notice A 6-decimal token (e.g., USDC) with precision 5 should return a floor
+  ///         of 10**(6-5) = 10 (i.e., 0.00001 USDC).
+  function test_getMinDepositAmounts_6decimalToken_defaultPrecision5() public {
+    MockERC20LowDecimals usdcLike = new MockERC20LowDecimals("USD Coin", "USDC", 6);
+
+    SharedVault v = new SharedVault();
+    usdcLike.mint(address(v), 1_000_000); // 1 USDC
+    tokenA.mint(address(v), 100e18);
+
+    address[4] memory vtokens = [address(tokenA), address(usdcLike), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(1_000_000), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("USDCVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+
+    uint256[4] memory mins = v.getMinDepositAmounts();
+
+    assertEq(mins[0], 1e13, "tokenA (18 dec, prec 5): floor = 1e13");
+    // 6 dec, prec 5: dec > prec -> 10**(6-5) = 10
+    assertEq(mins[1], 10, "USDC-like (6 dec, prec 5): floor = 10");
+  }
+
+  /// @notice getMinDepositAmounts reflects total balances including LP position amounts.
+  ///         When a strategy reports LP holdings for a slot, that slot's balance is non-zero
+  ///         and its floor is returned; a slot with balance only in LP (not idle) still counts.
+  function test_getMinDepositAmounts_includesLpPositionBalancesForActiveSlots() public {
+    // Arrange: create a fresh vault with tokenA and tokenB; seed both with idle balance.
+    MockLPPool pool = new MockLPPool();
+    MockLPExitStrategy lpStrat = new MockLPExitStrategy(address(pool));
+
+    // Whitelist the LP strategy as a target in configManager.
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(lpStrat);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("LPVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+
+    // The vault has shares outstanding → both active slots should return the 18-dec floor.
+    uint256[4] memory mins = v.getMinDepositAmounts();
+    assertEq(mins[0], 1e13, "tokenA floor present when idle balance is non-zero");
+    assertEq(mins[1], 1e13, "tokenB floor present when idle balance is non-zero");
   }
 }

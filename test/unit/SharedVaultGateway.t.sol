@@ -1190,12 +1190,15 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(vault.balanceOf(address(gateway)), 0);
   }
 
-  /// @notice Native ETH (`tokenIn == address(0)`) and WETH ERC20 (`tokenIn == weth`) are independent:
-  ///         only `address(0)` entries consume `msg.value`; WETH is always `transferFrom`.
+  // ==================== SwapAndDeposit: Native ETH via msg.value ====================
+
+  /// @notice msg.value > 0 is wrapped to WETH before any swap runs.
+  ///         Swap entries reference WETH by address — address(0) is never used.
+  ///         1 ETH native + 5 WETH ERC20 both land in gateway; unused WETH is swept back.
   function test_swapAndDeposit_native_eth_and_weth_erc20_together() public {
     vm.deal(ALICE, 6 ether);
     vm.startPrank(ALICE);
-    mockWeth.deposit{ value: 5 ether }();
+    mockWeth.deposit{ value: 5 ether }(); // give Alice 5 WETH ERC20; she keeps 1 ETH native
     mockWeth.approve(address(gateway), type(uint256).max);
     vm.stopPrank();
 
@@ -1205,13 +1208,13 @@ contract SharedVaultGatewayTest is TestCommon {
     tokenD.mint(ALICE, 100e18);
     _approveGatewayAll(ALICE);
 
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](6);
+    // 5 WETH pulled via transferFrom; 1 ETH from msg.value is wrapped automatically
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](5);
     swaps[0] = SharedVaultGateway.SwapParams(address(mockWeth), 5 ether, address(mockWeth), 0, "");
-    swaps[1] = SharedVaultGateway.SwapParams(address(0), 1 ether, address(0), 0, "");
-    swaps[2] = SharedVaultGateway.SwapParams(address(tokenA), 100e18, address(tokenA), 0, "");
-    swaps[3] = SharedVaultGateway.SwapParams(address(tokenB), 200e18, address(tokenB), 0, "");
-    swaps[4] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
-    swaps[5] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
+    swaps[1] = SharedVaultGateway.SwapParams(address(tokenA), 100e18, address(tokenA), 0, "");
+    swaps[2] = SharedVaultGateway.SwapParams(address(tokenB), 200e18, address(tokenB), 0, "");
+    swaps[3] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
+    swaps[4] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
 
     address[] memory sweepTokens = new address[](1);
     sweepTokens[0] = address(mockWeth);
@@ -1229,14 +1232,59 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertGt(shares, 0);
     assertEq(vault.balanceOf(ALICE), shares);
-    assertEq(mockWeth.balanceOf(ALICE), 6 ether, "unused WETH swept back");
-    assertEq(ALICE.balance, 0, "no stranded ETH on user after sweep");
-    assertEq(mockWeth.balanceOf(address(gateway)), 0);
+    // The 6 WETH (5 pulled + 1 wrapped from ETH) was not a vault token, so it's swept back as WETH
+    assertEq(mockWeth.balanceOf(ALICE), 6 ether, "all WETH returned: 5 from ERC20 + 1 from native wrap");
+    assertEq(ALICE.balance, 0, "native ETH fully consumed by wrap");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "gateway holds no residual WETH");
   }
 
-  function test_swapAndDeposit_fail_insufficient_msg_value() public {
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
-    swaps[0] = SharedVaultGateway.SwapParams(address(0), 2 ether, address(0), 0, "");
+  /// @notice msg.value is wrapped to WETH; swap entry uses amountIn==0 to consume the full balance.
+  function test_swapAndDeposit_native_eth_wraps_and_swaps_to_vault_tokens() public {
+    // Fund the router with vault tokens that can be bought with WETH
+    tokenA.mint(address(router), 100e18);
+    tokenB.mint(address(router), 200e18);
+    tokenC.mint(address(router), 50e6);
+    tokenD.mint(address(router), 100e18);
+    // Rate: 1 WETH → 100 tokenA (just a convenient ratio)
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenB), 200e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenC), 50e6, 1 ether);
+    router.setRate(address(mockWeth), address(tokenD), 100e18, 1 ether);
+
+    vm.deal(ALICE, 4 ether);
+    _approveGatewayAll(ALICE);
+
+    // Four swaps: WETH (amountIn=0, full balance) → each vault token, each consuming 1 ETH
+    // The swapData hard-codes the exact WETH amount so the router takes the right portion each time
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenA),
+      90e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenB),
+      180e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenB), 1 ether)
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenC),
+      45e6,
+      _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenD),
+      90e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenD), 1 ether)
+    );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
@@ -1246,10 +1294,108 @@ contract SharedVaultGatewayTest is TestCommon {
       sweepTokens: new address[](0)
     });
 
-    vm.deal(ALICE, 1 ether);
     vm.prank(ALICE);
-    vm.expectRevert(SharedVaultGateway.InsufficientMsgValue.selector);
-    gateway.swapAndDeposit{ value: 1 ether }(params);
+    uint256 shares = gateway.swapAndDeposit{ value: 4 ether }(params);
+
+    assertGt(shares, 0, "shares received from pure native-ETH deposit");
+    assertEq(vault.balanceOf(ALICE), shares);
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
+    assertEq(address(gateway).balance, 0, "no residual ETH in gateway");
+  }
+
+  /// @notice Excess msg.value beyond what swaps consume is unwrapped and returned as native ETH.
+  function test_swapAndDeposit_native_eth_excess_returned_as_eth() public {
+    tokenA.mint(address(router), 100e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether); // 1 WETH → 100 tokenA
+
+    // Alice also provides B, C, D so the deposit can succeed
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    vm.deal(ALICE, 3 ether); // sends 3 ETH but only 1 ETH worth of WETH is swapped
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    // Only 1 WETH is consumed by the router; 2 WETH remain and must be returned as ETH
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenA),
+      90e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(address(tokenB), 200e18, address(tokenB), 0, "");
+    swaps[2] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
+    swaps[3] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.swapAndDeposit{ value: 3 ether }(params);
+
+    // 3 ETH sent, 1 used for the WETH→tokenA swap, 2 ETH worth of WETH unwrapped and returned
+    assertEq(ALICE.balance, 2 ether, "2 ETH refunded from unused WETH");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "no WETH stranded in gateway");
+    assertEq(address(gateway).balance, 0, "no ETH stranded in gateway");
+  }
+
+  /// @notice Splitting native ETH across two distinct WETH→token swaps:
+  ///         amountIn==0 so no transferFrom occurs; the router calldata governs each portion.
+  function test_swapAndDeposit_native_eth_split_across_multiple_swaps() public {
+    // 1 WETH (from 1 ETH) is split: 0.4 → tokenA, remaining 0.6 → tokenB
+    tokenA.mint(address(router), 1000e18);
+    tokenB.mint(address(router), 1000e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether); // 0.4 WETH → 40 tokenA
+    router.setRate(address(mockWeth), address(tokenB), 200e18, 1 ether); // 0.6 WETH → 120 tokenB
+
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    vm.deal(ALICE, 1 ether);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    // amountIn=0 for both WETH swaps: no transferFrom, swap calldata specifies exact portion
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenA),
+      0,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 0.4 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0,
+      address(tokenB),
+      0,
+      _buildSwapAllCalldata(address(mockWeth), address(tokenB)) // swaps all remaining WETH
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
+    swaps[3] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit{ value: 1 ether }(params);
+
+    assertGt(shares, 0, "shares received after split native ETH deposit");
+    // All WETH consumed: 0.4 WETH → tokenA, 0.6 WETH → tokenB
+    assertEq(ALICE.balance, 0, "all native ETH consumed");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
+    assertEq(address(gateway).balance, 0, "no residual ETH in gateway");
   }
 
   function test_swapAndDeposit_fail_insufficient_post_swap_balance() public {

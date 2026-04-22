@@ -20,6 +20,15 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   /// @inheritdoc ISharedConfigManager
   uint8 public override minTokenPrecision = 5;
 
+  /// @notice One-time initializer. Argument order is intentional; pass-by-position callers must
+  ///         match this exact sequence to avoid silently misrouting values:
+  ///         1. _owner                  — OwnableUpgradeable owner
+  ///         2. _whitelistTargets       — strategy addresses to whitelist as delegatecall targets
+  ///         3. _whitelistCallers       — addresses authorized as whitelisted callers
+  ///         4. _feeRecipient           — address that receives platform fees
+  ///         5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
+  ///         6. _whitelistNfpms         — NFT position managers to whitelist
+  ///         7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
   function initialize(
     address _owner,
     address[] calldata _whitelistTargets,
