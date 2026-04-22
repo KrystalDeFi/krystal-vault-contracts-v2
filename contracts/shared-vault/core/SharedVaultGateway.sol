@@ -164,10 +164,16 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   /// @dev Wrap any native ETH to WETH first, then pull each ERC20 input from the caller.
   ///      `tokenIn` must always be a real ERC20 address — `address(0)` is never valid here.
-  ///      Native ETH is provided via `msg.value`; the full amount is wrapped to WETH so the swap
-  ///      router always receives WETH. Swap entries that spend this WETH set `tokenIn = weth` with
-  ///      `amountIn == 0` (full balance) or a specific partial amount (pulled via transferFrom from
-  ///      the caller's ERC20 balance, independently of the native wrap).
+  ///
+  ///      There is exactly **one** WETH source per call:
+  ///      - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH.
+  ///        Any swap entry with `tokenIn == weth` does **not** trigger a `transferFrom` — the
+  ///        wrapped balance is the WETH input; `amountIn` on those entries is used only by
+  ///        `_executeSingleSwap` to size the router approval.
+  ///      - ERC20 WETH path (`msg.value == 0`): WETH is pulled from the caller's wallet via
+  ///        `transferFrom` for entries where `tokenIn == weth && amountIn > 0`.
+  ///
+  ///      Other non-WETH ERC20 tokens are always pulled via `transferFrom` regardless of path.
   /// @return nativeWrapped True when `msg.value > 0`; tells `_sweepAll` to unwrap any residual
   ///         WETH and return it as native ETH.
   function _pullInputTokens(SwapParams[] calldata swaps) internal returns (bool nativeWrapped) {
@@ -176,7 +182,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
       IWETH9(weth).deposit{ value: msg.value }();
     }
     for (uint256 i; i < swaps.length; ) {
-      if (swaps[i].amountIn > 0) {
+      // Skip transferFrom for WETH when native ETH was provided — the wrap already covers it.
+      if (swaps[i].amountIn > 0 && !(nativeWrapped && swaps[i].tokenIn == weth)) {
         IERC20(swaps[i].tokenIn).safeTransferFrom(_msgSender(), address(this), swaps[i].amountIn);
       }
       unchecked {

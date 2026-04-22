@@ -1192,50 +1192,127 @@ contract SharedVaultGatewayTest is TestCommon {
 
   // ==================== SwapAndDeposit: Native ETH via msg.value ====================
 
-  /// @notice msg.value > 0 is wrapped to WETH before any swap runs.
-  ///         Swap entries reference WETH by address — address(0) is never used.
-  ///         1 ETH native + 5 WETH ERC20 both land in gateway; unused WETH is swept back.
-  function test_swapAndDeposit_native_eth_and_weth_erc20_together() public {
-    vm.deal(ALICE, 6 ether);
+  /// @notice WETH ERC20 path (msg.value == 0): WETH is pulled from the user's wallet via transferFrom.
+  ///         The two paths are mutually exclusive — WETH ERC20 and native ETH are not combined.
+  function test_swapAndDeposit_weth_erc20_as_token_in() public {
+    // Alice holds WETH as an ERC20; she wants to deposit to the vault using WETH as the swap input.
+    // She converts 4 ETH to WETH: swap 0 pulls all 4 via transferFrom (amountIn=4e18), then each
+    // subsequent swap with amountIn=0 draws 1 WETH from the progressively-decreasing gateway balance.
+    vm.deal(ALICE, 4 ether);
     vm.startPrank(ALICE);
-    mockWeth.deposit{ value: 5 ether }(); // give Alice 5 WETH ERC20; she keeps 1 ETH native
+    mockWeth.deposit{ value: 4 ether }(); // convert 4 ETH → 4 WETH ERC20
     mockWeth.approve(address(gateway), type(uint256).max);
     vm.stopPrank();
 
-    tokenA.mint(ALICE, 100e18);
-    tokenB.mint(ALICE, 200e18);
-    tokenC.mint(ALICE, 50e6);
-    tokenD.mint(ALICE, 100e18);
+    tokenA.mint(address(router), 100e18);
+    tokenB.mint(address(router), 200e18);
+    tokenC.mint(address(router), 50e6);
+    tokenD.mint(address(router), 100e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether); // 1 WETH → 100 tokenA
+    router.setRate(address(mockWeth), address(tokenB), 200e18, 1 ether); // 1 WETH → 200 tokenB
+    router.setRate(address(mockWeth), address(tokenC), 50e6, 1 ether);   // 1 WETH → 50e6 tokenC
+    router.setRate(address(mockWeth), address(tokenD), 100e18, 1 ether); // 1 WETH → 100 tokenD
+
     _approveGatewayAll(ALICE);
 
-    // 5 WETH pulled via transferFrom; 1 ETH from msg.value is wrapped automatically
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](5);
-    swaps[0] = SharedVaultGateway.SwapParams(address(mockWeth), 5 ether, address(mockWeth), 0, "");
-    swaps[1] = SharedVaultGateway.SwapParams(address(tokenA), 100e18, address(tokenA), 0, "");
-    swaps[2] = SharedVaultGateway.SwapParams(address(tokenB), 200e18, address(tokenB), 0, "");
-    swaps[3] = SharedVaultGateway.SwapParams(address(tokenC), 50e6, address(tokenC), 0, "");
-    swaps[4] = SharedVaultGateway.SwapParams(address(tokenD), 100e18, address(tokenD), 0, "");
-
-    address[] memory sweepTokens = new address[](1);
-    sweepTokens[0] = address(mockWeth);
+    // swaps[0] pulls 4 WETH via transferFrom; each swap's calldata consumes 1 WETH.
+    // amountIn=0 on swaps 1-3 draws from the remaining gateway balance (3 → 2 → 1 WETH).
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 4 ether, address(tokenA), 90e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 0, address(tokenB), 180e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenB), 1 ether)
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 0, address(tokenC), 45e6,
+      _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 0, address(tokenD), 90e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenD), 1 ether)
+    );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
-      sweepTokens: sweepTokens
+      sweepTokens: new address[](0)
     });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params); // no msg.value — ERC20 WETH path
+
+    assertGt(shares, 0, "shares received");
+    assertEq(vault.balanceOf(ALICE), shares);
+    assertEq(mockWeth.balanceOf(ALICE), 0, "all 4 WETH pulled from wallet and consumed");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
+    assertEq(address(gateway).balance, 0, "no ETH in gateway");
+  }
+
+  /// @notice When msg.value > 0, WETH entries with amountIn > 0 do NOT trigger transferFrom —
+  ///         the native wrap is the sole WETH source. Alice's ERC20 WETH balance is untouched.
+  function test_swapAndDeposit_native_eth_does_not_pull_weth_from_wallet() public {
+    vm.deal(ALICE, 4 ether);
+    vm.startPrank(ALICE);
+    mockWeth.deposit{ value: 3 ether }(); // Alice holds 3 WETH ERC20; has 1 ETH native left
+    mockWeth.approve(address(gateway), type(uint256).max);
+    vm.stopPrank();
+
+    tokenA.mint(address(router), 100e18);
+    tokenB.mint(address(router), 200e18);
+    tokenC.mint(address(router), 50e6);
+    tokenD.mint(address(router), 100e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenB), 200e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenC), 50e6, 1 ether);
+    router.setRate(address(mockWeth), address(tokenD), 100e18, 1 ether);
+
+    _approveGatewayAll(ALICE);
+
+    // amountIn > 0 on WETH entries, but msg.value > 0 so transferFrom is skipped for WETH.
+    // Each swap consumes 0.25 WETH of the 1 WETH wrapped from native ETH.
+    // At the configured rates: 0.25 WETH → 25 tokenA, 50 tokenB, 12.5e6 tokenC, 25 tokenD.
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 999 ether, address(tokenA), 20e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 0.25 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 999 ether, address(tokenB), 40e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenB), 0.25 ether)
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 999 ether, address(tokenC), 10e6,
+      _buildSwapCalldata(address(mockWeth), address(tokenC), 0.25 ether)
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 999 ether, address(tokenD), 20e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenD), 0.25 ether)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    uint256 aliceWethBefore = mockWeth.balanceOf(ALICE); // 3 WETH
 
     vm.prank(ALICE);
     uint256 shares = gateway.swapAndDeposit{ value: 1 ether }(params);
 
-    assertGt(shares, 0);
-    assertEq(vault.balanceOf(ALICE), shares);
-    // The 6 WETH (5 pulled + 1 wrapped from ETH) was not a vault token, so it's swept back as WETH
-    assertEq(mockWeth.balanceOf(ALICE), 6 ether, "all WETH returned: 5 from ERC20 + 1 from native wrap");
-    assertEq(ALICE.balance, 0, "native ETH fully consumed by wrap");
-    assertEq(mockWeth.balanceOf(address(gateway)), 0, "gateway holds no residual WETH");
+    assertGt(shares, 0, "shares received");
+    // ERC20 WETH balance must be completely untouched — only native ETH (1 ETH) was used
+    assertEq(mockWeth.balanceOf(ALICE), aliceWethBefore, "ERC20 WETH wallet balance never touched");
+    assertEq(ALICE.balance, 0, "1 ETH consumed by native wrap");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
+    assertEq(address(gateway).balance, 0, "no residual ETH in gateway");
   }
 
   /// @notice msg.value is wrapped to WETH; swap entry uses amountIn==0 to consume the full balance.
