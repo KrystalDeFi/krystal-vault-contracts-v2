@@ -32,7 +32,7 @@ contract SharedConfigManagerTest is TestCommon {
     address[] memory routers = new address[](1);
     routers[0] = ROUTER_A;
 
-    configManager.initialize(OWNER, targets, callers, FEE_RECIPIENT, nfpms, routers);
+    configManager.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers);
   }
 
   // ========== initialize ==========
@@ -88,13 +88,13 @@ contract SharedConfigManagerTest is TestCommon {
     vm.expectEmit(false, false, false, true, address(fresh));
     emit ISharedConfigManager.WhitelistTargetsUpdated(targets, true);
 
-    fresh.initialize(OWNER, targets, callers, FEE_RECIPIENT, nfpms, routers);
+    fresh.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers);
   }
 
   function test_initialize_withEmptyArraysDoesNotEmit() public {
     // Should not revert when all arrays are empty
     SharedConfigManager fresh = new SharedConfigManager();
-    fresh.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, new address[](0), new address[](0));
+    fresh.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0));
 
     assertEq(fresh.owner(), OWNER);
     assertFalse(fresh.isWhitelistedTarget(TARGET_A));
@@ -102,7 +102,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_initialize_revertsIfCalledTwice() public {
     vm.expectRevert();
-    configManager.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, new address[](0), new address[](0));
+    configManager.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0));
   }
 
   // ========== setWhitelistTargets ==========

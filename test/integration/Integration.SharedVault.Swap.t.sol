@@ -71,7 +71,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     routers[0] = address(swapRouter);
 
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, nfpms, routers);
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, routers);
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();

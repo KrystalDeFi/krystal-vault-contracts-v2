@@ -168,7 +168,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     targets[0] = address(mockStrategy);
     targets[1] = address(swapTarget);
     address[] memory callers = new address[](0);
-    configManager.initialize(ADMIN, targets, callers, ADMIN, new address[](0), new address[](0));
+    configManager.initialize(ADMIN, targets, callers, ADMIN, 0, new address[](0), new address[](0));
 
     // Vault
     vault = new SharedVault();

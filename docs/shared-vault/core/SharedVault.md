@@ -187,7 +187,7 @@ _Subsequent deposit — compute how many tokens to pull based on minimum ratio a
      that slippage-induced partial LP consumption is reflected in the final share count.
 
      **Dust-proof rounding**: proportional slices are rounded UP (ceiling) and then floored to
-     the global `configManager.minTokenAmount()`. Without this:
+     `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`. Without this:
        (a) when a vault holds dust (e.g., 50 wei USDT + 100e18 tokenA), a depositor providing
            `amounts = [1 USDT-worth of tokenA, 0]` would compute `transferAmounts[dust] = 0`
            (floor of 0.5 wei) and receive shares for free, diluting existing holders; and
@@ -195,6 +195,15 @@ _Subsequent deposit — compute how many tokens to pull based on minimum ratio a
            cannot produce that exact micro-amount to satisfy the deposit.
      Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
      existing holders are never diluted and the gateway always sees a swappable amount._
+
+### _minTokenAmt
+
+```solidity
+function _minTokenAmt(address token, uint8 prec) internal view returns (uint256)
+```
+
+_Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
+     precision level get a floor of 1 (the smallest representable unit)._
 
 ### _computeSharesFromDelta
 
@@ -358,10 +367,7 @@ Preview token amounts returned for burning `_shares`.
 _Computes proportional share of total balances (idle + LP position principal + uncollected fees).
      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
-     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
-
-     Applies the same **dust floor** as `withdraw()`: any computed amount strictly between 0 and
-     `configManager.minTokenAmount()` is shown as 0, matching execution-time zeroing._
+     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`._
 
 ### sweepTokens
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -244,7 +245,7 @@ contract SharedVault is
   ///      that slippage-induced partial LP consumption is reflected in the final share count.
   ///
   ///      **Dust-proof rounding**: proportional slices are rounded UP (ceiling) and then floored to
-  ///      the global `configManager.minTokenAmount()`. Without this:
+  ///      `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`. Without this:
   ///        (a) when a vault holds dust (e.g., 50 wei USDT + 100e18 tokenA), a depositor providing
   ///            `amounts = [1 USDT-worth of tokenA, 0]` would compute `transferAmounts[dust] = 0`
   ///            (floor of 0.5 wei) and receive shares for free, diluting existing holders; and
@@ -271,8 +272,9 @@ contract SharedVault is
     }
     require(sharesOut != type(uint256).max, InvalidAmount());
 
-    // Read the global dust floor once — it is uniform across all vault tokens.
-    uint256 minAmt = configManager.minTokenAmount();
+    // Read precision once; per-token floor = 10 ** max(0, decimals - precision).
+    // Default precision 5 → 0.00001 of any token regardless of its decimal count.
+    uint8 prec = configManager.minTokenPrecision();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         if (totalBalances[i] == 0) {
@@ -281,6 +283,7 @@ contract SharedVault is
           // Ceiling division so a sub-1-wei proportional slice never rounds to zero (which would
           // otherwise let a depositor skip paying for dust tokens while still receiving shares).
           uint256 proportional = FullMath.mulDivRoundingUp(sharesOut, totalBalances[i], currentTotalSupply);
+          uint256 minAmt = _minTokenAmt(tokens[i], prec);
           transferAmounts[i] = proportional < minAmt ? minAmt : proportional;
           require(amounts[i] >= transferAmounts[i], InvalidRatio());
         }
@@ -289,6 +292,14 @@ contract SharedVault is
         i++;
       }
     }
+  }
+
+  /// @dev Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
+  ///      precision level get a floor of 1 (the smallest representable unit).
+  function _minTokenAmt(address token, uint8 prec) internal view returns (uint256) {
+    if (prec == 0) return 0;
+    uint8 dec = IERC20Metadata(token).decimals();
+    return dec > prec ? 10 ** uint256(dec - prec) : 1;
   }
 
   /// @dev Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
@@ -477,22 +488,15 @@ contract SharedVault is
     // This avoids double-dilution where the LP return was previously re-multiplied
     // by shares/totalSupply.
     //
-    // **Dust floor** — if the computed `amounts[i]` is below the global `configManager.minTokenAmount()`,
-    // it is zeroed out (the dust stays in the vault, accruing to remaining holders). Two reasons:
-    //   1. SharedVaultGateway cannot swap sub-minimum amounts through an aggregator, so returning
-    //      dust to a gateway caller would either fail or just leak a transfer.
-    //   2. Rounding UP on withdraw — the symmetric of the deposit fix — would let a tiny-share
-    //      holder extract MORE than their proportional claim, mirroring the deposit-dilution
-    //      exploit. Zeroing instead ensures withdrawers never receive more than proportional.
-    uint256 minAmt = configManager.minTokenAmount();
+    // Dust is forwarded to the caller as-is. If this call originates from SharedVaultGateway,
+    // the gateway will attempt to swap each token; if an amount is too small for the aggregator
+    // it falls back to returning the token directly to the user. Zeroing dust here would silently
+    // transfer value from the withdrawer to remaining vault holders.
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         uint256 idleAfter = IERC20(tokens[i]).balanceOf(address(this));
         uint256 lpExitReturn = idleAfter - idleBefore[i];
         uint256 computed = FullMath.mulDiv(shares, idleBefore[i], currentTotalSupply) + lpExitReturn;
-        if (computed > 0 && computed < minAmt) {
-          computed = 0;
-        }
         amounts[i] = computed;
         require(amounts[i] >= minAmounts[i], InsufficientOutput());
         if (amounts[i] > 0) {
@@ -701,22 +705,14 @@ contract SharedVault is
   ///      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
   ///      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
   ///      Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
-  ///
-  ///      Applies the same **dust floor** as `withdraw()`: any computed amount strictly between 0 and
-  ///      `configManager.minTokenAmount()` is shown as 0, matching execution-time zeroing.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
     uint256 currentTotalSupply = totalSupply();
     if (currentTotalSupply == 0) return amounts;
 
-    uint256 minAmt = configManager.minTokenAmount();
     uint256[4] memory totalBalances = _getTotalBalances();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
-        uint256 computed = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
-        if (computed > 0 && computed < minAmt) {
-          computed = 0;
-        }
-        amounts[i] = computed;
+        amounts[i] = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
       }
       unchecked {
         i++;

@@ -86,7 +86,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     callers[0] = address(automator);
 
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, callers, feeRecipient, nfpms, routers);
+    configManager.initialize(vaultOwner, targets, callers, feeRecipient, 0, nfpms, routers);
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();

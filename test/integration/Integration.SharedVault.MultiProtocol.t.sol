@@ -69,7 +69,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     nfpms[0] = NFPM;
     nfpms[1] = PANCAKE_NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
     // Single implementation shared by both protocol proxies

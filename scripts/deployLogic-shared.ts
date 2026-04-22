@@ -308,6 +308,7 @@ async function deployContracts(
       whitelistedTargets,
       whitelistedCallers,
       commonConfig.feeCollector,
+      commonConfig.platformFeeBasisPoint,
       whitelistedNfpms,
       whitelistedSwapRouters,
     );

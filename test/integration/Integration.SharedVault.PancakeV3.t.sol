@@ -81,7 +81,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
     v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));

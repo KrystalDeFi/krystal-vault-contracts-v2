@@ -74,7 +74,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     configManager = new SharedConfigManager();
     // No swap routers needed in configManager — the gateway has its own independent swapRouter
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0));
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
