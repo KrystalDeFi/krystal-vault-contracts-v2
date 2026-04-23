@@ -186,7 +186,8 @@ contract SharedVaultAutomatorTest is TestCommon {
       VAULT_OWNER,
       address(0),
       address(configManager),
-      address(0)
+      address(0),
+      0
     );
     vm.stopPrank();
 
@@ -410,7 +411,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     address[4] memory vt = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory am = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     vm.startPrank(otherOwner);
-    otherVault.initialize("Other", vt, am, otherOwner, address(0), address(configManager), address(0));
+    otherVault.initialize("Other", vt, am, otherOwner, address(0), address(configManager), address(0), 0);
     vm.stopPrank();
 
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
@@ -545,7 +546,8 @@ contract SharedVaultAutomatorTest is TestCommon {
       address(multisig),
       address(0),
       address(configManager),
-      address(0)
+      address(0),
+      0
     );
 
     // Deploy a fresh automator (reuse same ADMIN/OPERATOR)

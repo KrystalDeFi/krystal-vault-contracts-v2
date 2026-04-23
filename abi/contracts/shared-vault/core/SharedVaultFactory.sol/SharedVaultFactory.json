@@ -402,6 +402,11 @@
         "internalType": "uint256[4]",
         "name": "initialAmounts",
         "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       }
     ],
     "name": "createVault",
@@ -431,6 +436,11 @@
         "internalType": "uint256[4]",
         "name": "initialAmounts",
         "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       },
       {
         "components": [

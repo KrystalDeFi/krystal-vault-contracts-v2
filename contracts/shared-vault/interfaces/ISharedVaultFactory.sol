@@ -14,17 +14,23 @@ interface ISharedVaultFactory is ISharedCommon {
   event VaultImplementationSet(address vaultImplementation);
 
   /// @notice Create a shared vault with initial token deposits.
-  function createVault(
-    string calldata name,
-    address[4] calldata tokens,
-    uint256[4] calldata initialAmounts
-  ) external payable returns (address vault);
-
-  /// @notice Create a shared vault with initial deposits and run `execute(actions)` once (same semantics as `ISharedVault.execute`).
+  /// @param vaultOwnerFeeBasisPoint Basis points of LP performance/collection fees routed to the
+  ///        vault owner on proportional exits (max 10_000). **Locked at vault creation** — there is
+  ///        no setter on `ISharedVault`, so depositors can rely on the value seen at creation time.
   function createVault(
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
+    uint16 vaultOwnerFeeBasisPoint
+  ) external payable returns (address vault);
+
+  /// @notice Create a shared vault with initial deposits and run `execute(actions)` once (same semantics as `ISharedVault.execute`).
+  /// @param vaultOwnerFeeBasisPoint Locked at creation — see overload above for full semantics.
+  function createVault(
+    string calldata name,
+    address[4] calldata tokens,
+    uint256[4] calldata initialAmounts,
+    uint16 vaultOwnerFeeBasisPoint,
     ISharedVault.Action[] calldata actions
   ) external payable returns (address vault);
 

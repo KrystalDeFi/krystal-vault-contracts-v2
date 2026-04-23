@@ -86,6 +86,10 @@ uint16 vaultOwnerFeeBasisPoint
 
 Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
 
+_Locked at initialization. There is intentionally no setter — the value the depositor saw at
+     vault creation must remain the value applied to every subsequent withdrawal so the owner cannot
+     retroactively raise their performance-fee cut on existing deposits._
+
 ### positions
 
 ```solidity
@@ -129,7 +133,7 @@ modifier whenVaultNotPaused()
 ### initialize
 
 ```solidity
-function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth) public
+function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth, uint16 _vaultOwnerFeeBasisPoint) public
 ```
 
 Initializes the shared vault
@@ -145,6 +149,7 @@ Initializes the shared vault
 | _operator | address | Initial vault operator. The operator role is fixed at initialization —                  there is no post-deploy setter. Pass address(0) for a vault with no operator. |
 | _configManager | address |  |
 | _weth | address |  |
+| _vaultOwnerFeeBasisPoint | uint16 | Vault-owner performance fee basis points (≤ 10_000). Locked at                  init — there is no setter so the fee depositors saw at vault creation cannot be                  retroactively raised on existing positions. |
 
 ### deposit
 
@@ -422,12 +427,6 @@ function revokeAdminRole(address _address) external
 
 ```solidity
 function setPaused(bool _paused) external
-```
-
-### setVaultOwnerFeeBasisPoint
-
-```solidity
-function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external
 ```
 
 ### transferOwnership

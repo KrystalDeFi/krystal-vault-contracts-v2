@@ -12,7 +12,9 @@ interface ISharedVault is ISharedCommon {
   event SetVaultOperator(address indexed vaultFactory, address indexed previousOperator, address indexed newOperator);
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);
   event VaultPausedUpdated(address indexed vaultFactory, bool paused);
-  event VaultOwnerFeeBasisPointUpdated(address indexed vaultFactory, uint16 basisPoints);
+  /// @notice Emitted exactly once at vault initialization.
+  /// @dev `vaultOwnerFeeBasisPoint` is locked at initialization and cannot be changed afterward.
+  event VaultOwnerFeeBasisPointSet(address indexed vaultFactory, uint16 basisPoints);
   /// @notice Emitted when the vault owner forcibly drops a position from tracking.
   ///         The NFT is transferred to the operator (if set) so liquidity can be recovered later;
   ///         if no operator is set the NFT remains in the vault.
@@ -37,6 +39,8 @@ interface ISharedVault is ISharedCommon {
   }
 
   // --- Initialization ---
+  /// @param _vaultOwnerFeeBasisPoint Basis points of LP performance/collection fees routed to `_owner`
+  ///        on proportional exits (max 10_000). **Locked at initialization** — there is no setter.
   function initialize(
     string calldata name,
     address[4] calldata _tokens,
@@ -44,7 +48,8 @@ interface ISharedVault is ISharedCommon {
     address _owner,
     address _operator,
     address _configManager,
-    address _weth
+    address _weth,
+    uint16 _vaultOwnerFeeBasisPoint
   ) external;
 
   // --- Deposit / Withdraw ---
@@ -150,9 +155,8 @@ interface ISharedVault is ISharedCommon {
   function setPaused(bool _paused) external;
 
   /// @notice Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
+  /// @dev Set at initialization and immutable thereafter — there is no setter.
   function vaultOwnerFeeBasisPoint() external view returns (uint16);
-
-  function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external;
 
   function transferOwnership(address newOwner) external;
 

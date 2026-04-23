@@ -109,6 +109,7 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  v4NfpmAddresses?: AddressLike[];
 }
 
 export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {

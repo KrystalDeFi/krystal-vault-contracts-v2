@@ -44,11 +44,15 @@ event VaultOwnerChanged(address vaultFactory, address previousOwner, address new
 event VaultPausedUpdated(address vaultFactory, bool paused)
 ```
 
-### VaultOwnerFeeBasisPointUpdated
+### VaultOwnerFeeBasisPointSet
 
 ```solidity
-event VaultOwnerFeeBasisPointUpdated(address vaultFactory, uint16 basisPoints)
+event VaultOwnerFeeBasisPointSet(address vaultFactory, uint16 basisPoints)
 ```
+
+Emitted exactly once at vault initialization.
+
+_`vaultOwnerFeeBasisPoint` is locked at initialization and cannot be changed afterward._
 
 ### PositionDropped
 
@@ -97,8 +101,21 @@ struct Action {
 ### initialize
 
 ```solidity
-function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth) external
+function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth, uint16 _vaultOwnerFeeBasisPoint) external
 ```
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| name | string |  |
+| _tokens | address[4] |  |
+| initialAmounts | uint256[4] |  |
+| _owner | address |  |
+| _operator | address |  |
+| _configManager | address |  |
+| _weth | address |  |
+| _vaultOwnerFeeBasisPoint | uint16 | Basis points of LP performance/collection fees routed to `_owner`        on proportional exits (max 10_000). **Locked at initialization** — there is no setter. |
 
 ### deposit
 
@@ -304,11 +321,7 @@ function vaultOwnerFeeBasisPoint() external view returns (uint16)
 
 Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
 
-### setVaultOwnerFeeBasisPoint
-
-```solidity
-function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external
-```
+_Set at initialization and immutable thereafter — there is no setter._
 
 ### transferOwnership
 

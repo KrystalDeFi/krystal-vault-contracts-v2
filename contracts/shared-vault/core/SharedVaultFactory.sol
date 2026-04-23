@@ -50,9 +50,10 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
   function createVault(
     string calldata name,
     address[4] calldata tokens,
-    uint256[4] calldata initialAmounts
+    uint256[4] calldata initialAmounts,
+    uint16 vaultOwnerFeeBasisPoint
   ) external payable override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts, _msgSender());
+    vault = _createVault(name, tokens, initialAmounts, _msgSender(), vaultOwnerFeeBasisPoint);
   }
 
   /// @notice Create a shared vault with initial deposits and run `execute(actions)` once
@@ -60,9 +61,10 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
+    uint16 vaultOwnerFeeBasisPoint,
     ISharedVault.Action[] calldata actions
   ) external payable override whenNotPaused returns (address vault) {
-    vault = _createVault(name, tokens, initialAmounts, address(this));
+    vault = _createVault(name, tokens, initialAmounts, address(this), vaultOwnerFeeBasisPoint);
 
     if (actions.length > 0) {
       ISharedVault(vault).execute(actions);
@@ -82,7 +84,8 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
     string calldata name,
     address[4] calldata tokens,
     uint256[4] calldata initialAmounts,
-    address _owner
+    address _owner,
+    uint16 _vaultOwnerFeeBasisPoint
   ) internal returns (address vault) {
     bytes32 salt = keccak256(abi.encodePacked(name, _msgSender(), "shared-1.0"));
     address predicted = Clones.predictDeterministicAddress(vaultImplementation, salt);
@@ -121,7 +124,16 @@ contract SharedVaultFactory is OwnableUpgradeable, PausableUpgradeable, Withdraw
       }
     }
 
-    ISharedVault(vault).initialize(name, tokens, initialAmounts, _owner, owner(), address(configManager), weth);
+    ISharedVault(vault).initialize(
+      name,
+      tokens,
+      initialAmounts,
+      _owner,
+      owner(),
+      address(configManager),
+      weth,
+      _vaultOwnerFeeBasisPoint
+    );
 
     vaultsByAddress[_msgSender()].push(vault);
     allVaults.push(vault);

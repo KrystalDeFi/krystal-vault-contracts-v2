@@ -63,6 +63,9 @@ contract SharedVault is
   mapping(address => bool) public admins;
 
   /// @inheritdoc ISharedVault
+  /// @dev Locked at initialization. There is intentionally no setter — the value the depositor saw at
+  ///      vault creation must remain the value applied to every subsequent withdrawal so the owner cannot
+  ///      retroactively raise their performance-fee cut on existing deposits.
   uint16 public override vaultOwnerFeeBasisPoint;
 
   /// @dev Array of tracked LP positions
@@ -96,6 +99,9 @@ contract SharedVault is
   /// @notice Initializes the shared vault
   /// @param _operator Initial vault operator. The operator role is fixed at initialization —
   ///                  there is no post-deploy setter. Pass address(0) for a vault with no operator.
+  /// @param _vaultOwnerFeeBasisPoint Vault-owner performance fee basis points (≤ 10_000). Locked at
+  ///                  init — there is no setter so the fee depositors saw at vault creation cannot be
+  ///                  retroactively raised on existing positions.
   function initialize(
     string calldata _name,
     address[4] calldata _tokens,
@@ -103,10 +109,12 @@ contract SharedVault is
     address _owner,
     address _operator,
     address _configManager,
-    address _weth
+    address _weth,
+    uint16 _vaultOwnerFeeBasisPoint
   ) public initializer {
     require(_configManager != address(0), ZeroAddress());
     require(_owner != address(0), ZeroAddress());
+    require(_vaultOwnerFeeBasisPoint <= 10_000, ISharedCommon.InvalidVaultOwnerFeeBasisPoint());
 
     // Intentional: name is reused as symbol so vault share tokens display the
     // user-chosen vault name in wallets and block explorers as the ticker.
@@ -120,6 +128,8 @@ contract SharedVault is
     vaultFactory = _msgSender();
     weth = _weth;
     if (_operator != address(0)) operator = _operator;
+    vaultOwnerFeeBasisPoint = _vaultOwnerFeeBasisPoint;
+    emit VaultOwnerFeeBasisPointSet(_msgSender(), _vaultOwnerFeeBasisPoint);
 
     // Set up tokens
     uint8 count;
@@ -799,13 +809,6 @@ contract SharedVault is
       _unpause();
     }
     emit VaultPausedUpdated(vaultFactory, _paused);
-  }
-
-  /// @inheritdoc ISharedVault
-  function setVaultOwnerFeeBasisPoint(uint16 basisPoints) external override onlyOwner {
-    require(basisPoints <= 10_000, ISharedCommon.InvalidVaultOwnerFeeBasisPoint());
-    vaultOwnerFeeBasisPoint = basisPoints;
-    emit VaultOwnerFeeBasisPointUpdated(vaultFactory, basisPoints);
   }
 
   function transferOwnership(address newOwner) external override onlyOwner {

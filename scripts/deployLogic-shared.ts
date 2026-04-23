@@ -298,6 +298,7 @@ async function deployContracts(
     const whitelistedNfpms = uniq([
       ...(networkConfig.nfpmAddresses ?? []),
       ...(networkConfig.aerodromeNfpmAddresses ?? []),
+      ...(networkConfig.v4NfpmAddresses ?? []),
     ]).filter(Boolean) as string[];
     const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
 

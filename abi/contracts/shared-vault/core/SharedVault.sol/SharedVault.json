@@ -637,7 +637,7 @@
         "type": "uint16"
       }
     ],
-    "name": "VaultOwnerFeeBasisPointUpdated",
+    "name": "VaultOwnerFeeBasisPointSet",
     "type": "event"
   },
   {
@@ -1109,6 +1109,11 @@
         "internalType": "address",
         "name": "_weth",
         "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "_vaultOwnerFeeBasisPoint",
+        "type": "uint16"
       }
     ],
     "name": "initialize",
@@ -1504,19 +1509,6 @@
       }
     ],
     "name": "setPaused",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "basisPoints",
-        "type": "uint16"
-      }
-    ],
-    "name": "setVaultOwnerFeeBasisPoint",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

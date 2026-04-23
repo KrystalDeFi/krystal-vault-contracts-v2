@@ -186,7 +186,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault("Test Vault", tokens, amounts);
+    address vaultAddr = factory.createVault("Test Vault", tokens, amounts, 0);
     vm.stopPrank();
 
     assertTrue(vaultAddr != address(0));
@@ -212,7 +212,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault("Empty Vault", tokens, amounts);
+    address vaultAddr = factory.createVault("Empty Vault", tokens, amounts, 0);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -224,7 +224,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vault1 = factory.createVault("Vault 1", tokens, amounts);
+    address vault1 = factory.createVault("Vault 1", tokens, amounts, 0);
     vm.stopPrank();
 
     assertTrue(vault1 != address(0));
@@ -232,7 +232,7 @@ contract SharedVaultFactoryTest is TestCommon {
     // Same name + sender should revert with descriptive error
     vm.startPrank(VAULT_CREATOR);
     vm.expectRevert(ISharedVaultFactory.DuplicateVaultName.selector);
-    factory.createVault("Vault 1", tokens, amounts);
+    factory.createVault("Vault 1", tokens, amounts, 0);
     vm.stopPrank();
   }
 
@@ -241,8 +241,8 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    address vault1 = factory.createVault("Vault A", tokens, amounts);
-    address vault2 = factory.createVault("Vault B", tokens, amounts);
+    address vault1 = factory.createVault("Vault A", tokens, amounts, 0);
+    address vault2 = factory.createVault("Vault B", tokens, amounts, 0);
     vm.stopPrank();
 
     assertTrue(vault1 != vault2);
@@ -256,8 +256,8 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
-    factory.createVault("V1", tokens, amounts);
-    factory.createVault("V2", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, 0);
+    factory.createVault("V2", tokens, amounts, 0);
     vm.stopPrank();
 
     address[] memory vaults = factory.getVaultsByAddress(VAULT_CREATOR);
@@ -274,7 +274,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-    factory.createVault("V1", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, 0);
     vm.stopPrank();
 
     // Unpause
@@ -284,7 +284,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
     // Should work now
     vm.startPrank(VAULT_CREATOR);
-    factory.createVault("V1", tokens, amounts);
+    factory.createVault("V1", tokens, amounts, 0);
     vm.stopPrank();
   }
 
@@ -327,7 +327,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -352,7 +352,7 @@ contract SharedVaultFactoryTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -386,7 +386,7 @@ contract SharedVaultFactoryTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
 
-    address vaultAddr = factory.createVault("Test", tokens, amounts, actions);
+    address vaultAddr = factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -405,7 +405,7 @@ contract SharedVaultFactoryTest is TestCommon {
     actions[0] = ISharedVault.Action(unwhitelisted, abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
 
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, unwhitelisted));
-    factory.createVault("Test", tokens, amounts, actions);
+    factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
   }
 
@@ -422,7 +422,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(mockWeth), address(0), address(0)];
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
-    address vaultAddr = factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts);
+    address vaultAddr = factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts, 0);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -453,7 +453,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
-    factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts);
+    factory.createVault{ value: 1 ether }("ETH Vault", tokens, amounts, 0);
     vm.stopPrank();
   }
 
@@ -470,7 +470,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{ value: 2 ether }("ETH Vault", tokens, amounts);
+    factory.createVault{ value: 2 ether }("ETH Vault", tokens, amounts, 0);
     vm.stopPrank();
   }
 
@@ -494,7 +494,7 @@ contract SharedVaultFactoryTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
 
-    address vaultAddr = factory.createVault{ value: 0 }("No-ETH Vault", tokens, amounts, actions);
+    address vaultAddr = factory.createVault{ value: 0 }("No-ETH Vault", tokens, amounts, 0, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -526,7 +526,13 @@ contract SharedVaultFactoryTest is TestCommon {
       ISharedCommon.CallType.DELEGATECALL
     );
 
-    address vaultAddr = factory.createVault{ value: 1 ether }("ETH-Deposit+Strategy Vault", tokens, amounts, actions);
+    address vaultAddr = factory.createVault{ value: 1 ether }(
+      "ETH-Deposit+Strategy Vault",
+      tokens,
+      amounts,
+      0,
+      actions
+    );
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -558,7 +564,7 @@ contract SharedVaultFactoryTest is TestCommon {
     );
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
-    factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, actions);
+    factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, 0, actions);
     vm.stopPrank();
   }
 
@@ -692,6 +698,64 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.prank(VAULT_CREATOR);
     vm.expectRevert();
     factory.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
+  // ==================== vaultOwnerFeeBasisPoint: locked at createVault ====================
+
+  /// @notice The fee bps passed to `createVault` is forwarded verbatim to `SharedVault.initialize`
+  ///         and persisted on the vault. This is the user-visible contract the depositor relies on:
+  ///         "the fee I saw at creation is the fee that will be applied forever after".
+  function test_createVault_forwards_vaultOwnerFeeBasisPoint_to_vault() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    address vaultAddr = factory.createVault("FeeFwd", tokens, amounts, 750);
+    vm.stopPrank();
+
+    assertEq(ISharedVault(vaultAddr).vaultOwnerFeeBasisPoint(), 750, "factory forwarded fee to vault");
+  }
+
+  /// @notice The fee-with-actions overload also forwards the fee unmodified.
+  function test_createVault_withActions_forwards_vaultOwnerFeeBasisPoint_to_vault() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
+
+    address vaultAddr = factory.createVault("FeeFwdActions", tokens, amounts, 4242, actions);
+    vm.stopPrank();
+
+    assertEq(ISharedVault(vaultAddr).vaultOwnerFeeBasisPoint(), 4242);
+  }
+
+  /// @notice A fee above the 10_000 bps ceiling is rejected at the factory entry point:
+  ///         `initialize` reverts and the whole `createVault` transaction bubbles up the error.
+  function test_createVault_reverts_when_vaultOwnerFeeBasisPoint_above_max() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
+    factory.createVault("TooHighFee", tokens, amounts, 10_001);
+    vm.stopPrank();
+  }
+
+  /// @notice Compile-time guarantee: the public interface does not expose any setter for the
+  ///         fee. This test documents/locks that at the runtime level — there is no
+  ///         `setVaultOwnerFeeBasisPoint(uint16)` selector on the vault.
+  function test_sharedVault_has_no_setter_for_vaultOwnerFeeBasisPoint() public {
+    vm.startPrank(VAULT_CREATOR);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    address vaultAddr = factory.createVault("NoSetter", tokens, amounts, 123);
+    vm.stopPrank();
+
+    // Selector for `setVaultOwnerFeeBasisPoint(uint16)` — attempting to call it must revert.
+    bytes4 legacySelector = bytes4(keccak256("setVaultOwnerFeeBasisPoint(uint16)"));
+    (bool ok, ) = vaultAddr.call(abi.encodeWithSelector(legacySelector, uint16(500)));
+    assertFalse(ok, "legacy setter must not be callable on vault");
+    assertEq(ISharedVault(vaultAddr).vaultOwnerFeeBasisPoint(), 123, "fee unchanged by stray call");
   }
 }
 

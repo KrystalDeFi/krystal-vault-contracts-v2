@@ -81,7 +81,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vaultFactory), 3000e6);
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Swap-Test", vaultTokens, initialAmounts)));
+    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Swap-Test", vaultTokens, initialAmounts, 0)));
 
     vm.stopPrank();
   }

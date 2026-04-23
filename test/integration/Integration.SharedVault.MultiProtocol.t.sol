@@ -96,7 +96,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(2 ether), 6000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-MultiProtocol", vaultTokens, initialAmounts)));
+    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-MultiProtocol", vaultTokens, initialAmounts, 0)));
 
     vm.stopPrank();
   }
@@ -359,7 +359,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     SharedVault vault2 = SharedVault(
       payable(
-        vaultFactory.createVault{ value: wethAmt }("MultiProtocol-AtomicCreate", vaultTokens, initialAmounts, actions)
+        vaultFactory.createVault{ value: wethAmt }("MultiProtocol-AtomicCreate", vaultTokens, initialAmounts, 0, actions)
       )
     );
 

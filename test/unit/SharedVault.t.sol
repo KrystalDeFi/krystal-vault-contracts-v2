@@ -739,7 +739,8 @@ contract SharedVaultTest is TestCommon {
       VAULT_OWNER,
       VAULT_OWNER,
       address(configManager),
-      address(0)
+      address(0),
+      0
     );
 
     // Setup roles
@@ -769,7 +770,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenA), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.DuplicateToken.selector);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
   }
 
   function test_initialize_fail_too_few_tokens() public {
@@ -777,7 +778,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(0), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.NoTokensConfigured.selector);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
   }
 
   // ==================== Deposit Tests ====================
@@ -788,7 +789,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
-    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0));
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
     vm.stopPrank();
 
     // First deposit
@@ -1323,7 +1324,8 @@ contract SharedVaultTest is TestCommon {
       VAULT_OWNER,
       address(0),
       address(configManager),
-      address(0)
+      address(0),
+      0
     );
 
     // Mint the NFT to the vault and add the position
@@ -1597,29 +1599,102 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
-  function test_set_vault_owner_fee_basis_point() public {
+  /// @notice The vault owner fee is set exactly once in `initialize` and persists thereafter.
+  ///         Depositors must be able to trust that the fee they saw at deposit time is the
+  ///         same fee applied on every subsequent withdrawal.
+  function test_initialize_sets_vault_owner_fee_basis_point() public {
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
     vm.prank(VAULT_OWNER);
-    vault.setVaultOwnerFeeBasisPoint(250);
-    assertEq(vault.vaultOwnerFeeBasisPoint(), 250);
+    v.initialize("FeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 250);
+
+    assertEq(v.vaultOwnerFeeBasisPoint(), 250, "fee written on init");
   }
 
-  function test_set_vault_owner_fee_basis_point_max() public {
+  /// @notice The maximum valid fee (10_000 bps = 100%) is accepted at init.
+  function test_initialize_sets_vault_owner_fee_basis_point_max() public {
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
     vm.prank(VAULT_OWNER);
-    vault.setVaultOwnerFeeBasisPoint(10_000);
-    assertEq(vault.vaultOwnerFeeBasisPoint(), 10_000);
+    v.initialize(
+      "MaxFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_000
+    );
+
+    assertEq(v.vaultOwnerFeeBasisPoint(), 10_000);
   }
 
-  function test_set_vault_owner_fee_basis_point_reverts_invalid() public {
-    vm.startPrank(VAULT_OWNER);
+  /// @notice A fee strictly greater than 10_000 bps (i.e. > 100%) is rejected at init:
+  ///         the vault cannot be created in a misconfigured state.
+  function test_initialize_reverts_when_vault_owner_fee_basis_point_invalid() public {
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
-    vault.setVaultOwnerFeeBasisPoint(10_001);
-    vm.stopPrank();
+    v.initialize(
+      "BadFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_001
+    );
   }
 
-  function test_set_vault_owner_fee_basis_point_unauthorized() public {
-    vm.prank(DEPOSITOR);
-    vm.expectRevert(ISharedCommon.Unauthorized.selector);
-    vault.setVaultOwnerFeeBasisPoint(100);
+  /// @notice Emits `VaultOwnerFeeBasisPointSet` exactly once during `initialize`.
+  function test_initialize_emits_vault_owner_fee_basis_point_set() public {
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, false, false, true, address(v));
+    emit ISharedVault.VaultOwnerFeeBasisPointSet(VAULT_OWNER, 777);
+    v.initialize("EmitFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 777);
+  }
+
+  /// @notice The fee is immutable: there is intentionally no setter. This test documents
+  ///         that contract-level guarantee by asserting the persisted value matches the
+  ///         init value even after state-changing interactions (a no-op pause cycle here).
+  ///         The stronger compile-time guarantee is enforced by the interface not exposing
+  ///         any setter — this test locks in the runtime invariant.
+  function test_vault_owner_fee_basis_point_is_immutable_after_init() public {
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("TA", "TA");
+    MockERC20 tB = new MockERC20("TB", "TB");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 200e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_OWNER);
+    v.initialize(
+      "ImmutableFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 321
+    );
+
+    // Exercise state-changing owner-only paths; none of these may mutate the stored fee.
+    vm.prank(VAULT_OWNER);
+    v.setPaused(true);
+    vm.prank(VAULT_OWNER);
+    v.setPaused(false);
+
+    assertEq(v.vaultOwnerFeeBasisPoint(), 321, "fee unchanged by subsequent owner actions");
   }
 
   /// @notice Withdraw delegatecalls `exitProportional` with the stored owner fee bps so strategies can apply performance fees.
@@ -1645,10 +1720,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [dep, dep, uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
-
-    vm.prank(VAULT_OWNER);
-    v.setVaultOwnerFeeBasisPoint(1234);
+    v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 1234);
     assertEq(v.vaultOwnerFeeBasisPoint(), 1234);
 
     vm.startPrank(VAULT_OWNER);
@@ -1736,7 +1808,8 @@ contract SharedVaultTest is TestCommon {
       VAULT_OWNER,
       VAULT_OWNER,
       address(configManager),
-      address(mockWeth)
+      address(mockWeth),
+      0
     );
     vm.stopPrank();
     // VAULT_OWNER now has all shares = 100e18 * SHARES_PRECISION
@@ -1880,7 +1953,8 @@ contract SharedVaultTest is TestCommon {
       VAULT_OWNER,
       VAULT_OWNER,
       address(configManager),
-      address(mockWeth)
+      address(mockWeth),
+      0
     );
     vm.stopPrank();
 
@@ -1940,7 +2014,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [depositPerUser, depositPerUser, uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
-    v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
+    v.initialize("TestVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
     vm.stopPrank();
 
     // Bob deposits the same amounts → gets equal shares
@@ -2470,7 +2544,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(50), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("DustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0));
+    v.initialize("DustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
   }
 
   /// @notice The dilution attack is blocked by ceiling rounding alone (no floor needed).
@@ -2780,7 +2854,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(50e18), uint256(150e18), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    rewardsVault.initialize("RewardsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0));
+    rewardsVault.initialize("RewardsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
 
     // --- Act: register the position by delegatecall-executing the strategy -------------------
     nfpm.mint(address(rewardsVault), tokenId);
@@ -2985,7 +3059,8 @@ contract SharedVaultTest is TestCommon {
       VAULT_OWNER,
       address(0),
       address(configManager),
-      address(0)
+      address(0),
+      0
     );
 
     // Act
@@ -3067,7 +3142,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tokenA), address(lowDecToken), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(1000), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("LowDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    v.initialize("LowDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
 
     // precision = 5, decimals = 3: dec <= prec → _minTokenAmt returns 1
     uint256[4] memory mins = v.getMinDepositAmounts();
@@ -3089,7 +3164,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tokenA), address(fiveDecToken), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(100_000), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("FiveDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    v.initialize("FiveDecVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
 
     uint256[4] memory mins = v.getMinDepositAmounts();
 
@@ -3110,7 +3185,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tokenA), address(usdcLike), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(1_000_000), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("USDCVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    v.initialize("USDCVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
 
     uint256[4] memory mins = v.getMinDepositAmounts();
 
@@ -3138,7 +3213,7 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("LPVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0));
+    v.initialize("LPVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
 
     // The vault has shares outstanding → both active slots should return the 18-dec floor.
     uint256[4] memory mins = v.getMinDepositAmounts();

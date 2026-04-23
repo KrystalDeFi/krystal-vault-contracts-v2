@@ -124,6 +124,7 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    v4NfpmAddresses: ["0x7c5f5a4bbd8fd63184577525326123b519429bdc", "0x55f4c8aba71a1e923edc303eb4feff14608cc226"],
   },
 };
 

@@ -93,7 +93,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts)));
+    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Test", vaultTokens, initialAmounts, 0)));
 
     vm.stopPrank();
   }
@@ -386,7 +386,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     // msg.value = wethAmt for WETH initial deposit (wrapped by factory)
     SharedVault vault2 = SharedVault(
-      payable(vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, actions))
+      payable(vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, 0, actions))
     );
 
     // Vault should have exactly 1 LP position created atomically during vault creation
