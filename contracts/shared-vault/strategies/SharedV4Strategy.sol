@@ -121,7 +121,7 @@ contract SharedV4Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, posm);
-    _validateV4ExecuteCalldataSwapRouters(params, posm, tokenId, cm);
+    _validateV4ExecuteCalldataSwapRouters(params, posm, tokenId);
 
     // Validate approved tokens are vault tokens
     require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
@@ -479,12 +479,7 @@ contract SharedV4Strategy is ISharedStrategy {
   ///   if they ever encode third-party swaps, extend this helper (or add parallel decoding) alongside ABI docs
   ///   from the deployed V4Utils package.
   /// - Silent early returns are normal: most `params` blobs are not `DECREASE_AND_SWAP` or not `execute` at all.
-  function _validateV4ExecuteCalldataSwapRouters(
-    bytes memory params,
-    address posm,
-    uint256 tokenId,
-    ISharedConfigManager cm
-  ) private view {
+  function _validateV4ExecuteCalldataSwapRouters(bytes memory params, address posm, uint256 tokenId) private pure {
     if (params.length < 4) return;
     if (bytes4(params) != IV4Utils.execute.selector) return;
     bytes memory body = new bytes(params.length - 4);
@@ -494,19 +489,8 @@ contract SharedV4Strategy is ISharedStrategy {
         ++j;
       }
     }
-    (address p, uint256 tid, IV4Utils.Instructions memory inst) = abi.decode(
-      body,
-      (address, uint256, IV4Utils.Instructions)
-    );
+    (address p, uint256 tid) = abi.decode(body, (address, uint256));
     require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
-    if (inst.action != IV4Utils.UtilActions.DECREASE_AND_SWAP) return;
-    IV4Utils.DecreaseAndSwapParams memory dsp = abi.decode(inst.params, (IV4Utils.DecreaseAndSwapParams));
-    for (uint256 i; i < dsp.swapParams.length; ) {
-      SharedStrategyGuards.requireWhitelistedOxSwapData(cm, dsp.swapParams[i].swapData);
-      unchecked {
-        ++i;
-      }
-    }
   }
 
   function _platformFeeX64FromConfig(ISharedConfigManager cm) private view returns (uint64) {

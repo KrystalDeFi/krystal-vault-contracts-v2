@@ -79,7 +79,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     _validateVaultToken(params.token0);
     _validateVaultToken(params.token1);
     _requireAerodromeNfpm(params.nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(configManager, params);
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -99,7 +98,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256));
 
     _requireAerodromeNfpm(params.nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(configManager, params);
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -116,7 +114,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     );
 
     _requireAerodromeNfpm(_nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(configManager, instructions);
 
     (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 

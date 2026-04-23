@@ -72,7 +72,6 @@ contract SharedV3Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, params.nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndMint(cm, params);
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -94,7 +93,6 @@ contract SharedV3Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, params.nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersSwapAndIncrease(cm, params);
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -116,7 +114,6 @@ contract SharedV3Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, nfpm);
-    SharedStrategyGuards.requireWhitelistedV3SwapRoutersInstructions(cm, instructions);
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
 
