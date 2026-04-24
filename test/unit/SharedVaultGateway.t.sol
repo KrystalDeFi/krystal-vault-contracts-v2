@@ -1588,6 +1588,51 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.withdrawAndSwap(params);
   }
 
+  /// @notice Two swaps share the same tokenIn with individual amountIn values that each fit
+  ///         within the withdrawn balance, but whose *sum* exceeds it — the cumulative check
+  ///         must catch this and revert with the index of the first offending entry (0).
+  ///
+  ///         Example: vault returns 100 tokenA. Swaps = [(tokenA→X, 60), (tokenA→Y, 60)].
+  ///         Each individual 60 ≤ 100, but 60 + 60 = 120 > 100 → revert InsufficientWithdrawBalance(0).
+  function test_withdrawAndSwap_fail_cumulative_amountIn_exceeds_balance() public {
+    uint256 shares = _depositForAlice();
+    // Alice has exactly 100e18 tokenA after withdraw (10% of 1000e18 pool).
+    // Two swaps each ask for 60e18 tokenA → cumulative demand 120e18 > 100e18 → should revert.
+
+    // tokenOut can be any token — the revert happens in the pre-flight check, before any swap.
+    tokenX.mint(address(router), 1000e18);
+    router.setRate(address(tokenA), address(tokenX), 1, 1);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      60e18, // individually within balance
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenX), 60e18)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      60e18, // cumulative sum (120e18) exceeds the 100e18 balance
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenX), 60e18)
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientWithdrawBalance.selector, 0));
+    gateway.withdrawAndSwap(params);
+  }
+
   /// @notice amountIn=0 swap entries bypass the balance check — they are "use full balance"
   ///         instructions and never revert in _checkSwapInputBalances, even when the entry
   ///         has swapData (the swap will either consume whatever is there or no-op).
@@ -1676,6 +1721,115 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.withdrawAndSwap(params); // must not revert; tokenA swept to Alice
 
     assertGt(tokenA.balanceOf(ALICE), 0, "tokenA swept to Alice");
+  }
+
+  // ==================== WithdrawAndSwap: WETH unwrap in gateway ====================
+
+  /// @dev Deploy a 2-token vault seeded with WETH and tokenA, deposit 1 WETH + 100 tokenA for Alice.
+  function _setupWethVault() internal returns (SharedVault wethVault, uint256 aliceShares) {
+    wethVault = new SharedVault();
+
+    uint256 wethSeed = 10 ether;
+    uint256 tokenASeed = 1000e18;
+
+    vm.deal(address(this), wethSeed);
+    mockWeth.deposit{ value: wethSeed }();
+    tokenA.mint(address(this), tokenASeed);
+
+    GatewayMockERC20(address(mockWeth)).transfer(address(wethVault), wethSeed);
+    tokenA.transfer(address(wethVault), tokenASeed);
+
+    address[4] memory vaultTokens = [address(mockWeth), address(tokenA), address(0), address(0)];
+    uint256[4] memory initAmounts = [wethSeed, tokenASeed, 0, 0];
+
+    vm.prank(VAULT_OWNER);
+    wethVault.initialize(
+      "WETH-TokenA Vault",
+      vaultTokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      0
+    );
+
+    // Alice deposits 1 WETH (ERC20) + 100 tokenA = 10% of pool
+    vm.deal(ALICE, 1 ether);
+    vm.startPrank(ALICE);
+    mockWeth.deposit{ value: 1 ether }();
+    mockWeth.approve(address(gateway), type(uint256).max);
+    vm.stopPrank();
+    tokenA.mint(ALICE, 100e18);
+    _approveGateway(address(tokenA), ALICE);
+    _approveGateway(address(wethVault), ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams(address(mockWeth), 1 ether, address(mockWeth), 0, "");
+    swaps[1] = SharedVaultGateway.SwapParams(address(tokenA), 100e18, address(tokenA), 0, "");
+
+    SharedVaultGateway.SwapAndDepositParams memory depositParams = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(wethVault)),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    aliceShares = gateway.swapAndDeposit(depositParams);
+    require(aliceShares > 0, "setup: no shares minted");
+  }
+
+  /// @notice When unwrapOnWithdraw=true, vault.withdraw always receives WETH (unwrap=false),
+  ///         then the gateway unwraps it and sends native ETH to the caller.
+  function test_withdrawAndSwap_unwrapOnWithdraw_true_receives_eth() public {
+    (SharedVault wethVault, uint256 aliceShares) = _setupWethVault();
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(wethVault)),
+      shares: aliceShares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: true,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    uint256 aliceEthBefore = ALICE.balance;
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    // Alice receives native ETH (WETH unwrapped by gateway, not by vault)
+    assertGt(ALICE.balance, aliceEthBefore, "Alice received ETH from unwrapped WETH");
+    assertEq(mockWeth.balanceOf(ALICE), 0, "Alice holds no WETH");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "No WETH stranded in gateway");
+    assertEq(address(gateway).balance, 0, "No ETH stranded in gateway");
+    assertEq(wethVault.balanceOf(ALICE), 0, "All shares burned");
+  }
+
+  /// @notice When unwrapOnWithdraw=false, vault.withdraw still receives WETH (unwrap=false),
+  ///         and the gateway sweeps WETH directly to the caller without unwrapping.
+  function test_withdrawAndSwap_unwrapOnWithdraw_false_receives_weth() public {
+    (SharedVault wethVault, uint256 aliceShares) = _setupWethVault();
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(wethVault)),
+      shares: aliceShares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    // Alice receives WETH (not ETH); gateway is clean
+    assertGt(mockWeth.balanceOf(ALICE), 0, "Alice received WETH");
+    assertEq(ALICE.balance, 0, "No ETH sent to Alice");
+    assertEq(mockWeth.balanceOf(address(gateway)), 0, "No WETH stranded in gateway");
+    assertEq(address(gateway).balance, 0, "No ETH stranded in gateway");
   }
 
   // ==================== SwapAndDeposit: InsufficientPostSwapBalance ====================

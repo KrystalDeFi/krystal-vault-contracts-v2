@@ -151,14 +151,15 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   ) external nonReentrant whenNotPaused returns (uint256[4] memory vaultAmounts) {
     IERC20(address(params.vault)).safeTransferFrom(_msgSender(), address(this), params.shares);
 
-    vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, params.unwrapOnWithdraw);
+    // Always withdraw as WETH (unwrap=false); the gateway handles unwrapping below if requested.
+    vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, false);
 
     _checkSwapInputBalances(params.swaps);
 
     _executeSwaps(params.swaps);
 
     address[4] memory vaultTokens = params.vault.getTokens();
-    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), false);
+    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), params.unwrapOnWithdraw);
 
     emit WithdrawAndSwap(address(params.vault), _msgSender(), params.shares);
   }
@@ -200,15 +201,57 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   /// @dev Verify the gateway holds enough of each explicit tokenIn before swap execution.
   ///      Only checked when `amountIn > 0`; `amountIn == 0` swaps use the full balance
   ///      and early-exit in `_executeSingleSwap` if that balance is also zero.
+  ///
+  ///      Accumulates required amounts per unique tokenIn so that two swaps sharing a
+  ///      tokenIn are checked against the *combined* required amount rather than each
+  ///      being checked independently against the full balance.
   function _checkSwapInputBalances(SwapParams[] calldata swaps) internal view {
-    for (uint256 i; i < swaps.length; ) {
+    uint256 n = swaps.length;
+
+    // Parallel arrays acting as a memory-scoped accumulator keyed by tokenIn.
+    address[] memory tokens = new address[](n);
+    uint256[] memory required = new uint256[](n);
+    uint256[] memory firstIndex = new uint256[](n); // swap index of first occurrence (for error reporting)
+    uint256 uniqueCount;
+
+    for (uint256 i; i < n; ) {
       if (swaps[i].swapData.length > 0 && swaps[i].amountIn > 0) {
-        if (IERC20(swaps[i].tokenIn).balanceOf(address(this)) < swaps[i].amountIn) {
-          revert InsufficientWithdrawBalance(i);
+        address tokenIn = swaps[i].tokenIn;
+        uint256 amountIn = swaps[i].amountIn;
+
+        // Find existing accumulator slot for this tokenIn, or create a new one.
+        bool found;
+        for (uint256 j; j < uniqueCount; ) {
+          if (tokens[j] == tokenIn) {
+            required[j] += amountIn;
+            found = true;
+            break;
+          }
+          unchecked {
+            j++;
+          }
+        }
+        if (!found) {
+          tokens[uniqueCount] = tokenIn;
+          required[uniqueCount] = amountIn;
+          firstIndex[uniqueCount] = i;
+          unchecked {
+            uniqueCount++;
+          }
         }
       }
       unchecked {
         i++;
+      }
+    }
+
+    // Single balance read per unique tokenIn, compared against the cumulative required amount.
+    for (uint256 k; k < uniqueCount; ) {
+      if (IERC20(tokens[k]).balanceOf(address(this)) < required[k]) {
+        revert InsufficientWithdrawBalance(firstIndex[k]);
+      }
+      unchecked {
+        k++;
       }
     }
   }
@@ -304,13 +347,17 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     bool unwrapWeth
   ) internal {
     for (uint256 i; i < sweepTokens.length; ) {
-      _sweepToken(sweepTokens[i], recipient);
+      // Skip WETH here when unwrapping — it will be handled as native ETH below.
+      if (!(unwrapWeth && sweepTokens[i] == weth)) {
+        _sweepToken(sweepTokens[i], recipient);
+      }
       unchecked {
         i++;
       }
     }
     for (uint256 i; i < 4; ) {
-      if (vaultTokens[i] != address(0)) {
+      // Skip WETH here when unwrapping — it will be handled as native ETH below.
+      if (vaultTokens[i] != address(0) && !(unwrapWeth && vaultTokens[i] == weth)) {
         _sweepToken(vaultTokens[i], recipient);
       }
       unchecked {
