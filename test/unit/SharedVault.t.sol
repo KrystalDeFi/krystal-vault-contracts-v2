@@ -250,6 +250,47 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
   }
 }
 
+/// @dev DELEGATECALL strategy that returns `PositionChange.isAdd` with `token0`/`token1` from immutables,
+///      not from calldata. Used to assert the vault rejects recording a new position when either pool
+///      token is not a configured vault token, matching `_applyPositionChanges` + `CALL_WITH_POSITIONS`.
+contract MockMisreportingTokenAddStrategy is ISharedStrategy {
+  address public immutable token0Out;
+  address public immutable token1Out;
+
+  constructor(address _token0Out, address _token1Out) {
+    token0Out = _token0Out;
+    token1Out = _token1Out;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, , ) = abi.decode(data, (address, uint256, address, address));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0Out, token1Out);
+  }
+
+  function exitProportional(
+    address,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint256,
+    uint16
+  ) external pure override returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+}
+
 // Mock strategy that fails
 contract MockFailingStrategy is ISharedStrategy {
   function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
@@ -1629,7 +1670,14 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "MaxFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_000
+      "MaxFeeVault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      10_000
     );
 
     assertEq(v.vaultOwnerFeeBasisPoint(), 10_000);
@@ -1649,7 +1697,14 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
     v.initialize(
-      "BadFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_001
+      "BadFeeVault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      10_001
     );
   }
 
@@ -1666,7 +1721,16 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     vm.expectEmit(true, false, false, true, address(v));
     emit ISharedVault.VaultOwnerFeeBasisPointSet(VAULT_OWNER, 777);
-    v.initialize("EmitFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 777);
+    v.initialize(
+      "EmitFeeVault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      777
+    );
   }
 
   /// @notice The fee is immutable: there is intentionally no setter. This test documents
@@ -1685,7 +1749,14 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "ImmutableFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 321
+      "ImmutableFeeVault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      321
     );
 
     // Exercise state-changing owner-only paths; none of these may mutate the stored fee.
@@ -2239,6 +2310,34 @@ contract SharedVaultTest is TestCommon {
     assertEq(strategy, address(lpStrategy), "strategy stored correctly");
     assertEq(nfpm, mockNfpm, "nfpm stored correctly");
     assertEq(tid, tokenId, "tokenId stored correctly");
+  }
+
+  /// @notice DELEGATECALL: strategy returns isAdd with a non-vault pool token → `TokenNotConfigured`
+  ///         (calldata may pass vault token addresses; the vault validates returned `PositionChange` tokens).
+  function test_execute_delegatecall_reverts_when_mint_reports_non_vault_token() public {
+    MockMisreportingTokenAddStrategy badStrat = new MockMisreportingTokenAddStrategy(address(tokenE), address(tokenB));
+    assertFalse(vault.isVaultToken(address(tokenE)));
+    assertTrue(vault.isVaultToken(address(tokenB)));
+
+    vm.startPrank(address(this));
+    address[] memory t = new address[](1);
+    t[0] = address(badStrat);
+    configManager.setWhitelistTargets(t, true);
+    vm.stopPrank();
+
+    address mockNfpm = address(0xDEAD);
+    uint256 posTokenId = 7;
+    // Harness passes only vault tokens in calldata (same tuple as other mock strategies)
+    bytes memory stratData = abi.encode(mockNfpm, posTokenId, address(tokenA), address(tokenB));
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(badStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    assertEq(vault.getPositionCount(), 0);
   }
 
   // ==================== execute() — CALL_WITH_POSITIONS ====================
