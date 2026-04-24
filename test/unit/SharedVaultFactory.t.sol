@@ -23,7 +23,24 @@ contract MockFactoryStrategy is ISharedStrategy {
     uint256 tokenId = abi.decode(data, (uint256));
     if (tokenId == 0) return new PositionChange[](0);
     changes = new PositionChange[](1);
-    changes[0] = PositionChange(true, MOCK_NFPM, tokenId, address(0), address(0));
+    // DELEGATECALL from SharedVault: `address(this)` is the vault. Position adds must use real vault
+    // tokens or SharedVault._applyPositionChanges reverts with TokenNotConfigured.
+    address[4] memory t = ISharedVault(address(this)).getTokens();
+    address t0;
+    address t1;
+    for (uint256 i; i < 4; ) {
+      if (t[i] != address(0)) {
+        if (t0 == address(0)) t0 = t[i];
+        else {
+          t1 = t[i];
+          break;
+        }
+      }
+      unchecked {
+        ++i;
+      }
+    }
+    changes[0] = PositionChange(true, MOCK_NFPM, tokenId, t0, t1);
   }
 
   function exitProportional(
