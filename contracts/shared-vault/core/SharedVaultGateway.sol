@@ -31,6 +31,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error InvalidSwapRouter();
   error InsufficientPostSwapBalance(uint256 tokenIndex);
   error EthTransferFailed();
+  error InsufficientWithdrawBalance(uint256 swapIndex);
 
   // ==================== Events ====================
 
@@ -152,6 +153,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, params.unwrapOnWithdraw);
 
+    _checkSwapInputBalances(params.swaps);
+
     _executeSwaps(params.swaps);
 
     address[4] memory vaultTokens = params.vault.getTokens();
@@ -193,6 +196,22 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   }
 
   // ==================== Internal: Swap Execution ====================
+
+  /// @dev Verify the gateway holds enough of each explicit tokenIn before swap execution.
+  ///      Only checked when `amountIn > 0`; `amountIn == 0` swaps use the full balance
+  ///      and early-exit in `_executeSingleSwap` if that balance is also zero.
+  function _checkSwapInputBalances(SwapParams[] calldata swaps) internal view {
+    for (uint256 i; i < swaps.length; ) {
+      if (swaps[i].swapData.length > 0 && swaps[i].amountIn > 0) {
+        if (IERC20(swaps[i].tokenIn).balanceOf(address(this)) < swaps[i].amountIn) {
+          revert InsufficientWithdrawBalance(i);
+        }
+      }
+      unchecked {
+        i++;
+      }
+    }
+  }
 
   /// @dev Execute each swap via the configured swapRouter with opaque calldata.
   ///      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.

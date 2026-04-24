@@ -240,6 +240,11 @@ contract SharedVaultGatewayTest is TestCommon {
     return abi.encodeCall(MockAggregatorRouter.swapAll, (tokenIn, tokenOut));
   }
 
+  function _sweepTokensArray(address token) internal pure returns (address[] memory arr) {
+    arr = new address[](1);
+    arr[0] = token;
+  }
+
   function _approveGateway(address token, address user) internal {
     vm.prank(user);
     GatewayMockERC20(token).approve(address(gateway), type(uint256).max);
@@ -1508,6 +1513,172 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
     assertEq(address(gateway).balance, 0, "no residual ETH in gateway");
   }
+
+  // ==================== WithdrawAndSwap: InsufficientWithdrawBalance ====================
+
+  /// @notice Reverts when amountIn > balance of tokenIn after vault.withdraw().
+  ///         Alice withdraws ~100 tokenA but the swap entry demands 200 tokenA.
+  function test_withdrawAndSwap_fail_insufficient_balance_for_explicit_swap() public {
+    uint256 shares = _depositForAlice();
+    // Alice received ~100A, ~200B, ~50C, ~100D from her deposit (10% of the pool).
+    // She asks to swap 200A → tokenX, but she only has ~100A — should revert on index 0.
+
+    tokenX.mint(address(router), 1000e18);
+    router.setRate(address(tokenA), address(tokenX), 1, 1);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      200e18, // more than the ~100A withdrawn
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenX), 200e18)
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientWithdrawBalance.selector, 0));
+    gateway.withdrawAndSwap(params);
+  }
+
+  /// @notice Reverts at the correct swap index when the first swap passes but a later one fails.
+  function test_withdrawAndSwap_fail_insufficient_balance_reports_correct_index() public {
+    uint256 shares = _depositForAlice();
+    // index 0 (tokenA, 100e18) passes; index 1 (tokenB, 999e18) fails → revert with index 1.
+
+    tokenX.mint(address(router), 1000e18);
+    router.setRate(address(tokenA), address(tokenX), 1, 1);
+    router.setRate(address(tokenB), address(tokenX), 1, 1);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      100e18, // exact — passes
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenX), 100e18)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tokenB),
+      999e18, // far above the ~200B withdrawn
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenB), address(tokenX), 999e18)
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientWithdrawBalance.selector, 1));
+    gateway.withdrawAndSwap(params);
+  }
+
+  /// @notice amountIn=0 swap entries bypass the balance check — they are "use full balance"
+  ///         instructions and never revert in _checkSwapInputBalances, even when the entry
+  ///         has swapData (the swap will either consume whatever is there or no-op).
+  function test_withdrawAndSwap_amountIn_zero_skips_balance_check() public {
+    uint256 shares = _depositForAlice();
+    // Use full-balance (amountIn=0) swaps — check must not revert even though we don't
+    // specify explicit amounts.
+    tokenX.mint(address(router), 2000e18);
+    router.setRate(address(tokenA), address(tokenX), 1, 1);
+    router.setRate(address(tokenB), address(tokenX), 1, 1);
+    router.setRate(address(tokenC), address(tokenX), 100e18, 50e6);
+    router.setRate(address(tokenD), address(tokenX), 1, 1);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      0,
+      address(tokenX),
+      0,
+      _buildSwapAllCalldata(address(tokenA), address(tokenX))
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tokenB),
+      0,
+      address(tokenX),
+      0,
+      _buildSwapAllCalldata(address(tokenB), address(tokenX))
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(tokenC),
+      0,
+      address(tokenX),
+      0,
+      _buildSwapAllCalldata(address(tokenC), address(tokenX))
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(tokenD),
+      0,
+      address(tokenX),
+      0,
+      _buildSwapAllCalldata(address(tokenD), address(tokenX))
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: _sweepTokensArray(address(tokenX))
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params); // must not revert
+
+    assertGt(tokenX.balanceOf(ALICE), 0, "Alice received tokenX from full-balance swaps");
+    assertEq(tokenA.balanceOf(ALICE), 0);
+    assertEq(tokenB.balanceOf(ALICE), 0);
+    assertEq(tokenC.balanceOf(ALICE), 0);
+    assertEq(tokenD.balanceOf(ALICE), 0);
+  }
+
+  /// @notice Swap entries without swapData are ignored by _checkSwapInputBalances.
+  function test_withdrawAndSwap_no_swapdata_skips_balance_check() public {
+    uint256 shares = _depositForAlice();
+    // A swap entry with empty swapData and amountIn > balance should NOT trigger the check.
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      9999e18, // large amountIn, but swapData is empty
+      address(tokenX),
+      0,
+      "" // no swapData → skipped
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params); // must not revert; tokenA swept to Alice
+
+    assertGt(tokenA.balanceOf(ALICE), 0, "tokenA swept to Alice");
+  }
+
+  // ==================== SwapAndDeposit: InsufficientPostSwapBalance ====================
 
   function test_swapAndDeposit_fail_insufficient_post_swap_balance() public {
     tokenA.mint(ALICE, 1e18);

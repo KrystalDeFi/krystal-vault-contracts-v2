@@ -36,6 +36,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "swapIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "InsufficientWithdrawBalance",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"

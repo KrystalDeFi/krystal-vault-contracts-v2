@@ -51,6 +51,12 @@ error InsufficientPostSwapBalance(uint256 tokenIndex)
 error EthTransferFailed()
 ```
 
+### InsufficientWithdrawBalance
+
+```solidity
+error InsufficientWithdrawBalance(uint256 swapIndex)
+```
+
 ### SwapAndDeposit
 
 ```solidity
@@ -188,6 +194,16 @@ _Wrap any native ETH to WETH first, then pull each ERC20 input from the caller.
 | Name | Type | Description |
 | ---- | ---- | ----------- |
 | nativeWrapped | bool | True when `msg.value > 0`; tells `_sweepAll` to unwrap any residual         WETH and return it as native ETH. |
+
+### _checkSwapInputBalances
+
+```solidity
+function _checkSwapInputBalances(struct SharedVaultGateway.SwapParams[] swaps) internal view
+```
+
+_Verify the gateway holds enough of each explicit tokenIn before swap execution.
+     Only checked when `amountIn > 0`; `amountIn == 0` swaps use the full balance
+     and early-exit in `_executeSingleSwap` if that balance is also zero._
 
 ### _executeSwaps
 
