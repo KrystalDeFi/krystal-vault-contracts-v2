@@ -540,6 +540,7 @@ contract SharedVault is
   ///
   ///   DELEGATECALL         — delegatecall target via ISharedStrategy.execute(data).
   ///                          Result is PositionChange[]: LP positions are tracked.
+  ///                          New position entries (isAdd) require token0/token1 to be vault tokens.
   ///                          Token-only operations (harvest, swap-reward) return an empty array.
   ///   CALL                 — direct call to a swap aggregator.
   ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
@@ -613,13 +614,15 @@ contract SharedVault is
   }
 
   /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.
-  ///      Shared by DELEGATECALL execution path.
+  ///      DELEGATECALL path: same token0/token1 vault-token check as
+  ///      `_applyPositionChangesChecked` when recording a new position.
   function _applyPositionChanges(address strategy, bytes memory result) internal {
     if (result.length == 0) return;
 
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
+        require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _removePosition(changes[c].nfpm, changes[c].tokenId);

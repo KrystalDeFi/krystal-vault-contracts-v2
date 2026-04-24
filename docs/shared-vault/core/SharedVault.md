@@ -292,6 +292,7 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
 
   DELEGATECALL         — delegatecall target via ISharedStrategy.execute(data).
                          Result is PositionChange[]: LP positions are tracked.
+                         New position entries (isAdd) require token0/token1 to be vault tokens.
                          Token-only operations (harvest, swap-reward) return an empty array.
   CALL                 — direct call to a swap aggregator.
                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
@@ -311,7 +312,8 @@ function _applyPositionChanges(address strategy, bytes result) internal
 ```
 
 _Decode a PositionChange[] from raw return bytes and update LP position tracking.
-     Shared by DELEGATECALL execution path._
+     DELEGATECALL path: same token0/token1 vault-token check as
+     `_applyPositionChangesChecked` when recording a new position._
 
 ### _applyPositionChangesChecked
 

@@ -77,7 +77,8 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     vm.startPrank(vaultOwner);
 
-    // Deploy configManager first — strategy constructor requires its address
+    // SharedConfigManager must be deployed first: factory initialization, NFPM list, and proxy whitelist
+    // run before createVault. SharedAerodromeStrategy only needs V3_UTILS and lpFeeTaker in its constructor.
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
@@ -266,7 +267,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
 
     // Mint a position via the proxy pointing at v1 impl
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(aeroProxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
+    actions[0] = ISharedVault.Action(
+      address(aeroProxy),
+      _swapAndMintData(0.5 ether, 1500e6),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(actions);
     assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
 
@@ -278,7 +283,11 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     // Proxy address and whitelist unchanged — can still execute with same action.target
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
     ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
-    increaseActions[0] = ISharedVault.Action(address(aeroProxy), _swapAndIncreaseData(tokenId, 0.1 ether, 300e6), ISharedCommon.CallType.DELEGATECALL);
+    increaseActions[0] = ISharedVault.Action(
+      address(aeroProxy),
+      _swapAndIncreaseData(tokenId, 0.1 ether, 300e6),
+      ISharedCommon.CallType.DELEGATECALL
+    );
     vault.execute(increaseActions);
 
     assertEq(vault.getPositionCount(), 1, "position still tracked after upgrade");
