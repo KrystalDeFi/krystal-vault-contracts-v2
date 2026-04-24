@@ -196,12 +196,8 @@ async function deployContracts(
       existingContract?.["sharedAerodromeStrategy"],
       "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
       undefined,
-      ["address", "address", "address"],
-      [
-        networkConfig.v3UtilsAddress,
-        lpFeeTakerAddress,
-        existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
-      ],
+      ["address", "address"],
+      [networkConfig.v3UtilsAddress, lpFeeTakerAddress],
     )) as SharedAerodromeStrategy;
 
     const implAddr = existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target;

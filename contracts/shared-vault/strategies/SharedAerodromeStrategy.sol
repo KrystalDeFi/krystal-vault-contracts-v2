@@ -18,7 +18,6 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
-import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
@@ -35,7 +34,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
-  ISharedConfigManager public immutable configManager;
 
   enum OperationType {
     SWAP_AND_MINT,
@@ -43,14 +41,10 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     SAFE_TRANSFER_NFT
   }
 
-  constructor(address _v3utils, address _lpFeeTaker, address _configManager) {
-    require(
-      _v3utils != address(0) && _lpFeeTaker != address(0) && _configManager != address(0),
-      ISharedCommon.ZeroAddress()
-    );
+  constructor(address _v3utils, address _lpFeeTaker) {
+    require(_v3utils != address(0) && _lpFeeTaker != address(0), ISharedCommon.ZeroAddress());
     v3utils = _v3utils;
     lpFeeTaker = _lpFeeTaker;
-    configManager = ISharedConfigManager(_configManager);
   }
 
   /// @inheritdoc ISharedStrategy
@@ -357,6 +351,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   function _requireAerodromeNfpm(address _nfpm) private view {
-    SharedStrategyGuards.requireWhitelistedNfpm(configManager, _nfpm);
+    SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), _nfpm);
   }
 }

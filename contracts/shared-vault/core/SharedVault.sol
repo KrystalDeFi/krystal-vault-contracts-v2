@@ -215,6 +215,7 @@ contract SharedVault is
       _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, transferAmounts, slippageBps);
       uint256[4] memory totalBalancesAfter = _getTotalBalances();
       shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter);
+      require(shares > 0, InsufficientShares());
     }
 
     _mint(_msgSender(), shares);
@@ -653,6 +654,7 @@ contract SharedVault is
           abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
         );
         require(ok || probeData.length > 0, InvalidTarget(strategy));
+        require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _removePosition(changes[c].nfpm, changes[c].tokenId);

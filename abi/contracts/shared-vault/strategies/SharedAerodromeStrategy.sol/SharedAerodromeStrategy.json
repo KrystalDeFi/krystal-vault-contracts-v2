@@ -10,11 +10,6 @@
         "internalType": "address",
         "name": "_lpFeeTaker",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_configManager",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -75,19 +70,6 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "configManager",
-    "outputs": [
-      {
-        "internalType": "contract ISharedConfigManager",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [

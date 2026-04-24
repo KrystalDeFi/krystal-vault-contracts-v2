@@ -18,12 +18,6 @@ address v3utils
 address lpFeeTaker
 ```
 
-### configManager
-
-```solidity
-contract ISharedConfigManager configManager
-```
-
 ### OperationType
 
 ```solidity
@@ -37,7 +31,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _v3utils, address _lpFeeTaker, address _configManager) public
+constructor(address _v3utils, address _lpFeeTaker) public
 ```
 
 ### execute

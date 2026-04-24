@@ -12,13 +12,13 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   mapping(address => bool) public whitelistedNfpms;
   mapping(address => bool) public whitelistedSwapRouters;
 
-  bool public override isVaultPaused = false;
+  bool public override isVaultPaused;
   address public override feeRecipient;
   uint16 public override platformFeeBasisPoint;
-  uint16 public override maxPositions = 20;
+  uint16 public override maxPositions;
 
   /// @inheritdoc ISharedConfigManager
-  uint8 public override minTokenPrecision = 5;
+  uint8 public override minTokenPrecision;
 
   /// @notice One-time initializer. Argument order is intentional; pass-by-position callers must
   ///         match this exact sequence to avoid silently misrouting values:
@@ -40,6 +40,8 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   ) public initializer {
     require(_platformFeeBasisPoint <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     __Ownable_init(_owner);
+    maxPositions = 20;
+    minTokenPrecision = 5;
     platformFeeBasisPoint = _platformFeeBasisPoint;
 
     uint256 length = _whitelistTargets.length;
