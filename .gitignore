@@ -163,3 +163,4 @@ scripts/eip712/order.ts
 
 .claude/
 .serena/
+devbox.lock

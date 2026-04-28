@@ -1,0 +1,59 @@
+name: .Pi Reviewer
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pi-reviewer-job:
+    name: "Pi Review job"
+    runs-on: [arc-kyrd-runner, size-m]
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Pi reviewer
+        id: pi-review
+        uses: KrystalDeFi/pi-reviewer-action@main
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_REVIEWER_API_KEY }}          
+        with:
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Please review this pull request with a focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Security implications
+            - Performance considerations
+
+            Be concise and actionable.
+
+            For each issue found, use the GitHub CLI to post an inline review comment:
+            gh api repos/$REPO/pulls/$PR_NUMBER/comments \
+              --method POST \
+              -f body="<your comment>" \
+              -f commit_id="<sha>" \
+              -f path="<file>" \
+              -F line=<line_number> \
+              -f side="RIGHT"
+              
+            Provide detailed feedback using inline comments for specific issues.
+            Avoid adding inline comments for issues that have already been addressed or are currently under discussion.
+
+            After the review, post a summary comment on the PR with an overall assessment, key findings, and a verdict (Approve / Request Changes / Needs Discussion).
+          model: openai/gpt-5.5
+
