@@ -13,7 +13,7 @@ jobs:
     name: "Pi Review job"
     runs-on: [arc-kyrd-runner, size-m]
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
       issues: read
       id-token: write
