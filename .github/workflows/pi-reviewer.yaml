@@ -11,7 +11,7 @@ concurrency:
 jobs:
   pi-reviewer-job:
     name: "Pi Review job"
-    runs-on: [arc-kyrd-runner, size-m]
+    runs-on: [ubuntu-latest]
     permissions:
       contents: read
       pull-requests: write
