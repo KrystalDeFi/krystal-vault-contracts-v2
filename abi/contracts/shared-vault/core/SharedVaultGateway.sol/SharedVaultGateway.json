@@ -348,6 +348,23 @@
             "components": [
               {
                 "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct SharedVaultGateway.InputToken[]",
+            "name": "inputs",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
                 "name": "tokenIn",
                 "type": "address"
               },

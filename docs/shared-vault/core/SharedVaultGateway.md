@@ -92,11 +92,25 @@ struct SwapParams {
 }
 ```
 
+### InputToken
+
+A total token amount to pull from the caller upfront. The gateway holds the
+        pulled balance for the rest of the call; swaps[] then optionally consume portions
+        to produce vault tokens, and any remaining balance is deposited directly.
+
+```solidity
+struct InputToken {
+  address token;
+  uint256 amount;
+}
+```
+
 ### SwapAndDepositParams
 
 ```solidity
 struct SwapAndDepositParams {
   contract ISharedVault vault;
+  struct SharedVaultGateway.InputToken[] inputs;
   struct SharedVaultGateway.SwapParams[] swaps;
   uint256[4] minDepositAmounts;
   uint16 slippageBps;
@@ -153,10 +167,15 @@ function setPaused(bool _paused) external
 function swapAndDeposit(struct SharedVaultGateway.SwapAndDepositParams params) external payable returns (uint256 shares)
 ```
 
-Pull input tokens, execute swaps to vault tokens, deposit proportionally, return leftovers.
+Pull input tokens upfront, execute swaps from gateway balance to produce vault tokens,
+        deposit proportionally, return leftovers.
 
 _Swap calldata is built off-chain by the Krystal API swap aggregator.
      The gateway briefly holds tokens during the tx; nothing persists across calls.
+     **Flow**: `inputs[]` declares the *total* amounts pulled from the caller (e.g. 10 USDC).
+     `swaps[]` then specifies how portions of those balances are converted (e.g. swap 2 USDC → WETH).
+     Whatever is not consumed by swaps remains in the gateway and is deposited directly to the vault
+     (e.g. the remaining 8 USDC). Any post-deposit residue is swept back to the caller.
      **Native ETH**: if `msg.value > 0` it is wrapped to WETH before any swap runs, so the swap
      router only ever sees WETH. Swap entries that consume this WETH use `tokenIn == weth` with
      `amountIn == 0` (full balance) or a specific sub-amount. Any WETH that remains after swaps
@@ -173,19 +192,17 @@ Burn shares, receive vault tokens, execute swaps to desired output, return lefto
 ### _pullInputTokens
 
 ```solidity
-function _pullInputTokens(struct SharedVaultGateway.SwapParams[] swaps) internal returns (bool nativeWrapped)
+function _pullInputTokens(struct SharedVaultGateway.InputToken[] inputs) internal returns (bool nativeWrapped)
 ```
 
-_Wrap any native ETH to WETH first, then pull each ERC20 input from the caller.
-     `tokenIn` must always be a real ERC20 address — `address(0)` is never valid here.
+_Wrap any native ETH to WETH first, then pull each declared input token in full from the caller.
+     `token` must always be a real ERC20 address — `address(0)` is never valid here.
 
      There is exactly **one** WETH source per call:
      - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH.
-       Any swap entry with `tokenIn == weth` does **not** trigger a `transferFrom` — the
-       wrapped balance is the WETH input; `amountIn` on those entries is used only by
-       `_executeSingleSwap` to size the router approval.
+       Any inputs[] entry with `token == weth` is skipped (the wrapped balance is the WETH input).
      - ERC20 WETH path (`msg.value == 0`): WETH is pulled from the caller's wallet via
-       `transferFrom` for entries where `tokenIn == weth && amountIn > 0`.
+       `transferFrom` for entries where `token == weth && amount > 0`.
 
      Other non-WETH ERC20 tokens are always pulled via `transferFrom` regardless of path._
 

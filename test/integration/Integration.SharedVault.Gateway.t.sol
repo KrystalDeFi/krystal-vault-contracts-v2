@@ -110,22 +110,10 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(gateway), wethDeposit);
     IERC20(USDC).approve(address(gateway), usdcDeposit);
 
-    // No swaps — gateway deposits WETH + USDC directly
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
-    swaps[0] = SharedVaultGateway.SwapParams({
-      tokenIn: WETH,
-      amountIn: wethDeposit,
-      tokenOut: WETH,
-      amountOutMin: 0,
-      swapData: "" // empty = skip swap
-    });
-    swaps[1] = SharedVaultGateway.SwapParams({
-      tokenIn: USDC,
-      amountIn: usdcDeposit,
-      tokenOut: USDC,
-      amountOutMin: 0,
-      swapData: "" // empty = skip swap
-    });
+    // No swaps — gateway pulls WETH + USDC directly via inputs[]
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](2);
+    inputs[0] = SharedVaultGateway.InputToken({ token: WETH, amount: wethDeposit });
+    inputs[1] = SharedVaultGateway.InputToken({ token: USDC, amount: usdcDeposit });
 
     address[] memory sweepTokens = new address[](2);
     sweepTokens[0] = WETH;
@@ -134,7 +122,8 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     uint256[4] memory minDepositAmounts; // no minimum floor
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      swaps: swaps,
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
       sweepTokens: sweepTokens
@@ -170,17 +159,12 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       (WETH, USDC, wethForSwap, usdcOut)
     );
 
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
-    // Bring 0.5 WETH to gateway without swap
+    // Pull all 1 WETH upfront, then swap 0.5 WETH → USDC (the other 0.5 deposited directly).
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](1);
+    inputs[0] = SharedVaultGateway.InputToken({ token: WETH, amount: wethIn });
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams({
-      tokenIn: WETH,
-      amountIn: wethIn - wethForSwap,
-      tokenOut: WETH,
-      amountOutMin: 0,
-      swapData: ""
-    });
-    // Swap 0.5 WETH → 1500 USDC
-    swaps[1] = SharedVaultGateway.SwapParams({
       tokenIn: WETH,
       amountIn: wethForSwap,
       tokenOut: USDC,
@@ -195,6 +179,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     uint256[4] memory minDepositAmounts;
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
+      inputs: inputs,
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
@@ -228,15 +213,12 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       (WETH, USDC, wethIn, usdcOut)
     );
 
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    // Pull all WETH upfront (0.5 to keep + 0.5 to swap = 1 ether), then swap 0.5 WETH → USDC.
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](1);
+    inputs[0] = SharedVaultGateway.InputToken({ token: WETH, amount: wethIn + 0.5 ether });
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams({
-      tokenIn: WETH,
-      amountIn: 0.5 ether,
-      tokenOut: WETH,
-      amountOutMin: 0,
-      swapData: ""
-    });
-    swaps[1] = SharedVaultGateway.SwapParams({
       tokenIn: WETH,
       amountIn: wethIn,
       tokenOut: USDC,
@@ -249,6 +231,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
+      inputs: inputs,
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
@@ -439,6 +422,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
+      inputs: new SharedVaultGateway.InputToken[](0),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), 0, 0, 0],
       slippageBps: 0,
@@ -465,14 +449,15 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(gateway), wethDeposit);
     IERC20(USDC).approve(address(gateway), usdcDeposit);
 
-    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
-    swaps[0] = SharedVaultGateway.SwapParams({ tokenIn: WETH, amountIn: wethDeposit, tokenOut: WETH, amountOutMin: 0, swapData: "" });
-    swaps[1] = SharedVaultGateway.SwapParams({ tokenIn: USDC, amountIn: usdcDeposit, tokenOut: USDC, amountOutMin: 0, swapData: "" });
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](2);
+    inputs[0] = SharedVaultGateway.InputToken({ token: WETH, amount: wethDeposit });
+    inputs[1] = SharedVaultGateway.InputToken({ token: USDC, amount: usdcDeposit });
 
     uint256[4] memory minDepositAmounts;
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      swaps: swaps,
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
       sweepTokens: new address[](0)
