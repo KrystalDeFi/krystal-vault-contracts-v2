@@ -14,14 +14,27 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Withdrawable } from "../../contracts/common/Withdrawable.sol";
 
+contract MockNFPM {
+  mapping(uint256 => address) public ownerOf;
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+  }
+}
+
 /// @dev Mock strategy that returns a PositionChange so vault execution is observable via getPositionCount()
 contract MockFactoryStrategy is ISharedStrategy {
-  // nfpm address used for all mock positions — unique tokenIds distinguish each call
-  address public constant MOCK_NFPM = address(0xBEEF);
+  // nfpm address used for all mock positions - unique tokenIds distinguish each call
+  address public immutable MOCK_NFPM;
+
+  constructor(address mockNfpm) {
+    MOCK_NFPM = mockNfpm;
+  }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     uint256 tokenId = abi.decode(data, (uint256));
     if (tokenId == 0) return new PositionChange[](0);
+    MockNFPM(MOCK_NFPM).mint(address(this), tokenId);
     changes = new PositionChange[](1);
     // DELEGATECALL from SharedVault: `address(this)` is the vault. Position adds must use real vault
     // tokens or SharedVault._applyPositionChanges reverts with TokenNotConfigured.
@@ -170,6 +183,7 @@ contract SharedVaultFactoryTest is TestCommon {
   SharedConfigManager public configManager;
   SharedVault public vaultImplementation;
   MockFactoryStrategy public mockStrategy;
+  MockNFPM public mockNfpm;
 
   MockERC20 public tokenA;
   MockERC20 public tokenB;
@@ -182,7 +196,8 @@ contract SharedVaultFactoryTest is TestCommon {
     tokenA = new MockERC20("Token A", "TKA");
     tokenB = new MockERC20("Token B", "TKB");
     mockWeth = new MockWETH9();
-    mockStrategy = new MockFactoryStrategy();
+    mockNfpm = new MockNFPM();
+    mockStrategy = new MockFactoryStrategy(address(mockNfpm));
 
     configManager = new SharedConfigManager();
     address[] memory targets = new address[](1);
@@ -418,7 +433,7 @@ contract SharedVaultFactoryTest is TestCommon {
   }
 
   function test_createVault_strategy_not_whitelisted() public {
-    address unwhitelisted = address(new MockFactoryStrategy());
+    address unwhitelisted = address(new MockFactoryStrategy(address(new MockNFPM())));
 
     vm.startPrank(VAULT_CREATOR);
     address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];

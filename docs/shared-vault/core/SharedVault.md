@@ -312,8 +312,10 @@ function _applyPositionChanges(address strategy, bytes result) internal
 ```
 
 _Decode a PositionChange[] from raw return bytes and update LP position tracking.
-     DELEGATECALL path: same token0/token1 vault-token check as
-     `_applyPositionChangesChecked` when recording a new position._
+     DELEGATECALL path: mirrors `_applyPositionChangesChecked` — token0/token1 vault-token
+     check plus staticcall ownership verification before recording any new position.
+     Defense-in-depth: real strategies guarantee vault ownership via `swapAndMint(recipient=this)`;
+     the check here catches a future buggy strategy that returns an unowned position._
 
 ### _applyPositionChangesChecked
 

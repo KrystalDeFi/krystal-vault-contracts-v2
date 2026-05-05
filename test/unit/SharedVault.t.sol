@@ -449,6 +449,21 @@ contract MockDirectPositionCreator is ISharedStrategy {
   function collectFees(address, uint256, uint16) external override {}
 }
 
+/// @dev NFPM whose transferFrom silently no-ops — used to verify recoverPosition checks actual ownership.
+contract MockSilentTransferNfpm {
+  mapping(uint256 => address) public ownerOf;
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+  }
+
+  function approve(address, uint256) external {}
+
+  function transferFrom(address, address, uint256) external {
+    // Intentional no-op: NFT stays with its current owner.
+  }
+}
+
 // Mock ERC721 for sweep tests
 contract MockERC721 {
   mapping(uint256 => address) public ownerOf;
@@ -1600,6 +1615,55 @@ contract SharedVaultTest is TestCommon {
     vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
   }
 
+  /// @notice recoverPosition with a non-conformant NFPM whose transferFrom is a no-op → reverts.
+  /// @dev Closes the gap where a silent no-op transferFrom could let recoverPosition register
+  ///      an NFT the vault doesn't actually hold. The post-transfer ownerOf check catches it.
+  function test_recoverPosition_revertsWhenTransferFromIsNoop() public {
+    MockSilentTransferNfpm silentNfpm = new MockSilentTransferNfpm();
+    MockBrokenExitStrategy brokenStrat = new MockBrokenExitStrategy();
+    uint256 tokenId = 55;
+
+    // Whitelist silentNfpm and brokenStrat
+    address[] memory newNfpms = new address[](1);
+    newNfpms[0] = address(silentNfpm);
+    configManager.setWhitelistNfpms(newNfpms, true);
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(brokenStrat);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    // silentNfpm holds the NFT at VAULT_OWNER (operator)
+    silentNfpm.mint(VAULT_OWNER, tokenId);
+    brokenStrat.registerPosition(address(silentNfpm), tokenId, address(tokenA), address(tokenB));
+
+    // transferFrom is a no-op; vault never actually receives the NFT → ownerOf still returns VAULT_OWNER
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.recoverPosition(address(silentNfpm), tokenId, address(brokenStrat), address(tokenA), address(tokenB));
+  }
+
+  /// @notice DELEGATECALL strategy returning isAdd=true for an unowned NFT → reverts InvalidOperation.
+  /// @dev Defense-in-depth check on the DELEGATECALL path: even a whitelisted strategy cannot
+  ///      register a position the vault doesn't hold.
+  function test_delegatecall_reverts_when_strategy_reports_unowned_nft() public {
+    MockLPPool pool = new MockLPPool();
+    MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(pool));
+    address[] memory t = new address[](1);
+    t[0] = address(lpStrategy);
+    configManager.setWhitelistTargets(t, true);
+
+    // Do NOT mint the NFT to vault — vault doesn't own it
+    uint256 tokenId = 77;
+    bytes memory stratData = abi.encode(
+      address(cwpNfpm), tokenId, address(tokenA), address(tokenB), uint256(0), uint256(0)
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+  }
+
   // ==================== Pause Tests ====================
 
   function test_global_pause_blocks_deposit() public {
@@ -1864,11 +1928,12 @@ contract SharedVaultTest is TestCommon {
   function test_withdraw_forwards_vault_owner_fee_bps_to_strategy() public {
     MockLPPool lpPoolContract = new MockLPPool();
     MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(lpPoolContract));
+    MockERC721 feeNfpm = new MockERC721();
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(lpStrategy);
     address[] memory nfpmsFee = new address[](1);
-    nfpmsFee[0] = makeAddr("nfpmFee");
+    nfpmsFee[0] = address(feeNfpm);
     cm.initialize(VAULT_OWNER, targets, new address[](0), address(this), 0, nfpmsFee, new address[](0));
 
     SharedVault v = new SharedVault();
@@ -1886,9 +1951,9 @@ contract SharedVaultTest is TestCommon {
     v.initialize("FeeBpsVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 1234);
     assertEq(v.vaultOwnerFeeBasisPoint(), 1234);
 
+    feeNfpm.mint(address(v), 1);
     vm.startPrank(VAULT_OWNER);
-    address fakeNfpm = makeAddr("nfpmFee");
-    bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), 50e18, 50e18);
+    bytes memory stratData = abi.encode(address(feeNfpm), uint256(1), address(tA), address(tB), 50e18, 50e18);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
     v.execute(actions);
@@ -2155,13 +2220,14 @@ contract SharedVaultTest is TestCommon {
   ) internal returns (SharedVault v, MockERC20 tA, MockERC20 tB, MockLPPool lpPoolContract) {
     lpPoolContract = new MockLPPool();
     MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(lpPoolContract));
+    MockERC721 lpNfpm = new MockERC721();
 
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(lpStrategy);
     address[] memory callers = new address[](0);
     address[] memory nfpmsLp = new address[](1);
-    nfpmsLp[0] = makeAddr("nfpm");
+    nfpmsLp[0] = address(lpNfpm);
     cm.initialize(address(this), targets, callers, address(this), 0, nfpmsLp, new address[](0));
 
     v = new SharedVault();
@@ -2193,9 +2259,9 @@ contract SharedVaultTest is TestCommon {
 
     // Move lpAmount of each into LP via strategy execute
     if (lpAmount > 0) {
+      lpNfpm.mint(address(v), 1);
       vm.startPrank(VAULT_OWNER);
-      address fakeNfpm = makeAddr("nfpm");
-      bytes memory stratData = abi.encode(fakeNfpm, uint256(1), address(tA), address(tB), lpAmount, lpAmount);
+      bytes memory stratData = abi.encode(address(lpNfpm), uint256(1), address(tA), address(tB), lpAmount, lpAmount);
       ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
       actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
       v.execute(actions);
@@ -2376,8 +2442,8 @@ contract SharedVaultTest is TestCommon {
     configManager.setWhitelistTargets(extraTargets1, true);
     vm.stopPrank();
 
-    address mockNfpm = address(0xDEAD);
     uint256 tokenId = 1;
+    cwpNfpm.mint(address(vault), tokenId);
 
     // Give vault some tokens so the LP deposit can pull them
     tokenA.mint(address(vault), 10e18);
@@ -2385,7 +2451,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     bytes memory stratData = abi.encode(
-      mockNfpm,
+      address(cwpNfpm),
       tokenId,
       address(tokenA),
       address(tokenB),
@@ -2400,7 +2466,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(vault.getPositionCount(), 1, "one LP position should be tracked");
     (address strategy, address nfpm, uint256 tid, , ) = vault.getPosition(0);
     assertEq(strategy, address(lpStrategy), "strategy stored correctly");
-    assertEq(nfpm, mockNfpm, "nfpm stored correctly");
+    assertEq(nfpm, address(cwpNfpm), "nfpm stored correctly");
     assertEq(tid, tokenId, "tokenId stored correctly");
   }
 
@@ -2468,14 +2534,14 @@ contract SharedVaultTest is TestCommon {
     extraTargets2[0] = address(lpStrategy);
     configManager.setWhitelistTargets(extraTargets2, true);
 
-    address mockNfpm = address(0xBEEF);
     uint256 tokenId = 99;
+    cwpNfpm.mint(address(vault), tokenId);
 
     tokenA.mint(address(vault), 10e18);
     tokenB.mint(address(pool), 10e18);
 
     vm.startPrank(VAULT_OWNER);
-    bytes memory addData = abi.encode(mockNfpm, tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
+    bytes memory addData = abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
     ISharedVault.Action[] memory addActions = new ISharedVault.Action[](1);
     addActions[0] = ISharedVault.Action(address(lpStrategy), addData, ISharedCommon.CallType.DELEGATECALL);
     vault.execute(addActions);
@@ -2486,7 +2552,7 @@ contract SharedVaultTest is TestCommon {
     // Now remove via CALL_WITH_POSITIONS
     bytes memory removeCallData = abi.encodeCall(
       MockDirectPositionCreator.removePosition,
-      (mockNfpm, tokenId, address(tokenA), address(tokenB))
+      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.startPrank(VAULT_OWNER);
@@ -2574,12 +2640,12 @@ contract SharedVaultTest is TestCommon {
     tokenB.mint(address(pool), 10e18);
     tokenB.mint(address(swapTarget), 5e18);
 
-    address delegatecallNfpm = address(0xAAAA);
-    cwpNfpm.mint(address(vault), 2);
+    cwpNfpm.mint(address(vault), 1); // DELEGATECALL position tokenId=1
+    cwpNfpm.mint(address(vault), 2); // CWP position tokenId=2
 
     // Action 1: DELEGATECALL — strategy creates LP position
     bytes memory dcData = abi.encode(
-      delegatecallNfpm,
+      address(cwpNfpm),
       uint256(1),
       address(tokenA),
       address(tokenB),

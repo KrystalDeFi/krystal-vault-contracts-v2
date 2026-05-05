@@ -629,8 +629,10 @@ contract SharedVault is
   }
 
   /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.
-  ///      DELEGATECALL path: same token0/token1 vault-token check as
-  ///      `_applyPositionChangesChecked` when recording a new position.
+  ///      DELEGATECALL path: mirrors `_applyPositionChangesChecked` — token0/token1 vault-token
+  ///      check plus staticcall ownership verification before recording any new position.
+  ///      Defense-in-depth: real strategies guarantee vault ownership via `swapAndMint(recipient=this)`;
+  ///      the check here catches a future buggy strategy that returns an unowned position.
   function _applyPositionChanges(address strategy, bytes memory result) internal {
     if (result.length == 0) return;
 
@@ -638,6 +640,10 @@ contract SharedVault is
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
         require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
+        (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(
+          abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId))
+        );
+        require(ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this), InvalidOperation());
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _removePosition(changes[c].nfpm, changes[c].tokenId);
@@ -869,6 +875,7 @@ contract SharedVault is
     (address actualToken0, address actualToken1) = ISharedStrategy(strategy).getPositionTokens(nfpm, tokenId);
     require(actualToken0 == token0 && actualToken1 == token1, TokenNotConfigured());
     IERC721(nfpm).transferFrom(operator, address(this), tokenId);
+    require(IERC721(nfpm).ownerOf(tokenId) == address(this), InvalidOperation());
     _addPosition(strategy, nfpm, tokenId, token0, token1);
     emit PositionRecovered(vaultFactory, nfpm, tokenId);
   }

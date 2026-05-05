@@ -165,8 +165,9 @@ _Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a
      decrease syncs fee accounting without touching principal, and CLOSE_CURRENCY sweeps the fee
      tokens to the vault (address(this) in delegatecall context). Performance and platform fees are
      then applied inline using configManager data, since V4Strategy has no dedicated lpFeeTaker.
-     If either currency is native ETH, the staticcall balance check reverts and SharedVault.withdraw()
-     silently falls back to the old (per-withdrawer) fee distribution for that position._
+     Native ETH currency (address(0)) is handled by wrapping received ETH to WETH after the collect
+     so the delta lands in the vault's ERC20 idle balance. If the vault has no WETH configured,
+     collection is skipped for that position (falls back to per-withdrawer distribution)._
 
 #### Parameters
 

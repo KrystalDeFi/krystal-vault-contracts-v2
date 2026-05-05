@@ -26,6 +26,7 @@ import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.so
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { IWETH9 } from "../../public-vault/interfaces/IWETH9.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
@@ -314,16 +315,29 @@ contract SharedV4Strategy is ISharedStrategy {
   ///      decrease syncs fee accounting without touching principal, and CLOSE_CURRENCY sweeps the fee
   ///      tokens to the vault (address(this) in delegatecall context). Performance and platform fees are
   ///      then applied inline using configManager data, since V4Strategy has no dedicated lpFeeTaker.
-  ///      If either currency is native ETH, the staticcall balance check reverts and SharedVault.withdraw()
-  ///      silently falls back to the old (per-withdrawer) fee distribution for that position.
+  ///      Native ETH currency (address(0)) is handled by wrapping received ETH to WETH after the collect
+  ///      so the delta lands in the vault's ERC20 idle balance. If the vault has no WETH configured,
+  ///      collection is skipped for that position (falls back to per-withdrawer distribution).
   function collectFees(address posm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external override {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
     address token0 = Currency.unwrap(poolKey.currency0);
     address token1 = Currency.unwrap(poolKey.currency1);
 
-    uint256 before0 = IERC20(token0).balanceOf(address(this));
-    uint256 before1 = IERC20(token1).balanceOf(address(this));
+    // Resolve native ETH to WETH: V4 sends ETH directly to the vault on CLOSE_CURRENCY for address(0).
+    // IERC20(address(0)).balanceOf would revert; instead wrap the received ETH to WETH and track that.
+    bool hasNative = token0 == address(0) || token1 == address(0);
+    address wethAddr;
+    if (hasNative) {
+      wethAddr = ISharedVault(address(this)).weth();
+      if (wethAddr == address(0)) return; // no WETH configured; skip to avoid revert
+    }
+    address effectiveToken0 = token0 == address(0) ? wethAddr : token0;
+    address effectiveToken1 = token1 == address(0) ? wethAddr : token1;
+
+    uint256 nativeBefore = hasNative ? address(this).balance : 0;
+    uint256 before0 = IERC20(effectiveToken0).balanceOf(address(this));
+    uint256 before1 = IERC20(effectiveToken1).balanceOf(address(this));
 
     // DECREASE_LIQUIDITY(0x01) with liquidity=0 syncs fee growth and creates a collectible delta.
     // CLOSE_CURRENCY(0x12) sweeps the positive delta (accumulated fees) to address(this).
@@ -334,14 +348,26 @@ contract SharedV4Strategy is ISharedStrategy {
     collectParams[2] = abi.encode(poolKey.currency1);
     pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
 
-    uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
-    uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
+    // Wrap any received native ETH to WETH so the collected amount is tracked as ERC20.
+    if (hasNative) {
+      uint256 ethReceived = address(this).balance - nativeBefore;
+      if (ethReceived > 0) IWETH9(wethAddr).deposit{ value: ethReceived }();
+    }
+
+    uint256 collected0 = IERC20(effectiveToken0).balanceOf(address(this)) - before0;
+    uint256 collected1 = IERC20(effectiveToken1).balanceOf(address(this)) - before1;
     if (collected0 == 0 && collected1 == 0) return;
 
     ICommon.FeeConfig memory fc = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
-    _applyFees(token0, collected0, token1, collected1, fc);
+    _applyFees(effectiveToken0, collected0, effectiveToken1, collected1, fc);
   }
 
+  /// @dev V3/Aerodrome route fees through `LpFeeTaker.takeFees`, which encapsulates approval + split.
+  ///      V4 reimplements the split inline because V4Utils integration with LpFeeTaker does not exist:
+  ///      the V4 PositionManager uses Permit2 approvals and its own settlement flow, making the
+  ///      LpFeeTaker approval-then-call pattern incompatible. Any future fee-policy change must be
+  ///      applied here in addition to LpFeeTaker. Gas fee is intentionally omitted (exits handle it
+  ///      via V4UtilsRouter's `gasFeeX64`; pre-collect is perf/platform only).
   function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc) private {
     if (fc.platformFeeBasisPoint > 0 && fc.platformFeeRecipient != address(0)) {
       uint256 fee0 = FullMath.mulDiv(amount0, fc.platformFeeBasisPoint, 10_000);
