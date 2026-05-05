@@ -90,6 +90,10 @@ contract MockAutomatorStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 

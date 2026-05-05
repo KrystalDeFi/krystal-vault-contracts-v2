@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 interface ISharedConfigManager {
   event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
+  event PlatformFeeBasisPointUpdated(uint16 basisPoints);
   event WhitelistTargetsUpdated(address[] targets, bool isWhitelisted);
   event WhitelistCallersUpdated(address[] callers, bool isWhitelisted);
   event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted);

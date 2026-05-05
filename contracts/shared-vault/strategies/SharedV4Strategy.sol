@@ -223,10 +223,13 @@ contract SharedV4Strategy is ISharedStrategy {
         Currency.unwrap(newKey.currency0),
         Currency.unwrap(newKey.currency1)
       );
-    } else {
-      // Full exit or any non-minting operation
+    } else if (!_posmNftOwnedByVault(posm, tokenId) || pm.getPositionLiquidity(tokenId) == 0) {
+      // Full exit: vault no longer holds the NFT, or position liquidity is zero
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+    } else {
+      // Partial or non-exit operation — position still active, no tracking change
+      changes = new PositionChange[](0);
     }
   }
 
@@ -369,6 +372,16 @@ contract SharedV4Strategy is ISharedStrategy {
     (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) = _positionAmountsSplit(posm, tokenId);
     amount0 = principal0 + fees0;
     amount1 = principal1 + fees1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionTokens(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (address token0, address token1) {
+    (PoolKey memory poolKey, ) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
+    token0 = Currency.unwrap(poolKey.currency0);
+    token1 = Currency.unwrap(poolKey.currency1);
   }
 
   /// @inheritdoc ISharedStrategy

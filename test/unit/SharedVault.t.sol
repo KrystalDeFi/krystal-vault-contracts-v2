@@ -174,11 +174,26 @@ contract MockSharedStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
 // Mock strategy whose exitProportional always reverts (simulates a buggy deployed strategy)
 contract MockBrokenExitStrategy is ISharedStrategy {
+  // Mirrors real NFPM on-chain token data. Populated via registerPosition() since execute()
+  // runs via delegatecall and cannot write to the strategy's own storage.
+  mapping(bytes32 => address) private _token0;
+  mapping(bytes32 => address) private _token1;
+
+  function registerPosition(address nfpm, uint256 tokenId, address token0, address token1) external {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    _token0[key] = token0;
+    _token1[key] = token1;
+  }
+
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
       data,
@@ -206,6 +221,11 @@ contract MockBrokenExitStrategy is ISharedStrategy {
 
   function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (_token0[key], _token1[key]);
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
@@ -243,6 +263,10 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
     // Return non-zero so SharedVault computes a non-zero `toAdd` and actually calls depositProportional,
     // which in turn reverts — mirroring the pre-fix behavior of this broken-strategy scenario.
     return (100e18, 100e18);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
@@ -288,6 +312,10 @@ contract MockMisreportingTokenAddStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    return (token0Out, token1Out);
+  }
+
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
 }
 
@@ -315,6 +343,10 @@ contract MockFailingStrategy is ISharedStrategy {
 
   function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
@@ -389,6 +421,10 @@ contract MockDirectPositionCreator is ISharedStrategy {
 
   function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
     return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
@@ -545,6 +581,11 @@ contract MockLPExitStrategy is ISharedStrategy {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address token0, address token1) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (token0, token1, , ) = MockLPPool(lpPool).lps(key);
+  }
+
   function depositProportional(
     address nfpm,
     uint256 tokenId,
@@ -641,6 +682,11 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
 
   function getPositionPrincipalAmounts(address, uint256) external view override returns (uint256, uint256) {
     return (principal0, principal1);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address token0, address token1) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (token0, token1, , ) = MockLPPool(lpPool).lps(key);
   }
 
   /// @dev Simulates Uniswap V3's `increaseLiquidity` behavior when `amount*Min > 0`:
@@ -1254,6 +1300,9 @@ contract SharedVaultTest is TestCommon {
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
     vault.execute(actions);
+
+    // Register token pair so getPositionTokens returns correct data for recoverPosition validation.
+    brokenStrat.registerPosition(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
   }
 
   // ==================== dropPosition Tests ====================

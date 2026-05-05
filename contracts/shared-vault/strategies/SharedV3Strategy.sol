@@ -93,6 +93,7 @@ contract SharedV3Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, params.nfpm);
+    require(IERC721(params.nfpm).ownerOf(params.tokenId) == address(this), InvalidPoolTokens());
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -277,6 +278,14 @@ contract SharedV3Strategy is ISharedStrategy {
     );
     amount0 = principal0 + tokensOwed0;
     amount1 = principal1 + tokensOwed1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionTokens(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (address token0, address token1) {
+    (, , token0, token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
   }
 
   /// @inheritdoc ISharedStrategy

@@ -208,6 +208,32 @@ _Values principal liquidity via `LiquidityAmounts` and current `sqrtPrice` from 
 | amount0 | uint256 | Amount of token0 in the position |
 | amount1 | uint256 | Amount of token1 in the position |
 
+### getPositionTokens
+
+```solidity
+function getPositionTokens(address posm, uint256 tokenId) external view returns (address token0, address token1)
+```
+
+Return the canonical token pair for an LP position as recorded on-chain by the NFPM/POSM.
+
+_Used by SharedVault.recoverPosition to validate operator-supplied token0/token1 against the
+     actual pool, preventing metadata mismatch that could misprice deposits/withdrawals.
+     Called via regular external CALL (not delegatecall) so address(this) is the strategy._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token0 | address | Canonical pool token0 address |
+| token1 | address | Canonical pool token1 address |
+
 ### getPositionPrincipalAmounts
 
 ```solidity

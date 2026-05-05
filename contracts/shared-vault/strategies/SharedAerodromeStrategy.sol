@@ -92,6 +92,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     ) = abi.decode(data, (IV3Utils.SwapAndIncreaseLiquidityParams, address[], uint256[], uint256));
 
     _requireAerodromeNfpm(params.nfpm);
+    require(IERC721(params.nfpm).ownerOf(params.tokenId) == address(this), InvalidPoolTokens());
 
     _approveTokens(approveTokens, approveAmounts, v3utils);
     params.recipient = address(this);
@@ -240,6 +241,14 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     );
     amount0 = principal0 + tokensOwed0;
     amount1 = principal1 + tokensOwed1;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionTokens(
+    address _nfpm,
+    uint256 tokenId
+  ) external view override returns (address token0, address token1) {
+    (, , token0, token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
   }
 
   /// @inheritdoc ISharedStrategy

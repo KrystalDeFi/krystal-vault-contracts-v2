@@ -39,6 +39,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     address[] calldata _whitelistSwapRouters
   ) public initializer {
     require(_platformFeeBasisPoint <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
+    require(_feeRecipient != address(0), ISharedCommon.ZeroAddress());
     __Ownable_init(_owner);
     maxPositions = 20;
     minTokenPrecision = 5;
@@ -160,6 +161,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   function setPlatformFeeBasisPoint(uint16 basisPoints) external override onlyOwner {
     require(basisPoints <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     platformFeeBasisPoint = basisPoints;
+    emit PlatformFeeBasisPointUpdated(basisPoints);
   }
 
   function setMaxPositions(uint16 _maxPositions) external override onlyOwner {

@@ -159,6 +159,16 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), nativeWrapped);
 
+    // Sweep any non-vault input token leftovers not already caught above.
+    // This handles partial-fill swaps on intermediate tokens not listed in sweepTokens.
+    // _sweepToken is idempotent (no-op on zero balance), so double-sweeping is safe.
+    for (uint256 i; i < params.inputs.length; ) {
+      _sweepToken(params.inputs[i].token, _msgSender());
+      unchecked {
+        i++;
+      }
+    }
+
     emit SwapAndDeposit(address(params.vault), _msgSender(), shares);
   }
 
@@ -203,6 +213,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
       IWETH9(weth).deposit{ value: msg.value }();
     }
     for (uint256 i; i < inputs.length; ) {
+      require(inputs[i].token != address(0), ZeroAddress());
       // Skip transferFrom for WETH when native ETH was provided — the wrap already covers it.
       if (inputs[i].amount > 0 && !(nativeWrapped && inputs[i].token == weth)) {
         IERC20(inputs[i].token).safeTransferFrom(_msgSender(), address(this), inputs[i].amount);

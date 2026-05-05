@@ -8,6 +8,12 @@
 event FeeRecipientUpdated(address previousRecipient, address newRecipient)
 ```
 
+### PlatformFeeBasisPointUpdated
+
+```solidity
+event PlatformFeeBasisPointUpdated(uint16 basisPoints)
+```
+
 ### WhitelistTargetsUpdated
 
 ```solidity

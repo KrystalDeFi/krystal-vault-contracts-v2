@@ -845,6 +845,8 @@ contract SharedVault is
   ) external override onlyOperator {
     require(isVaultToken[token0] && isVaultToken[token1], TokenNotConfigured());
     require(configManager.isWhitelistedTarget(strategy), InvalidTarget(strategy));
+    (address actualToken0, address actualToken1) = ISharedStrategy(strategy).getPositionTokens(nfpm, tokenId);
+    require(actualToken0 == token0 && actualToken1 == token1, TokenNotConfigured());
     IERC721(nfpm).transferFrom(operator, address(this), tokenId);
     _addPosition(strategy, nfpm, tokenId, token0, token1);
     emit PositionRecovered(vaultFactory, nfpm, tokenId);

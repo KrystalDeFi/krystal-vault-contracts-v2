@@ -77,6 +77,16 @@ interface ISharedStrategy {
   /// @return amount1 Amount of token1 in the position
   function getPositionAmounts(address nfpm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1);
 
+  /// @notice Return the canonical token pair for an LP position as recorded on-chain by the NFPM/POSM.
+  /// @dev Used by SharedVault.recoverPosition to validate operator-supplied token0/token1 against the
+  ///      actual pool, preventing metadata mismatch that could misprice deposits/withdrawals.
+  ///      Called via regular external CALL (not delegatecall) so address(this) is the strategy.
+  /// @param nfpm NFT Position Manager (or V4 PositionManager) address
+  /// @param tokenId Position NFT ID
+  /// @return token0 Canonical pool token0 address
+  /// @return token1 Canonical pool token1 address
+  function getPositionTokens(address nfpm, uint256 tokenId) external view returns (address token0, address token1);
+
   /// @notice Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.
   /// @dev Returns the token amounts computed purely from the position's in-range liquidity at the current price.
   ///      This is the correct ratio for topping up an existing position via `increaseLiquidity` — uncollected
