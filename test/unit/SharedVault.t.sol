@@ -360,6 +360,13 @@ contract MockSwapTarget {
     // Give 1:1 swap
     MockERC20(tokenOut).transfer(msg.sender, amountIn);
   }
+
+  // Partial fill: only consumes half of amountIn, leaving residual allowance if not reset
+  function partialSwap(address tokenIn, address tokenOut, uint256 amountIn) external {
+    uint256 consumed = amountIn / 2;
+    MockERC20(tokenIn).transferFrom(msg.sender, address(this), consumed);
+    MockERC20(tokenOut).transfer(msg.sender, consumed);
+  }
 }
 
 /// @dev Simulates an external contract called via CALL_WITH_POSITIONS that returns PositionChange[].
@@ -1114,6 +1121,23 @@ contract SharedVaultTest is TestCommon {
 
     assertEq(balanceAfter - balanceBefore, 10e18);
     vm.stopPrank();
+  }
+
+  function test_swap_residual_allowance_reset() public {
+    // Partial-fill swap: router only consumes half of amountIn.
+    // Without the post-call safeApprove(0), the residual allowance would persist.
+    tokenB.mint(address(swapTarget), 10e18);
+
+    vm.startPrank(VAULT_OWNER);
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.partialSwap, (address(tokenA), address(tokenB), 10e18));
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 0, swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+    vault.execute(actions);
+    vm.stopPrank();
+
+    assertEq(tokenA.allowance(address(vault), address(swapTarget)), 0, "residual allowance must be reset to 0");
   }
 
   function test_swap_fail_non_vault_token_in() public {

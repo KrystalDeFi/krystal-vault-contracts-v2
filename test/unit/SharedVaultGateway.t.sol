@@ -998,6 +998,45 @@ contract SharedVaultGatewayTest is TestCommon {
     assertGt(shares, 0, "Deposit succeeded after swap with amountIn=0");
   }
 
+  function test_swap_residual_allowance_reset_after_partial_fill() public {
+    // Partial-fill scenario: router is approved for 150A but only consumes 100A.
+    // The post-call safeApprove(0) must zero out the leftover 50A allowance so the
+    // router cannot drain vault tokens in a future transaction.
+    // Vault ratio: 1000A:2000B:500C:1000D. Alice supplies A/C/D, swaps 100A→200B.
+    // After swap gateway holds 50A+200B+50C+100D — binding is A (50/1000=5%).
+    tokenB.mint(address(router), 200e18);
+    router.setRate(address(tokenA), address(tokenB), 2, 1);
+
+    tokenA.mint(ALICE, 150e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    // Swap amountIn=150A but calldata only asks the router to pull 100A (partial fill).
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      150e18,
+      address(tokenB),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenB), 100e18)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs3(address(tokenA), 150e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.swapAndDeposit(params);
+
+    assertEq(tokenA.allowance(address(gateway), address(router)), 0, "residual allowance must be reset to 0");
+  }
+
   // ==================== 2-token vault (simpler case) ====================
 
   function test_swapAndDeposit_two_token_vault() public {

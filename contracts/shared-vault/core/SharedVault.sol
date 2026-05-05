@@ -588,6 +588,7 @@ contract SharedVault is
 
         (bool success, ) = action.target.call(swapCalldata);
         require(success, SwapFailed());
+        IERC20(tokenIn).safeApprove(action.target, 0);
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
         require(amountOut >= minAmountOut, InsufficientOutput());
