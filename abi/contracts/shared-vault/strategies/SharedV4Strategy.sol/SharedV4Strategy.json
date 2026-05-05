@@ -17,6 +17,11 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidAmount",
     "type": "error"
   },
@@ -52,9 +57,43 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "posm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "collectFees",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
     "inputs": [
@@ -80,7 +119,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "",
+        "name": "slippageBps",
         "type": "uint16"
       }
     ],

@@ -29,6 +29,8 @@ import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
+import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
+import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 
 /// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
 ///      Currency = address underneath, so address is used here for ABI-encoding compatibility.
@@ -237,25 +239,36 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
   ///      the required liquidity from amounts internally. Any unused tokens are swept back to the vault
   ///      by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
+  ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
+  ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
+  ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
   function depositProportional(
     address posm,
     uint256 tokenId,
     uint256 amount0,
     uint256 amount1,
-    uint16 // slippageBps unused: V4 INCREASE_LIQUIDITY_FROM_DELTAS has no amountMin parameter
+    uint16 slippageBps
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
 
     _requireWhitelistedPosm(posm);
 
     IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     Currency currency0 = poolKey.currency0;
     Currency currency1 = poolKey.currency1;
 
     // Guard against silent truncation: token amounts must fit in uint128 (used in INCREASE_LIQUIDITY params).
     // Total ERC20 supply can never exceed uint128.max in practice, but we guard explicitly.
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
+
+    // Capture pre-deposit state for slippage check (only when slippage protection requested)
+    uint128 liquidityBefore;
+    uint160 sqrtPriceX96;
+    if (slippageBps > 0) {
+      liquidityBefore = pm.getPositionLiquidity(tokenId);
+      (sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
+    }
 
     // Approve via Permit2: vault → Permit2 → PositionManager
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
@@ -278,6 +291,70 @@ contract SharedV4Strategy is ISharedStrategy {
     params[2] = abi.encode(currency1);
 
     pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
+
+    // Slippage check: compare actual liquidity added to expected minimum
+    if (slippageBps > 0) {
+      uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;
+      int24 tickLower = positionInfo.tickLower();
+      int24 tickUpper = positionInfo.tickUpper();
+      uint128 expectedLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceX96,
+        TickMath.getSqrtPriceAtTick(tickLower),
+        TickMath.getSqrtPriceAtTick(tickUpper),
+        amount0,
+        amount1
+      );
+      uint128 minLiquidity = uint128(FullMath.mulDiv(expectedLiquidity, 10_000 - slippageBps, 10_000));
+      require(liquidityAdded >= minLiquidity, ISharedCommon.InsufficientOutput());
+    }
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
+  ///      decrease syncs fee accounting without touching principal, and CLOSE_CURRENCY sweeps the fee
+  ///      tokens to the vault (address(this) in delegatecall context). Performance and platform fees are
+  ///      then applied inline using configManager data, since V4Strategy has no dedicated lpFeeTaker.
+  ///      If either currency is native ETH, the staticcall balance check reverts and SharedVault.withdraw()
+  ///      silently falls back to the old (per-withdrawer) fee distribution for that position.
+  function collectFees(address posm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external override {
+    IPositionManager pm = IPositionManager(posm);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
+
+    uint256 before0 = IERC20(token0).balanceOf(address(this));
+    uint256 before1 = IERC20(token1).balanceOf(address(this));
+
+    // DECREASE_LIQUIDITY(0x01) with liquidity=0 syncs fee growth and creates a collectible delta.
+    // CLOSE_CURRENCY(0x12) sweeps the positive delta (accumulated fees) to address(this).
+    bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x12), uint8(0x12));
+    bytes[] memory collectParams = new bytes[](3);
+    collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), bytes(""));
+    collectParams[1] = abi.encode(poolKey.currency0);
+    collectParams[2] = abi.encode(poolKey.currency1);
+    pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
+
+    uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
+    uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
+    if (collected0 == 0 && collected1 == 0) return;
+
+    ICommon.FeeConfig memory fc = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
+    _applyFees(token0, collected0, token1, collected1, fc);
+  }
+
+  function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc) private {
+    if (fc.platformFeeBasisPoint > 0 && fc.platformFeeRecipient != address(0)) {
+      uint256 fee0 = FullMath.mulDiv(amount0, fc.platformFeeBasisPoint, 10_000);
+      uint256 fee1 = FullMath.mulDiv(amount1, fc.platformFeeBasisPoint, 10_000);
+      if (fee0 > 0) IERC20(token0).safeTransfer(fc.platformFeeRecipient, fee0);
+      if (fee1 > 0) IERC20(token1).safeTransfer(fc.platformFeeRecipient, fee1);
+    }
+    if (fc.vaultOwnerFeeBasisPoint > 0 && fc.vaultOwner != address(0)) {
+      uint256 fee0 = FullMath.mulDiv(amount0, fc.vaultOwnerFeeBasisPoint, 10_000);
+      uint256 fee1 = FullMath.mulDiv(amount1, fc.vaultOwnerFeeBasisPoint, 10_000);
+      if (fee0 > 0) IERC20(token0).safeTransfer(fc.vaultOwner, fee0);
+      if (fee1 > 0) IERC20(token1).safeTransfer(fc.vaultOwner, fee1);
+    }
   }
 
   /// @inheritdoc ISharedStrategy

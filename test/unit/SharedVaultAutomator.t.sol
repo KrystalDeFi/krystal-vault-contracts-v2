@@ -95,6 +95,8 @@ contract MockAutomatorStrategy is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock EIP-1271 multisig wallet — validates signatures from a set of approved signers

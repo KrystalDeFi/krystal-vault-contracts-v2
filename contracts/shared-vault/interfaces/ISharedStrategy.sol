@@ -87,6 +87,18 @@ interface ISharedStrategy {
   /// @return token1 Canonical pool token1 address
   function getPositionTokens(address nfpm, uint256 tokenId) external view returns (address token0, address token1);
 
+  /// @notice Pre-collect accumulated LP fees into vault idle balance so they are distributed
+  ///         proportionally by share ratio rather than entirely to the next withdrawer.
+  /// @dev Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot.
+  ///      Implementations should collect fees from the NFPM/POSM and take performance + platform fees
+  ///      via the appropriate fee mechanism. Failures are silently ignored by the vault so that a
+  ///      collect failure never bricks withdrawals — fee distribution falls back to the old (per-withdrawer)
+  ///      behavior.
+  /// @param nfpm NFT Position Manager (or V4 PositionManager) address
+  /// @param tokenId Position NFT ID
+  /// @param vaultOwnerFeeBasisPoint Vault owner bps for performance fee; platform fee from configManager.
+  function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external;
+
   /// @notice Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.
   /// @dev Returns the token amounts computed purely from the position's in-range liquidity at the current price.
   ///      This is the correct ratio for topping up an existing position via `increaseLiquidity` — uncollected

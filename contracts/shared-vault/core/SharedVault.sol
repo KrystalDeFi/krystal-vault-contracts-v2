@@ -453,6 +453,20 @@ contract SharedVault is
     uint256 currentTotalSupply = totalSupply();
     _burn(_msgSender(), shares);
 
+    // Pre-collect accumulated LP fees into idle BEFORE snapshotting idleBefore so they are
+    // distributed proportionally by share ratio (not entirely to the current withdrawer).
+    // Failures are silently ignored: a failed collect falls back to per-withdrawer distribution.
+    uint256 posLenForCollect = positions.length;
+    for (uint256 pc; pc < posLenForCollect; ) {
+      Position memory posForCollect = positions[pc];
+      posForCollect.strategy.delegatecall(
+        abi.encodeCall(ISharedStrategy.collectFees, (posForCollect.nfpm, posForCollect.tokenId, vaultOwnerFeeBasisPoint))
+      );
+      unchecked {
+        pc++;
+      }
+    }
+
     // Snapshot idle balances BEFORE LP exits so the share ratio is applied only once
     // to the original idle tokens. LP exit returns are added in full (they already
     // represent the withdrawer's proportional share of each position).
@@ -659,6 +673,11 @@ contract SharedVault is
         );
         require(ok || probeData.length > 0, InvalidTarget(strategy));
         require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
+        // Verify vault owns the NFT before tracking it: an unowned position would misprice shares.
+        (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(
+          abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId))
+        );
+        require(ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this), InvalidOperation());
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _removePosition(changes[c].nfpm, changes[c].tokenId);
@@ -844,6 +863,7 @@ contract SharedVault is
     address token0,
     address token1
   ) external override onlyOperator {
+    require(configManager.isWhitelistedNfpm(nfpm), InvalidNfpm(nfpm));
     require(isVaultToken[token0] && isVaultToken[token1], TokenNotConfigured());
     require(configManager.isWhitelistedTarget(strategy), InvalidTarget(strategy));
     (address actualToken0, address actualToken1) = ISharedStrategy(strategy).getPositionTokens(nfpm, tokenId);

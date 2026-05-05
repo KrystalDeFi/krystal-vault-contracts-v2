@@ -147,6 +147,14 @@ contract SharedV3Strategy is ISharedStrategy {
     }
   }
 
+  /// @inheritdoc ISharedStrategy
+  function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external override {
+    (, , address token0, address token1, uint24 fee, , , , , , , ) = INFPM(nfpm).positions(tokenId);
+    address pool = _getPool(nfpm, token0, token1, fee);
+    ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
+    SharedNfpmProportionalExit.collectAccumulatedFees(nfpm, tokenId, token0, token1, pool, lpFeeTaker, perfFee);
+  }
+
   function _decreaseVaultPosition(
     address nfpm,
     uint256 tokenId,

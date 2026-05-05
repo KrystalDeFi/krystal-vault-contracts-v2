@@ -179,6 +179,8 @@ contract MockSharedStrategy is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock strategy whose exitProportional always reverts (simulates a buggy deployed strategy)
@@ -229,6 +231,8 @@ contract MockBrokenExitStrategy is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
@@ -272,6 +276,8 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
   function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
     revert("pool rugged");
   }
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 /// @dev DELEGATECALL strategy that returns `PositionChange.isAdd` with `token0`/`token1` from immutables,
@@ -317,6 +323,8 @@ contract MockMisreportingTokenAddStrategy is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock strategy that fails
@@ -350,6 +358,8 @@ contract MockFailingStrategy is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock swap target
@@ -435,6 +445,8 @@ contract MockDirectPositionCreator is ISharedStrategy {
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 // Mock ERC721 for sweep tests
@@ -607,6 +619,8 @@ contract MockLPExitStrategy is ISharedStrategy {
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
   }
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 /// @dev Tracks the last (amount0, amount1) passed to depositProportional through a delegatecall.
@@ -738,6 +752,8 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
     if (consumed1 > 0) IERC20(token1).transfer(lpPool, consumed1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, consumed0, consumed1);
   }
+
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 contract SharedVaultTest is TestCommon {
@@ -755,6 +771,7 @@ contract SharedVaultTest is TestCommon {
   MockSwapTarget public swapTarget;
   MockDirectPositionCreator public directCreator;
   MockERC721 public mockERC721;
+  MockERC721 public cwpNfpm; // NFPM used for CALL_WITH_POSITIONS tests
   MockERC1155 public mockERC1155;
   MockWETH9 public mockWeth;
 
@@ -778,6 +795,7 @@ contract SharedVaultTest is TestCommon {
     swapTarget = new MockSwapTarget();
     directCreator = new MockDirectPositionCreator();
     mockERC721 = new MockERC721();
+    cwpNfpm = new MockERC721();
     mockERC1155 = new MockERC1155();
     mockWeth = new MockWETH9();
 
@@ -792,7 +810,7 @@ contract SharedVaultTest is TestCommon {
 
     // NFPM / swap-router allowlists used by `_addPosition` and `CALL` swap path in unit scenarios
     {
-      address[] memory nfpms = new address[](8);
+      address[] memory nfpms = new address[](9);
       nfpms[0] = makeAddr("nfpmMigrate");
       nfpms[1] = makeAddr("nfpmNotTracked");
       nfpms[2] = address(0xBEEF);
@@ -801,6 +819,7 @@ contract SharedVaultTest is TestCommon {
       nfpms[5] = address(uint160(0xAAAA));
       nfpms[6] = address(uint160(0xBBBB));
       nfpms[7] = makeAddr("nfpm");
+      nfpms[8] = address(cwpNfpm);
       configManager.setWhitelistNfpms(nfpms, true);
     }
     {
@@ -2417,12 +2436,12 @@ contract SharedVaultTest is TestCommon {
 
   /// @notice CALL_WITH_POSITIONS: direct call returns PositionChange[] → LP position added.
   function test_execute_call_with_positions_adds_position() public {
-    address mockNfpm = address(0xBEEF);
     uint256 tokenId = 42;
+    cwpNfpm.mint(address(vault), tokenId);
 
     bytes memory callData = abi.encodeCall(
       MockDirectPositionCreator.createPosition,
-      (mockNfpm, tokenId, address(tokenA), address(tokenB))
+      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.startPrank(VAULT_OWNER);
@@ -2434,7 +2453,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(vault.getPositionCount(), 1, "position should be added");
     (address strategy, address nfpm, uint256 tid, address t0, address t1) = vault.getPosition(0);
     assertEq(strategy, address(directCreator), "strategy is the direct creator target");
-    assertEq(nfpm, mockNfpm);
+    assertEq(nfpm, address(cwpNfpm));
     assertEq(tid, tokenId);
     assertEq(t0, address(tokenA));
     assertEq(t1, address(tokenB));
@@ -2521,6 +2540,26 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  /// @notice CALL_WITH_POSITIONS: vault does not own the NFT reported as added → reverts.
+  /// @dev Security check: _applyPositionChangesChecked verifies vault owns the NFT before
+  ///      recording it. Without this check, an operator could register an NFT they don't own.
+  function test_call_with_positions_revertsWhenVaultDoesNotOwnNft() public {
+    uint256 tokenId = 77;
+    // Intentionally do NOT mint the NFT to the vault — vault has no ownership
+
+    bytes memory callData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition,
+      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+    );
+
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+    vm.stopPrank();
+  }
+
   /// @notice Mixed batch: DELEGATECALL (position) + CALL (swap) + CALL_WITH_POSITIONS (position) in one execute().
   function test_execute_mixed_batch_all_three_call_types() public {
     // Setup: whitelist lpStrategy
@@ -2536,7 +2575,7 @@ contract SharedVaultTest is TestCommon {
     tokenB.mint(address(swapTarget), 5e18);
 
     address delegatecallNfpm = address(0xAAAA);
-    address callWithPositionsNfpm = address(0xBBBB);
+    cwpNfpm.mint(address(vault), 2);
 
     // Action 1: DELEGATECALL — strategy creates LP position
     bytes memory dcData = abi.encode(
@@ -2555,7 +2594,7 @@ contract SharedVaultTest is TestCommon {
     // Action 3: CALL_WITH_POSITIONS — direct call creates another position
     bytes memory cwpData = abi.encodeCall(
       MockDirectPositionCreator.createPosition,
-      (callWithPositionsNfpm, 2, address(tokenA), address(tokenB))
+      (address(cwpNfpm), 2, address(tokenA), address(tokenB))
     );
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
@@ -2578,10 +2617,10 @@ contract SharedVaultTest is TestCommon {
   // Helper: add a unique position via CALL_WITH_POSITIONS using directCreator.
   // tokenId is used to make each (nfpm, tokenId) pair unique.
   function _addPositionViaDirectCreator(uint256 tokenId) internal {
-    address nfpm = makeAddr("nfpm");
+    cwpNfpm.mint(address(vault), tokenId);
     bytes memory cwpData = abi.encodeCall(
       MockDirectPositionCreator.createPosition,
-      (nfpm, tokenId, address(tokenA), address(tokenB))
+      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
@@ -2601,10 +2640,10 @@ contract SharedVaultTest is TestCommon {
     _addPositionViaDirectCreator(2);
     assertEq(vault.getPositionCount(), 2);
 
-    address nfpm = makeAddr("nfpm");
+    cwpNfpm.mint(address(vault), 3);
     bytes memory cwpData = abi.encodeCall(
       MockDirectPositionCreator.createPosition,
-      (nfpm, 3, address(tokenA), address(tokenB))
+      (address(cwpNfpm), 3, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
@@ -2938,10 +2977,10 @@ contract SharedVaultTest is TestCommon {
     // Adding the same (nfpm, tokenId) twice must not count as two positions
     configManager.setMaxPositions(1);
 
-    address nfpm = makeAddr("nfpm");
+    cwpNfpm.mint(address(vault), 99);
     bytes memory cwpData = abi.encodeCall(
       MockDirectPositionCreator.createPosition,
-      (nfpm, 99, address(tokenA), address(tokenB))
+      (address(cwpNfpm), 99, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);

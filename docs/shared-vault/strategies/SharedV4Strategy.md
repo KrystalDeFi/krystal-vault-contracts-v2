@@ -130,14 +130,17 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 ### depositProportional
 
 ```solidity
-function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16) external
+function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
 _Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
      the required liquidity from amounts internally. Any unused tokens are swept back to the vault
-     by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline._
+     by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
+     Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
+     derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
+     actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts._
 
 #### Parameters
 
@@ -147,7 +150,31 @@ _Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
-|  | uint16 |  |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
+
+### collectFees
+
+```solidity
+function collectFees(address posm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external
+```
+
+Pre-collect accumulated LP fees into vault idle balance so they are distributed
+        proportionally by share ratio rather than entirely to the next withdrawer.
+
+_Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
+     decrease syncs fee accounting without touching principal, and CLOSE_CURRENCY sweeps the fee
+     tokens to the vault (address(this) in delegatecall context). Performance and platform fees are
+     then applied inline using configManager data, since V4Strategy has no dedicated lpFeeTaker.
+     If either currency is native ETH, the staticcall balance check reverts and SharedVault.withdraw()
+     silently falls back to the old (per-withdrawer) fee distribution for that position._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for performance fee; platform fee from configManager. |
 
 ### exitProportional
 

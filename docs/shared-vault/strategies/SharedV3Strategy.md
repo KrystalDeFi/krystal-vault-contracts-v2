@@ -77,6 +77,29 @@ _`CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)
      Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
      `tokenId`, or on-chain position liquidity is zero._
 
+### collectFees
+
+```solidity
+function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external
+```
+
+Pre-collect accumulated LP fees into vault idle balance so they are distributed
+        proportionally by share ratio rather than entirely to the next withdrawer.
+
+_Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot.
+     Implementations should collect fees from the NFPM/POSM and take performance + platform fees
+     via the appropriate fee mechanism. Failures are silently ignored by the vault so that a
+     collect failure never bricks withdrawals — fee distribution falls back to the old (per-withdrawer)
+     behavior._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager (or V4 PositionManager) address |
+| tokenId | uint256 | Position NFT ID |
+| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for performance fee; platform fee from configManager. |
+
 ### _decreaseVaultPosition
 
 ```solidity

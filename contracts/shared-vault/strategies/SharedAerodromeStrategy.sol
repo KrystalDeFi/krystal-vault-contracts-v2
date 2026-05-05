@@ -141,6 +141,14 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     }
   }
 
+  /// @inheritdoc ISharedStrategy
+  function collectFees(address _nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external override {
+    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
+    ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
+    SharedNfpmProportionalExit.collectAccumulatedFees(_nfpm, tokenId, token0, token1, pool, lpFeeTaker, perfFee);
+  }
+
   function _decreaseVaultPosition(
     address _nfpm,
     uint256 tokenId,
