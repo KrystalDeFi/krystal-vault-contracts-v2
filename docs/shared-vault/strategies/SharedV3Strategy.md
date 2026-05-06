@@ -76,7 +76,9 @@ function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.P
 _`CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
      V3Utils mints the new NFT to the vault before returning the old one, so the new token always lands at
      `balanceBefore - 1` in the per-owner enumeration. Using `tokenByIndex(totalSupply() - 1)` is unreliable
-     because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index._
+     because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index.
+     A post-call balance check enforces that V3Utils minted exactly one NFT (mirrors SharedV4Strategy's
+     `nextTokenId == nextIdBefore + 1` guard), catching any future V3Utils version that mints multiple positions._
 
 ### collectFees
 

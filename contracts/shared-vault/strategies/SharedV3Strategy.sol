@@ -110,6 +110,8 @@ contract SharedV3Strategy is ISharedStrategy {
   ///      V3Utils mints the new NFT to the vault before returning the old one, so the new token always lands at
   ///      `balanceBefore - 1` in the per-owner enumeration. Using `tokenByIndex(totalSupply() - 1)` is unreliable
   ///      because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index.
+  ///      A post-call balance check enforces that V3Utils minted exactly one NFT (mirrors SharedV4Strategy's
+  ///      `nextTokenId == nextIdBefore + 1` guard), catching any future V3Utils version that mints multiple positions.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -132,9 +134,10 @@ contract SharedV3Strategy is ISharedStrategy {
       if (!IERC165(nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // V3Utils mints the new NFT to the vault then returns the old NFT.
-      // New token is always added at the per-owner index `balanceBefore - 1`.
+      // V3Utils mints exactly one new NFT then returns the old NFT → post-call balance must be balanceBefore + 1.
+      // This mirrors SharedV4Strategy's nextTokenId guard, catching any future multi-mint V3Utils version.
       require(balanceBefore > 0, InvalidPoolTokens());
+      require(IERC721(nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
       uint256 newTokenId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
       require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
