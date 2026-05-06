@@ -1,18 +1,18 @@
 {
   "base_mainnet": {
     "sharedConfigManager": "0x44b5bdef17b15f0fb2dcc61067d7e8bf15ed8c9b",
-    "sharedVault": "0x059f89bde9ccef905d70ff637a01e7a10eb14a4a",
+    "sharedVault": "0x530c78107782ff86f3c9b74c011c0a1220f8c86e",
     "sharedVaultFactory": "0x5262d4fa38e5849980f7f630f9852052b09cbc98",
-    "sharedV3Strategy": "0x0c849ad090a56833967d151b2cdecefe8de91f32",
+    "sharedV3Strategy": "0x8b40c9d5ed6ff70249cc46748e4d1b54a4998077",
     "sharedV3StrategyBeacon": "0x20236beeb445ede31435d5bf3fda2baf69e1b9cf",
     "sharedV3StrategyProxy": "0x9020adee34705a480892fd4def02386e3779dd8c",
-    "sharedV4Strategy": "0x84b30dffab4fd6e7edec1e3a485511da7e4fbff9",
+    "sharedV4Strategy": "0x23e39dea88d9b1b2f325547c54014addd8643b20",
     "sharedV4StrategyBeacon": "0x2607c68ec77c36e2d072533cdc03830d8307e310",
     "sharedV4StrategyProxy": "0xdb29eec236c9b0cf3718d7fc24bdd7d5da8cece6",
-    "sharedAerodromeStrategy": "0x3C5786fB8963B25561B2599BfD9ED53381F51C00",
+    "sharedAerodromeStrategy": "0x0dde466b108ed9ac8863491c45024158f2c2565b",
     "sharedAerodromeBeacon": "0x2cc799e2a5e0aac7bb1b5b4f873620dbbcd9bd82",
     "sharedAerodromeProxy": "0xb12c8cd0054a417f0b93342390ec6bb960270f2c",
     "sharedVaultAutomator": "0x72a09d3c2afc805398b5db8747a55597cc25c24c",
-    "sharedVaultGateway": "0x33adefa16296fe922496376f9df151dafd18aa66"
+    "sharedVaultGateway": "0x7fcaed1f41252460d32ca32846763bca77b348c8"
   }
 }
