@@ -266,3 +266,9 @@ function _validateVaultToken(address token) internal view
 function _approveTokens(address[] _tokens, uint256[] approveAmounts, address target) internal
 ```
 
+### _revokeTokenApprovals
+
+```solidity
+function _revokeTokenApprovals(address[] _tokens, address target) internal
+```
+

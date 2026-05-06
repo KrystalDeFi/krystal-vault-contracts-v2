@@ -213,13 +213,14 @@ _Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
 ### _computeSharesFromDelta
 
 ```solidity
-function _computeSharesFromDelta(uint256 currentTotalSupply, uint256[4] balancesBefore, uint256[4] balancesAfter) internal view returns (uint256 shares)
+function _computeSharesFromDelta(uint256 currentTotalSupply, uint256[4] balancesBefore, uint256[4] balancesAfter, uint256[4] requiredAmounts) internal view returns (uint256 shares)
 ```
 
 _Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
-     Uses the minimum ratio across all tokens (binding constraint) so that a token that saw less
-     LP consumption due to slippage is not over-credited. Reverts if no balance increased.
-     Tokens whose total balance did not strictly increase are skipped (avoids underflow if LP marks move down)._
+     Uses the minimum ratio across deposited tokens (binding constraint). Every token the depositor
+     paid (`requiredAmounts[i] > 0`) must show a strictly positive total-balance delta; if any
+     such token does not (LP valuation dropped due to price movement/sandwich), returns 0 so the
+     caller's `require(shares > 0)` reverts — preventing over-crediting from skipped tokens._
 
 ### _wrapWethDeposit
 

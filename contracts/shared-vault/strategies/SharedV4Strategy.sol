@@ -145,6 +145,12 @@ contract SharedV4Strategy is ISharedStrategy {
     if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
     IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
 
+    // Revoke residual token allowances: the utility may have consumed less than approved.
+    for (uint256 i; i < approveTokens.length; ) {
+      if (approveAmounts[i] > 0) IERC20(approveTokens[i]).safeApprove(v4UtilsRouter, 0);
+      unchecked { i++; }
+    }
+
     // Compute position changes from on-chain state — never trust caller-supplied values
     if (tokenId == 0) {
       // New mint: position minted at nextIdBefore
@@ -367,8 +373,8 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
   ///      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
   ///      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-  ///      Protocol fee (platform) and performance fee (vault owner) are forwarded to V4Utils as X64
-  ///      values. V4Utils collects them inline rather than via `LpFeeTaker` (no gas fee on exits).
+  ///      Fees on accumulated LP income are handled in collectFees (pre-collect) — not charged here
+  ///      on principal, to match V3/Aerodrome which only takes gas fees on proportional exits.
   function exitProportional(
     address posm,
     uint256 tokenId,
@@ -376,7 +382,7 @@ contract SharedV4Strategy is ISharedStrategy {
     uint256 totalShares,
     uint256 minAmount0,
     uint256 minAmount1,
-    uint16 vaultOwnerFeeBasisPoint
+    uint16 /* vaultOwnerFeeBasisPoint */
   ) external override returns (PositionChange[] memory changes) {
     _requireWhitelistedPosm(posm);
 
@@ -564,16 +570,17 @@ contract SharedV4Strategy is ISharedStrategy {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
   }
 
-  /// @notice Best-effort Ox-style swap-router checks on calldata passed to `IV4UtilsRouter.execute`.
-  /// @dev **Scope (intentional):**
+  /// @notice Validates calldata passed to `IV4UtilsRouter.execute` for swap-router safety.
+  /// @dev **Scope:**
   /// - Only calldata whose first 4 bytes equal `IV4Utils.execute(address,uint256,(uint8,bytes))` is decoded.
-  ///   Any other selector (other router entrypoints, wrapped calls, etc.) returns without further validation;
-  ///   those flows still run only when `posm` is whitelisted and the strategy is a whitelisted vault target.
-  /// - Inside `execute`, only `UtilActions.DECREASE_AND_SWAP` is unpacked to `DecreaseAndSwapParams` and each
-  ///   `swapParams[i].swapData` is validated. `ADJUST_RANGE`, `COMPOUND`, or future actions are not walked here;
-  ///   if they ever encode third-party swaps, extend this helper (or add parallel decoding) alongside ABI docs
-  ///   from the deployed V4Utils package.
-  /// - Silent early returns are normal: most `params` blobs are not `DECREASE_AND_SWAP` or not `execute` at all.
+  ///   Any other selector returns without further validation; those flows still run only when `posm` is
+  ///   whitelisted and the strategy is a whitelisted vault target.
+  /// - For `DECREASE_AND_SWAP`, the embedded `swapParams` array must be empty. Full whitelist validation of
+  ///   each `swapParams[i].swapData` router is not feasible (swap calldata format is opaque at this layer).
+  ///   Operators requiring a swap after a decrease must use a separate CALL action, which validates against
+  ///   `configManager.isWhitelistedSwapRouter`.
+  /// - `ADJUST_RANGE` and `COMPOUND` do not encode third-party swap routers so no further check is needed.
+  /// - Silent early returns are normal: most `params` blobs are not `execute` calls at all.
   function _validateV4ExecuteCalldataSwapRouters(bytes memory params, address posm, uint256 tokenId) private pure {
     if (params.length < 4) return;
     if (bytes4(params) != IV4Utils.execute.selector) return;
@@ -584,8 +591,19 @@ contract SharedV4Strategy is ISharedStrategy {
         ++j;
       }
     }
-    (address p, uint256 tid) = abi.decode(body, (address, uint256));
+    (address p, uint256 tid, IV4Utils.Instructions memory instr) = abi.decode(
+      body,
+      (address, uint256, IV4Utils.Instructions)
+    );
     require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
+
+    if (instr.action == IV4Utils.UtilActions.DECREASE_AND_SWAP) {
+      IV4Utils.DecreaseAndSwapParams memory decParams = abi.decode(instr.params, (IV4Utils.DecreaseAndSwapParams));
+      // Reject non-zero swapParams: swap router addresses are embedded inside swapData and cannot
+      // be decoded and validated against the whitelist without knowing the external router's ABI.
+      // Use a separate CALL action for any swap so it goes through isWhitelistedSwapRouter.
+      require(decParams.swapParams.length == 0, ISharedCommon.InvalidSwapRouter(address(0)));
+    }
   }
 
   function _platformFeeX64FromConfig(ISharedConfigManager cm) private view returns (uint64) {

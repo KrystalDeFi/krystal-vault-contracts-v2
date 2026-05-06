@@ -694,6 +694,110 @@ contract MockCollectFailingStrategy is ISharedStrategy {
   }
 }
 
+/// @dev Simulates an LP pool that collapses in value mid-deposit (sandwich / LP manipulation).
+///      First `deposit` call registers the position normally (used during `execute` / LP creation).
+///      Any subsequent `deposit` call still records the key, but `getAmounts` returns (0, 0),
+///      making the vault see no post-deposit balance increase — triggering the
+///      `_computeSharesFromDelta` protection and reverting with InsufficientShares.
+contract MockDropAfterSecondDepositPool {
+  struct LP {
+    address token0;
+    address token1;
+    uint256 amount0;
+    uint256 amount1;
+  }
+
+  mapping(bytes32 => LP) public lps;
+  uint256 public depositCount;
+
+  function deposit(
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1,
+    uint256 _amount0,
+    uint256 _amount1
+  ) external {
+    depositCount++;
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    LP storage lp = lps[key];
+    lp.token0 = token0;
+    lp.token1 = token1;
+    if (depositCount == 1) {
+      lp.amount0 += _amount0;
+      lp.amount1 += _amount1;
+    }
+    // On depositCount >= 2, amounts stay at zero — the LP "dropped" in value.
+  }
+
+  function exit(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, address recipient) external {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    LP storage lp = lps[key];
+    uint256 exit0 = (lp.amount0 * shares) / totalShares;
+    uint256 exit1 = (lp.amount1 * shares) / totalShares;
+    if (exit0 > 0) { MockERC20(lp.token0).transfer(recipient, exit0); lp.amount0 -= exit0; }
+    if (exit1 > 0) { MockERC20(lp.token1).transfer(recipient, exit1); lp.amount1 -= exit1; }
+  }
+
+  function getAmounts(address nfpm, uint256 tokenId) external view returns (uint256, uint256) {
+    if (depositCount >= 2) return (0, 0);
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (lps[key].amount0, lps[key].amount1);
+  }
+}
+
+/// @dev Strategy backed by MockDropAfterSecondDepositPool.  Mirrors MockLPExitStrategy but routes
+///      all pool calls through MockDropAfterSecondDepositPool.
+contract MockDropAfterSecondDepositStrategy is ISharedStrategy {
+  address public immutable lpPool;
+
+  constructor(address _lpPool) {
+    lpPool = _lpPool;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
+      data, (address, uint256, address, address, uint256, uint256)
+    );
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+    MockDropAfterSecondDepositPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16) external override {
+    if (amount0 == 0 && amount1 == 0) return;
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (address token0, address token1, , ) = MockDropAfterSecondDepositPool(lpPool).lps(key);
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+    MockDropAfterSecondDepositPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+  }
+
+  function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256, uint256, uint16)
+    external override returns (PositionChange[] memory changes)
+  {
+    MockDropAfterSecondDepositPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    return MockDropAfterSecondDepositPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    return MockDropAfterSecondDepositPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address token0, address token1) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (token0, token1, , ) = MockDropAfterSecondDepositPool(lpPool).lps(key);
+  }
+
+  function collectFees(address, uint256, uint16) external override {}
+}
+
 /// @dev Tracks the last (amount0, amount1) passed to depositProportional through a delegatecall.
 ///      Used by `MockRewardsAwareStrategy` — the strategy cannot write to its own storage under
 ///      delegatecall (that would corrupt the vault's storage layout), so it calls out to this tracker.
@@ -3567,6 +3671,62 @@ contract SharedVaultTest is TestCommon {
     assertEq(mins[0], 1e13, "tokenA (18 dec, prec 5): floor = 1e13");
     // 6 dec, prec 5: dec > prec -> 10**(6-5) = 10
     assertEq(mins[1], 10, "USDC-like (6 dec, prec 5): floor = 10");
+  }
+
+  /// @notice _computeSharesFromDelta returns 0 (→ InsufficientShares revert) when LP valuation
+  ///         collapses for a deposited token after _depositProportionalToAllPositions runs.
+  ///         Without the fix, the vault would skip the token whose balance didn't increase and
+  ///         over-credit the depositor using only the other token's delta — inflating shares.
+  function test_deposit_revertsWhenLpValuationDropsAfterDeposit() public {
+    // --- Arrange: isolated tokens / pool / strategy / config --------------------------------
+    MockERC20 tA = new MockERC20("DropA", "DA");
+    MockERC20 tB = new MockERC20("DropB", "DB");
+    MockDropAfterSecondDepositPool dropPool = new MockDropAfterSecondDepositPool();
+    MockDropAfterSecondDepositStrategy dropStrat = new MockDropAfterSecondDepositStrategy(address(dropPool));
+    MockERC721 nfpm = new MockERC721();
+    uint256 tokenId = 1;
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(dropStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(nfpm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    // --- Arrange: vault — Alice seeds [100A, 100B], 50A/50B go into LP (depositCount=1) ------
+    SharedVault dv = new SharedVault();
+    tA.mint(address(dv), 100e18);
+    tB.mint(address(dv), 100e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    dv.initialize("DropVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
+
+    nfpm.mint(address(dv), tokenId);
+    bytes memory stratData = abi.encode(address(nfpm), tokenId, address(tA), address(tB), uint256(50e18), uint256(50e18));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(dropStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    dv.execute(actions);
+
+    // Sanity: after execute the pool reports (50, 50) since depositCount == 1.
+    assertEq(dropPool.depositCount(), 1, "setup: depositCount == 1 after initial LP creation");
+    (uint256 pa, uint256 pb) = dropPool.getAmounts(address(nfpm), tokenId);
+    assertEq(pa, 50e18, "setup: pool reports 50A");
+    assertEq(pb, 50e18, "setup: pool reports 50B");
+
+    // --- Act: Bob deposits proportionally; _depositProportionalToAllPositions triggers
+    //          depositProportional → depositCount == 2 → pool drops to (0,0).
+    //          _computeSharesFromDelta sees balancesAfter[A] == balancesBefore[A] → returns 0 → revert.
+    tA.mint(DEPOSITOR, 100e18);
+    tB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(dv), type(uint256).max);
+    tB.approve(address(dv), type(uint256).max);
+    uint256[4] memory depositAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
+    dv.deposit(depositAmounts, 0);
+    vm.stopPrank();
   }
 
   /// @notice getMinDepositAmounts reflects total balances including LP position amounts.

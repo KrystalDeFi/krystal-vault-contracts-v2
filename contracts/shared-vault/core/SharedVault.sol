@@ -214,7 +214,7 @@ contract SharedVault is
       // actually deposited and compute shares from that delta.
       _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, transferAmounts, slippageBps);
       uint256[4] memory totalBalancesAfter = _getTotalBalances();
-      shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter);
+      shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter, transferAmounts);
       require(shares > 0, InsufficientShares());
     }
 
@@ -320,17 +320,22 @@ contract SharedVault is
   }
 
   /// @dev Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
-  ///      Uses the minimum ratio across all tokens (binding constraint) so that a token that saw less
-  ///      LP consumption due to slippage is not over-credited. Reverts if no balance increased.
-  ///      Tokens whose total balance did not strictly increase are skipped (avoids underflow if LP marks move down).
+  ///      Uses the minimum ratio across deposited tokens (binding constraint). Every token the depositor
+  ///      paid (`requiredAmounts[i] > 0`) must show a strictly positive total-balance delta; if any
+  ///      such token does not (LP valuation dropped due to price movement/sandwich), returns 0 so the
+  ///      caller's `require(shares > 0)` reverts — preventing over-crediting from skipped tokens.
   function _computeSharesFromDelta(
     uint256 currentTotalSupply,
     uint256[4] memory balancesBefore,
-    uint256[4] memory balancesAfter
+    uint256[4] memory balancesAfter,
+    uint256[4] memory requiredAmounts
   ) internal view returns (uint256 shares) {
     shares = type(uint256).max;
     for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0) && balancesBefore[i] > 0 && balancesAfter[i] > balancesBefore[i]) {
+      if (tokens[i] != address(0) && requiredAmounts[i] > 0) {
+        // Deposited token must have a positive total-balance delta. If LP valuation moved against this
+        // token (price impact / sandwich), clamp to 0 shares so the outer require reverts.
+        if (balancesBefore[i] == 0 || balancesAfter[i] <= balancesBefore[i]) return 0;
         uint256 added = balancesAfter[i] - balancesBefore[i];
         uint256 s = FullMath.mulDiv(added, currentTotalSupply, balancesBefore[i]);
         if (s < shares) shares = s;
@@ -339,7 +344,8 @@ contract SharedVault is
         i++;
       }
     }
-    require(shares != type(uint256).max, InsufficientShares());
+    // If no token was deposited (should not happen; caller ensures at least one), return 0.
+    if (shares == type(uint256).max) return 0;
   }
 
   /// @dev Wrap only `transferAmounts[wi]` from `msg.value` into WETH; return excess native ETH (not sent here).

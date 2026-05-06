@@ -179,7 +179,7 @@ _Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a
 ### exitProportional
 
 ```solidity
-function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, uint16 vaultOwnerFeeBasisPoint) external returns (struct ISharedStrategy.PositionChange[] changes)
+function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, uint16) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
 Exit a proportional share of an LP position during vault withdrawal.
@@ -187,8 +187,8 @@ Exit a proportional share of an LP position during vault withdrawal.
 _Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-     Protocol fee (platform) and performance fee (vault owner) are forwarded to V4Utils as X64
-     values. V4Utils collects them inline rather than via `LpFeeTaker` (no gas fee on exits)._
+     Fees on accumulated LP income are handled in collectFees (pre-collect) — not charged here
+     on principal, to match V3/Aerodrome which only takes gas fees on proportional exits._
 
 #### Parameters
 
@@ -200,7 +200,7 @@ _Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
+|  | uint16 |  |
 
 #### Return Values
 

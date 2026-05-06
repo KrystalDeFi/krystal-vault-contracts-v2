@@ -78,6 +78,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     params.recipient = address(this);
 
     IV3Utils.SwapAndMintResult memory result = IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
+    _revokeTokenApprovals(approveTokens, v3utils);
 
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, params.nfpm, result.tokenId, params.token0, params.token1);
@@ -98,6 +99,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     params.recipient = address(this);
 
     IV3Utils(v3utils).swapAndIncreaseLiquidity{ value: ethValue }(params);
+    _revokeTokenApprovals(approveTokens, v3utils);
 
     changes = new PositionChange[](0);
   }
@@ -356,6 +358,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       unchecked {
         i++;
       }
+    }
+  }
+
+  function _revokeTokenApprovals(address[] memory _tokens, address target) internal {
+    for (uint256 i; i < _tokens.length; ) {
+      if (_tokens[i] != address(0)) IERC20(_tokens[i]).safeApprove(target, 0);
+      unchecked { i++; }
     }
   }
 
