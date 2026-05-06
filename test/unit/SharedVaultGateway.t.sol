@@ -7,7 +7,10 @@ import { SharedVaultGateway } from "../../contracts/shared-vault/core/SharedVaul
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
+import { Withdrawable } from "../../contracts/common/Withdrawable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC1155 } from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 // ==================== Mock Contracts ====================
 
@@ -2060,5 +2063,103 @@ contract SharedVaultGatewayTest is TestCommon {
     vm.prank(ALICE);
     uint256 shares = gateway.swapAndDeposit(params);
     assertGt(shares, 0, "deposit succeeds with zero-amount input entry");
+  }
+
+  // ==================== Withdrawable Tests ====================
+
+  // Allow this test contract to receive ETH so sweepNativeToken can transfer to address(this).
+  receive() external payable {}
+
+  function test_withdrawable_sweepNativeToken_owner_succeeds() public {
+    vm.deal(address(gateway), 1 ether);
+    uint256 ownerBefore = address(this).balance;
+
+    gateway.sweepNativeToken(1 ether);
+
+    assertEq(address(this).balance, ownerBefore + 1 ether);
+    assertEq(address(gateway).balance, 0);
+  }
+
+  function test_withdrawable_sweepNativeToken_caps_at_balance() public {
+    vm.deal(address(gateway), 0.5 ether);
+    uint256 ownerBefore = address(this).balance;
+
+    // Request more than balance — should sweep only what's available.
+    gateway.sweepNativeToken(1 ether);
+
+    assertEq(address(this).balance, ownerBefore + 0.5 ether);
+    assertEq(address(gateway).balance, 0);
+  }
+
+  function test_withdrawable_sweepNativeToken_non_owner_reverts() public {
+    vm.deal(address(gateway), 1 ether);
+
+    vm.prank(ALICE);
+    vm.expectRevert();
+    gateway.sweepNativeToken(1 ether);
+  }
+
+  function test_withdrawable_sweepERC20_owner_succeeds() public {
+    tokenA.mint(address(gateway), 100e18);
+    uint256 ownerBefore = tokenA.balanceOf(address(this));
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(tokenA);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100e18;
+
+    gateway.sweepERC20(tokens, amounts);
+
+    assertEq(tokenA.balanceOf(address(this)), ownerBefore + 100e18);
+    assertEq(tokenA.balanceOf(address(gateway)), 0);
+  }
+
+  function test_withdrawable_sweepERC20_caps_at_balance() public {
+    tokenA.mint(address(gateway), 50e18);
+    uint256 ownerBefore = tokenA.balanceOf(address(this));
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(tokenA);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 200e18; // more than balance
+
+    gateway.sweepERC20(tokens, amounts);
+
+    assertEq(tokenA.balanceOf(address(this)), ownerBefore + 50e18);
+    assertEq(tokenA.balanceOf(address(gateway)), 0);
+  }
+
+  function test_withdrawable_sweepERC20_non_owner_reverts() public {
+    tokenA.mint(address(gateway), 100e18);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(tokenA);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100e18;
+
+    vm.prank(ALICE);
+    vm.expectRevert();
+    gateway.sweepERC20(tokens, amounts);
+  }
+
+  function test_withdrawable_sweepERC20_length_mismatch_reverts() public {
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(tokenA);
+    tokens[1] = address(tokenB);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100e18;
+
+    vm.expectRevert(Withdrawable.ArrayLengthMismatch.selector);
+    gateway.sweepERC20(tokens, amounts);
+  }
+
+  function test_withdrawable_sweepERC20_zero_address_reverts() public {
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(0);
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 100e18;
+
+    vm.expectRevert("ZeroAddress");
+    gateway.sweepERC20(tokens, amounts);
   }
 }

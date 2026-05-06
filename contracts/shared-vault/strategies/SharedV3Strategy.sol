@@ -106,9 +106,10 @@ contract SharedV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev `CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
-  ///      Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
-  ///      `tokenId`, or on-chain position liquidity is zero.
+  /// @dev `CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
+  ///      V3Utils mints the new NFT to the vault before returning the old one, so the new token always lands at
+  ///      `balanceBefore - 1` in the per-owner enumeration. Using `tokenByIndex(totalSupply() - 1)` is unreliable
+  ///      because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -121,16 +122,20 @@ contract SharedV3Strategy is ISharedStrategy {
     (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
 
     instructions.recipient = address(this);
+
+    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
+    uint256 balanceBefore = IERC721(nfpm).balanceOf(address(this));
+
     IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
       if (!IERC165(nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      IERC721Enumerable e = IERC721Enumerable(nfpm);
-      uint256 n = e.totalSupply();
-      require(n > 0, InvalidPoolTokens());
-      uint256 newTokenId = e.tokenByIndex(n - 1);
+      // V3Utils mints the new NFT to the vault then returns the old NFT.
+      // New token is always added at the per-owner index `balanceBefore - 1`.
+      require(balanceBefore > 0, InvalidPoolTokens());
+      uint256 newTokenId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
       require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);

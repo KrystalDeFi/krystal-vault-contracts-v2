@@ -115,16 +115,20 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 
     instructions.recipient = address(this);
+
+    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
+    uint256 balanceBefore = IERC721(_nfpm).balanceOf(address(this));
+
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
       if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      IERC721Enumerable e = IERC721Enumerable(_nfpm);
-      uint256 n = e.totalSupply();
-      require(n > 0, InvalidPoolTokens());
-      uint256 newTokenId = e.tokenByIndex(n - 1);
+      // V3Utils mints the new NFT to the vault then returns the old NFT.
+      // New token is always added at the per-owner index `balanceBefore - 1`.
+      require(balanceBefore > 0, InvalidPoolTokens());
+      uint256 newTokenId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
       require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);

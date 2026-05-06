@@ -285,6 +285,16 @@ function _sweepToken(address token, address to) internal
 function _sweepNative(address to) internal
 ```
 
+### _checkWithdrawPermission
+
+```solidity
+function _checkWithdrawPermission() internal view
+```
+
+Check if the caller has permission to withdraw
+
+_Must be implemented by the child contract_
+
 ### receive
 
 ```solidity

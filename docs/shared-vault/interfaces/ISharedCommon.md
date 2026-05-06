@@ -161,7 +161,7 @@ error InvalidFeeBasisPoint()
 error NfpmEnumerableRequired()
 ```
 
-NFPM must implement `IERC721Enumerable` to read `totalSupply` / `tokenByIndex` for `CHANGE_RANGE`.
+NFPM must implement `IERC721Enumerable` (`tokenOfOwnerByIndex`) to locate the new token after `CHANGE_RANGE`.
 
 ### InvalidNfpm
 

@@ -73,9 +73,10 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-_`CHANGE_RANGE`: `newTokenId = IERC721Enumerable.tokenByIndex(totalSupply() - 1)` on the NFPM after V3Utils.
-     Requires `IERC721Enumerable` and that the vault `ownerOf(newTokenId)`. Full exit: vault no longer holds
-     `tokenId`, or on-chain position liquidity is zero._
+_`CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
+     V3Utils mints the new NFT to the vault before returning the old one, so the new token always lands at
+     `balanceBefore - 1` in the per-owner enumeration. Using `tokenByIndex(totalSupply() - 1)` is unreliable
+     because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index._
 
 ### collectFees
 

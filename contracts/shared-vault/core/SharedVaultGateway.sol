@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
+import { Withdrawable } from "../../common/Withdrawable.sol";
 import "../interfaces/ISharedVault.sol";
 import "../../public-vault/interfaces/IWETH9.sol";
 
@@ -18,7 +19,7 @@ import "../../public-vault/interfaces/IWETH9.sol";
 ///
 /// Deposit flow:  user sends any tokens → gateway swaps to vault tokens → deposits to vault → returns shares + leftovers
 /// Withdraw flow: user burns shares via gateway → receives vault tokens → gateway swaps to desired output → returns output + leftovers
-contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable {
+contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, Withdrawable {
   using SafeERC20 for IERC20;
   using SafeApprovalLib for IERC20;
 
@@ -412,6 +413,11 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
       (bool ok, ) = to.call{ value: bal }("");
       if (!ok) revert EthTransferFailed();
     }
+  }
+
+  /// @inheritdoc Withdrawable
+  function _checkWithdrawPermission() internal view override {
+    _checkOwner();
   }
 
   receive() external payable {}
