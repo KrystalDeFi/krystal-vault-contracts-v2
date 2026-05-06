@@ -17,7 +17,9 @@ library SharedStrategyFeeConfig {
     uint16 platformBps = cm.platformFeeBasisPoint();
     require(platformBps <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     fc.vaultOwner = v.vaultOwner();
-    fc.vaultOwnerFeeBasisPoint = vaultOwnerFeeBasisPoint;
+    fc.vaultOwnerFeeBasisPoint = platformBps + vaultOwnerFeeBasisPoint > 10_000
+      ? 10_000 - platformBps
+      : vaultOwnerFeeBasisPoint;
     fc.platformFeeRecipient = cm.feeRecipient();
     fc.platformFeeBasisPoint = platformBps;
     fc.gasFeeX64 = 0;
