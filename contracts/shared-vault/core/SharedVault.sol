@@ -455,13 +455,15 @@ contract SharedVault is
 
     // Pre-collect accumulated LP fees into idle BEFORE snapshotting idleBefore so they are
     // distributed proportionally by share ratio (not entirely to the current withdrawer).
-    // Failures are silently ignored: a failed collect falls back to per-withdrawer distribution.
+    // A failure here must revert the whole withdrawal: a silent failure followed by exitProportional
+    // would let the current withdrawer sweep all accumulated fees via collect(type(uint128).max).
     uint256 posLenForCollect = positions.length;
     for (uint256 pc; pc < posLenForCollect; ) {
       Position memory posForCollect = positions[pc];
-      posForCollect.strategy.delegatecall(
+      (bool collectOk, ) = posForCollect.strategy.delegatecall(
         abi.encodeCall(ISharedStrategy.collectFees, (posForCollect.nfpm, posForCollect.tokenId, vaultOwnerFeeBasisPoint))
       );
+      require(collectOk, StrategyCallFailed());
       unchecked {
         pc++;
       }

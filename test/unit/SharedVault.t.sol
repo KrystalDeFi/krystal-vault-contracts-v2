@@ -638,6 +638,62 @@ contract MockLPExitStrategy is ISharedStrategy {
   function collectFees(address, uint256, uint16) external override {}
 }
 
+/// @dev Like MockLPExitStrategy but collectFees always reverts. Used to verify that a failing
+///      pre-collect in SharedVault.withdraw() now propagates as StrategyCallFailed() instead of
+///      silently falling back to per-withdrawer fee distribution.
+contract MockCollectFailingStrategy is ISharedStrategy {
+  address public immutable lpPool;
+
+  constructor(address _lpPool) {
+    lpPool = _lpPool;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
+      data,
+      (address, uint256, address, address, uint256, uint256)
+    );
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256,
+    uint16
+  ) external override returns (PositionChange[] memory changes) {
+    MockLPPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (address t0, address t1, , ) = MockLPPool(lpPool).lps(key);
+    return (t0, t1);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function collectFees(address, uint256, uint16) external pure override {
+    revert("collectFees intentionally fails");
+  }
+}
+
 /// @dev Tracks the last (amount0, amount1) passed to depositProportional through a delegatecall.
 ///      Used by `MockRewardsAwareStrategy` — the strategy cannot write to its own storage under
 ///      delegatecall (that would corrupt the vault's storage layout), so it calls out to this tracker.
@@ -1083,6 +1139,48 @@ contract SharedVaultTest is TestCommon {
     vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
     vault.withdraw(ownerShares, minAmounts, false);
     vm.stopPrank();
+  }
+
+  function test_withdraw_revertsWhenCollectFeesFails() public {
+    MockLPPool pool = new MockLPPool();
+    MockCollectFailingStrategy failingCollectStrat = new MockCollectFailingStrategy(address(pool));
+    MockERC721 failNfpm = new MockERC721();
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets_ = new address[](1);
+    targets_[0] = address(failingCollectStrat);
+    address[] memory nfpms_ = new address[](1);
+    nfpms_[0] = address(failNfpm);
+    cm.initialize(address(this), targets_, new address[](0), address(this), 0, nfpms_, new address[](0));
+
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("A", "A");
+    MockERC20 tB = new MockERC20("B", "B");
+    uint256 amt = 100e18;
+    tA.mint(address(this), amt);
+    tB.mint(address(this), amt);
+    tA.transfer(address(v), amt);
+    tB.transfer(address(v), amt);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmts = [amt, amt, uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("Vault", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
+
+    // Add a position via DELEGATECALL so the vault tracks it
+    failNfpm.mint(address(v), 1);
+    vm.prank(VAULT_OWNER);
+    bytes memory stratData = abi.encode(address(failNfpm), uint256(1), address(tA), address(tB), uint256(50e18), uint256(50e18));
+    ISharedVault.Action[] memory acts = new ISharedVault.Action[](1);
+    acts[0] = ISharedVault.Action(address(failingCollectStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    v.execute(acts);
+
+    // Pre-collect loop calls collectFees which reverts — must not silently swallow the failure
+    uint256 shares = v.balanceOf(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.StrategyCallFailed.selector);
+    v.withdraw(shares, minAmounts, false);
   }
 
   // ==================== Execute Tests ====================

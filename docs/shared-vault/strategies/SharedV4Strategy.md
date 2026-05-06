@@ -162,12 +162,11 @@ Pre-collect accumulated LP fees into vault idle balance so they are distributed
         proportionally by share ratio rather than entirely to the next withdrawer.
 
 _Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
-     decrease syncs fee accounting without touching principal, and CLOSE_CURRENCY sweeps the fee
-     tokens to the vault (address(this) in delegatecall context). Performance and platform fees are
-     then applied inline using configManager data, since V4Strategy has no dedicated lpFeeTaker.
-     Native ETH currency (address(0)) is handled by wrapping received ETH to WETH after the collect
-     so the delta lands in the vault's ERC20 idle balance. If the vault has no WETH configured,
-     collection is skipped for that position (falls back to per-withdrawer distribution)._
+     decrease syncs fee growth without touching principal; CLOSE_CURRENCY sweeps accumulated fees
+     to the vault (address(this) in delegatecall context). Performance and platform fees are
+     then applied inline since V4Strategy has no dedicated lpFeeTaker.
+     Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by
+     _validateVaultToken, so this function is never called for native-currency pools._
 
 #### Parameters
 
