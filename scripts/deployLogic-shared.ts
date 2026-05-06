@@ -261,14 +261,14 @@ async function deployContracts(
     )) as SharedVaultGateway;
 
     if (!existingGateway) {
-      sleep(10000);
+      await sleep(10000);
       await contracts.sharedVaultGateway.initialize(contractAdmin, gatewaySwapRouter, networkConfig.wrapToken);
     }
   }
 
   // Initialize SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled && !existingContract?.["sharedVaultFactory"]) {
-    sleep(10000);
+    await sleep(10000);
     await contracts.sharedVaultFactory?.initialize(
       contractAdmin,
       existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
@@ -298,7 +298,7 @@ async function deployContracts(
     ]).filter(Boolean) as string[];
     const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
 
-    sleep(10000);
+    await sleep(10000);
 
     await contracts.sharedConfigManager?.initialize(
       contractAdmin,
