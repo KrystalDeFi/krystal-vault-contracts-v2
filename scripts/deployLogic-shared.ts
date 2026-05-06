@@ -267,7 +267,7 @@ async function deployContracts(
   }
 
   // Initialize SharedVaultFactory
-  if (networkConfig.sharedVaultFactory?.enabled) {
+  if (networkConfig.sharedVaultFactory?.enabled && !existingContract?.["sharedVaultFactory"]) {
     sleep(10000);
     await contracts.sharedVaultFactory?.initialize(
       contractAdmin,
@@ -278,7 +278,7 @@ async function deployContracts(
   }
 
   // Initialize SharedConfigManager
-  if (networkConfig.sharedConfigManager?.enabled) {
+  if (networkConfig.sharedConfigManager?.enabled && !existingContract?.["sharedConfigManager"]) {
     // Whitelist proxy addresses — never the raw implementations.
     // On upgrade: beacon.setImplementation(newImpl) — no re-whitelisting needed.
     const whitelistedTargets = [
@@ -332,7 +332,7 @@ async function deployContract(
   if (contractAddress) {
     log(2, `> contract already exists`);
     log(2, `> address:\t${contractAddress}`);
-    contract = factory.attach(contractAddress);
+    contract = await ethers.getContractAt(contractName, contractAddress, await ethers.provider.getSigner());
   } else {
     let bytecode = (await ethers.getContractFactory(contractName)).bytecode;
     const encoder = new ethers.AbiCoder();

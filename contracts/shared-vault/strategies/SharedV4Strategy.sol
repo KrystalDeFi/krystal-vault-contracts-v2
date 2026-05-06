@@ -298,6 +298,20 @@ contract SharedV4Strategy is ISharedStrategy {
 
     pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
 
+    // Clear residual ERC20 → Permit2 and Permit2 → posm allowances. The PositionManager may
+    // consume less than amount0/amount1 (e.g. when only one side of the range is used), leaving
+    // a dangling allowance that could be exploited within the Permit2 expiry window.
+    if (amount0 > 0) {
+      address token0 = Currency.unwrap(currency0);
+      IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
+      IERC20(token0).safeApprove(permit2Addr, 0);
+    }
+    if (amount1 > 0) {
+      address token1 = Currency.unwrap(currency1);
+      IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
+      IERC20(token1).safeApprove(permit2Addr, 0);
+    }
+
     // Slippage check: compare actual liquidity added to expected minimum
     if (slippageBps > 0) {
       uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;

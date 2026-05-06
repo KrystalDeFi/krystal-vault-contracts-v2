@@ -9,6 +9,8 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
+import { SharedStrategyFeeConfig } from "../../contracts/shared-vault/libraries/SharedStrategyFeeConfig.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
@@ -929,6 +931,23 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
   }
 
   function collectFees(address, uint256, uint16) external override {}
+}
+
+/// @dev Minimal harness that exposes SharedStrategyFeeConfig.performanceFeeConfig for unit testing.
+///      address(this) is read as ISharedVault inside the library, so we implement configManager()
+///      and vaultOwner() via public state variables whose auto-generated getters match the interface.
+contract PerformanceFeeConfigHarness {
+  ISharedConfigManager public immutable configManager;
+  address public immutable vaultOwner;
+
+  constructor(address _configManager, address _vaultOwner) {
+    configManager = ISharedConfigManager(_configManager);
+    vaultOwner = _vaultOwner;
+  }
+
+  function callPerformanceFeeConfig(uint16 vaultOwnerBps) external view returns (ICommon.FeeConfig memory) {
+    return SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerBps);
+  }
 }
 
 contract SharedVaultTest is TestCommon {
@@ -2178,6 +2197,45 @@ contract SharedVaultTest is TestCommon {
       }
     }
     assertTrue(found, "ExitVaultOwnerFeeBps must be emitted from vault during delegatecall exit");
+  }
+
+  /// @notice When platformBps + vaultOwnerBps > 10_000, the vault owner fee is clamped to
+  ///         10_000 - platformBps so combined fees never exceed 100% of rewards.
+  function test_performance_fee_config_clamps_vault_owner_fee_when_sum_exceeds_10000() public {
+    vm.prank(address(this));
+    configManager.setPlatformFeeBasisPoint(3000);
+
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF));
+    ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig(8000);
+
+    assertEq(fc.vaultOwnerFeeBasisPoint, 7000, "clamped to 10000 - platformBps");
+    assertEq(fc.platformFeeBasisPoint, 3000, "platform fee unchanged");
+  }
+
+  /// @notice When combined fees are at or below 10_000 bps, no clamping occurs.
+  function test_performance_fee_config_does_not_clamp_when_sum_within_10000() public {
+    vm.prank(address(this));
+    configManager.setPlatformFeeBasisPoint(2000);
+
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF));
+    ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig(3000);
+
+    assertEq(fc.vaultOwnerFeeBasisPoint, 3000, "no clamping when sum = 5000");
+    assertEq(fc.platformFeeBasisPoint, 2000, "platform fee unchanged");
+  }
+
+  /// @notice Boundary: exactly 10_000 bps combined is not clamped; 10_001 is.
+  function test_performance_fee_config_clamp_boundary() public {
+    vm.prank(address(this));
+    configManager.setPlatformFeeBasisPoint(5000);
+
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF));
+
+    ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig(5000);
+    assertEq(fc.vaultOwnerFeeBasisPoint, 5000, "exactly at boundary - not clamped");
+
+    fc = harness.callPerformanceFeeConfig(5001);
+    assertEq(fc.vaultOwnerFeeBasisPoint, 5000, "one over boundary - clamped to 5000");
   }
 
   // ==================== Preview Tests ====================
