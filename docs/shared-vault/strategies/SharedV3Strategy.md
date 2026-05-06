@@ -268,6 +268,6 @@ function _approveTokens(address[] _tokens, uint256[] approveAmounts, address tar
 ### _revokeTokenApprovals
 
 ```solidity
-function _revokeTokenApprovals(address[] _tokens, address target) internal
+function _revokeTokenApprovals(address[] _tokens, uint256[] approveAmounts, address target) internal
 ```
 

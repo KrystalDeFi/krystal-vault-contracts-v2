@@ -77,7 +77,7 @@ contract SharedV3Strategy is ISharedStrategy {
     params.recipient = address(this);
 
     IV3Utils.SwapAndMintResult memory result = IV3Utils(v3utils).swapAndMint{ value: ethValue }(params);
-    _revokeTokenApprovals(approveTokens, v3utils);
+    _revokeTokenApprovals(approveTokens, approveAmounts, v3utils);
 
     // Return position change: new position added
     changes = new PositionChange[](1);
@@ -100,7 +100,7 @@ contract SharedV3Strategy is ISharedStrategy {
     params.recipient = address(this);
 
     IV3Utils(v3utils).swapAndIncreaseLiquidity{ value: ethValue }(params);
-    _revokeTokenApprovals(approveTokens, v3utils);
+    _revokeTokenApprovals(approveTokens, approveAmounts, v3utils);
 
     // No position change — existing position updated, already tracked
     changes = new PositionChange[](0);
@@ -270,6 +270,8 @@ contract SharedV3Strategy is ISharedStrategy {
         deadline: block.timestamp
       })
     );
+    if (amount0 > 0) IERC20(token0).safeApprove(nfpm, 0);
+    if (amount1 > 0) IERC20(token1).safeApprove(nfpm, 0);
   }
 
   /// @inheritdoc ISharedStrategy
@@ -372,9 +374,9 @@ contract SharedV3Strategy is ISharedStrategy {
     }
   }
 
-  function _revokeTokenApprovals(address[] memory _tokens, address target) internal {
+  function _revokeTokenApprovals(address[] memory _tokens, uint256[] memory approveAmounts, address target) internal {
     for (uint256 i; i < _tokens.length; ) {
-      if (_tokens[i] != address(0)) IERC20(_tokens[i]).safeApprove(target, 0);
+      if (approveAmounts[i] > 0 && _tokens[i] != address(0)) IERC20(_tokens[i]).safeApprove(target, 0);
       unchecked { i++; }
     }
   }

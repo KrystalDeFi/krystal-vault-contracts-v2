@@ -153,7 +153,8 @@ contract SharedV4Strategy is ISharedStrategy {
 
     // Compute position changes from on-chain state — never trust caller-supplied values
     if (tokenId == 0) {
-      // New mint: position minted at nextIdBefore
+      // New mint: require exactly one position was minted to avoid untracked vault positions.
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       uint256 newId = nextIdBefore;
       require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
       (PoolKey memory key, ) = pm.getPoolAndPositionInfo(newId);
@@ -168,7 +169,8 @@ contract SharedV4Strategy is ISharedStrategy {
       _posmNftOwnedByVault(posm, nextIdBefore) &&
       pm.getPositionLiquidity(tokenId) == 0
     ) {
-      // ADJUST_RANGE: old position fully exited, new position minted to vault
+      // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
@@ -220,7 +222,8 @@ contract SharedV4Strategy is ISharedStrategy {
       _posmNftOwnedByVault(posm, nextIdBefore) &&
       pm.getPositionLiquidity(tokenId) == 0
     ) {
-      // ADJUST_RANGE: old position fully removed, new position minted to vault
+      // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
