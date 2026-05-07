@@ -283,6 +283,25 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 | minAmounts | uint256[4] |  |
 | unwrap | bool | If true, any WETH output is unwrapped to native ETH before sending. |
 
+### donate
+
+```solidity
+function donate(uint256[4] amounts) external
+```
+
+Transfer vault tokens into the vault without minting shares.
+
+_Increases idle balance for all token slots where `amounts[i] > 0`.
+     No shares are minted — the donation increases the redemption value of every existing share
+     proportionally. Intended for recovery: after a strategy inline-swaps to a non-vault token,
+     the operator can sweep those tokens, swap them to vault tokens off-chain, and donate back._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amounts | uint256[4] | Per-slot donation amounts aligned to `getTokens()`. |
+
 ### execute
 
 ```solidity

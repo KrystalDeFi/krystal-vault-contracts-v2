@@ -556,6 +556,20 @@ contract SharedVault is
     emit VaultWithdraw(vaultFactory, _msgSender(), amounts, shares);
   }
 
+  /// @inheritdoc ISharedVault
+  function donate(uint256[4] calldata amounts) external override nonReentrant {
+    for (uint256 i; i < 4; ) {
+      if (amounts[i] > 0) {
+        require(tokens[i] != address(0), InvalidToken());
+        IERC20(tokens[i]).safeTransferFrom(_msgSender(), address(this), amounts[i]);
+      }
+      unchecked {
+        i++;
+      }
+    }
+    emit VaultDonate(vaultFactory, _msgSender(), amounts);
+  }
+
   // ==================== Execute (LP operations + swaps) ====================
 
   /// @notice Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.

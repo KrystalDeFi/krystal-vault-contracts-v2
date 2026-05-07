@@ -1500,6 +1500,108 @@ contract SharedVaultTest is TestCommon {
     assertEq(mockERC1155.balanceOf(address(vault), 1), 50);
   }
 
+  // ==================== Donate Tests ====================
+  // These tests use a dedicated 2-token vault (tA/tB) to keep initial state predictable.
+
+  function _makeDonateVault() internal returns (SharedVault dv, MockERC20 tA, MockERC20 tB) {
+    tA = new MockERC20("DA", "DA");
+    tB = new MockERC20("DB", "DB");
+    tA.mint(address(this), 100e18);
+    tB.mint(address(this), 100e18);
+    dv = new SharedVault();
+    tA.transfer(address(dv), 100e18);
+    tB.transfer(address(dv), 100e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    // address(this) becomes vaultFactory; VAULT_OWNER becomes owner.
+    vm.prank(VAULT_OWNER);
+    dv.initialize("DonateVault", vtokens, initAmts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
+  }
+
+  function test_donate_increases_idle_balance() public {
+    (SharedVault dv, MockERC20 tA, MockERC20 tB) = _makeDonateVault();
+
+    uint256[4] memory totalBefore = dv.getTotalBalances();
+
+    address donor = address(0xD07A);
+    tA.mint(donor, 50e18);
+    vm.startPrank(donor);
+    tA.approve(address(dv), 50e18);
+    vm.expectEmit(true, true, false, false);
+    emit ISharedVault.VaultDonate(VAULT_OWNER, donor, [uint256(50e18), 0, 0, 0]);
+    dv.donate([uint256(50e18), 0, 0, 0]);
+    vm.stopPrank();
+
+    uint256[4] memory totalAfter = dv.getTotalBalances();
+    assertEq(totalAfter[0], totalBefore[0] + 50e18, "tokenA balance must increase by donated amount");
+    assertEq(totalAfter[1], totalBefore[1], "tokenB balance must be unchanged");
+    assertEq(tA.balanceOf(donor), 0, "donor tokenA balance drained");
+  }
+
+  function test_donate_increases_share_value() public {
+    (SharedVault dv, MockERC20 tA, MockERC20 tB) = _makeDonateVault();
+    // vault starts with INITIAL_SHARES minted to VAULT_OWNER and 100A + 100B idle.
+
+    uint256 supplyBefore = dv.totalSupply();
+    uint256[4] memory previewBefore = dv.previewWithdraw(supplyBefore);
+
+    address donor = address(0xD07A);
+    tA.mint(donor, 50e18);
+    vm.startPrank(donor);
+    tA.approve(address(dv), 50e18);
+    dv.donate([uint256(50e18), 0, 0, 0]);
+    vm.stopPrank();
+
+    // No new shares minted by donate
+    assertEq(dv.totalSupply(), supplyBefore, "donate must not mint shares");
+
+    // Full 50e18 donation is captured in the redemption value of existing shares
+    uint256[4] memory previewAfter = dv.previewWithdraw(supplyBefore);
+    assertEq(previewAfter[0], previewBefore[0] + 50e18, "tokenA redemption value increases by donation");
+    assertEq(previewAfter[1], previewBefore[1], "tokenB redemption value unchanged");
+  }
+
+  function test_donate_both_tokens() public {
+    (SharedVault dv, MockERC20 tA, MockERC20 tB) = _makeDonateVault();
+    // vault starts with 100A + 100B idle.
+
+    address donor = address(0xD07A);
+    tA.mint(donor, 20e18);
+    tB.mint(donor, 30e18);
+    vm.startPrank(donor);
+    tA.approve(address(dv), 20e18);
+    tB.approve(address(dv), 30e18);
+    dv.donate([uint256(20e18), uint256(30e18), 0, 0]);
+    vm.stopPrank();
+
+    uint256[4] memory idle = dv.getIdleBalances();
+    assertEq(idle[0], 120e18, "tokenA idle = 100 initial + 20 donated");
+    assertEq(idle[1], 130e18, "tokenB idle = 100 initial + 30 donated");
+  }
+
+  function test_donate_fail_unconfigured_slot() public {
+    // 2-token vault: slots 2 and 3 are address(0).
+    (SharedVault dv, MockERC20 tA, ) = _makeDonateVault();
+
+    address donor = address(0xD07A);
+    tA.mint(donor, 1e18);
+    vm.startPrank(donor);
+    tA.approve(address(dv), 1e18);
+    vm.expectRevert(ISharedCommon.InvalidToken.selector);
+    dv.donate([uint256(0), 0, uint256(1e18), 0]);
+    vm.stopPrank();
+  }
+
+  function test_donate_zero_amounts_noop() public {
+    (SharedVault dv, , ) = _makeDonateVault();
+
+    uint256[4] memory totalBefore = dv.getTotalBalances();
+    dv.donate([uint256(0), 0, 0, 0]);
+    uint256[4] memory totalAfter = dv.getTotalBalances();
+    assertEq(totalAfter[0], totalBefore[0]);
+    assertEq(totalAfter[1], totalBefore[1]);
+  }
+
   // ==================== Role Tests ====================
 
   function test_grant_revoke_admin() public {
