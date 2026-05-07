@@ -277,25 +277,46 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @dev See note on `SharedV3Strategy._positionAmountsSplit`. Identical semantics, adapted for the
-  ///      Aerodrome tickSpacing-based pool lookup.
+  ///      Aerodrome tickSpacing-based pool lookup. Uses try/catch for positions() for the same reason:
+  ///      burned or nonexistent NFTs must return (0,0,0,0) rather than reverting getPositionAmounts,
+  ///      which would cause _verifyPositionExit to block legitimate untracking operations.
   function _positionAmountsSplit(
     address _nfpm,
     uint256 tokenId
   ) private view returns (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) {
-    (
-      ,
-      ,
-      address token0,
-      address token1,
-      int24 tickSpacing,
-      int24 tickLower,
-      int24 tickUpper,
-      uint128 liquidity,
-      ,
-      ,
-      uint128 owed0,
-      uint128 owed1
-    ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    address token0;
+    address token1;
+    int24 tickSpacing;
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    uint128 owed0;
+    uint128 owed1;
+    try INonfungiblePositionManager(_nfpm).positions(tokenId) returns (
+      uint96,
+      address,
+      address _token0,
+      address _token1,
+      int24 _tickSpacing,
+      int24 _tickLower,
+      int24 _tickUpper,
+      uint128 _liquidity,
+      uint256,
+      uint256,
+      uint128 _owed0,
+      uint128 _owed1
+    ) {
+      token0 = _token0;
+      token1 = _token1;
+      tickSpacing = _tickSpacing;
+      tickLower = _tickLower;
+      tickUpper = _tickUpper;
+      liquidity = _liquidity;
+      owed0 = _owed0;
+      owed1 = _owed1;
+    } catch {
+      return (0, 0, 0, 0);
+    }
 
     tokensOwed0 = owed0;
     tokensOwed1 = owed1;

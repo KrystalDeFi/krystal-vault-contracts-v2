@@ -325,24 +325,48 @@ contract SharedV3Strategy is ISharedStrategy {
   /// @dev Splits a position's on-chain amounts into principal (from in-range liquidity at current price)
   ///      and uncollected fees (`tokensOwed*`). Returns (0, 0, 0, 0) for fully-zeroed positions to match
   ///      the short-circuit in `getPositionAmounts` and avoid an unnecessary pool `slot0` staticcall.
+  ///      Uses try/catch for positions() so that burned or nonexistent NFTs (which cause positions() to
+  ///      revert on standard V3 NFPMs) return (0,0,0,0) rather than propagating the revert up through
+  ///      getPositionAmounts. Without this, _verifyPositionExit's staticcall to getPositionAmounts would
+  ///      receive amtsOk=false and block the untracking even for a legitimately exited position on a
+  ///      non-standard NFPM that keeps ownerOf() working after the position is burned.
   function _positionAmountsSplit(
     address nfpm,
     uint256 tokenId
   ) private view returns (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) {
-    (
-      ,
-      ,
-      address token0,
-      address token1,
-      uint24 fee,
-      int24 tickLower,
-      int24 tickUpper,
-      uint128 liquidity,
-      ,
-      ,
-      uint128 owed0,
-      uint128 owed1
-    ) = INFPM(nfpm).positions(tokenId);
+    address token0;
+    address token1;
+    uint24 fee;
+    int24 tickLower;
+    int24 tickUpper;
+    uint128 liquidity;
+    uint128 owed0;
+    uint128 owed1;
+    try INFPM(nfpm).positions(tokenId) returns (
+      uint96,
+      address,
+      address _token0,
+      address _token1,
+      uint24 _fee,
+      int24 _tickLower,
+      int24 _tickUpper,
+      uint128 _liquidity,
+      uint256,
+      uint256,
+      uint128 _owed0,
+      uint128 _owed1
+    ) {
+      token0 = _token0;
+      token1 = _token1;
+      fee = _fee;
+      tickLower = _tickLower;
+      tickUpper = _tickUpper;
+      liquidity = _liquidity;
+      owed0 = _owed0;
+      owed1 = _owed1;
+    } catch {
+      return (0, 0, 0, 0);
+    }
 
     tokensOwed0 = owed0;
     tokensOwed1 = owed1;

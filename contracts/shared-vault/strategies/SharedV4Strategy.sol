@@ -517,7 +517,17 @@ contract SharedV4Strategy is ISharedStrategy {
     uint256 tokenId
   ) private view returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) {
     IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
+    // Use try/catch: getPoolAndPositionInfo reverts for nonexistent tokenIds on some POSM implementations.
+    // Mirrors the try/catch pattern in SharedV3Strategy._positionAmountsSplit so _verifyPositionExit's
+    // staticcall to getPositionAmounts gets amtsOk=true and (0,0) for burned/invalid positions.
+    PoolKey memory poolKey;
+    PositionInfo positionInfo;
+    try pm.getPoolAndPositionInfo(tokenId) returns (PoolKey memory key, PositionInfo info) {
+      poolKey = key;
+      positionInfo = info;
+    } catch {
+      return (0, 0, 0, 0);
+    }
     uint128 liquidity = pm.getPositionLiquidity(tokenId);
     int24 tickLower = positionInfo.tickLower();
     int24 tickUpper = positionInfo.tickUpper();
