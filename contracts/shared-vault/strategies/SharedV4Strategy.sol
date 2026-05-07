@@ -199,7 +199,8 @@ contract SharedV4Strategy is ISharedStrategy {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
     } else {
-      // Partial decrease, compound, or increase — no tracked position change
+      // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
       changes = new PositionChange[](0);
     }
   }
@@ -244,7 +245,8 @@ contract SharedV4Strategy is ISharedStrategy {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
     } else {
-      // Partial or non-exit operation — position still active, no tracking change
+      // Partial or non-exit operation — must NOT have minted a new vault-owned NFT
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
       changes = new PositionChange[](0);
     }
   }

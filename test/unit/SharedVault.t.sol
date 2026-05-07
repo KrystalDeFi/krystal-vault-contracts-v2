@@ -15,6 +15,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedV4Strategy, IV4Utils } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
+import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
+import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
+import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import { PositionInfo } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
 contract MockWETH9 {
@@ -243,6 +247,15 @@ contract MockBrokenExitStrategy is ISharedStrategy {
 // Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
 // Simulates a rugged pool where the NFPM rejects increaseLiquidity but the strategy still reports liquidity.
 contract MockBrokenDepositStrategy is ISharedStrategy {
+  mapping(bytes32 => address) private _token0;
+  mapping(bytes32 => address) private _token1;
+
+  function registerPosition(address nfpm, uint256 tokenId, address token0, address token1) external {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    _token0[key] = token0;
+    _token1[key] = token1;
+  }
+
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
       data,
@@ -274,8 +287,9 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
     return (100e18, 100e18);
   }
 
-  function getPositionTokens(address, uint256) external pure override returns (address, address) {
-    return (address(0), address(0));
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (_token0[key], _token1[key]);
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
@@ -556,12 +570,17 @@ contract MockV4UtilsRouter {
 }
 
 /// @dev Minimal V4 PositionManager mock for Issue 1 and 4 tests.
-///      Implements only the functions called by SharedV4Strategy._execute.
+///      Implements only the functions called by SharedV4Strategy._execute and _safeTransferNft.
 contract MockV4PositionManager {
   uint256 private _nextTokenId;
   mapping(uint256 => address) public ownerOf;
   mapping(uint256 => address) private _approved;
   mapping(uint256 => uint128) private _liquidity;
+  mapping(uint256 => address) private _currency0;
+  mapping(uint256 => address) private _currency1;
+  // Config for safeTransferFrom to optionally simulate minting a new NFT during the transfer call.
+  uint256 private _mintOnTransfer;
+  address private _mintOnTransferTo;
 
   constructor(uint256 startNextId) {
     _nextTokenId = startNextId;
@@ -572,10 +591,179 @@ contract MockV4PositionManager {
   function setOwner(uint256 tokenId, address owner) external { ownerOf[tokenId] = owner; }
   function setLiquidity(uint256 tokenId, uint128 liq) external { _liquidity[tokenId] = liq; }
 
+  /// @dev Stores pool currency pair for getPoolAndPositionInfo.
+  function setPoolInfo(uint256 tokenId, address c0, address c1) external {
+    _currency0[tokenId] = c0;
+    _currency1[tokenId] = c1;
+  }
+
+  /// @dev When set, safeTransferFrom will mint tokenId=_mintOnTransfer to _mintOnTransferTo.
+  function setSafeTransferMint(uint256 mintId, address mintTo) external {
+    _mintOnTransfer = mintId;
+    _mintOnTransferTo = mintTo;
+  }
+
+  /// @dev Simulates the POSM minting a new NFT: sets owner and advances nextTokenId.
+  function simulateMint(uint256 tokenId, address to) external {
+    ownerOf[tokenId] = to;
+    if (_nextTokenId <= tokenId) _nextTokenId = tokenId + 1;
+  }
+
   function getPositionLiquidity(uint256 tokenId) external view returns (uint128) { return _liquidity[tokenId]; }
+
+  function getPoolAndPositionInfo(uint256 tokenId) external view returns (PoolKey memory poolKey, PositionInfo) {
+    poolKey.currency0 = Currency.wrap(_currency0[tokenId]);
+    poolKey.currency1 = Currency.wrap(_currency1[tokenId]);
+    // fee, tickSpacing, hooks left at zero defaults; PositionInfo default-zero is fine for tests.
+  }
 
   function approve(address spender, uint256 tokenId) external { _approved[tokenId] = spender; }
   function getApproved(uint256 tokenId) external view returns (address) { return _approved[tokenId]; }
+
+  /// @dev Keeps NFT at vault (no-op transfer). If setSafeTransferMint is configured, mints a new
+  ///      NFT to the specified address — simulating V4Utils minting during safeTransferFrom processing.
+  function safeTransferFrom(address, address, uint256, bytes calldata) external {
+    if (_mintOnTransferTo != address(0)) {
+      ownerOf[_mintOnTransfer] = _mintOnTransferTo;
+      if (_nextTokenId <= _mintOnTransfer) _nextTokenId = _mintOnTransfer + 1;
+      _mintOnTransferTo = address(0); // reset after use
+    }
+  }
+}
+
+/// @dev V4UtilsRouter that calls simulateMint on a target POSM during execute — used to test
+///      the Issue 6a / 6b silent-fallthrough fix without real V4Utils dependencies.
+contract MockMintingV4UtilsRouter {
+  address public immutable posm;
+  uint256 public immutable mintId;
+  address public immutable mintTo;
+
+  constructor(address _posm, uint256 _mintId, address _mintTo) {
+    posm = _posm;
+    mintId = _mintId;
+    mintTo = _mintTo;
+  }
+
+  function execute(address, bytes calldata) external payable {
+    MockV4PositionManager(posm).simulateMint(mintId, mintTo);
+  }
+}
+
+/// @dev Delegatecall strategy that reports correct tokens in execute() but returns a DIFFERENT
+///      pair from getPositionTokens() — used to verify the canonical-token check added to
+///      _applyPositionChanges (delegatecall path) in Issue 7.
+contract MockDelegatecallWrongCanonTokensStrategy is ISharedStrategy {
+  address public immutable canonToken0;
+  address public immutable canonToken1;
+
+  constructor(address _ct0, address _ct1) {
+    canonToken0 = _ct0;
+    canonToken1 = _ct1;
+  }
+
+  /// @dev Returns a PositionChange with (token0, token1) from calldata, but getPositionTokens
+  ///      returns (canonToken0, canonToken1) which differ — triggering the canonical check.
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address t0, address t1) = abi.decode(data, (address, uint256, address, address));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, t0, t1);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external pure override returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  // Returns the immutable canonical pair — intentionally different from what execute() reports.
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    return (canonToken0, canonToken1);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override {}
+}
+
+/// @dev Delegatecall strategy that issues an isAdd=false PositionChange for a position the vault
+///      still owns, and getPositionAmounts returns non-zero — used to verify Issue 8 (remove not
+///      trusted blindly) on the _applyPositionChanges (delegatecall) path.
+contract MockFalseRemoveStrategy is ISharedStrategy {
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address t0, address t1) = abi.decode(data, (address, uint256, address, address));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(false, nfpm, tokenId, t0, t1); // isAdd=false despite live position
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external pure override returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  // Reports non-zero value — position is still live.
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (100e18, 100e18);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (100e18, 100e18);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override {}
+}
+
+/// @dev CALL_WITH_POSITIONS target that issues an isAdd=false PositionChange while the vault still
+///      owns the NFT and getPositionAmounts is non-zero — tests Issue 8 on the _applyPositionChangesChecked path.
+contract MockCwpFalseRemoveStrategy is ISharedStrategy {
+  // Returns remove change directly — used via CALL_WITH_POSITIONS.
+  function removePosition(
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1
+  ) external pure returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+  }
+
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
+    return new PositionChange[](0);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external pure override returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  // Reports non-zero — position is still live.
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (50e18, 50e18);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (50e18, 50e18);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override {}
 }
 
 /// @dev V3 NFPM mock that simulates *inverted* CHANGE_RANGE ordering:
@@ -1771,14 +1959,14 @@ contract SharedVaultTest is TestCommon {
     vault.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
+    // Register token pair BEFORE execute so _applyPositionChanges canonical-token check passes.
+    brokenStrat.registerPosition(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
+
     bytes memory stratData = abi.encode(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
     vault.execute(actions);
-
-    // Register token pair so getPositionTokens returns correct data for recoverPosition validation.
-    brokenStrat.registerPosition(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
   }
 
   // ==================== dropPosition Tests ====================
@@ -1824,6 +2012,9 @@ contract SharedVaultTest is TestCommon {
     tokenB.approve(address(vault), 300e18);
     vm.prank(DEPOSITOR);
     vault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+
+    // Register token pair before execute so canonical-token check in _applyPositionChanges passes.
+    brokenDepStrat.registerPosition(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
 
     // Add the broken position via execute
     bytes memory stratData = abi.encode(address(mockNfpm), tokenId, address(tokenA), address(tokenB));
@@ -1896,6 +2087,8 @@ contract SharedVaultTest is TestCommon {
 
     // Mint the NFT to the vault and add the position
     nfpm.mint(address(vaultNoOp), tokenId);
+    // Register token pair before execute so canonical-token check in _applyPositionChanges passes.
+    brokenStrat.registerPosition(address(nfpm), tokenId, address(tokenA), address(tokenB));
     bytes memory stratData = abi.encode(address(nfpm), tokenId, address(tokenA), address(tokenB));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
@@ -4170,6 +4363,196 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(wrongStrat), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
     vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.execute(actions);
+  }
+
+  // ==================== Issue 6 Tests (V4 silent fallthrough) ====================
+
+  /// @notice Issue 6a: SharedV4Strategy._execute else branch must fail CLOSED when the router
+  ///         mints a new vault-owned NFT during a partial-decrease / compound operation.
+  ///         Before the fix the else branch returned an empty PositionChange[], leaving the new
+  ///         NFT untracked and understating TVL.
+  function test_security_issue6a_v4Execute_unexpectedMintDuringCompound_reverts() public {
+    // Deploy a fresh V4 vault + config so we control the POSM allowlist.
+    MockV4PositionManager posm = new MockV4PositionManager(100); // nextTokenId starts at 100
+
+    MockMintingV4UtilsRouter router = new MockMintingV4UtilsRouter(
+      address(posm),
+      100,               // mints tokenId=100 to vault during execute
+      address(0)         // placeholder; vault address set after deploy
+    );
+
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(router));
+
+    SharedConfigManager v4cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory posmList = new address[](1);
+    posmList[0] = address(posm);
+    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, posmList, new address[](0));
+
+    SharedVault v4v = new SharedVault();
+    tokenA.mint(address(v4v), 100e18);
+    tokenB.mint(address(v4v), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v4v.initialize("V4Vault6a", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(v4cm), address(0), 0);
+
+    // Existing tokenId=5 owned by vault with non-zero liquidity (partial decrease, not full exit).
+    uint256 tokenId = 5;
+    posm.setOwner(tokenId, address(v4v));
+    posm.setLiquidity(tokenId, 1e18);
+
+    // Redeploy router that mints tokenId=100 to the vault during execute.
+    // The mint happens inside the router call so nextIdBefore=100 is snapshotted first.
+    MockMintingV4UtilsRouter mintingRouter = new MockMintingV4UtilsRouter(address(posm), 100, address(v4v));
+    SharedV4Strategy v4strat2 = new SharedV4Strategy(address(mintingRouter));
+    address[] memory targets2 = new address[](1);
+    targets2[0] = address(v4strat2);
+    v4cm.setWhitelistTargets(targets2, true);
+
+    IV4Utils.Instructions memory instr = IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.COMPOUND,
+      params: ""
+    });
+    bytes memory params = abi.encodeCall(IV4Utils.execute, (address(posm), tokenId, instr));
+    bytes memory innerData = abi.encode(
+      address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0)
+    );
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat2), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    v4v.execute(actions);
+  }
+
+  /// @notice Issue 6b: SharedV4Strategy._safeTransferNft else branch must fail CLOSED when the
+  ///         POSM mints a new vault-owned NFT during safeTransferFrom while the original NFT
+  ///         remains at the vault with non-zero liquidity — bypasses ADJUST_RANGE which requires
+  ///         liquidity==0. MockV4PositionManager.safeTransferFrom is configured to mint tokenId=100
+  ///         to the vault during the call, simulating V4Utils minting inside onERC721Received.
+  function test_security_issue6b_v4SafeTransferNft_unexpectedMintWithLivePosition_reverts() public {
+    MockV4UtilsRouter noopRouter = new MockV4UtilsRouter(); // _safeTransferNft doesn't call execute
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(noopRouter));
+
+    MockV4PositionManager posm = new MockV4PositionManager(100);
+
+    SharedConfigManager v4cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory posmList = new address[](1);
+    posmList[0] = address(posm);
+    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, posmList, new address[](0));
+
+    SharedVault v4v = new SharedVault();
+    tokenA.mint(address(v4v), 100e18);
+    tokenB.mint(address(v4v), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v4v.initialize("V4Vault6b", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(v4cm), address(0), 0);
+
+    uint256 tokenId = 7;
+    posm.setOwner(tokenId, address(v4v));
+    posm.setLiquidity(tokenId, 1e18); // non-zero → ADJUST_RANGE and full-exit branches NOT taken
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+
+    // Configure POSM to mint tokenId=100 to the vault when safeTransferFrom is called.
+    // After the call: nextTokenId=101, ownerOf[100]=vault, liquidity[7]=1e18 → else branch.
+    posm.setSafeTransferMint(100, address(v4v));
+
+    bytes memory instruction = abi.encode(IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.ADJUST_RANGE,
+      params: ""
+    }));
+    bytes memory innerData = abi.encode(address(posm), tokenId, instruction);
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.SAFE_TRANSFER_NFT), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    v4v.execute(actions);
+  }
+
+  /// @notice Issue 7: _applyPositionChanges (delegatecall path) must verify canonical token pair
+  ///         via getPositionTokens before tracking a new position — mirroring the check already
+  ///         present in _applyPositionChangesChecked. A buggy strategy could report any vault-token
+  ///         pair, attributing LP value to the wrong assets and mispricing shares.
+  function test_security_issue7_delegatecall_rejectsWrongCanonicalTokens() public {
+    // Strategy whose execute() reports (tokenA, tokenB) but getPositionTokens returns (tokenB, tokenA).
+    MockDelegatecallWrongCanonTokensStrategy wrongStrat = new MockDelegatecallWrongCanonTokensStrategy(
+      address(tokenB), // canon0 ≠ reported token0
+      address(tokenA)  // canon1 ≠ reported token1
+    );
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(wrongStrat);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    uint256 tokenId = 77;
+    // Vault must own the NFT so the ownership check passes and only the canonical check fails.
+    cwpNfpm.mint(address(vault), tokenId);
+
+    bytes memory stratData = abi.encode(
+      SharedV4Strategy.OperationType.EXECUTE // unused — execute() is called directly via delegatecall
+    );
+    // Encode execute calldata: (nfpm, tokenId, token0=tokenA, token1=tokenB)
+    bytes memory execData = abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB));
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(wrongStrat), execData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.execute(actions);
+  }
+
+  /// @notice Issue 8a: _applyPositionChanges (delegatecall path) must not blindly trust an
+  ///         isAdd=false entry. If the vault still owns the NFT and the strategy reports non-zero
+  ///         amounts, the position is still live — untracking it would understate TVL.
+  function test_security_issue8a_delegatecall_rejectsFalseRemoveOfLivePosition() public {
+    MockFalseRemoveStrategy falseRemove = new MockFalseRemoveStrategy();
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(falseRemove);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    uint256 tokenId = 88;
+    // Vault must own the NFT — this is the scenario that should be rejected.
+    cwpNfpm.mint(address(vault), tokenId);
+
+    // Encode execute calldata: (nfpm, tokenId, token0, token1)
+    bytes memory execData = abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB));
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(falseRemove), execData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+  }
+
+  /// @notice Issue 8b: _applyPositionChangesChecked (CALL_WITH_POSITIONS path) must also reject
+  ///         a false-remove entry when the vault still owns the NFT and position has non-zero value.
+  function test_security_issue8b_cwp_rejectsFalseRemoveOfLivePosition() public {
+    MockCwpFalseRemoveStrategy cwpFalseRemove = new MockCwpFalseRemoveStrategy();
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(cwpFalseRemove);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    uint256 tokenId = 99;
+    // Vault must own the NFT — the strategy incorrectly claims it should be untracked.
+    cwpNfpm.mint(address(vault), tokenId);
+
+    bytes memory callData = abi.encodeCall(
+      MockCwpFalseRemoveStrategy.removePosition,
+      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+    );
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(cwpFalseRemove), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
     vault.execute(actions);
   }
 

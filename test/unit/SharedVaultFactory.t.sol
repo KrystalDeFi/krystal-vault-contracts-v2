@@ -16,9 +16,20 @@ import { Withdrawable } from "../../contracts/common/Withdrawable.sol";
 
 contract MockNFPM {
   mapping(uint256 => address) public ownerOf;
+  mapping(uint256 => address) private _token0;
+  mapping(uint256 => address) private _token1;
 
   function mint(address to, uint256 tokenId) external {
     ownerOf[tokenId] = to;
+  }
+
+  function storeTokens(uint256 tokenId, address t0, address t1) external {
+    _token0[tokenId] = t0;
+    _token1[tokenId] = t1;
+  }
+
+  function getTokens(uint256 tokenId) external view returns (address, address) {
+    return (_token0[tokenId], _token1[tokenId]);
   }
 }
 
@@ -34,8 +45,6 @@ contract MockFactoryStrategy is ISharedStrategy {
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     uint256 tokenId = abi.decode(data, (uint256));
     if (tokenId == 0) return new PositionChange[](0);
-    MockNFPM(MOCK_NFPM).mint(address(this), tokenId);
-    changes = new PositionChange[](1);
     // DELEGATECALL from SharedVault: `address(this)` is the vault. Position adds must use real vault
     // tokens or SharedVault._applyPositionChanges reverts with TokenNotConfigured.
     address[4] memory t = ISharedVault(address(this)).getTokens();
@@ -53,6 +62,10 @@ contract MockFactoryStrategy is ISharedStrategy {
         ++i;
       }
     }
+    MockNFPM(MOCK_NFPM).mint(address(this), tokenId);
+    // Store token pair in NFPM so getPositionTokens can return it (canonical-token check).
+    MockNFPM(MOCK_NFPM).storeTokens(tokenId, t0, t1);
+    changes = new PositionChange[](1);
     changes[0] = PositionChange(true, MOCK_NFPM, tokenId, t0, t1);
   }
 
@@ -76,8 +89,8 @@ contract MockFactoryStrategy is ISharedStrategy {
     return (0, 0);
   }
 
-  function getPositionTokens(address, uint256) external pure override returns (address, address) {
-    return (address(0), address(0));
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
+    return MockNFPM(nfpm).getTokens(tokenId);
   }
 
   function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
