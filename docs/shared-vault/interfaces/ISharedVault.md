@@ -72,14 +72,6 @@ event PositionRecovered(address vaultFactory, address nfpm, uint256 tokenId)
 
 Emitted when the operator recovers a previously dropped position back into tracking.
 
-### VaultDonate
-
-```solidity
-event VaultDonate(address vaultFactory, address donor, uint256[4] amounts)
-```
-
-Emitted when vault tokens are donated (transferred in without minting shares).
-
 ### Position
 
 _Tracked LP position_
@@ -336,25 +328,6 @@ _Set at initialization and immutable thereafter — there is no setter._
 ```solidity
 function transferOwnership(address newOwner) external
 ```
-
-### donate
-
-```solidity
-function donate(uint256[4] amounts) external
-```
-
-Transfer vault tokens into the vault without minting shares.
-
-_Increases idle balance for all token slots where `amounts[i] > 0`.
-     No shares are minted — the donation increases the redemption value of every existing share
-     proportionally. Intended for recovery: after a strategy inline-swaps to a non-vault token,
-     the operator can sweep those tokens, swap them to vault tokens off-chain, and donate back._
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| amounts | uint256[4] | Per-slot donation amounts aligned to `getTokens()`. |
 
 ### sweepTokens
 

@@ -583,31 +583,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "donor",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[4]",
-        "name": "amounts",
-        "type": "uint256[4]"
-      }
-    ],
-    "name": "VaultDonate",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vaultFactory",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "target",
         "type": "address"
       },
@@ -888,19 +863,6 @@
       }
     ],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256[4]",
-        "name": "amounts",
-        "type": "uint256[4]"
-      }
-    ],
-    "name": "donate",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

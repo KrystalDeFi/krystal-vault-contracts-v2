@@ -556,20 +556,6 @@ contract SharedVault is
     emit VaultWithdraw(vaultFactory, _msgSender(), amounts, shares);
   }
 
-  /// @inheritdoc ISharedVault
-  function donate(uint256[4] calldata amounts) external override nonReentrant {
-    for (uint256 i; i < 4; ) {
-      if (amounts[i] > 0) {
-        require(tokens[i] != address(0), InvalidToken());
-        IERC20(tokens[i]).safeTransferFrom(_msgSender(), address(this), amounts[i]);
-      }
-      unchecked {
-        i++;
-      }
-    }
-    emit VaultDonate(vaultFactory, _msgSender(), amounts);
-  }
-
   // ==================== Execute (LP operations + swaps) ====================
 
   /// @notice Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.
@@ -687,19 +673,24 @@ contract SharedVault is
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
-        // Probe `getPositionAmounts` via staticcall to verify the strategy implements ISharedStrategy.
-        // A staticcall to a view function reliably distinguishes "selector present" from "selector absent":
-        //   ok == true → call succeeded and returned data
-        //   ok == false && probeData.length > 0 → function exists but reverted with a reason
-        //   ok == false && probeData.length == 0 → selector absent (or contract has no code)
-        // Note: `exitProportional` is NOT probed here because it is a state-mutating function.
-        // A staticcall to a non-view function that writes storage reverts with *empty* data — the same
-        // signal as "selector missing" — making the probe unreliable. The configManager whitelist is the
-        // primary trust boundary ensuring strategies implement the full ISharedStrategy interface.
+        // Probe `getPositionAmounts` to confirm the strategy implements ISharedStrategy and that
+        // valuation succeeds. Must return ok=true with exactly two uint256 values (64 bytes).
+        // Accepting a reverting call (ok=false, non-empty revert data) would allow tracking a position
+        // whose valuation already reverts — bricking _getTotalBalances() for all users.
+        // Note: `exitProportional` is NOT probed because it is state-mutating; a staticcall to it
+        // reverts with *empty* data — indistinguishable from "selector missing".
         (bool ok, bytes memory probeData) = strategy.staticcall(
           abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
         );
-        require(ok || probeData.length > 0, InvalidTarget(strategy));
+        require(ok && probeData.length >= 64, InvalidTarget(strategy));
+        // Verify canonical token pair via getPositionTokens: a buggy target can report any vault-token
+        // pair but _getTotalBalances() would attribute LP value to the wrong assets, mispricing shares.
+        (bool tokensOk, bytes memory tokensData) = strategy.staticcall(
+          abi.encodeCall(ISharedStrategy.getPositionTokens, (changes[c].nfpm, changes[c].tokenId))
+        );
+        require(tokensOk && tokensData.length >= 64, InvalidTarget(strategy));
+        (address canonToken0, address canonToken1) = abi.decode(tokensData, (address, address));
+        require(canonToken0 == changes[c].token0 && canonToken1 == changes[c].token1, TokenNotConfigured());
         require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
         // Verify vault owns the NFT before tracking it: an unowned position would misprice shares.
         (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(

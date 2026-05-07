@@ -125,11 +125,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // V3Utils mints exactly one new NFT then returns the old NFT → post-call balance must be balanceBefore + 1.
-      // This mirrors SharedV4Strategy's nextTokenId guard, catching any future multi-mint V3Utils version.
+      // Assumed V3Utils ordering: mints new NFT first (→ index balanceBefore - 1), then returns old NFT.
+      // Guard against inverted ordering: require resolved token is not the original tokenId.
+      // Post-call balance must be balanceBefore + 1 (exactly one new NFT minted).
       require(balanceBefore > 0, InvalidPoolTokens());
       require(IERC721(_nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
       uint256 newTokenId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
+      require(newTokenId != tokenId, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);

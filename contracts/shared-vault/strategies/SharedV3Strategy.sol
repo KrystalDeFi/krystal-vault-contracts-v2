@@ -107,11 +107,12 @@ contract SharedV3Strategy is ISharedStrategy {
   }
 
   /// @dev `CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
-  ///      V3Utils mints the new NFT to the vault before returning the old one, so the new token always lands at
-  ///      `balanceBefore - 1` in the per-owner enumeration. Using `tokenByIndex(totalSupply() - 1)` is unreliable
-  ///      because ERC721Enumerable's swap-on-burn can place an unrelated token at the last global index.
-  ///      A post-call balance check enforces that V3Utils minted exactly one NFT (mirrors SharedV4Strategy's
-  ///      `nextTokenId == nextIdBefore + 1` guard), catching any future V3Utils version that mints multiple positions.
+  ///      **Assumed V3Utils ordering**: mints the new NFT to the vault first, THEN returns the old one.
+  ///      With this ordering the new token lands at owner-index `balanceBefore - 1` (appended while the old token
+  ///      is still absent), and the old token lands at `balanceBefore` after being returned.
+  ///      If a future V3Utils version returns the old NFT BEFORE minting the new one, the old token occupies
+  ///      index `balanceBefore - 1` and the check below (`newTokenId != tokenId`) catches the inversion.
+  ///      A post-call balance check enforces exactly one NFT was minted (mirrors SharedV4Strategy's guard).
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -139,6 +140,9 @@ contract SharedV3Strategy is ISharedStrategy {
       require(balanceBefore > 0, InvalidPoolTokens());
       require(IERC721(nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
       uint256 newTokenId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
+      // Guard against inverted ordering (old returned before new minted): in that case the resolved
+      // index holds the original tokenId, not a newly minted position.
+      require(newTokenId != tokenId, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);

@@ -21,8 +21,6 @@ interface ISharedVault is ISharedCommon {
   event PositionDropped(address indexed vaultFactory, address indexed nfpm, uint256 indexed tokenId);
   /// @notice Emitted when the operator recovers a previously dropped position back into tracking.
   event PositionRecovered(address indexed vaultFactory, address indexed nfpm, uint256 indexed tokenId);
-  /// @notice Emitted when vault tokens are donated (transferred in without minting shares).
-  event VaultDonate(address indexed vaultFactory, address indexed donor, uint256[4] amounts);
 
   /// @dev Tracked LP position
   struct Position {
@@ -161,16 +159,6 @@ interface ISharedVault is ISharedCommon {
   function vaultOwnerFeeBasisPoint() external view returns (uint16);
 
   function transferOwnership(address newOwner) external;
-
-  // --- Donate (permissionless) ---
-
-  /// @notice Transfer vault tokens into the vault without minting shares.
-  /// @dev Increases idle balance for all token slots where `amounts[i] > 0`.
-  ///      No shares are minted — the donation increases the redemption value of every existing share
-  ///      proportionally. Intended for recovery: after a strategy inline-swaps to a non-vault token,
-  ///      the operator can sweep those tokens, swap them to vault tokens off-chain, and donate back.
-  /// @param amounts Per-slot donation amounts aligned to `getTokens()`.
-  function donate(uint256[4] calldata amounts) external;
 
   // --- Operator (onlyOperator) ---
   function sweepTokens(address[] calldata _tokens, uint256[] calldata amounts, address to) external;

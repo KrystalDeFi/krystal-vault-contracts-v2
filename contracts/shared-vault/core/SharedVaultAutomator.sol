@@ -17,7 +17,7 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
 
   mapping(bytes32 => bool) private _cancelledOrder;
 
-  constructor(address _owner, address[] memory _operators) CustomEIP712("SharedVaultAutomator", "1.0") {
+  constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "5.0") {
     _grantRole(DEFAULT_ADMIN_ROLE, _owner);
     _grantRole(OPERATOR_ROLE_HASH, _owner);
     for (uint256 i = 0; i < _operators.length; i++) {

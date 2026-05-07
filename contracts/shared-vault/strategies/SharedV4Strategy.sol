@@ -150,6 +150,11 @@ contract SharedV4Strategy is ISharedStrategy {
       if (approveAmounts[i] > 0) IERC20(approveTokens[i]).safeApprove(v4UtilsRouter, 0);
       unchecked { i++; }
     }
+    // Revoke residual NFT approval: V4Utils normally clears it via safeTransferFrom, but future
+    // router implementations that operate via approval-only would leave it dangling otherwise.
+    if (tokenId != 0 && _posmNftOwnedByVault(posm, tokenId)) {
+      IERC721(posm).approve(address(0), tokenId);
+    }
 
     // Compute position changes from on-chain state — never trust caller-supplied values
     if (tokenId == 0) {
@@ -449,6 +454,10 @@ contract SharedV4Strategy is ISharedStrategy {
 
     IERC721(posm).approve(v4UtilsRouter, tokenId);
     IV4UtilsRouter(v4UtilsRouter).execute(posm, abi.encodeCall(IV4Utils.execute, (posm, tokenId, instructions)));
+    // Revoke residual NFT approval — see _execute for rationale.
+    if (_posmNftOwnedByVault(posm, tokenId)) {
+      IERC721(posm).approve(address(0), tokenId);
+    }
 
     if (isFullExit) {
       (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
@@ -587,16 +596,16 @@ contract SharedV4Strategy is ISharedStrategy {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
   }
 
-  /// @notice Validates calldata passed to `IV4UtilsRouter.execute` for posm/tokenId integrity.
-  /// @dev Only calldata whose first 4 bytes equal `IV4Utils.execute(address,uint256,(uint8,bytes))` is decoded.
-  ///      Any other selector returns without further validation; those flows still run only when `posm` is
-  ///      whitelisted and the strategy is a whitelisted vault target.
-  ///      Inline swaps within `DECREASE_AND_SWAP` are permitted; swap-router and tokenIn/tokenOut
-  ///      validation is performed off-chain before submitting the action.
-  ///      Silent early returns are normal: most `params` blobs are not `execute` calls at all.
+  /// @notice Validates calldata passed to `IV4UtilsRouter.execute`.
+  /// @dev Fails closed: the selector MUST be `IV4Utils.execute`. Any other selector is rejected so
+  ///      that unknown functions exposed by V4Utils implementations cannot be invoked after the vault
+  ///      has already approved tokens / NFTs to the router. Inline swaps within `DECREASE_AND_SWAP`
+  ///      are permitted; swap-router and tokenIn/tokenOut validation is performed off-chain.
   function _validateV4ExecuteCalldataSwapRouters(bytes memory params, address posm, uint256 tokenId) private pure {
-    if (params.length < 4) return;
-    if (bytes4(params) != IV4Utils.execute.selector) return;
+    require(
+      params.length >= 4 && bytes4(params) == IV4Utils.execute.selector,
+      ISharedCommon.InvalidOperation()
+    );
     bytes memory body = new bytes(params.length - 4);
     for (uint256 j; j < body.length; ) {
       body[j] = params[j + 4];
