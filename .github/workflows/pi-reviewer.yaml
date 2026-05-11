@@ -55,5 +55,7 @@ jobs:
             Avoid adding inline comments for issues that have already been addressed or are currently under discussion.
 
             After the review, post a summary comment on the PR with an overall assessment, key findings, and a verdict (Approve / Request Changes / Needs Discussion).
+
+            Do not use GitHub CLI to approve pull requests or request changes on the PR.
           model: openai/gpt-5.5
 
