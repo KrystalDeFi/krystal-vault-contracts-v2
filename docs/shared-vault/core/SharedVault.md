@@ -165,6 +165,19 @@ _Share ratio is based on TOTAL balances (idle + LP positions valued by strategie
      minting shares so a malicious depositor cannot receive a refund callback between balance
      snapshots and share finalization (AMM / LP valuation manipulation)._
 
+### _measureActualPulled
+
+```solidity
+function _measureActualPulled(uint256[4] idleBefore) internal view returns (uint256[4] actualPulled)
+```
+
+_Measure how much each vault token actually arrived in the vault since `idleBefore`.
+     Used to credit depositors with the ACTUAL amount the vault holds, not the requested
+     transferFrom amount. Critical for fee-on-transfer (FOT) tokens and other non-standard
+     ERC20s where `transferFrom(X)` results in `< X` arriving at the recipient.
+     For the WETH slot (when ETH was sent via msg.value), the wrap is exact: actualPulled[wi]
+     equals the wrapped amount because IWETH9.deposit() always mints 1:1._
+
 ### _validateWethDeposit
 
 ```solidity
@@ -372,12 +385,14 @@ function previewDeposit(uint256[4] amounts) external view returns (uint256 share
 function previewWithdraw(uint256 _shares) external view returns (uint256[4] amounts)
 ```
 
-Preview token amounts returned for burning `_shares`.
+Preview token amounts returned for burning `_shares` NET of LP exit fees.
 
-_Computes proportional share of total balances (idle + LP position principal + uncollected fees).
-     **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
-     charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
-     Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`._
+_Returns the proportional share of (idle + LP principal + (1 − feeRate) × uncollected LP fees).
+     The fee deduction mirrors `SharedStrategyFeeConfig.performanceFeeConfig`: combined platform +
+     vault-owner basis points are clamped to 10000 (silent platform clamp) and applied only to the
+     uncollected-fees portion of each tracked position. Principal exits incur no perf/platform fee
+     (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
+     Callers should still apply a slippage margin for AMM price impact at exit time._
 
 ### getMinDepositAmounts
 
@@ -448,7 +463,11 @@ function dropPosition(address nfpm, uint256 tokenId) external
 
 Forcibly remove a position from vault tracking without exiting liquidity.
 
-_See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set._
+_See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set.
+     Callable by `vaultOwner` OR `operator`. The operator path exists as an emergency
+     escape hatch: if a strategy or NFPM becomes bricked, deposits/withdrawals revert
+     until the broken position is dropped. Allowing the operator to force-drop ensures
+     depositors are not stranded when the vault owner is unavailable._
 
 #### Parameters
 

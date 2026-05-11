@@ -1,110 +1,101 @@
-# Shared Vault Implementation Plan
+# Shared Vault — Current Implementation
 
-## Context
+> **This is current-state documentation, not a design plan.** It reflects the contracts as deployed on `feat/shared-vault`. For the audit findings that drove the most recent changes, see `shared-vault-audit-report.md`.
 
-The Shared Vault is a new vault type that combines **ERC20 share-based deposits** (like public vault) with
-**strategy-based LP management** using swap aggregators (like private vault). It manages up to 4 ERC20 tokens
-simultaneously with no principal token — shares represent proportional ownership of all idle tokens plus all active
-LP positions. The vault owner has maximum permission with no ConfigManager restrictions (no minimumTvl, minimumRange,
-TWAP, whitelisted pools).
+## Overview
 
-**Key difference from public vault**: No single principal token. Multi-token deposits/withdrawals in current ratio.
-Uses swap aggregator instead of OptimalSwapper. No validation restrictions.
-**Key difference from private vault**: Has ERC20 shares for multiple depositors. Uses validated strategy calls instead
-of raw multicall.
+The Shared Vault is a multi-depositor ERC20-share vault that holds up to 4 ERC20 tokens simultaneously and manages multiple Uniswap-V3-family LP positions. Shares represent proportional ownership of idle tokens plus all active LP positions. Unlike the public vault, there is no single "principal token" — deposits and withdrawals always involve the current proportional ratio of all four configured tokens.
 
----
+### Position vs public/private vault
 
-## Implementation Status
-
-**Completed** — all features are implemented and all tests pass.
-
-### Changes from original plan
-
-1. **`INITIAL_SHARES = 10e18`**: First deposit always mints exactly 10e18 shares (not amount-scaled). Applies both to
-   factory initialization and to `deposit()` when `totalSupply == 0`.
-
-2. **`operator` is fixed at initialization**: `setOperator` was removed. The operator role is set once at
-   `initialize(name, tokens, amounts, owner, _operator, configManager, weth)` and cannot be changed. Pass
-   `address(0)` for a vault with no operator.
-
-3. **`execute(Action[], PositionStrategyUpdate[])` signature**: The execute function takes two parameters:
-   - `Action[] actions` — LP operations and swaps
-   - `PositionStrategyUpdate[] strategyUpdates` — optional list of position→strategy pointer remappings applied
-     atomically before actions run. Each update requires a whitelisted strategy and an already-tracked position.
-     Emits `PositionStrategyMigrated`. Used to migrate a broken strategy and execute via the replacement in the same tx.
-
-4. **`CallType` enum in `ISharedCommon`**: Three execution modes instead of `isStrategy bool`:
-   - `DELEGATECALL` — strategy delegatecall via `ISharedStrategy.execute()`, returns `PositionChange[]`
-   - `CALL` — direct call to a swap aggregator; validates tokenIn/tokenOut ∈ vault tokens, checks output delta
-   - `CALL_WITH_POSITIONS` — raw call to an external contract that returns `PositionChange[]`; no token validation
-     (the external contract manages its own token flow)
-
-5. **ETH deposit efficiency**: `deposit()` accepts native ETH via `msg.value` and wraps only the proportional needed
-   amount to WETH, refunding any excess as raw ETH. Factory `createVault` also handles ETH by wrapping the full
-   `msg.value` up front (no partial-wrap complexity needed since amounts are exact there).
-
-6. **Withdrawal slippage model**: Individual LP exits use `minAmount0=0, minAmount1=0` (no per-position guard) so a
-   single tight position cannot DoS the entire withdrawal. Instead, a single `minAmounts[4]` aggregate guard at the
-   `withdraw()` level catches total output falling below expectation. `previewWithdraw()` uses
-   `_getTotalBalances()` (idle + LP) for accurate pre-tx estimates.
-
-7. **Withdrawal: idle-snapshot + LP-exit pattern**: Idle balances are snapshotted *before* LP exits. Each LP's
-   returned tokens are added in full (not re-diluted by shares/totalSupply). This fixes double-dilution: the
-   withdrawer's share of idle tokens is `mulDiv(shares, idleBefore[i], totalSupply)` and LP exit returns are added
-   wholesale. An `unwrap` flag in `withdraw()` converts WETH output to native ETH before sending.
-
-8. **`vaultOwnerFeeBasisPoint`**: A per-vault basis-point fee (max 10,000) charged on LP exits and routed to the vault
-   owner. Set by the vault owner via `setVaultOwnerFeeBasisPoint`. Passed to every `exitProportional` call alongside
-   the platform fee from `configManager`.
-
-9. **`depositProportional` in `ISharedStrategy`**: New method called via delegatecall from `deposit()` for each
-   tracked LP position when `totalSupply > 0`. Tokens are split proportionally using the pre-deposit `totalBalances`
-   snapshot: `toAdd = mulDiv(transferAmounts[i], posAmt, totalBalances[i])`. The delegatecall is only made when
-   `toAdd0 > 0 || toAdd1 > 0`. If the strategy cannot increase liquidity (staked positions), it must return silently.
-
-10. **`_addPosition` auto-updates strategy pointer**: If a strategy's `execute()` returns `isAdd=true` for an already-
-    tracked `(nfpm, tokenId)`, the position's `strategy` field is overwritten to point at the calling strategy and
-    `PositionStrategyMigrated` is emitted. Mirrors `Vault.sol`'s `_addAssets` pattern.
-
-11. **`dropPosition(nfpm, tokenId)` escape hatch**: Owner-only function to forcibly remove a position from tracking
-    without exiting liquidity. Emits `PositionDropped`. Used when a pool is permanently rugged or the NFPM itself is
-    bricked and `strategyUpdates` cannot fix it. The NFT stays in the vault; `sweepERC721` can recover it afterward.
-
-12. **Factory: `createVault` uses `Action[]`**: The multi-strategy creation overload accepts
-    `ISharedVault.Action[] calldata actions` and calls `vault.execute(actions, new PositionStrategyUpdate[](0))` once.
-    No `_operator` parameter — the factory `owner()` is passed as the vault's initial operator.
-
-13. **Automator: `strategyUpdates` forwarded**: Both `executeWithAgentAllowance` and `executeWithUserOrder` accept
-    `ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates` and forward it to `vault.execute`.
-
-14. **Automator: multisig EIP-1271 support**: The automator accepts EIP-1271 signatures (validated via
-    `SignatureChecker.isValidSignatureNow`) in addition to EOA signatures, enabling multisig vault owners.
+| Aspect | Public Vault | Private Vault | **Shared Vault** |
+|---|---|---|---|
+| Depositors | Many | One (owner) | Many |
+| Shares | ERC20 | None | ERC20 |
+| Principal token | Single | None (any) | None (multi-token) |
+| LP management | Validated strategies | Raw multicall | Validated strategies |
+| Swap mechanism | OptimalSwapper | Aggregator | Aggregator (via Gateway) |
+| Range constraints | ConfigManager | Owner-bounded | Whitelisted strategies only |
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
-SharedVault (ERC20 shares + strategy execution)
-├── Up to 4 managed ERC20 tokens (no principal)
-├── Up to 6 LP pairs (C(4,2)), infinite pool addresses per pair
-├── Proportional deposit: idle split + existing LP positions topped up via depositProportional
-├── Proportional withdraw: idle share + full LP exit returns (no double-dilution)
-├── LP management via whitelisted targets (delegatecall) — validates pool tokens ∈ vault tokens
-├── Token swaps via whitelisted targets (call) — validates tokenIn/tokenOut ∈ vault tokens
-├── Multi-DEX: Uniswap V3, V4, Aerodrome, PancakeSwap (one strategy per DEX)
-├── Roles: owner (manage + dropPosition), admin (execute), operator (sweep non-vault tokens only)
-├── Position strategy migration: via execute() strategyUpdates param or auto-update on re-execute
-├── Escape hatch: dropPosition() removes broken/rugged positions from tracking
-└── SharedConfigManager (per-vault pause + unified target whitelist + caller whitelist + fee recipient)
-
-SharedVaultAutomator (operator-controlled batch execution)
-├── Two auth flows: AgentAllowance (long-lived) and UserOrder (one-time, same struct but consumed)
-├── Both flows forward strategyUpdates to vault.execute
-├── EIP-1271 multisig support via SignatureChecker
-└── EIP-712 signing with AccessControl + Pausable
+                        ┌──────────────────────────┐
+                        │   SharedVaultGateway     │  ← primary user entry point
+                        │   (swap-aggregator UX)   │     uses Krystal API calldata
+                        └──────────┬───────────────┘
+                                   │ deposit / withdraw
+                                   ▼
+┌────────────────────────────────────────────────────────────────┐
+│                         SharedVault                            │
+│                                                                │
+│  • Up to 4 ERC20 tokens; ERC20 shares (18 decimals)            │
+│  • INITIAL_SHARES = 10e18 on first deposit                     │
+│  • Idle-snapshot withdraw + LP exit (no double-dilution)       │
+│  • Pre-collect fees before idle snapshot (fair distribution)   │
+│  • Position tracking with auto-untrack on full exit            │
+│  • EIP-1271 (vault acts as smart-wallet signer)                │
+│  • FOT-safe: shares from actual delta, not requested amount    │
+└─┬───────────────────────────────────────────────────────────┬──┘
+  │ delegatecall (LP ops, exit, deposit-proportional)         │
+  ▼                                                           ▼
+┌──────────────────────────────┐                ┌────────────────────────┐
+│   SharedStrategyProxy        │                │  SharedConfigManager   │
+│   immutable beacon ref       │                │  • whitelistedTargets  │
+│   storage-collision-safe     │                │  • whitelistedCallers  │
+└──────────┬───────────────────┘                │  • whitelistedNfpms    │
+           │ delegatecall                       │  • whitelistedSwapRouters│
+           ▼                                    │  • platformFeeBasisPoint│
+┌──────────────────────────────┐                │  • maxPositions (20)   │
+│   SharedStrategyBeacon       │                │  • minTokenPrecision(5)│
+│   stores impl address        │                └────────────────────────┘
+│   protocol-multisig-owned    │
+└──────────┬───────────────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│   StrategyImpl               │  SharedV3Strategy / SharedV4Strategy /
+│   (V3 / V4 / Aerodrome)      │  SharedAerodromeStrategy
+│                              │
+│  • execute(bytes data)       │
+│  • exitProportional          │
+│  • depositProportional       │
+│  • collectFees               │
+│  • getPositionAmounts/...    │
+└──────────┬───────────────────┘
+           │ LpFeeTaker.takeFees (V3/Aerodrome)
+           ▼
+┌──────────────────────────────┐
+│   LpFeeTaker (external)      │  Routes platform + vault-owner fees
+│   contracts/public-vault/    │  to feeRecipient & vaultOwner
+└──────────────────────────────┘
 ```
+
+Aux contract: **SharedVaultAutomator** — operator-driven batch execution with EIP-712 + EIP-1271 signing.
+
+---
+
+## Trust Model
+
+| Role | Granted by | Powers |
+|---|---|---|
+| **vaultOwner** | Vault creator / `transferOwnership` | `execute`, `dropPosition`, manage admins, per-vault pause, set fee bps (LOCKED at init only) |
+| **admin** | `vaultOwner.grantAdminRole` | `execute` only |
+| **operator** | Set at `initialize`, **fixed** (no setter) | `sweep*`, `recoverPosition`, `dropPosition` (force-drop escape hatch) |
+| **whitelisted caller** | `ConfigManager.setWhitelistCallers` | `execute` (used by automator) |
+| **depositor** | Anyone | `deposit`, `withdraw` |
+| **factory** | Permanent (set at init) | `execute` (creation-time strategy init only — temporary owner during factory `createVault` with actions) |
+| **beacon owner** | Beacon constructor | Hot-swap strategy implementation for **every** vault using that strategy |
+| **configManager owner** | ConfigManager `initialize` | Manage four whitelists, set fees, set maxPositions, set minTokenPrecision, global pause |
+
+### Custody asymmetries to note
+
+1. **`dropPosition` transfers NFT to operator** (when operator is set). Vault owner cannot retrieve the NFT directly afterward — only the operator can via `recoverPosition` or `sweepERC721`. If no operator is set, the NFT stays in the vault but cannot be moved out (sweep is operator-only).
+2. **Operator can also call `dropPosition`** — emergency escape hatch added in response to W-5/W-10. Lets the protocol unbrick deposits/withdrawals when a strategy or NFPM breaks and the vault owner is unavailable.
+3. **`vaultOwnerFeeBasisPoint` is locked at vault initialization.** No setter. Depositors can rely on the value seen at vault creation.
+4. **`platformFeeBasisPoint` can be raised by the protocol** to squeeze the vault-owner share (`SharedStrategyFeeConfig` silently clamps `vaultOwnerBps` down so the combined fee never exceeds 10000).
 
 ---
 
@@ -113,560 +104,341 @@ SharedVaultAutomator (operator-controlled batch execution)
 ```
 contracts/shared-vault/
   interfaces/
-    ISharedCommon.sol              — CallType enum, all shared errors (incl. InvalidOperation, InvalidVaultOwnerFeeBasisPoint)
-    ISharedVault.sol               — Vault interface: Position/Action/PositionStrategyUpdate structs + all events
-    ISharedVaultFactory.sol        — Factory interface: two createVault overloads + DuplicateVaultName error
-    ISharedConfigManager.sol       — Config interface (unified target whitelist, no separate strategy whitelist)
-    ISharedStrategy.sol            — execute + exitProportional + depositProportional + getPositionAmounts
-    ISharedVaultAutomator.sol      — Automator: executeWithAgentAllowance + executeWithUserOrder (both with strategyUpdates)
+    ISharedCommon.sol              — CallType enum, all shared errors
+    ISharedVault.sol               — Position/Action structs, all events, lock-at-init vaultOwnerFeeBasisPoint
+    ISharedConfigManager.sol       — Four whitelists, platformFee, maxPositions, minTokenPrecision
+    ISharedStrategy.sol            — execute / exitProportional / depositProportional / collectFees /
+                                     getPositionAmounts / getPositionPrincipalAmounts / getPositionTokens
+    ISharedVaultFactory.sol        — Two createVault overloads (both take vaultOwnerFeeBasisPoint)
+    ISharedVaultAutomator.sol      — executeWithAgentAllowance, executeWithUserOrder, cancelOrder
   core/
-    SharedVault.sol                — Main vault: shares + execute + deposit proportional LP + withdraw idle-snapshot + position tracking
-    SharedVaultFactory.sol         — Factory: Clones proxy, two createVault overloads (no _operator param)
-    SharedConfigManager.sol        — Pause + unified target/caller whitelist + fee recipient
-    SharedVaultAutomator.sol       — Operator-driven batch execution with EIP-712 auth + EIP-1271 multisig
+    SharedVault.sol                — Main vault contract
+    SharedVaultGateway.sol         — Aggregator-fronted deposit/withdraw UX layer
+    SharedVaultFactory.sol         — Clones-based vault deployer
+    SharedConfigManager.sol        — Protocol-level config + whitelists
+    SharedVaultAutomator.sol       — EIP-712 signed batch execution
   strategies/
-    SharedV3Strategy.sol           — Uniswap V3 LP ops via V3Utils + depositProportional
-    SharedV4Strategy.sol           — Uniswap V4 LP ops via V4Utils + depositProportional (Permit2 flow)
-    SharedAerodromeStrategy.sol    — Aerodrome CL LP ops (tickSpacing-based pool lookup via ICLFactory)
+    SharedStrategyBeacon.sol       — Per-strategy-type beacon (Ownable)
+    SharedStrategyProxy.sol        — Storage-collision-safe forwarder (beacon = immutable)
+    SharedV3Strategy.sol           — Uniswap V3 / Pancake V3 / Sushi V3 LP ops
+    SharedV4Strategy.sol           — Uniswap V4 LP ops (Permit2 flow)
+    SharedAerodromeStrategy.sol    — Aerodrome CL LP ops (tickSpacing-based pool lookup)
   libraries/
-    SharedNfpmProportionalExit.sol — Shared V3-family proportional exit logic
-    SharedStrategyFeeConfig.sol    — Fee config helpers shared across strategies
-
-contracts/common/libraries/strategies/
-  AgentAllowanceStructHash.sol     — EIP-712 struct for both AgentAllowance and UserOrder flows
+    SharedNfpmProportionalExit.sol — V3-family proportional exit (collect → fees → decrease → collect)
+    SharedStrategyFeeConfig.sol    — FeeConfig builder with platform/owner-fee clamp logic
+    SharedStrategyGuards.sol       — `requireWhitelistedNfpm` helper
 ```
 
 ---
 
-## Step 1: Interfaces
+## SharedConfigManager
 
-### 1a. `ISharedCommon.sol`
-
-```solidity
-interface ISharedCommon {
-  enum CallType { DELEGATECALL, CALL, CALL_WITH_POSITIONS }
-
-  error Unauthorized();
-  error ZeroAddress();
-  error InvalidAmount();
-  error InvalidToken();
-  error InvalidRatio();
-  error VaultPaused();
-  error InvalidTarget(address target);
-  error InvalidStrategy(address strategy);
-  error StrategyCallFailed();
-  error SwapFailed();
-  error InsufficientShares();
-  error InsufficientOutput();
-  error NoTokensConfigured();
-  error DuplicateToken();
-  error TokenNotConfigured();
-  error CannotSweepVaultToken();
-  error InvalidOperation();
-  error LengthMismatch();
-  error InvalidVaultOwnerFeeBasisPoint();
-  error InvalidFeeBasisPoint();
-}
-```
-
-### 1b. `ISharedConfigManager.sol`
-
-No separate strategy whitelist — strategies and swap targets share a single `whitelistedTargets` mapping:
+**Storage:**
 
 ```solidity
-interface ISharedConfigManager {
-  function isVaultPaused() external view returns (bool);
-  function feeRecipient() external view returns (address);
-  function isWhitelistedTarget(address target) external view returns (bool);
-  function setWhitelistTargets(address[] calldata targets, bool isWhitelisted) external;
-  function isWhitelistedCaller(address caller) external view returns (bool);
-  function setWhitelistCallers(address[] calldata callers, bool isWhitelisted) external;
-  function setVaultPaused(bool _isVaultPaused) external;
-  function setFeeRecipient(address newFeeRecipient) external;
-}
-```
-
-### 1c. `ISharedStrategy.sol`
-
-```solidity
-interface ISharedStrategy {
-  error InvalidPoolTokens();
-
-  struct PositionChange {
-    bool isAdd;
-    address nfpm;
-    uint256 tokenId;
-    address token0;
-    address token1;
-  }
-
-  function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
-
-  function exitProportional(
-    address nfpm, uint256 tokenId,
-    uint256 shares, uint256 totalShares,
-    uint256 minAmount0, uint256 minAmount1,
-    uint16 vaultOwnerFeeBasisPoint
-  ) external returns (PositionChange[] memory changes);
-
-  /// @dev Called via delegatecall from deposit(). Staked positions must return silently.
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1) external;
-
-  /// @dev Called via regular CALL (not staticcall) — view prevents state mutation but EVM opcode is CALL.
-  function getPositionAmounts(address nfpm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1);
-}
-```
-
-### 1d. `ISharedVault.sol`
-
-```solidity
-interface ISharedVault is ISharedCommon {
-  // events: VaultDeposit, VaultWithdraw, VaultExecute, SetVaultAdmin, SetVaultOperator,
-  //         VaultOwnerChanged, VaultPausedUpdated, VaultOwnerFeeBasisPointUpdated,
-  //         PositionStrategyMigrated, PositionDropped
-
-  struct Position { address strategy; address nfpm; uint256 tokenId; address token0; address token1; }
-  struct Action { address target; bytes data; CallType callType; }
-  struct PositionStrategyUpdate { address nfpm; uint256 tokenId; address strategy; }
-
-  function initialize(string calldata name, address[4] calldata tokens, uint256[4] calldata initialAmounts,
-    address _owner, address _operator, address _configManager, address _weth) external;
-
-  function deposit(uint256[4] calldata amounts, uint256 minShares) external payable returns (uint256 shares);
-  function withdraw(uint256 shares, uint256[4] calldata minAmounts, bool unwrap) external returns (uint256[4] memory);
-
-  /// @param strategyUpdates Applied atomically before actions. Empty array = no migrations.
-  function execute(Action[] calldata actions, PositionStrategyUpdate[] calldata strategyUpdates) external;
-
-  function dropPosition(address nfpm, uint256 tokenId) external; // onlyOwner
-
-  // views: getTokens, getIdleBalances, getTotalBalances, getPositionCount, getPosition,
-  //        previewDeposit, previewWithdraw, isVaultToken, vaultOwner, configManager, weth, tokenCount
-  // owner: grantAdminRole, revokeAdminRole, setPaused, setVaultOwnerFeeBasisPoint, transferOwnership
-  // operator: sweepTokens, sweepNativeToken, sweepERC721, sweepERC1155
-}
-```
-
-### 1e. `ISharedVaultFactory.sol`
-
-```solidity
-interface ISharedVaultFactory is ISharedCommon {
-  error DuplicateVaultName();
-  event VaultCreated(address indexed owner, address indexed vault, string name);
-
-  // Simple vault — caller becomes owner; no _operator param (factory owner() used)
-  function createVault(string calldata name, address[4] calldata tokens,
-    uint256[4] calldata initialAmounts) external payable returns (address vault);
-
-  // Vault with post-init LP action — factory temporarily owns vault, transfers to caller after execute
-  function createVault(string calldata name, address[4] calldata tokens,
-    uint256[4] calldata initialAmounts,
-    ISharedVault.Action[] calldata actions) external payable returns (address vault);
-
-  function isVault(address vault) external view returns (bool);
-}
-```
-
-**Note**: No `_operator` parameter on either overload. The factory's `owner()` is passed as the vault's initial operator.
-
-### 1f. `ISharedVaultAutomator.sol`
-
-```solidity
-interface ISharedVaultAutomator is ISharedCommon {
-  error InvalidSignature();
-  error OrderCancelled();
-
-  function executeWithAgentAllowance(
-    ISharedVault vault,
-    ISharedVault.Action[] calldata actions,
-    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
-    bytes memory abiEncodedAgentAllowance,
-    bytes memory signature
-  ) external;
-
-  function executeWithUserOrder(
-    ISharedVault vault,
-    ISharedVault.Action[] calldata actions,
-    ISharedVault.PositionStrategyUpdate[] calldata strategyUpdates,
-    bytes calldata abiEncodedUserOrder,
-    bytes calldata orderSignature
-  ) external;
-
-  function cancelOrder(bytes32 hash, bytes memory signature) external;
-  function isOrderCancelled(bytes calldata signature) external view returns (bool);
-  function grantOperator(address operator) external;
-  function revokeOperator(address operator) external;
-}
-```
-
----
-
-## Step 2: SharedConfigManager
-
-Storage (simpler than originally planned — no strategies mapping):
-
-```solidity
-mapping(address => bool) public whitelistedTargets;  // strategies AND swap aggregators
-mapping(address => bool) public whitelistedCallers;  // automator and other authorized callers
-bool public isVaultPaused;
+mapping(address => bool) public whitelistedTargets;       // strategy proxies (DELEGATECALL + CALL_WITH_POSITIONS)
+mapping(address => bool) public whitelistedCallers;       // automator address(es)
+mapping(address => bool) public whitelistedNfpms;         // allowed NFT position managers
+mapping(address => bool) public whitelistedSwapRouters;   // allowed swap aggregators (CALL path only)
+bool   public isVaultPaused;                              // global protocol pause
 address public feeRecipient;
+uint16 public platformFeeBasisPoint;                      // ≤ 10000, applied to LP perf collections
+uint16 public maxPositions;                               // default 20
+uint8  public minTokenPrecision;                          // default 5 → 10^(decimals-5) per-token floor
 ```
 
-Initialize:
-```solidity
-function initialize(address _owner, address[] calldata _whitelistTargets,
-  address[] calldata _whitelistCallers, address _feeRecipient) public initializer
-```
+`setMinTokenPrecision(0)` disables the per-token floor (ceiling rounding in `_subsequentDepositTransfers` still prevents the classic deposit-dilution attack).
+
+`setPlatformFeeBasisPoint(bps)` reverts on `bps > 10000`. The fee is applied to collected LP fees only — never to principal.
 
 ---
 
-## Step 3: SharedVault
+## SharedVault — Behavior
 
-**Inherits**: `ERC20PermitUpgradeable`, `PausableUpgradeable`, `ReentrancyGuard`, `ERC721Holder`,
-`ERC1155Holder`, `IERC1271`, `ISharedVault`
-
-### Storage Layout
+### Initialization
 
 ```solidity
-uint256 public constant SHARES_PRECISION = 1e18;
-uint256 public constant INITIAL_SHARES = 10e18;
-
-ISharedConfigManager public configManager;
-address public vaultOwner;
-address public vaultFactory;   // permanently authorized (factory-time strategy execution)
-address public operator;       // fixed at initialize(); no post-deploy setter
-address public weth;
-
-uint16 public tokenCount;
-address[4] public tokens;
-mapping(address => bool) public isVaultToken;
-mapping(address => bool) public admins;
-uint16 public vaultOwnerFeeBasisPoint;  // max 10_000; routed to vaultOwner on LP exits
-
-Position[] public positions;
-mapping(bytes32 => uint256) internal positionIndex;  // keccak256(nfpm, tokenId) => index+1
+function initialize(
+  string  name,
+  address[4] _tokens,
+  uint256[4] initialAmounts,
+  address _owner,
+  address _operator,                   // fixed; no post-deploy setter
+  address _configManager,
+  address _weth,
+  uint16  _vaultOwnerFeeBasisPoint     // LOCKED at init; no setter
+) external initializer
 ```
 
-### Roles
+`_tokens` may have address(0) gaps (e.g., 2-token vault stored in slots 0,1 with slots 2,3 empty). Each non-zero token is probed for `decimals()` — tokens that don't implement IERC20Metadata are rejected at init to prevent later bricking. At least 2 distinct non-zero tokens are required.
 
-| Role                   | Who                  | Can Do                                                                      |
-| ---------------------- | -------------------- | --------------------------------------------------------------------------- |
-| **Owner**              | Vault creator        | execute, dropPosition, manage admins, transfer ownership, per-vault pause   |
-| **Admin**              | Granted by owner     | execute                                                                     |
-| **Factory**            | vaultFactory address | execute (permanently authorized for creation-time strategy init)            |
-| **Operator**           | Fixed at init        | sweep non-vault tokens, sweep native, sweep ERC721/ERC1155                  |
-| **Depositor**          | Anyone               | deposit, withdraw (based on shares held)                                    |
-| **Whitelisted caller** | Via ConfigManager    | execute (used by automator)                                                 |
-
-### Share Math
-
-**First deposit** (`totalSupply == 0`):
-```
-shares = INITIAL_SHARES (10e18), regardless of deposit size
-```
-
-**Subsequent deposits** — minimum-ratio across all provided tokens (prevents cherry-picking reference token):
-```
-shares = min over i where totalBalances[i] > 0 and amounts[i] > 0:
-    FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i])
-
-transferAmounts[i] = FullMath.mulDiv(shares, totalBalances[i], currentTotalSupply)
-require(amounts[i] >= transferAmounts[i])  // excess stays with depositor
-require(amounts[i] == 0) for tokens where totalBalances[i] == 0
-```
-
-**Total balance** = idle + LP positions: `strategy.getPositionAmounts(nfpm, tokenId)` per position.
+INITIAL_SHARES (10e18) is minted to `_owner` if any `initialAmounts[i] > 0`.
 
 ### Deposit Flow
 
 ```
-1. Snapshot currentTotalSupply and totalBalances (pre-deposit)
-2. Compute shares and transferAmounts (minimum-ratio; INITIAL_SHARES on first deposit)
-3. Wrap ETH → WETH if msg.value > 0 (only proportional needed amount; refund excess as raw ETH)
-4. Transfer ERC20 transferAmounts from depositor
-5. If currentTotalSupply > 0 and positions.length > 0:
-   For each tracked position:
-     (posAmt0, posAmt1) = strategy.getPositionAmounts(nfpm, tokenId)
-     toAdd0 = mulDiv(transferAmounts[token0Idx], posAmt0, totalBalances[token0Idx])
-     toAdd1 = mulDiv(transferAmounts[token1Idx], posAmt1, totalBalances[token1Idx])
-     if toAdd0 > 0 or toAdd1 > 0:
-       delegatecall strategy.depositProportional(nfpm, tokenId, toAdd0, toAdd1)
-       (revert propagates — broken strategy blocks deposits; use dropPosition() to unblock)
-6. _mint(depositor, shares)
+1. Snapshot currentTotalSupply
+2. Snapshot totalBalancesBefore (idle + LP via strategy.getPositionAmounts)
+3. Snapshot idleBeforePull (BEFORE wrap, so deltas capture both wrap and pull)
+4. Validate WETH path: msg.value == amounts[wethIndex] if msg.value > 0
+
+5. Compute transferAmounts:
+   - First deposit (totalSupply == 0): transferAmounts = amounts (no scaling)
+   - Subsequent: transferAmounts[i] = max(ceiling(sharesOut * totalBalances[i] / totalSupply),
+                                          10^max(0, decimals - minTokenPrecision))
+                 where sharesOut = min over i of mulDiv(amounts[i], totalSupply, totalBalances[i])
+                 (binding-token rule, floor division — depositor over-pays for sub-1-wei slices)
+
+6. Wrap msg.value into WETH for slot[wethIndex]; refund excess ETH AFTER mint (reentrancy guard)
+
+7. Pull transferAmounts[i] from caller for each non-WETH slot via safeTransferFrom
+
+8. Measure actualPulled[i] = balanceOf(this) - idleBeforePull[i]
+   (FOT-safe: depositor is credited for what actually arrived, not what was requested)
+
+9. If totalSupply > 0 and positions.length > 0:
+     For each tracked position, top up proportionally:
+       toAdd0 = mulDiv(actualPulled[token0Idx], principal0, totalBalances[token0Idx])
+       toAdd1 = mulDiv(actualPulled[token1Idx], principal1, totalBalances[token1Idx])
+       (uses `getPositionPrincipalAmounts`, NOT `getPositionAmounts`, so increaseLiquidity ratio
+        matches the range — uncollected fees are NOT mixed into the top-up amounts.)
+       if toAdd0 > 0 or toAdd1 > 0:
+         delegatecall strategy.depositProportional(nfpm, tokenId, toAdd0, toAdd1, slippageBps)
+
+10. shares:
+    - First deposit: INITIAL_SHARES (10e18)
+    - Subsequent: min over i where actualPulled[i] > 0 of
+                  mulDiv(balancesAfter[i] - balancesBefore[i], totalSupply, balancesBefore[i])
+
+11. _mint(msg.sender, shares); refund excess ETH; emit VaultDeposit(actualPulled, shares)
 ```
+
+**Why measure actualPulled?** Fee-on-transfer and non-standard ERC20 tokens may transfer less than requested. Without measurement, the vault would credit the depositor based on requested amounts → over-mint shares → dilute existing holders. The measurement step also makes the deposit safe for any future ERC20 quirk that affects the transfer delta.
 
 ### Withdrawal Flow
 
 ```
-1. _burn(depositor, shares) — BEFORE LP exits
-2. Snapshot idleBefore[4] — BEFORE LP exits
-3. For each tracked position (swap-with-last on removal):
-   delegatecall strategy.exitProportional(nfpm, tokenId, shares, totalSupply, 0, 0, vaultOwnerFeeBasisPoint)
-   if result contains isAdd=false: _removePosition
-4. For each token:
-   lpExitReturn = IERC20(token).balanceOf(this) - idleBefore[i]
-   amounts[i] = mulDiv(shares, idleBefore[i], currentTotalSupply) + lpExitReturn
-   // idle proportion + full LP return (no double-dilution)
-   require(amounts[i] >= minAmounts[i])
-5. Transfer amounts (unwrap WETH → ETH if unwrap=true)
+1. _burn(caller, shares)
+2. For each tracked position:
+     delegatecall strategy.collectFees(nfpm, tokenId, vaultOwnerFeeBasisPoint)
+     // Collects accumulated LP fees into idle, takes platform + owner cut via LpFeeTaker.
+     // Reverts the entire withdrawal on failure — a silent collect failure followed by
+     // exitProportional would let the current withdrawer sweep all accrued fees.
+
+3. Snapshot idleBefore AFTER collectFees (so accrued fees are distributed proportionally).
+
+4. For each tracked position (swap-with-last on full exit):
+     delegatecall strategy.exitProportional(nfpm, tokenId, shares, totalSupply_before_burn, 0, 0,
+                                            vaultOwnerFeeBasisPoint)
+     // Per-position minAmount0/1 are zero — one tight position must not DoS the whole withdrawal.
+     // Aggregate slippage is enforced by minAmounts[] passed to withdraw().
+
+5. For each token:
+     lpExitReturn = balanceOf(this) - idleBefore[i]
+     amounts[i] = mulDiv(shares, idleBefore[i], totalSupply_before_burn) + lpExitReturn
+     // Idle proportion + full LP return = no double-dilution.
+     require(amounts[i] >= minAmounts[i], InsufficientOutput())
+     if unwrap == true and tokens[i] == weth: WETH.withdraw → send raw ETH to caller
+     else: safeTransfer to caller
 ```
 
-### Execute Flow
+### `previewWithdraw` returns NET amounts
 
-```
-// strategyUpdates applied first (atomic migration):
-For each update: require whitelisted + tracked; set positions[idx].strategy; emit PositionStrategyMigrated
+Returns the proportional share of `idle + LP principal + (1 − feeRate) × uncollected LP fees`, where `feeRate` is `platformFeeBasisPoint + vaultOwnerFeeBasisPoint` (with the same silent clamp as `SharedStrategyFeeConfig.performanceFeeConfig`). Principal exits carry no perf/platform fee. Callers should still pad for AMM slippage at exit time.
 
-// Then actions:
-DELEGATECALL: delegatecall to strategy.execute(data) → _applyPositionChanges
-CALL:         validate tokenIn/tokenOut ∈ vault tokens; safeResetAndApprove; call(swapCalldata); check output delta
-CALL_WITH_POSITIONS: call(data) → _applyPositionChanges (no token validation)
-```
+### `execute(Action[])` — three CallTypes
 
-### Position Tracking
+| CallType | Target whitelist | Behavior |
+|---|---|---|
+| `DELEGATECALL` | `isWhitelistedTarget` | `delegatecall(strategy.execute(data))`; result decoded as `PositionChange[]`. New positions validated: `isVaultToken[token0/token1]` + `getPositionTokens` canonical check + `IERC721(nfpm).ownerOf == address(this)` |
+| `CALL` | `isWhitelistedSwapRouter` | Decodes `(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata)`. Validates `isVaultToken[tokenIn/tokenOut]`, approves `tokenIn` for exact `amountIn`, calls router with `swapCalldata`, resets approval, checks output delta ≥ minAmountOut |
+| `CALL_WITH_POSITIONS` | `isWhitelistedTarget` | Raw `call(data)` whose return is decoded as `PositionChange[]`. New positions get the SAME defense-in-depth checks as DELEGATECALL plus a `getPositionAmounts` probe (must not revert and must return 64 bytes) |
 
-`_addPosition`: if position already tracked, overwrites `strategy` field and emits `PositionStrategyMigrated`
-(mirrors `Vault.sol`'s `_addAssets` pattern — re-executing via a new strategy auto-migrates the pointer).
+### Position lifecycle
 
-`_removePosition`: swap-with-last pattern; `delete positionIndex[key]`.
+- **Add** — via strategy returning `PositionChange(isAdd=true)`. Required: `_msgSender()` authorized; `isWhitelistedTarget(strategy)`; `isWhitelistedNfpm(nfpm)`; `isVaultToken[token0/token1]`; canonical pair matches `getPositionTokens(nfpm, tokenId)`; vault owns NFT (`ownerOf == address(this)`); `positions.length < maxPositions`.
+- **Remove (full exit)** — via strategy returning `PositionChange(isAdd=false)` during `execute` or `exitProportional`. Verified via `_verifyPositionExit`: if vault still owns NFT, strategy must report zero `getPositionAmounts`.
+- **Drop (emergency)** — `dropPosition(nfpm, tokenId)` callable by `vaultOwner` OR `operator`. Removes from tracking; transfers NFT to operator if set (custody asymmetry — operator returns it via `recoverPosition`).
+- **Recover** — `recoverPosition(nfpm, tokenId, strategy, token0, token1)` callable by `operator`. Validates: NFPM whitelisted, tokens are vault tokens, strategy whitelisted, canonical pair matches. Pulls NFT back via `transferFrom(operator → vault)` (operator must have approved vault on the NFPM). Re-adds to tracking.
 
-`dropPosition`: `onlyOwner`; removes from tracking without exiting liquidity; emits `PositionDropped`.
-Use when pool is rugged or NFPM is bricked and `strategyUpdates` cannot fix it.
-Follow with `sweepERC721` to recover the NFT.
+### EIP-1271
+
+`SharedVault.isValidSignature(hash, sig)` returns `MAGIC_VALUE` if `SignatureChecker.isValidSignatureNow(vaultOwner, hash, sig)`. Supports:
+- Vault owner is an EOA → ECDSA validation.
+- Vault owner is a smart wallet → EIP-1271 cascade (validates against the smart wallet's `isValidSignature`).
+
+The vault itself can therefore act as a smart-wallet signer in any flow that uses `SignatureChecker` (e.g., `SharedVaultAutomator._validateAgentAllowance`).
 
 ---
 
-## Step 4: Strategies
+## SharedVaultGateway
 
-### Strategy Pattern
+The Gateway is the **primary user entry point**. It wraps swap-aggregator calldata around the vault's strict proportional-deposit/withdraw interface so end users can deposit a single token (or native ETH) and receive shares without manually building the four-token mix.
+
+### Deposit flow (`swapAndDeposit`)
+
+```
+1. Wrap msg.value → WETH if any
+2. Pull declared input tokens from caller via transferFrom
+3. For each swap[i] (caller-supplied router calldata):
+     - approve tokenIn for amountIn (or full balance if amountIn == 0)
+     - call swapRouter with swapData
+     - verify output delta ≥ amountOutMin
+4. Read gateway balance for each vault token slot → enforce per-slot post-swap minimum
+5. Approve vault for each non-zero amount
+6. vault.deposit(amounts, slippageBps) → receive shares
+7. Sweep all leftover balances back to caller (including unwrap WETH → ETH if msg.value was set)
+```
+
+### Withdraw flow (`withdrawAndSwap`)
+
+```
+1. Pull shares from caller via transferFrom
+2. vault.withdraw(shares, minWithdrawAmounts, false)  // gateway holds all withdrawn tokens
+3. For each swap[i]: convert vault tokens → desired output via swapRouter
+4. Sweep all balances to caller (unwrap WETH if `unwrapOnWithdraw`)
+```
+
+### Trust assumptions
+
+- `swapRouter` is settable by the gateway owner; caller-supplied `swapData` is fully trusted to call any function the router exposes (within the gateway's approval-limited token scope). The router must NOT expose admin functions consumable by user calldata.
+- `swap.amountOutMin` and per-slot `minDepositAmounts` are the user's slippage controls.
+- There is currently NO end-to-end `minShares` parameter (see audit W-18); users with multi-step swap routes should monitor that swap slippage protects them.
+
+---
+
+## SharedVaultFactory
+
+`OwnableUpgradeable + PausableUpgradeable + Withdrawable`. Deploys vaults via `Clones.cloneDeterministic` with salt `keccak256(abi.encodePacked(name, msg.sender, "shared-1.0"))` (note: `abi.encodePacked` salt — caller-name pair collisions are theoretically possible; tracked as audit W-8).
+
+Two overloads:
+- `createVault(name, tokens, initialAmounts, vaultOwnerFeeBasisPoint)` — caller becomes owner immediately; operator = factory.owner().
+- `createVault(name, tokens, initialAmounts, vaultOwnerFeeBasisPoint, actions[])` — factory becomes temporary owner; runs `execute(actions)` once (factory is permanently `onlyAuthorized` for this); transfers ownership + INITIAL_SHARES to caller.
+
+ETH path: full `msg.value` is wrapped to WETH (factory expects `initialAmounts[wethIndex] == msg.value` exactly).
+
+---
+
+## SharedVaultAutomator
+
+`CustomEIP712("V3AutomationOrder", "5.0") + AccessControl + Pausable + Withdrawable`.
+
+Two flows, both gated by `OPERATOR_ROLE`:
+- `executeWithAgentAllowance(vault, actions[], abiEncodedAllowance, signature)` — long-lived; expires via `expirationTime`; vault binding enforced via `require(allowance.vault == vault)`.
+- `executeWithUserOrder(vault, actions[], abiEncodedOrder, sig)` — **currently reusable** (audit C-1: plan said one-time; implementation is reusable until cancelled or expired).
+
+`cancelOrder(hash, sig)` keys cancellation on the digest globally. **Caveat (audit C-3):** anyone who knows the digest can sign + cancel it on behalf of the original signer. Recommended fix: key on `(canceller, hash)`.
+
+EIP-1271 support: `SignatureChecker.isValidSignatureNow(owner, digest, sig)` works for both EOA and smart-wallet vault owners.
+
+---
+
+## Strategies (Beacon + Proxy pattern)
+
+Each strategy type (V3, V4, Aerodrome, optionally Pancake V3) gets:
+1. A logic contract (`SharedV3Strategy`, etc.) — deployed once, never changed in place.
+2. A `SharedStrategyBeacon` — stores the current implementation address; protocol-multisig-owned.
+3. A `SharedStrategyProxy` — forwards every call via delegatecall to `beacon.implementation()`. The beacon address is `immutable` (in bytecode), so the proxy holds zero storage of its own → safe when called via vault's delegatecall (no storage collision with vault's layout).
+
+**Upgrade:** call `beacon.setImplementation(newImpl)`. All vaults using that beacon's proxy switch to the new logic immediately (no per-vault migration). **Caveat (audit W-3):** no timelock; recommend wrapping the beacon owner in a Timelock multisig.
+
+**Whitelist:** only the proxy address goes into `configManager.whitelistedTargets` — the impl behind the beacon never needs re-whitelisting on upgrade.
+
+### Strategy interface (`ISharedStrategy`)
 
 ```solidity
-contract SharedXxxStrategy is ISharedStrategy {
-  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    // 1. Decode operation type + params
-    // 2. Validate: ISharedVault(address(this)).isVaultToken(token0/token1)
-    // 3. Execute LP operation
-    // 4. Return PositionChange[]
-  }
-
-  function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares,
-    uint256 minAmount0, uint256 minAmount1, uint16 vaultOwnerFeeBasisPoint)
-    external override returns (PositionChange[] memory changes) { ... }
-
-  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1)
-    external override { ... }  // staked positions must return silently
-
-  function getPositionAmounts(address nfpm, uint256 tokenId)
-    external view override returns (uint256, uint256) { ... }
-}
+function execute(bytes data) external payable returns (PositionChange[] memory);
+function exitProportional(nfpm, tokenId, shares, totalShares, minA0, minA1, vaultOwnerFeeBps)
+    external returns (PositionChange[] memory);
+function depositProportional(nfpm, tokenId, amount0, amount1, slippageBps) external;
+function collectFees(nfpm, tokenId, vaultOwnerFeeBps) external;
+function getPositionAmounts(nfpm, tokenId) external view returns (uint256, uint256);
+function getPositionPrincipalAmounts(nfpm, tokenId) external view returns (uint256, uint256);
+function getPositionTokens(nfpm, tokenId) external view returns (address, address);
 ```
 
-Token validation pattern (inside strategy, running via delegatecall — `address(this)` is the vault):
-```solidity
-require(ISharedVault(address(this)).isVaultToken(token), InvalidPoolTokens());
-```
+### Per-strategy operation types
 
-### 4a. `SharedV3Strategy.sol` — Universal V3-family strategy
+**SharedV3Strategy:** `SWAP_AND_MINT`, `SWAP_AND_INCREASE`, `SAFE_TRANSFER_NFT` (delegating to V3Utils for CHANGE_RANGE, WITHDRAW_AND_COLLECT_AND_SWAP, etc. via the NFT-receive callback). Tracked positions detected via `tokenOfOwnerByIndex` after CHANGE_RANGE.
 
-Wraps `V3Utils`. Operations: `SWAP_AND_MINT`, `SWAP_AND_INCREASE`, `SAFE_TRANSFER_NFT`, `CHANGE_RANGE`.
+**SharedV4Strategy:** `EXECUTE` (forwards to V4UtilsRouter), `SAFE_TRANSFER_NFT`. Uses Permit2 for `depositProportional`. Detects new positions by snapshotting `pm.nextTokenId()` before and after each call. **Caveat (audit C-4):** the inner `Instructions.params` are not currently validated — operators submitting an `EXECUTE` action can include arbitrary inline swap calldata bypassing `isWhitelistedSwapRouter`.
 
-Handles all V3-compatible AMMs via the `protocol` flag in `SwapAndMintParams` / `Instructions`
-(Uniswap V3, PancakeSwap V3 base, Aerodrome CL base, QuickSwap, etc.).
+**SharedAerodromeStrategy:** Same surface as V3 but uses Aerodrome's tickSpacing-based pool lookup (`ICLFactory.getPool(t0, t1, tickSpacing)`). No gauge / farming support in this strategy — Aerodrome positions cannot be staked from a shared vault (audit W-12).
 
-`exitProportional`: `WITHDRAW_AND_COLLECT_AND_SWAP` with `targetToken=address(0)` (no swap). Full exit returns
-`PositionChange(false)`.
-
-`depositProportional`: `safeResetAndApprove` → `INFPM.increaseLiquidity`. No staking check needed (V3Strategy
-is only used for unstaked positions).
-
-### 4b. `SharedV4Strategy.sol` — Uniswap V4
-
-Wraps `V4UtilsRouter`. Operations: `EXECUTE` (generic V4Utils execute call), `SAFE_TRANSFER_NFT`.
-
-`exitProportional`: Approves V4UtilsRouter for NFT → calls `DECREASE_AND_SWAP` with `swapDestToken=address(0)`.
-V4Utils sweeps tokens back to vault; NFT returned to vault after processing.
-
-`depositProportional`: Permit2 flow —
-```
-require(amounts ≤ type(uint160).max)
-permit2Addr = IPermit2Addr(posm).permit2()
-safeResetAndApprove(token, permit2Addr, amount)
-IPermit2Allowance(permit2Addr).approve(token, posm, uint160(amount), deadline)
-// then: INCREASE_LIQUIDITY_FROM_DELTAS (0x04) + CLOSE_CURRENCY (0x12) × 2
-pm.modifyLiquidities(abi.encode(actions, params), deadline)
-```
-
-Uses local minimal interfaces `IPermit2Addr` and `IPermit2Allowance` (avoids `permit2/src/...` import path
-that breaks the Solidity LSP).
-
-### 4c. `SharedAerodromeStrategy.sol` — Aerodrome CL gauge farming
-
-Only needed for gauge-specific operations: `SWAP_AND_MINT`, `SWAP_AND_INCREASE`, `SAFE_TRANSFER_NFT`,
-`DEPOSIT_GAUGE`, `WITHDRAW_GAUGE`, `HARVEST_GAUGE`. Basic LP without gauge → use `SharedV3Strategy`.
-
-`exitProportional`: Detects gauge staking via `ownerOf(tokenId) != address(this)`. If staked: harvests rewards,
-`gauge.withdraw(tokenId)`, V3Utils proportional decrease. Partial exits re-stake via `gauge.approve + gauge.deposit`.
-
-`depositProportional`: `ownerOf` guard (returns silently if staked). Otherwise `safeResetAndApprove` →
-`INFPM.increaseLiquidity`.
-
-### 4d. PancakeSwap V3
-
-PancakeSwap V3 is ABI-compatible with Uniswap V3 (`uint24 fee`, same factory selector, same NFPM struct).
-Use `SharedV3Strategy` directly — whitelist the PancakeSwap V3 NFPM in `SharedConfigManager`. No dedicated
-strategy needed. Separate beacon+proxy pairs allow independent whitelist revocation per protocol.
+**PancakeSwap V3 / SushiSwap V3:** ABI-compatible with Uniswap V3; reuse `SharedV3Strategy` and just whitelist the protocol's NFPM separately. No dedicated strategy contract.
 
 ---
 
-## Step 5: SharedVaultFactory
+## Fee Model
 
-**Inherits**: `OwnableUpgradeable`, `PausableUpgradeable`, `Withdrawable`, `ISharedVaultFactory`
+Fees apply only to **LP-related token flows**, not to vault shares or principal.
 
-### Storage
+| Fee | Source | Applied to | Recipient |
+|---|---|---|---|
+| `platformFeeBasisPoint` | `ConfigManager` (mutable) | LP performance collections | `feeRecipient` |
+| `vaultOwnerFeeBasisPoint` | Vault (locked at init) | LP performance collections | `vaultOwner` |
+| `gasFeeX64` | V3Utils / V4UtilsRouter calldata | Principal on rebalance/decrease | `gasFeeRecipient` |
 
-```solidity
-ISharedConfigManager public configManager;
-address public vaultImplementation;
-address public weth;
-mapping(address => address[]) public vaultsByAddress;
-address[] public allVaults;
-mapping(address => bool) public isVaultAddress;
-```
+`SharedStrategyFeeConfig.performanceFeeConfig` builds the FeeConfig used by `LpFeeTaker.takeFees` for V3/Aerodrome flows. If `platformBps + ownerBps > 10000`, the owner share is silently clamped (`ownerBps := 10000 − platformBps`). The protocol can raise `platformFeeBasisPoint` to squeeze the vault-owner share — depositors should treat the vault-owner share as a ceiling, not a guarantee.
 
-### createVault flows
+V4 implements the fee split inline (`SharedV4Strategy._applyFees`) because V4 uses Permit2 + flash-accounting and is incompatible with the `LpFeeTaker.takeFees(token0, total0, token1, total1, fc, …)` approve-then-pull pattern.
 
-**Simple** (no actions):
-```
-1. keccak256(name, msg.sender, "shared-1.0") salt — DuplicateVaultName if already exists
-2. Wrap ETH → WETH if msg.value > 0 (full wrap, exact match to initialAmounts[wethIdx])
-3. Transfer ERC20 initialAmounts to vault (pre-initialize)
-4. vault.initialize(name, tokens, initialAmounts, msg.sender, factory.owner(), configManager, weth)
-   // operator = factory.owner(); no _operator param to createVault
-```
-
-**With actions**:
-```
-1-3. Same as simple
-4. vault.initialize(..., _owner=address(this), ...)  // factory owns vault temporarily
-5. vault.execute(actions, new PositionStrategyUpdate[](0))
-   // works because factory is permanently authorized in vault's onlyAuthorized
-6. vault.transferOwnership(msg.sender)
-```
+**`collectFees` runs BEFORE the idle snapshot in `withdraw`**, so accrued LP fees are distributed proportionally across all shareholders, not handed entirely to the current withdrawer.
 
 ---
 
-## Step 6: SharedVaultAutomator
+## Constants & Defaults
 
-**Inherits**: `CustomEIP712("SharedVaultAutomator", "1.0")`, `AccessControl`, `Pausable`, `Withdrawable`
-
-**Two auth flows** — both use `AgentAllowanceStructHash.AgentAllowance`:
-
-- `executeWithAgentAllowance`: reusable; validated by expiry; not consumed
-- `executeWithUserOrder`: one-time; `_cancelledOrder[keccak256(sig)] = true` *before* dispatch (replay-safe)
-
-Both flows forward `strategyUpdates` to `vault.execute(actions, strategyUpdates)`.
-
-**EIP-1271 multisig**: `SignatureChecker.isValidSignatureNow(vaultOwner, digest, sig)` — accepts both EOA ECDSA
-and smart-wallet (EIP-1271) signatures. Vault `isValidSignature` delegates to `vaultOwner` automatically.
-
-**Roles**: `DEFAULT_ADMIN_ROLE` for admin ops; `OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE")` for execution.
-
----
-
-## Step 7: Deployment Scripts & Config
-
-### `scripts/deployLogic-shared.ts`
-
-Deploy sequence:
-1. Deploy `SharedVault` implementation
-2. Deploy `SharedConfigManager` (upgradeable proxy)
-3. Deploy `SharedVaultFactory` (upgradeable proxy → initialize with configManager, vault impl, weth)
-4. Deploy `SharedV3Strategy` (serves Uniswap V3 and PancakeSwap V3)
-5. Deploy `SharedV4Strategy`
-6. Deploy `SharedAerodromeStrategy` (one per Aerodrome NFPM)
-7. Deploy `SharedVaultAutomator` (constructor: `_owner`, `_operators`)
-8. Initialize `SharedConfigManager`:
-   - `whitelistedTargets` = proxy addresses for all strategies
-   - `whitelistedCallers` = [automator address]
-   - `feeRecipient` = `commonConfig.feeCollector`
-
-### `configs/interfaces.ts`
-
-`IConfigShared` extends `IConfig` with: `sharedVault`, `sharedVaultFactory`, `sharedConfigManager`,
-`sharedV3Strategy`, `sharedV4Strategy`, `sharedAerodromeStrategy`, `sharedVaultAutomator`.
-
----
-
-## Step 8: Tests
-
-### `test/unit/SharedVault.t.sol` — 75 tests
-
-- Initialization, deposit (first/subsequent/proportional cap/ETH wrap/excess refund)
-- Minimum-ratio share calculation; INITIAL_SHARES constant
-- Proportional deposit into LP positions; `depositProportional` delegatecall
-- `dropPosition`: happy path, unblocks deposit, fail-not-tracked, fail-unauthorized
-- Withdrawal: idle-snapshot + LP exit, no double-dilution, aggregate minAmounts slippage, WETH unwrap
-- `vaultOwnerFeeBasisPoint` forwarded to exitProportional
-- `execute()` with DELEGATECALL, CALL (swap), CALL_WITH_POSITIONS
-- `strategyUpdates` in execute: migration, unauthorized, not-whitelisted, not-tracked, unblocks-withdrawal
-- Auto-update of `pos.strategy` when re-executing via new strategy
-- Sweep (operator), reject vault tokens, reject non-operator
-- Per-vault pause (alongside global configManager pause)
-- Role management: admins, operator (fixed, no setter), ownership transfer
-- EIP-1271 signature validation
-
-### `test/unit/SharedVaultFactory.t.sol` — 20 tests
-
-- Simple and action-based vault creation
-- ETH wrapping for initial deposit; wrong amount rejects
-- `DuplicateVaultName` guard
-- `MockFactoryStrategy` tracks execution via `PositionChange` return (not storage — delegatecall writes to vault)
-- Operator = factory.owner() after creation
-
-### `test/unit/SharedVaultAutomator.t.sol` — 23 tests
-
-- Both auth flows (agentAllowance, userOrder) with EOA and EIP-1271 multisig signatures
-- One-time use enforcement for userOrder (replay reverts)
-- Manual cancellation via `cancelOrder`
-- Wrong vault/signer/expiry reverts with `InvalidSignature`
-- `strategyUpdates` forwarded correctly
-- Pause/unpause, role management
-
----
-
-## Reuse Summary
-
-| Component                     | Source                                         | How Used                                              |
-| ----------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
-| `FullMath`                    | `@uniswap/v3-core`                             | Share math (mulDiv)                                   |
-| `SafeERC20`                   | OpenZeppelin                                   | Token transfers                                       |
-| `SafeApprovalLib`             | `private-vault/libraries/SafeApprovalLib.sol`  | USDT-safe approve reset in strategies                 |
-| `ERC20PermitUpgradeable`      | OpenZeppelin                                   | Share token with EIP-2612                             |
-| `Clones`                      | OpenZeppelin                                   | Deterministic proxy deployment                        |
-| `Withdrawable`                | `contracts/common/Withdrawable.sol`            | Factory + automator sweep functions                   |
-| `SignatureChecker`            | OpenZeppelin                                   | EIP-1271 validation in automator                      |
-| `AgentAllowanceStructHash`    | `common/libraries/strategies/`                 | EIP-712 for both agentAllowance and userOrder flows   |
-| `CustomEIP712`                | `private-vault/core/CustomEIP712.sol`          | Domain separator + `_recoverAgentAllowance`           |
-| `IV3Utils` structs            | `private-vault/interfaces/strategies/lpv3/`    | SwapAndMintParams, Instructions, etc.                 |
-| `IV4UtilsRouter`              | `private-vault/interfaces/strategies/lpv4/`    | V4 execution interface                                |
-| `SharedNfpmProportionalExit`  | `shared-vault/libraries/`                      | Shared V3-family exit logic across strategies         |
-| `SharedStrategyFeeConfig`     | `shared-vault/libraries/`                      | Fee config helpers shared across strategies           |
+| Constant | Value | Where |
+|---|---|---|
+| `INITIAL_SHARES` | 10e18 | `SharedVault` (always minted on first deposit) |
+| `SHARES_PRECISION` | 1e18 | `SharedVault` |
+| `maxPositions` default | 20 | `SharedConfigManager.initialize` |
+| `minTokenPrecision` default | 5 (→ 0.00001 of any token) | `SharedConfigManager.initialize` |
+| `MAGIC_VALUE` (EIP-1271) | 0x1626ba7e | `SharedVault` |
 
 ---
 
 ## Verification
 
-1. `forge build` — all contracts compile without errors ✓
-2. `forge test --match-contract SharedVaultTest` — 75 unit tests pass ✓
-3. `forge test --match-contract SharedVaultFactoryTest` — 20 unit tests pass ✓
-4. `forge test --match-contract SharedVaultAutomatorTest` — 23 unit tests pass ✓
+```
+forge build                                    # all contracts compile
+forge test --match-contract SharedVaultTest    # 131 unit tests
+forge test --match-contract SharedVaultGatewayTest          # 53 tests
+forge test --match-contract SharedVaultAutomatorTest        # 32 tests
+forge test --match-contract SharedVaultFactoryTest          # 34 tests
+forge test --match-contract SharedConfigManagerTest         # 49 tests
+forge test --match-contract SharedStrategyProxyTest         # 17 tests
+forge test --match-contract SharedStrategyBeaconTest        # 10 tests
+forge test --match-contract SharedStrategyApprovalsTest     # 3 tests
+forge test --match-contract SharedStrategyGuardsTest        # 3 tests
+forge test --match-contract SharedVaultAuditTest            # 16 audit-regression tests
+forge test --match-contract SharedVaultFuzzTest             # 5 fuzz suites × 256 runs
+```
 
-Total: **118 unit tests** passing.
+Integration tests under `test/integration/Integration.SharedVault*.t.sol` cover real-fork V3, Aerodrome, PancakeV3, SushiV3, Gateway, Automator, Swap, and MultiProtocol flows.
 
-Integration tests (`test/integration/Integration.SharedVault*.t.sol`) require fork RPC URLs and cover:
-- Uniswap V3: swapAndMint, swapAndIncrease, collectFees, fullWithdraw, proportional deposit with active LP
-- ETH deposit/unwrap withdraw
-- Factory createVault with initial LP position
-- Aerodrome: gauge deposit/withdraw/harvest + proportional exit
-- PancakeSwap V3: MasterChef deposit/withdraw/harvest + proportional exit
-- Multi-protocol: mixed V3/V4/Aerodrome positions in a single vault
+---
+
+## Reuse Summary
+
+| Component | Source | Use |
+|---|---|---|
+| `FullMath` | `@uniswap/v3-core` | Share math (`mulDiv`, `mulDivRoundingUp`) |
+| `SafeERC20`, `IERC20Metadata` | OpenZeppelin | Token transfers + decimals probe |
+| `SafeApprovalLib` | `private-vault/libraries/` | USDT-safe `safeResetAndApprove` |
+| `ERC20PermitUpgradeable` | OpenZeppelin | Share token with EIP-2612 |
+| `Clones` | OpenZeppelin | Deterministic factory deploys |
+| `Withdrawable` | `contracts/common/` | Factory + automator + gateway sweep |
+| `SignatureChecker` | OpenZeppelin | EIP-1271 in automator + vault |
+| `AgentAllowanceStructHash` | `common/libraries/strategies/` | EIP-712 for AgentAllowance |
+| `LpUniV3StructHash` | `common/libraries/strategies/` | EIP-712 for UserOrder (LpV3 type) |
+| `CustomEIP712` | `private-vault/core/` | EIP-712 domain separator |
+| `IV3Utils` | `private-vault/interfaces/strategies/lpv3/` | V3 family LP operations |
+| `IV4UtilsRouter` | `private-vault/interfaces/strategies/lpv4/` | V4 LP operations |
+| `LpFeeTaker` | `public-vault/interfaces/strategies/` | Platform + vault-owner fee dispatch (V3/Aerodrome) |
+| `INonfungiblePositionManager` (Aero) | `common/interfaces/protocols/aerodrome/` | Aerodrome NFPM with tickSpacing |
+| `IPositionManager` (V4) | `@uniswap/v4-periphery` | V4 PositionManager |
+| `IPermit2`, `IAllowanceTransfer` | `permit2/src/interfaces/` | V4 Permit2 flow |
+| `StateLibrary`, `TickMath` (V4) | `@uniswap/v4-core` | V4 pool state reads + tick → sqrtPrice |
+| `LiquidityAmounts` | `@uniswap/v3-periphery` | sqrtPrice + liquidity → amounts |
