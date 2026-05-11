@@ -217,15 +217,26 @@ contract SharedVault is
       (transferAmounts) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalancesBefore);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
-      // Measure actual tokens received (FOT-safe). Downstream LP top-up and share math use
-      // actualPulled, never transferAmounts, so depositors are credited only for value the vault holds.
+      // Measure actual tokens received (FOT-safe). Two downstream consumers of this snapshot:
+      //
+      //   (a) `_depositProportionalToAllPositions` uses `actualPulled` because the per-position
+      //       LP top-up cannot push more tokens into a pool than the vault physically received
+      //       from the depositor (NOT a user-facing constraint — depositors can always add new
+      //       value; this is about the internal "push idle → LP" step that runs after the pull).
+      //
+      //   (b) `_computeSharesFromDelta` uses `transferAmounts` — the depositor's REQUIRED
+      //       contribution set — as its filter. This prevents a 100% FOT / rebasing token from
+      //       being silently skipped: if a required token has zero post-deposit delta, the
+      //       function returns 0 and the outer `require(shares > 0)` reverts. Without this,
+      //       the depositor would receive shares from the remaining tokens even though they
+      //       didn't satisfy the vault ratio.
       actualPulled = _measureActualPulled(idleBeforePull);
-      // Push tokens into LP positions. Slippage may cause the LP to consume less than
-      // the actualPulled amount; we re-snapshot balances after to measure what was
-      // actually deposited and compute shares from that delta.
+      // Push proportional slices into LP positions. Slippage may cause `increaseLiquidity` to
+      // consume less than the supplied amount; we re-snapshot balances after to measure what
+      // was actually deposited (idle + LP) and compute shares from the resulting delta.
       _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, actualPulled, slippageBps);
       uint256[4] memory totalBalancesAfter = _getTotalBalances();
-      shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter, actualPulled);
+      shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter, transferAmounts);
       require(shares > 0, InsufficientShares());
     }
 

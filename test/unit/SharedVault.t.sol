@@ -4808,6 +4808,82 @@ contract SharedVaultTest is TestCommon {
     assertGt(fotDelta, 0, "FOT delta still positive");
   }
 
+  function test_audit_C5_oneHundredPercentFOT_revertsOnSubsequentDeposit() public {
+    // Vault uses a 100% FOT token: every transferFrom delivers ZERO tokens to the vault.
+    // First deposit always mints INITIAL_SHARES regardless of FOT loss (vault state may be weird,
+    // but no existing shareholders are diluted because there are none yet). Subsequent depositors
+    // MUST revert: their proportional contribution to the FOT slot is zero, and if share math
+    // skipped that slot, they would receive shares funded by their OTHER token contributions only —
+    // diluting the first depositor.
+    FotToken fot100 = new FotToken(10_000);
+    address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("F100", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    // First depositor (gets INITIAL_SHARES even though FOT delivers 0)
+    fot100.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot100.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    // After first deposit, vault holds 0 FOT and 100e18 tokenB (because FOT is 100%-fee).
+    // The vault's totalBalances[0] == 0 for the FOT slot.
+    // Subsequent depositor providing both tokens: the FOT slot has totalBalance == 0 →
+    // `_subsequentDepositTransfers` requires amounts[FOT] == 0 → revert with InvalidRatio.
+    address bob = address(0xB0B0B0);
+    fot100.mint(bob, 1000e18);
+    tokenB.mint(bob, 1000e18);
+    vm.startPrank(bob);
+    fot100.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+  }
+
+  function test_audit_C5_partialFOT_acrossLpValuation_revertsOnZeroDelta() public {
+    // Edge case for the transferAmounts-vs-actualPulled fix: when a required token has
+    // transferAmounts[i] > 0 but the post-deposit total-balance delta is 0 (e.g., 100% FOT
+    // on a token the vault is supposed to hold), share math must return 0 and revert,
+    // NOT silently mint shares from the remaining tokens.
+    //
+    // Scenario: vault has tokenA + a 100% FOT token; first depositor seeds with tokenA only
+    // (FOT slot is 0). A LATER depositor providing only tokenA is allowed (FOT slot stays 0).
+    // But if a depositor provides BOTH and FOT delivers 0, the FOT slot has totalBalance 0,
+    // so amounts[FOT] must be 0 — confirmed by the previous test. This test instead exercises
+    // a scenario where transferAmounts[i] > 0 but actualPulled[i] == 0 via partial FOT plus
+    // a tight slippage path.
+    FotToken fot = new FotToken(200); // 2% FOT, partial
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("PFT", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 firstShares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+    assertEq(firstShares, v.INITIAL_SHARES());
+
+    // Now subsequent depositor with partial FOT: should succeed (delta > 0 on both slots)
+    address bob = address(0xB0B0B0);
+    fot.mint(bob, 1000e18);
+    tokenB.mint(bob, 1000e18);
+    vm.startPrank(bob);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+    assertGt(shares, 0, "partial FOT deposit credits actual delta");
+  }
+
   function test_audit_C5_usdtLikeToken_deposit_works_via_safeERC20() public {
     UsdtLikeToken usdt = new UsdtLikeToken();
     address[4] memory toks = [address(usdt), address(tokenB), address(0), address(0)];

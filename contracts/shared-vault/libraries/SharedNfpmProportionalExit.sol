@@ -39,14 +39,13 @@ library SharedNfpmProportionalExit {
     if (
       (collected0 > 0 || collected1 > 0) && (perfOnly.vaultOwnerFeeBasisPoint > 0 || perfOnly.platformFeeBasisPoint > 0)
     ) {
-      // Approve only the exact fee amounts that takeFees will pull via transferFrom.
-      // Mirrors LpFeeTaker._takeFee arithmetic to avoid residual allowance on the vault.
-      uint256 fee0 = (collected0 * perfOnly.platformFeeBasisPoint) / 10_000
-        + (collected0 * perfOnly.vaultOwnerFeeBasisPoint) / 10_000;
-      uint256 fee1 = (collected1 * perfOnly.platformFeeBasisPoint) / 10_000
-        + (collected1 * perfOnly.vaultOwnerFeeBasisPoint) / 10_000;
-      _safeResetAndApprove(IERC20(token0), lpFeeTaker, fee0);
-      _safeResetAndApprove(IERC20(token1), lpFeeTaker, fee1);
+      // Approve the FULL collected amounts (matches public `LpStrategy._takeFees` pattern).
+      // Approving only the bare fee bps is unsafe: depending on the LpFeeTaker implementation,
+      // the swap-to-principal path may need to pull more than the headline fee, causing withdrawals
+      // to revert whenever a non-principal fee is collected. The vault is then bricked because
+      // collectFees runs unconditionally on every withdraw and a revert here blocks every share holder.
+      _safeResetAndApprove(IERC20(token0), lpFeeTaker, collected0);
+      _safeResetAndApprove(IERC20(token1), lpFeeTaker, collected1);
       ILpFeeTaker(lpFeeTaker).takeFees(token0, collected0, token1, collected1, perfOnly, token0, pool, address(0));
     }
   }
