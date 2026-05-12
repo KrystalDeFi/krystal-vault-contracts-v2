@@ -2,6 +2,7 @@ name: Run tests on the PR and write the documentation
 
 on:
   pull_request:
+    branches: [main]
 
 jobs:
   pr-test:
