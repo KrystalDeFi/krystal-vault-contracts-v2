@@ -118,22 +118,31 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     instructions.recipient = address(this);
 
-    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
     uint256 balanceBefore = IERC721(_nfpm).balanceOf(address(this));
 
-    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
-
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    // Snapshot pre-call token IDs for CHANGE_RANGE so we can diff them after the call.
+    // Done before the transfer to capture the full pre-call owner set.
+    bool isChangeRange = instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE;
+    uint256[] memory tokensBefore;
+    if (isChangeRange) {
+      require(balanceBefore > 0, InvalidPoolTokens());
       if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // Assumed V3Utils ordering: mints new NFT first (→ index balanceBefore - 1), then returns old NFT.
-      // Guard against inverted ordering: require resolved token is not the original tokenId.
-      // Post-call balance must be balanceBefore + 1 (exactly one new NFT minted).
-      require(balanceBefore > 0, InvalidPoolTokens());
+      tokensBefore = new uint256[](balanceBefore);
+      for (uint256 i; i < balanceBefore; ) {
+        tokensBefore[i] = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), i);
+        unchecked { i++; }
+      }
+    }
+
+    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (isChangeRange) {
+      // Exactly one new NFT must have been added (old is returned, new is minted → net +1).
       require(IERC721(_nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
-      uint256 newTokenId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
-      require(newTokenId != tokenId, InvalidPoolTokens());
+      uint256 newTokenId = _findNewTokenId(_nfpm, tokensBefore, balanceBefore + 1);
+      require(newTokenId != 0, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -348,6 +357,38 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     }
   }
 
+  /// @dev Finds the one token ID present in the post-call owner set that was absent in `tokensBefore`.
+  ///      Returns 0 if no new token is found (caller must treat 0 as an error: Aerodrome NFPM starts
+  ///      nextId at 1, so token ID 0 is never minted).
+  function _findNewTokenId(
+    address _nfpm,
+    uint256[] memory tokensBefore,
+    uint256 balanceAfter
+  ) private view returns (uint256) {
+    for (uint256 i; i < balanceAfter; ) {
+      uint256 candidateId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), i);
+      bool isKnown = false;
+      for (uint256 j; j < tokensBefore.length; ) {
+        if (tokensBefore[j] == candidateId) {
+          isKnown = true;
+          break;
+        }
+        unchecked { j++; }
+      }
+      if (!isKnown) return candidateId;
+      unchecked { i++; }
+    }
+    return 0;
+  }
+
+  /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:
+  ///      feeGrowthInside = feeGrowthGlobal − feeGrowthBelow − feeGrowthAbove.
+  ///      If a tick is uninitialized (feeGrowthOutside == 0), the math remains correct:
+  ///      — In-range (tick between lower and upper) with both outsides = 0: result = global (all fees inside).
+  ///      — Below range (tick < lower) with lower outside = 0: fgBelow = global − 0 = global → result = 0.
+  ///      — Above range (tick ≥ upper) with upper outside = 0: fgAbove = global → result = 0.
+  ///      A live tracked position always has its ticks initialized (liquidity was added), but this
+  ///      property ensures the helper is safe even in hypothetical edge-case invocations.
   function _getFeeGrowthInside(
     ICLPool pool,
     int24 tickLower,

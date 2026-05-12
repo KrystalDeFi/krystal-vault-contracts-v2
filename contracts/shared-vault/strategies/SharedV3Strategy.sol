@@ -109,13 +109,12 @@ contract SharedV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev `CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
-  ///      **Assumed V3Utils ordering**: mints the new NFT to the vault first, THEN returns the old one.
-  ///      With this ordering the new token lands at owner-index `balanceBefore - 1` (appended while the old token
-  ///      is still absent), and the old token lands at `balanceBefore` after being returned.
-  ///      If a future V3Utils version returns the old NFT BEFORE minting the new one, the old token occupies
-  ///      index `balanceBefore - 1` and the check below (`newTokenId != tokenId`) catches the inversion.
-  ///      A post-call balance check enforces exactly one NFT was minted (mirrors SharedV4Strategy's guard).
+  /// @dev `CHANGE_RANGE`: Identifies the newly minted token by diffing the vault's pre/post token-ID sets.
+  ///      Snapshotting all token IDs before the call and finding the one absent from the snapshot after
+  ///      is insertion-order-agnostic: correct regardless of whether V3Utils mints the new NFT before or
+  ///      after returning the old one, and regardless of NFPM owner-array ordering.
+  ///      A strict post-call balance check (== balanceBefore + 1) enforces that exactly one NFT was minted,
+  ///      guarding against multi-mint or burn-and-no-return edge cases.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -129,23 +128,31 @@ contract SharedV3Strategy is ISharedStrategy {
 
     instructions.recipient = address(this);
 
-    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
     uint256 balanceBefore = IERC721(nfpm).balanceOf(address(this));
 
-    IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
-
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    // Snapshot pre-call token IDs for CHANGE_RANGE so we can diff them after the call.
+    // Done before the transfer to capture the full pre-call owner set.
+    bool isChangeRange = instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE;
+    uint256[] memory tokensBefore;
+    if (isChangeRange) {
+      require(balanceBefore > 0, InvalidPoolTokens());
       if (!IERC165(nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // V3Utils mints exactly one new NFT then returns the old NFT → post-call balance must be balanceBefore + 1.
-      // This mirrors SharedV4Strategy's nextTokenId guard, catching any future multi-mint V3Utils version.
-      require(balanceBefore > 0, InvalidPoolTokens());
+      tokensBefore = new uint256[](balanceBefore);
+      for (uint256 i; i < balanceBefore; ) {
+        tokensBefore[i] = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), i);
+        unchecked { i++; }
+      }
+    }
+
+    IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (isChangeRange) {
+      // Exactly one new NFT must have been added (old is returned, new is minted → net +1).
       require(IERC721(nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
-      uint256 newTokenId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
-      // Guard against inverted ordering (old returned before new minted): in that case the resolved
-      // index holds the original tokenId, not a newly minted position.
-      require(newTokenId != tokenId, InvalidPoolTokens());
+      uint256 newTokenId = _findNewTokenId(nfpm, tokensBefore, balanceBefore + 1);
+      require(newTokenId != 0, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
@@ -406,6 +413,38 @@ contract SharedV3Strategy is ISharedStrategy {
     }
   }
 
+  /// @dev Finds the one token ID present in the post-call owner set that was absent in `tokensBefore`.
+  ///      Returns 0 if no new token is found (caller must treat 0 as an error: Uniswap V3 NFPM starts
+  ///      nextId at 1, so token ID 0 is never minted).
+  function _findNewTokenId(
+    address nfpm,
+    uint256[] memory tokensBefore,
+    uint256 balanceAfter
+  ) private view returns (uint256) {
+    for (uint256 i; i < balanceAfter; ) {
+      uint256 candidateId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), i);
+      bool isKnown = false;
+      for (uint256 j; j < tokensBefore.length; ) {
+        if (tokensBefore[j] == candidateId) {
+          isKnown = true;
+          break;
+        }
+        unchecked { j++; }
+      }
+      if (!isKnown) return candidateId;
+      unchecked { i++; }
+    }
+    return 0;
+  }
+
+  /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:
+  ///      feeGrowthInside = feeGrowthGlobal − feeGrowthBelow − feeGrowthAbove.
+  ///      If a tick is uninitialized (feeGrowthOutside == 0), the math remains correct:
+  ///      — In-range (tick between lower and upper) with both outsides = 0: result = global (all fees inside).
+  ///      — Below range (tick < lower) with lower outside = 0: fgBelow = global − 0 = global → result = 0.
+  ///      — Above range (tick ≥ upper) with upper outside = 0: fgAbove = global → result = 0.
+  ///      A live tracked position always has its ticks initialized (liquidity was added), but this
+  ///      property ensures the helper is safe even in hypothetical edge-case invocations.
   function _getFeeGrowthInside(
     IUniswapV3Pool pool,
     int24 tickLower,

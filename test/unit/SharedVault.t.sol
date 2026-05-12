@@ -14,6 +14,7 @@ import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedV4Strategy, IV4Utils } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -815,12 +816,130 @@ contract MockInvertedOrderingNfpm {
     ownerOf[newId] = from;
   }
 
-  /// @dev Minimal positions() returning only token0/token1 (others zeroed).
+  /// @dev positions() returns zero liquidity — mirrors the real CHANGE_RANGE behavior where the old
+  ///      position is fully closed, so getPositionAmounts returns (0,0) and _verifyPositionExit passes.
+  function positions(uint256) external view returns (
+    uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128
+  ) {
+    return (0, address(0), token0, token1, 0, 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  function _removeFromOwner(address owner, uint256 tokenId) private {
+    uint256[] storage arr = _ownedTokens[owner];
+    for (uint256 i; i < arr.length; i++) {
+      if (arr[i] == tokenId) {
+        arr[i] = arr[arr.length - 1];
+        arr.pop();
+        return;
+      }
+    }
+  }
+}
+
+/// @dev V3 NFPM that simulates CHANGE_RANGE minting a new token but burning (not returning) the old one.
+///      Post-call balance == balanceBefore (net zero), so the +1 check in _safeTransferNft reverts.
+contract MockBurnWithoutReturnNfpm {
+  address public immutable token0;
+  address public immutable token1;
+  uint256 private _nextNewId;
+
+  mapping(address => uint256[]) private _ownedTokens;
+  mapping(uint256 => address) public ownerOf;
+
+  constructor(address _t0, address _t1, uint256 startNextId) {
+    token0 = _t0;
+    token1 = _t1;
+    _nextNewId = startNextId;
+  }
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+    _ownedTokens[to].push(tokenId);
+  }
+
+  function balanceOf(address owner) external view returns (uint256) { return _ownedTokens[owner].length; }
+  function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+    return _ownedTokens[owner][index];
+  }
+  function supportsInterface(bytes4 id) external pure returns (bool) { return id == 0x780e9d63; }
+  function approve(address, uint256) external {}
+
+  /// @dev Burns the transferred NFT (does not return it) and mints a new one — net balance unchanged.
+  function safeTransferFrom(address from, address, uint256 tokenId, bytes calldata) external {
+    _removeFromOwner(from, tokenId);
+    ownerOf[tokenId] = address(0);
+    // Mint new token to the sender (from), but old token is burned → balance stays the same.
+    uint256 newId = _nextNewId++;
+    _ownedTokens[from].push(newId);
+    ownerOf[newId] = from;
+  }
+
   function positions(uint256) external view returns (
     uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128
   ) {
     return (0, address(0), token0, token1, 0, 0, 0, 1000, 0, 0, 0, 0);
   }
+
+  function _removeFromOwner(address owner, uint256 tokenId) private {
+    uint256[] storage arr = _ownedTokens[owner];
+    for (uint256 i; i < arr.length; i++) {
+      if (arr[i] == tokenId) {
+        arr[i] = arr[arr.length - 1];
+        arr.pop();
+        return;
+      }
+    }
+  }
+}
+
+/// @dev Aerodrome NFPM mock that simulates inverted CHANGE_RANGE ordering (old returned before new minted).
+///      Uses int24 tickSpacing in positions() to match Aerodrome's interface.
+contract MockAerodromeInvertedOrderingNfpm {
+  address public immutable token0;
+  address public immutable token1;
+  uint256 private _nextNewId;
+
+  mapping(address => uint256[]) private _ownedTokens;
+  mapping(uint256 => address) public ownerOf;
+
+  constructor(address _t0, address _t1, uint256 startNextId) {
+    token0 = _t0;
+    token1 = _t1;
+    _nextNewId = startNextId;
+  }
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+    _ownedTokens[to].push(tokenId);
+  }
+
+  function balanceOf(address owner) external view returns (uint256) { return _ownedTokens[owner].length; }
+  function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+    return _ownedTokens[owner][index];
+  }
+  function supportsInterface(bytes4 id) external pure returns (bool) { return id == 0x780e9d63; }
+  function approve(address, uint256) external {}
+
+  /// @dev Inverted ordering: returns old NFT first, then mints new one.
+  function safeTransferFrom(address from, address, uint256 tokenId, bytes calldata) external {
+    _removeFromOwner(from, tokenId);
+    ownerOf[tokenId] = address(0);
+    // Inverted: old returned first, new minted second.
+    _ownedTokens[from].push(tokenId);
+    ownerOf[tokenId] = from;
+    uint256 newId = _nextNewId++;
+    _ownedTokens[from].push(newId);
+    ownerOf[newId] = from;
+  }
+
+  /// @dev Aerodrome positions() uses int24 tickSpacing. Zero liquidity mirrors CHANGE_RANGE close behavior.
+  function positions(uint256) external view returns (
+    uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128
+  ) {
+    return (0, address(0), token0, token1, 60, 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  function factory() external view returns (address) { return address(0); }
 
   function _removeFromOwner(address owner, uint256 tokenId) private {
     uint256[] storage arr = _ownedTokens[owner];
@@ -4450,16 +4569,15 @@ contract SharedVaultTest is TestCommon {
     vault.execute(actions);
   }
 
-  /// @notice Issue 3: SharedV3Strategy._safeTransferNft CHANGE_RANGE guard rejects inverted ordering.
-  ///         If V3Utils returns the old NFT before minting the new one, index (balanceBefore - 1) holds
-  ///         the original tokenId — the guard `require(newTokenId != tokenId)` catches this.
-  function test_security_issue3_v3ChangeRange_revertsOnInvertedOrdering() public {
+  /// @notice Issue 3 (updated): SharedV3Strategy._safeTransferNft CHANGE_RANGE uses a pre/post token-ID
+  ///         diff to locate the new token. This is insertion-order-agnostic: inverted ordering (old NFT
+  ///         returned before new one minted) is now handled correctly instead of reverting.
+  function test_security_issue3_v3ChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
     SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
 
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(v3strat);
-    // NFPM added after init via setWhitelistNfpms
     v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
 
     // Deploy inverted-ordering NFPM; next new id = 999.
@@ -4479,7 +4597,6 @@ contract SharedVaultTest is TestCommon {
     uint256 tokenId = 7;
     invertedNfpm.mint(address(v3v), tokenId);
 
-    // Construct SAFE_TRANSFER_NFT calldata: OperationType.SAFE_TRANSFER_NFT (= 2) + (nfpm, tokenId, instructions)
     IV3Utils.Instructions memory instructions;
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
 
@@ -4489,8 +4606,100 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(v3strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    // With the pre/post diff approach, inverted ordering is handled correctly — no revert.
+    v3v.execute(actions);
+
+    // The new token (999) should be tracked; the old token (7) was removed.
+    assertEq(v3v.getPositionCount(), 1, "only new token should be tracked");
+    (, , uint256 trackedId, , ) = v3v.getPosition(0);
+    assertEq(trackedId, 999, "new token 999 must be tracked, not the original 7");
+  }
+
+  /// @notice Issue 3 (supplemental): CHANGE_RANGE reverts if the NFPM does not return the old NFT,
+  ///         causing the post-call balance to stay at balanceBefore (not +1). This guards against
+  ///         burn-without-return scenarios (net zero new NFTs minted).
+  function test_security_issue3_v3ChangeRange_revertsWhenBalanceNotIncreased() public {
+    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
+
+    SharedConfigManager v3cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v3strat);
+    v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+
+    // NFPM that mints a new token but does NOT return the old one (burns it).
+    MockBurnWithoutReturnNfpm burnNfpm = new MockBurnWithoutReturnNfpm(address(tokenA), address(tokenB), 888);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(burnNfpm);
+    v3cm.setWhitelistNfpms(nfpms, true);
+
+    SharedVault v3v = new SharedVault();
+    tokenA.mint(address(v3v), 100e18);
+    tokenB.mint(address(v3v), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v3v.initialize("V3Vault2", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(v3cm), address(0), 0);
+
+    uint256 tokenId = 42;
+    burnNfpm.mint(address(v3v), tokenId);
+
+    IV3Utils.Instructions memory instructions;
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+
+    bytes memory innerData = abi.encode(address(burnNfpm), tokenId, instructions);
+    bytes memory stratData = bytes.concat(abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3strat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
     v3v.execute(actions);
+  }
+
+  /// @notice Aerodrome CHANGE_RANGE: pre/post diff correctly identifies the new token regardless of
+  ///         NFPM owner-array insertion order (mirrors the V3 strategy test above).
+  function test_security_aerodromeChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
+    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA), address(0xBBBB));
+
+    SharedConfigManager aerocm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(aerostrat);
+    aerocm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+
+    MockAerodromeInvertedOrderingNfpm aeroNfpm = new MockAerodromeInvertedOrderingNfpm(
+      address(tokenA), address(tokenB), 777
+    );
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(aeroNfpm);
+    aerocm.setWhitelistNfpms(nfpms, true);
+
+    SharedVault aerov = new SharedVault();
+    tokenA.mint(address(aerov), 100e18);
+    tokenB.mint(address(aerov), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    aerov.initialize("AeroVault", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(aerocm), address(0), 0);
+
+    uint256 tokenId = 55;
+    aeroNfpm.mint(address(aerov), tokenId);
+
+    IV3Utils.Instructions memory instructions;
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+
+    bytes memory innerData = abi.encode(address(aeroNfpm), tokenId, instructions);
+    bytes memory stratData = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SAFE_TRANSFER_NFT), innerData
+    );
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(aerostrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    aerov.execute(actions);
+
+    assertEq(aerov.getPositionCount(), 1, "only new Aerodrome token should be tracked");
+    (, , uint256 trackedId, , ) = aerov.getPosition(0);
+    assertEq(trackedId, 777, "new Aerodrome token 777 must be tracked, not original 55");
   }
 
   /// @notice Issue 4: SharedV4Strategy._execute must revoke the NFT approval granted to v4UtilsRouter
