@@ -209,10 +209,20 @@ contract SharedVault is
       (transferAmounts, shares) = _firstDepositTransfers(amounts);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
-      // INITIAL_SHARES is always minted on first deposit regardless of FOT loss. Measure actual
-      // arrival so the event reflects what the vault actually received, not what was requested.
+      // Measure actual token receipt (FOT-safe) before minting to guard against 100% FOT or
+      // rebasing tokens that transfer 0 net. If we minted INITIAL_SHARES when every balance
+      // stayed at zero, totalSupply() > 0 with zero balances would brick all future deposits
+      // (every call to _subsequentDepositTransfers hits InvalidAmount because sharesOut stays
+      // at type(uint256).max with no token meeting totalBalances[i] > 0).
       actualPulled = _measureActualPulled(idleBeforePull);
-      // No LP positions exist on first deposit — INITIAL_SHARES is always the correct amount.
+      for (uint256 i; i < 4; ) {
+        if (transferAmounts[i] > 0) {
+          require(actualPulled[i] > 0, InvalidAmount());
+        }
+        unchecked {
+          i++;
+        }
+      }
     } else {
       (transferAmounts) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalancesBefore);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
@@ -329,26 +339,38 @@ contract SharedVault is
     }
     require(sharesOut != type(uint256).max, InvalidAmount());
 
-    // Read precision once; per-token floor = 10 ** max(0, decimals - precision).
-    // Default precision 5 → 0.00001 of any token regardless of its decimal count.
+    bool valid;
+    (valid, transferAmounts) = _buildTransferAmounts(amounts, sharesOut, currentTotalSupply, totalBalances);
+    require(valid, InvalidRatio());
+  }
+
+  /// @dev Second pass of subsequent-deposit validation: for each active token slot, compute the
+  ///      required proportional amount (ceiling-rounded, floored to _minTokenAmt) and check that
+  ///      the caller supplied at least that much. Returns (false, _) on first violation so both
+  ///      _subsequentDepositTransfers (revert) and previewDeposit (return 0) can share the logic.
+  function _buildTransferAmounts(
+    uint256[4] calldata amounts,
+    uint256 sharesOut,
+    uint256 currentTotalSupply,
+    uint256[4] memory totalBalances
+  ) internal view returns (bool valid, uint256[4] memory transferAmounts) {
     uint8 prec = configManager.minTokenPrecision();
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
         if (totalBalances[i] == 0) {
-          require(amounts[i] == 0, InvalidRatio());
+          if (amounts[i] != 0) return (false, transferAmounts);
         } else {
-          // Ceiling division so a sub-1-wei proportional slice never rounds to zero (which would
-          // otherwise let a depositor skip paying for dust tokens while still receiving shares).
           uint256 proportional = FullMath.mulDivRoundingUp(sharesOut, totalBalances[i], currentTotalSupply);
           uint256 minAmt = _minTokenAmt(tokens[i], prec);
           transferAmounts[i] = proportional < minAmt ? minAmt : proportional;
-          require(amounts[i] >= transferAmounts[i], InvalidRatio());
+          if (amounts[i] < transferAmounts[i]) return (false, transferAmounts);
         }
       }
       unchecked {
         i++;
       }
     }
+    valid = true;
   }
 
   /// @dev Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
@@ -507,7 +529,10 @@ contract SharedVault is
     for (uint256 pc; pc < posLenForCollect; ) {
       Position memory posForCollect = positions[pc];
       (bool collectOk, ) = posForCollect.strategy.delegatecall(
-        abi.encodeCall(ISharedStrategy.collectFees, (posForCollect.nfpm, posForCollect.tokenId, vaultOwnerFeeBasisPoint))
+        abi.encodeCall(
+          ISharedStrategy.collectFees,
+          (posForCollect.nfpm, posForCollect.tokenId, vaultOwnerFeeBasisPoint)
+        )
       );
       require(collectOk, StrategyCallFailed());
       unchecked {
@@ -699,7 +724,10 @@ contract SharedVault is
         (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(
           abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId))
         );
-        require(ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this), InvalidOperation());
+        require(
+          ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this),
+          InvalidOperation()
+        );
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _verifyPositionExit(strategy, changes[c].nfpm, changes[c].tokenId);
@@ -745,7 +773,10 @@ contract SharedVault is
         (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(
           abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId))
         );
-        require(ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this), InvalidOperation());
+        require(
+          ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this),
+          InvalidOperation()
+        );
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
         _verifyPositionExit(strategy, changes[c].nfpm, changes[c].tokenId);
@@ -806,7 +837,13 @@ contract SharedVault is
           i++;
         }
       }
-      if (shares == type(uint256).max) shares = 0;
+      if (shares == type(uint256).max) {
+        return 0;
+      }
+      // Reuse _buildTransferAmounts to mirror the same ratio validation that deposit() applies.
+      // Returns 0 (instead of reverting) so integrators/gateways can cheaply detect invalid inputs.
+      (bool valid, ) = _buildTransferAmounts(amounts, shares, currentTotalSupply, totalBalances);
+      if (!valid) return 0;
     }
   }
 

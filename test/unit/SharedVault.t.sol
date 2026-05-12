@@ -2806,6 +2806,46 @@ contract SharedVaultTest is TestCommon {
     assertGt(previewShares, 0);
   }
 
+  /// @notice Bug fix (Bug 1): previewDeposit must return 0 when the caller omits a token that
+  ///         has a non-zero vault balance. Previously it returned a positive share count for
+  ///         single-token deposits against a multi-token vault, but deposit() would revert with
+  ///         InvalidRatio() because _subsequentDepositTransfers enforces proportional coverage.
+  function test_previewDeposit_returns_zero_when_missing_required_token() public {
+    // Dust vault: tokenA = 100e18, tokenB = 50 wei. A single-tokenA deposit omits tokenB.
+    SharedVault v = _setupDustVault();
+
+    // Caller provides only tokenA, skipping the 50 wei tokenB dust slot.
+    uint256[4] memory onlyA = [uint256(1e18), uint256(0), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(onlyA);
+
+    // deposit() would revert InvalidRatio; previewDeposit must agree and return 0.
+    assertEq(preview, 0, "previewDeposit must return 0 when a required token is omitted");
+  }
+
+  /// @notice previewDeposit returns 0 when the provided dust-token amount is below the min floor
+  ///         that _subsequentDepositTransfers would enforce (precision=5 → floor = 1e13 for 18-dec).
+  function test_previewDeposit_returns_zero_when_amount_below_dust_floor() public {
+    SharedVault v = _setupDustVault();
+    // Default precision = 5 → floor for 18-dec token = 10**(18-5) = 1e13.
+    // Provide tokenA=1e18 and tokenB=5 (well below 1e13).
+    uint256[4] memory tooLittle = [uint256(1e18), uint256(5), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(tooLittle);
+    assertEq(preview, 0, "previewDeposit must return 0 when dust amount is below the floor");
+  }
+
+  /// @notice previewDeposit returns a positive share count when all required tokens are supplied
+  ///         at or above the dust floor — consistent with deposit() succeeding.
+  function test_previewDeposit_returns_shares_when_all_tokens_supplied() public {
+    SharedVault v = _setupDustVault();
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 1e13); // exactly the precision floor
+
+    // Provide tokenA=1e18 and tokenB=1e13 (exactly the precision floor).
+    uint256[4] memory valid = [uint256(1e18), uint256(1e13), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(valid);
+    assertGt(preview, 0, "previewDeposit must return shares when all required amounts are met");
+  }
+
   function test_preview_withdraw() public view {
     uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
     uint256[4] memory previewAmounts = vault.previewWithdraw(ownerShares);
@@ -4808,41 +4848,50 @@ contract SharedVaultTest is TestCommon {
     assertGt(fotDelta, 0, "FOT delta still positive");
   }
 
-  function test_audit_C5_oneHundredPercentFOT_revertsOnSubsequentDeposit() public {
-    // Vault uses a 100% FOT token: every transferFrom delivers ZERO tokens to the vault.
-    // First deposit always mints INITIAL_SHARES regardless of FOT loss (vault state may be weird,
-    // but no existing shareholders are diluted because there are none yet). Subsequent depositors
-    // MUST revert: their proportional contribution to the FOT slot is zero, and if share math
-    // skipped that slot, they would receive shares funded by their OTHER token contributions only —
-    // diluting the first depositor.
+  function test_audit_C5_oneHundredPercentFOT_firstDepositReverts() public {
+    // Bug fix (Bug 2): a 100% FOT token delivers ZERO tokens to the vault on transferFrom.
+    // Previously, INITIAL_SHARES were minted even when actualPulled was all-zero, leaving
+    // totalSupply() > 0 with zero balances and bricking all future deposits. The fix requires
+    // every requested token slot to show positive receipt before minting initial shares.
     FotToken fot100 = new FotToken(10_000);
     address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
     uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
     SharedVault v = new SharedVault();
     v.initialize("F100", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
 
-    // First depositor (gets INITIAL_SHARES even though FOT delivers 0)
     fot100.mint(DEPOSITOR, 1000e18);
     tokenB.mint(DEPOSITOR, 1000e18);
     vm.startPrank(DEPOSITOR);
     fot100.approve(address(v), type(uint256).max);
     tokenB.approve(address(v), type(uint256).max);
+    // 100% FOT token delivers 0 to the vault — must revert, not mint shares with zero balance.
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
+  }
 
-    // After first deposit, vault holds 0 FOT and 100e18 tokenB (because FOT is 100%-fee).
-    // The vault's totalBalances[0] == 0 for the FOT slot.
-    // Subsequent depositor providing both tokens: the FOT slot has totalBalance == 0 →
-    // `_subsequentDepositTransfers` requires amounts[FOT] == 0 → revert with InvalidRatio.
-    address bob = address(0xB0B0B0);
-    fot100.mint(bob, 1000e18);
-    tokenB.mint(bob, 1000e18);
-    vm.startPrank(bob);
-    fot100.approve(address(v), type(uint256).max);
+  function test_audit_C5_partialFOT_firstDeposit_succeeds_and_notBricked() public {
+    // Partial FOT (2% fee): some tokens arrive, so first deposit should succeed and the vault
+    // should not be bricked for subsequent depositors.
+    FotToken fot = new FotToken(200); // 2% fee
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("PFT2", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
     tokenB.approve(address(v), type(uint256).max);
-    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
-    v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
+
+    assertEq(shares, v.INITIAL_SHARES(), "partial FOT first deposit mints INITIAL_SHARES");
+    // Vault holds 98e18 FOT (2% burned) and 100e18 tokenB — not bricked.
+    assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
+    assertEq(tokenB.balanceOf(address(v)), 100e18);
+    assertGt(v.totalSupply(), 0);
   }
 
   function test_audit_C5_partialFOT_acrossLpValuation_revertsOnZeroDelta() public {

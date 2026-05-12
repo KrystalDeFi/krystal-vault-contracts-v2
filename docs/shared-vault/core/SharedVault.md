@@ -214,6 +214,17 @@ _Subsequent deposit — compute how many tokens to pull based on minimum ratio a
      Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
      existing holders are never diluted and the gateway always sees a swappable amount._
 
+### _buildTransferAmounts
+
+```solidity
+function _buildTransferAmounts(uint256[4] amounts, uint256 sharesOut, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (bool valid, uint256[4] transferAmounts)
+```
+
+_Second pass of subsequent-deposit validation: for each active token slot, compute the
+     required proportional amount (ceiling-rounded, floored to _minTokenAmt) and check that
+     the caller supplied at least that much. Returns (false, _) on first violation so both
+     _subsequentDepositTransfers (revert) and previewDeposit (return 0) can share the logic._
+
 ### _minTokenAmt
 
 ```solidity
