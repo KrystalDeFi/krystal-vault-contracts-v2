@@ -77,7 +77,7 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"for
 case "$CONTRACT_NAME" in
   SharedVaultFuzzer*)
     ECHIDNA_RPC_URL="${BASE_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=8453&debug_trace_only=true}"
-    ECHIDNA_RPC_BLOCK=36953600
+    ECHIDNA_RPC_BLOCK=45893511
     ;;
   *)
     ECHIDNA_RPC_URL="${ETH_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true}"

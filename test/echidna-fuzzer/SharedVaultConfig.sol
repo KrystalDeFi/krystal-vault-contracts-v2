@@ -25,9 +25,10 @@ uint256 constant SV_INITIAL_WETH = 10 ether;
 uint256 constant SV_INITIAL_USDC = 30_000e6; // 30 000 USDC
 
 // ── Funding whale ─────────────────────────────────────────────────────────────
-// Morpho on Base holds large USDC; used with hevm.startPrank to transfer USDC.
+// Aave V3 USDC pool on Base — holds ~94M USDC at SV_BLOCK_NUMBER.
+// Used with hevm.startPrank to transfer USDC into players.
 // WETH is funded via hevm.deal (ETH) + WETH.deposit().
-address constant SV_USDC_WHALE = 0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842; // Morpho on Base
+address constant SV_USDC_WHALE = 0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB; // Aave V3 USDC pool on Base
 
 // ── Uniswap V3 WETH/USDC 0.05% pool on Base ──────────────────────────────────
 // tick spacing = 10; use wide range to stay in range regardless of price drift
