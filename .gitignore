@@ -164,3 +164,4 @@ scripts/eip712/order.ts
 .claude/
 .serena/
 devbox.lock
+contracts/echidna-fuzzer/

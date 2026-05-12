@@ -26,3 +26,4 @@ allContracts: true
 testLimit: 999999999999999999  # unlimited
 
 deployer: "0x10000"
+

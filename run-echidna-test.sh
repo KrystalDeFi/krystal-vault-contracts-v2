@@ -76,15 +76,21 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"for
 # Use Base mainnet fork for SharedVault fuzzers, Ethereum mainnet for everything else.
 case "$CONTRACT_NAME" in
   SharedVaultFuzzer*)
-    export ECHIDNA_RPC_URL="${BASE_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=8453&debug_trace_only=true}"
+    ECHIDNA_RPC_URL="${BASE_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=8453&debug_trace_only=true}"
+    ECHIDNA_RPC_BLOCK=36953600
     ;;
   *)
-    export ECHIDNA_RPC_URL="${ETH_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true}"
+    ECHIDNA_RPC_URL="${ETH_RPC_URL:-https://rpc-node-lb.krystal.app/?chain_id=1&debug_trace_only=true}"
+    ECHIDNA_RPC_BLOCK=""
     ;;
 esac
 
-log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME"
-echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME
+RPC_ARGS=()
+[ -n "$ECHIDNA_RPC_URL" ] && RPC_ARGS+=(--rpc-url "$ECHIDNA_RPC_URL")
+[ -n "$ECHIDNA_RPC_BLOCK" ] && RPC_ARGS+=(--rpc-block "$ECHIDNA_RPC_BLOCK")
+
+log_info "[+] Run the echidna test: echidna ./ --config test/echidna-fuzzer/config.yaml --contract $CONTRACT_NAME ${RPC_ARGS[*]}"
+echidna ./ --config test/echidna-fuzzer/config.yaml --contract "$CONTRACT_NAME" "${RPC_ARGS[@]}"
 
 log_info "[+] Restore the hardhat.config.ts file"
 mv hardhat.config.ts.disabled hardhat.config.ts

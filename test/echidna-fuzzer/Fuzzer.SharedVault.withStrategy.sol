@@ -216,9 +216,8 @@ contract SharedVaultFuzzerWithStrategy {
   }
 
   function _fundUsdc(address actor, uint256 amount) internal {
-    hevm.startPrank(SV_USDC_WHALE);
-    IERC20(SV_USDC).transfer(actor, amount);
-    hevm.stopPrank();
+    bytes32 slot = keccak256(abi.encode(actor, uint256(9)));
+    hevm.store(SV_USDC, slot, bytes32(amount));
   }
 
   function _proportionalAmounts(uint256 wethAmount) internal view returns (uint256[4] memory amounts) {
