@@ -135,9 +135,9 @@ function depositProportional(address posm, uint256 tokenId, uint256 amount0, uin
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
 
-_Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
-     the required liquidity from amounts internally. Any unused tokens are swept back to the vault
-     by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
+_Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
+     amounts required for the computed liquidity through Permit2. Any amount not needed for
+     the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts._
