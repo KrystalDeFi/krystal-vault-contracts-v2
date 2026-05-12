@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -31,6 +32,8 @@ contract SharedV3Strategy is ISharedStrategy {
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
+
+  uint256 private constant Q128 = 0x100000000000000000000000000000000;
 
   enum OperationType {
     SWAP_AND_MINT,
@@ -340,6 +343,8 @@ contract SharedV3Strategy is ISharedStrategy {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
+    uint256 feeGrowthInside0LastX128;
+    uint256 feeGrowthInside1LastX128;
     uint128 owed0;
     uint128 owed1;
     try INFPM(nfpm).positions(tokenId) returns (
@@ -351,8 +356,8 @@ contract SharedV3Strategy is ISharedStrategy {
       int24 _tickLower,
       int24 _tickUpper,
       uint128 _liquidity,
-      uint256,
-      uint256,
+      uint256 _fg0Last,
+      uint256 _fg1Last,
       uint128 _owed0,
       uint128 _owed1
     ) {
@@ -362,6 +367,8 @@ contract SharedV3Strategy is ISharedStrategy {
       tickLower = _tickLower;
       tickUpper = _tickUpper;
       liquidity = _liquidity;
+      feeGrowthInside0LastX128 = _fg0Last;
+      feeGrowthInside1LastX128 = _fg1Last;
       owed0 = _owed0;
       owed1 = _owed1;
     } catch {
@@ -377,8 +384,10 @@ contract SharedV3Strategy is ISharedStrategy {
     (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ISharedCommon.StrategyCallFailed());
     uint160 sqrtPriceX96;
+    int24 tick;
     assembly {
       sqrtPriceX96 := mload(add(returnedData, 0x20))
+      tick := mload(add(returnedData, 0x40))
     }
     (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
       sqrtPriceX96,
@@ -386,6 +395,37 @@ contract SharedV3Strategy is ISharedStrategy {
       TickMath.getSqrtRatioAtTick(tickUpper),
       liquidity
     );
+
+    // Include fees accrued since the last position update / collect (fee-growth delta).
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      IUniswapV3Pool(pool), tickLower, tickUpper, tick
+    );
+    unchecked {
+      tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
+      tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
+    }
+  }
+
+  function _getFeeGrowthInside(
+    IUniswapV3Pool pool,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    unchecked {
+      (,, uint256 lowerFg0Outside, uint256 lowerFg1Outside,,,,) = pool.ticks(tickLower);
+      (,, uint256 upperFg0Outside, uint256 upperFg1Outside,,,,) = pool.ticks(tickUpper);
+      uint256 fg0Global = pool.feeGrowthGlobal0X128();
+      uint256 fg1Global = pool.feeGrowthGlobal1X128();
+
+      uint256 fg0Below = tickCurrent >= tickLower ? lowerFg0Outside : fg0Global - lowerFg0Outside;
+      uint256 fg1Below = tickCurrent >= tickLower ? lowerFg1Outside : fg1Global - lowerFg1Outside;
+      uint256 fg0Above = tickCurrent < tickUpper ? upperFg0Outside : fg0Global - upperFg0Outside;
+      uint256 fg1Above = tickCurrent < tickUpper ? upperFg1Outside : fg1Global - upperFg1Outside;
+
+      feeGrowthInside0X128 = fg0Global - fg0Below - fg0Above;
+      feeGrowthInside1X128 = fg1Global - fg1Below - fg1Above;
+    }
   }
 
   function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address) {

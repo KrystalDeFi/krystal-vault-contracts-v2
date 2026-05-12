@@ -35,6 +35,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   address public immutable v3utils;
   address public immutable lpFeeTaker;
 
+  uint256 private constant Q128 = 0x100000000000000000000000000000000;
+
   enum OperationType {
     SWAP_AND_MINT,
     SWAP_AND_INCREASE,
@@ -290,6 +292,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
+    uint256 feeGrowthInside0LastX128;
+    uint256 feeGrowthInside1LastX128;
     uint128 owed0;
     uint128 owed1;
     try INonfungiblePositionManager(_nfpm).positions(tokenId) returns (
@@ -301,8 +305,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       int24 _tickLower,
       int24 _tickUpper,
       uint128 _liquidity,
-      uint256,
-      uint256,
+      uint256 _fg0Last,
+      uint256 _fg1Last,
       uint128 _owed0,
       uint128 _owed1
     ) {
@@ -312,6 +316,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       tickLower = _tickLower;
       tickUpper = _tickUpper;
       liquidity = _liquidity;
+      feeGrowthInside0LastX128 = _fg0Last;
+      feeGrowthInside1LastX128 = _fg1Last;
       owed0 = _owed0;
       owed1 = _owed1;
     } catch {
@@ -324,13 +330,44 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (liquidity == 0) return (0, 0, tokensOwed0, tokensOwed1);
 
     address pool = _getPool(_nfpm, token0, token1, tickSpacing);
-    (uint160 sqrtPriceX96, , , , , ) = ICLPool(pool).slot0();
+    (uint160 sqrtPriceX96, int24 tick, , , , ) = ICLPool(pool).slot0();
     (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
       sqrtPriceX96,
       TickMath.getSqrtRatioAtTick(tickLower),
       TickMath.getSqrtRatioAtTick(tickUpper),
       liquidity
     );
+
+    // Include fees accrued since the last position update / collect (fee-growth delta).
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      ICLPool(pool), tickLower, tickUpper, tick
+    );
+    unchecked {
+      tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
+      tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
+    }
+  }
+
+  function _getFeeGrowthInside(
+    ICLPool pool,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    unchecked {
+      (,,, uint256 lowerFg0Outside, uint256 lowerFg1Outside,,,,,) = pool.ticks(tickLower);
+      (,,, uint256 upperFg0Outside, uint256 upperFg1Outside,,,,,) = pool.ticks(tickUpper);
+      uint256 fg0Global = pool.feeGrowthGlobal0X128();
+      uint256 fg1Global = pool.feeGrowthGlobal1X128();
+
+      uint256 fg0Below = tickCurrent >= tickLower ? lowerFg0Outside : fg0Global - lowerFg0Outside;
+      uint256 fg1Below = tickCurrent >= tickLower ? lowerFg1Outside : fg1Global - lowerFg1Outside;
+      uint256 fg0Above = tickCurrent < tickUpper ? upperFg0Outside : fg0Global - upperFg0Outside;
+      uint256 fg1Above = tickCurrent < tickUpper ? upperFg1Outside : fg1Global - upperFg1Outside;
+
+      feeGrowthInside0X128 = fg0Global - fg0Below - fg0Above;
+      feeGrowthInside1X128 = fg1Global - fg1Below - fg1Above;
+    }
   }
 
   /// @inheritdoc ISharedStrategy
