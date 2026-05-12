@@ -19,6 +19,8 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { PositionInfo } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
 contract MockWETH9 {
@@ -1332,6 +1334,174 @@ contract PerformanceFeeConfigHarness {
 
   function callPerformanceFeeConfig(uint16 vaultOwnerBps) external view returns (ICommon.FeeConfig memory) {
     return SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerBps);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Audit-regression mocks (introduced for C-5 / W-7 / W-13 / W-16 coverage)
+// ────────────────────────────────────────────────────────────────────────────
+
+/// @dev Fee-on-transfer token: charges `feeBps` of every transfer/transferFrom.
+contract FotToken {
+  string public name = "FOT";
+  string public symbol = "FOT";
+  uint8 public decimals = 18;
+  uint256 public feeBps;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+  uint256 public totalSupply;
+
+  constructor(uint256 _feeBps) {
+    feeBps = _feeBps;
+  }
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+    totalSupply += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount - fee;
+    totalSupply -= fee;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    if (allowance[from][msg.sender] != type(uint256).max) allowance[from][msg.sender] -= amount;
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount - fee;
+    totalSupply -= fee;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
+/// @dev USDT-like token: transfer/transferFrom return nothing. Approve requires reset-to-zero
+///      between non-zero values. Used to verify SafeERC20 compatibility.
+contract UsdtLikeToken {
+  string public name = "USDT-like";
+  string public symbol = "USDT";
+  uint8 public decimals = 6;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+  uint256 public totalSupply;
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+    totalSupply += amount;
+  }
+
+  function transfer(address to, uint256 amount) external {
+    require(balanceOf[msg.sender] >= amount, "USDT: insufficient");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external {
+    require(allowance[from][msg.sender] >= amount, "USDT: allowance");
+    require(balanceOf[from] >= amount, "USDT: insufficient");
+    if (allowance[from][msg.sender] != type(uint256).max) allowance[from][msg.sender] -= amount;
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+  }
+
+  function approve(address spender, uint256 amount) external {
+    require(amount == 0 || allowance[msg.sender][spender] == 0, "USDT: approve nonzero");
+    allowance[msg.sender][spender] = amount;
+  }
+}
+
+/// @dev EIP-1271 wallet that delegates to an embedded EOA — used to test smart-wallet vault owners.
+contract AuditEip1271Wallet is IERC1271 {
+  bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
+  address public immutable signer;
+
+  constructor(address _signer) {
+    signer = _signer;
+  }
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
+    (address recovered, , ) = ECDSA.tryRecover(hash, signature);
+    return recovered == signer ? MAGIC_VALUE : bytes4(0);
+  }
+}
+
+/// @dev Swap router that tries to re-enter `deposit()` mid-swap. Asserts ReentrancyGuard blocks it.
+contract ReentrantSwapRouter {
+  SharedVault public vault;
+  bool public attemptReentry;
+  bool public reentryReverted;
+
+  function arm(SharedVault _vault) external {
+    vault = _vault;
+    attemptReentry = true;
+  }
+
+  function swap(address tokenIn, uint256 amountIn, address tokenOut, uint256 minOut) external {
+    IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    IERC20(tokenOut).transfer(msg.sender, minOut);
+    if (attemptReentry) {
+      attemptReentry = false; // avoid infinite recursion if it ever succeeded
+      uint256[4] memory zeros;
+      try vault.deposit(zeros, 0) {
+        // Unreachable: ReentrancyGuard must revert before this branch.
+      } catch {
+        reentryReverted = true;
+      }
+    }
+  }
+
+  receive() external payable {}
+}
+
+/// @dev Strategy mock that exposes per-(nfpm,tokenId) principal AND uncollected fee splits.
+///      Used to test `previewWithdraw` net-of-fee math (W-7).
+contract MockFeeAccrualStrategy is ISharedStrategy {
+  mapping(bytes32 => address) private _token0;
+  mapping(bytes32 => address) private _token1;
+  mapping(bytes32 => uint256) private _principal0;
+  mapping(bytes32 => uint256) private _principal1;
+  mapping(bytes32 => uint256) private _owed0;
+  mapping(bytes32 => uint256) private _owed1;
+
+  function register(address nfpm, uint256 tokenId, address t0, address t1, uint256 p0, uint256 p1, uint256 o0, uint256 o1) external {
+    bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
+    _token0[k] = t0; _token1[k] = t1;
+    _principal0[k] = p0; _principal1[k] = p1;
+    _owed0[k] = o0; _owed1[k] = o1;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address t0, address t1) = abi.decode(data, (address, uint256, address, address));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, t0, t1);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external pure override returns (PositionChange[] memory c) { c = new PositionChange[](0); }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override {}
+
+  function getPositionAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (_principal0[k] + _owed0[k], _principal1[k] + _owed1[k]);
+  }
+
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId) external view override returns (uint256, uint256) {
+    bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (_principal0[k], _principal1[k]);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
+    bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
+    return (_token0[k], _token1[k]);
   }
 }
 
@@ -4581,5 +4751,510 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory mins = v.getMinDepositAmounts();
     assertEq(mins[0], 1e13, "tokenA floor present when idle balance is non-zero");
     assertEq(mins[1], 1e13, "tokenB floor present when idle balance is non-zero");
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // C-5: Fee-on-transfer / non-standard ERC20 deposit safety
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_C5_firstDeposit_FOT_mintsInitialShares_butVaultIdleReduced() public {
+    FotToken fot = new FotToken(200); // 2% FOT
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("FOT", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    assertEq(shares, v.INITIAL_SHARES(), "INITIAL_SHARES minted regardless of FOT loss");
+    assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% (2% FOT fee burned)");
+    assertEq(tokenB.balanceOf(address(v)), 100e18, "standard token received in full");
+  }
+
+  function test_audit_C5_subsequentDeposit_FOT_creditsActualReceived() public {
+    FotToken fot = new FotToken(200);
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("FOT2", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    uint256 fotBefore = fot.balanceOf(address(v));
+    vm.stopPrank();
+
+    address bob = address(0xB0B0B0);
+    fot.mint(bob, 1000e18);
+    tokenB.mint(bob, 1000e18);
+    vm.startPrank(bob);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "shares minted from actual delta");
+    uint256 fotDelta = fot.balanceOf(address(v)) - fotBefore;
+    assertLt(fotDelta, 50e18, "FOT delta below requested (fee charged)");
+    assertGt(fotDelta, 0, "FOT delta still positive");
+  }
+
+  function test_audit_C5_oneHundredPercentFOT_revertsOnSubsequentDeposit() public {
+    // Vault uses a 100% FOT token: every transferFrom delivers ZERO tokens to the vault.
+    // First deposit always mints INITIAL_SHARES regardless of FOT loss (vault state may be weird,
+    // but no existing shareholders are diluted because there are none yet). Subsequent depositors
+    // MUST revert: their proportional contribution to the FOT slot is zero, and if share math
+    // skipped that slot, they would receive shares funded by their OTHER token contributions only —
+    // diluting the first depositor.
+    FotToken fot100 = new FotToken(10_000);
+    address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("F100", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    // First depositor (gets INITIAL_SHARES even though FOT delivers 0)
+    fot100.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot100.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    // After first deposit, vault holds 0 FOT and 100e18 tokenB (because FOT is 100%-fee).
+    // The vault's totalBalances[0] == 0 for the FOT slot.
+    // Subsequent depositor providing both tokens: the FOT slot has totalBalance == 0 →
+    // `_subsequentDepositTransfers` requires amounts[FOT] == 0 → revert with InvalidRatio.
+    address bob = address(0xB0B0B0);
+    fot100.mint(bob, 1000e18);
+    tokenB.mint(bob, 1000e18);
+    vm.startPrank(bob);
+    fot100.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+  }
+
+  function test_audit_C5_partialFOT_acrossLpValuation_revertsOnZeroDelta() public {
+    // Edge case for the transferAmounts-vs-actualPulled fix: when a required token has
+    // transferAmounts[i] > 0 but the post-deposit total-balance delta is 0 (e.g., 100% FOT
+    // on a token the vault is supposed to hold), share math must return 0 and revert,
+    // NOT silently mint shares from the remaining tokens.
+    //
+    // Scenario: vault has tokenA + a 100% FOT token; first depositor seeds with tokenA only
+    // (FOT slot is 0). A LATER depositor providing only tokenA is allowed (FOT slot stays 0).
+    // But if a depositor provides BOTH and FOT delivers 0, the FOT slot has totalBalance 0,
+    // so amounts[FOT] must be 0 — confirmed by the previous test. This test instead exercises
+    // a scenario where transferAmounts[i] > 0 but actualPulled[i] == 0 via partial FOT plus
+    // a tight slippage path.
+    FotToken fot = new FotToken(200); // 2% FOT, partial
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("PFT", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 firstShares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+    assertEq(firstShares, v.INITIAL_SHARES());
+
+    // Now subsequent depositor with partial FOT: should succeed (delta > 0 on both slots)
+    address bob = address(0xB0B0B0);
+    fot.mint(bob, 1000e18);
+    tokenB.mint(bob, 1000e18);
+    vm.startPrank(bob);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+    assertGt(shares, 0, "partial FOT deposit credits actual delta");
+  }
+
+  function test_audit_C5_usdtLikeToken_deposit_works_via_safeERC20() public {
+    UsdtLikeToken usdt = new UsdtLikeToken();
+    address[4] memory toks = [address(usdt), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("USDTV", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    usdt.mint(DEPOSITOR, 1000e6);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    usdt.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    assertEq(shares, v.INITIAL_SHARES());
+    assertEq(usdt.balanceOf(address(v)), 100e6);
+    assertEq(tokenB.balanceOf(address(v)), 100e18);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // W-5 / W-10: Operator can dropPosition (owner-unavailable escape hatch)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function _setupVaultWithFeeAccrualPosition(uint256 tokenId, uint256 p0, uint256 p1, uint256 o0, uint256 o1)
+    internal
+    returns (SharedVault v, MockFeeAccrualStrategy strat, MockERC721 nft)
+  {
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("AuditVault", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    strat = new MockFeeAccrualStrategy();
+    nft = new MockERC721();
+    nft.mint(address(v), tokenId);
+    address[] memory ts = new address[](1); ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1); ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    strat.register(address(nft), tokenId, address(tokenA), address(tokenB), p0, p1, o0, o1);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(strat),
+      data: abi.encode(address(nft), tokenId, address(tokenA), address(tokenB)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+  }
+
+  function test_audit_W5_operator_can_dropPosition_when_owner_unavailable() public {
+    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(1, 0, 0, 0, 0);
+    assertEq(v.getPositionCount(), 1);
+
+    vm.prank(OPERATOR);
+    v.dropPosition(address(nft), 1);
+
+    assertEq(v.getPositionCount(), 0, "operator successfully dropped position");
+    assertEq(nft.ownerOf(1), OPERATOR, "NFT transferred to operator (documented custody asymmetry)");
+  }
+
+  function test_audit_W5_owner_still_can_dropPosition() public {
+    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(2, 0, 0, 0, 0);
+    vm.prank(VAULT_OWNER);
+    v.dropPosition(address(nft), 2);
+    assertEq(v.getPositionCount(), 0);
+  }
+
+  function test_audit_W5_random_caller_cannot_dropPosition() public {
+    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(3, 0, 0, 0, 0);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vm.prank(NON_AUTHORIZED);
+    v.dropPosition(address(nft), 3);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // W-7: previewWithdraw is net of LP exit fees (uncollected-fees portion only)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_W7_previewWithdraw_deductsFeesOnUncollectedOnly() public {
+    // Vault with vaultOwnerFee = 500 bps; platform fee = 1000 bps. Total = 15% on uncollected fees.
+    configManager.setPlatformFeeBasisPoint(1000);
+
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("W7", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 500);
+
+    MockFeeAccrualStrategy strat = new MockFeeAccrualStrategy();
+    MockERC721 nft = new MockERC721();
+    nft.mint(address(v), 1);
+    address[] memory ts = new address[](1); ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1); ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    // principal 60/60, uncollected fees 40/40
+    strat.register(address(nft), 1, address(tokenA), address(tokenB), 60e18, 60e18, 40e18, 40e18);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(strat),
+      data: abi.encode(address(nft), uint256(1), address(tokenA), address(tokenB)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    // Expected: idle (100) + principal (60) + (1 − 0.15) × owed (40) = 100 + 60 + 34 = 194
+    uint256[4] memory preview = v.previewWithdraw(v.totalSupply());
+    assertEq(preview[0], 194e18, "tokenA net preview");
+    assertEq(preview[1], 194e18, "tokenB net preview");
+
+    // Reset to keep other tests unaffected
+    configManager.setPlatformFeeBasisPoint(0);
+  }
+
+  function test_audit_W7_previewWithdraw_zeroFees_returnsGross() public {
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("W7G", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    MockFeeAccrualStrategy strat = new MockFeeAccrualStrategy();
+    MockERC721 nft = new MockERC721();
+    nft.mint(address(v), 1);
+    address[] memory ts = new address[](1); ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1); ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    strat.register(address(nft), 1, address(tokenA), address(tokenB), 60e18, 60e18, 40e18, 40e18);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(strat),
+      data: abi.encode(address(nft), uint256(1), address(tokenA), address(tokenB)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    // idle (100) + principal (60) + owed (40) = 200
+    uint256[4] memory preview = v.previewWithdraw(v.totalSupply());
+    assertEq(preview[0], 200e18);
+    assertEq(preview[1], 200e18);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // W-13: EIP-1271 isValidSignature on SharedVault
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_W13_eip1271_returnsMagic_onValidEOASig() public {
+    (address eoa, uint256 pk) = makeAddrAndKey("eip1271-eoa");
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("E1271", toks, init, eoa, OPERATOR, address(configManager), address(0), 0);
+
+    bytes32 hash = keccak256("audit-test");
+    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
+    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
+    assertEq(result, bytes4(0x1626ba7e), "MAGIC_VALUE on valid EOA signature");
+  }
+
+  function test_audit_W13_eip1271_returnsZero_onWrongSig() public {
+    (address eoa, uint256 pk) = makeAddrAndKey("eip1271-eoa2");
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("E1271W", toks, init, eoa, OPERATOR, address(configManager), address(0), 0);
+
+    bytes32 hash = keccak256("real");
+    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, keccak256("different"));
+    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
+    assertEq(result, bytes4(0), "zero on wrong signature");
+  }
+
+  function test_audit_W13_eip1271_supportsSmartWalletOwner() public {
+    (address sigEoa, uint256 pk) = makeAddrAndKey("smartWalletSigner");
+    AuditEip1271Wallet sw = new AuditEip1271Wallet(sigEoa);
+
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("E1271SW", toks, init, address(sw), OPERATOR, address(configManager), address(0), 0);
+
+    bytes32 hash = keccak256("smart-wallet");
+    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
+    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
+    assertEq(result, bytes4(0x1626ba7e), "smart-wallet owner validates via EIP-1271 cascade");
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // W-15: 3-token and 4-token vault flows
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_W15_3token_vault_deposit_withdraw() public {
+    MockERC20LowDecimals usdcDec = new MockERC20LowDecimals("USDC", "USDC", 6);
+    address[4] memory toks = [address(tokenA), address(tokenB), address(usdcDec), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(100e6), uint256(0)];
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    usdcDec.mint(address(v), 100e6);
+    v.initialize("V3T", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+    assertEq(v.tokenCount(), 3);
+
+    tokenA.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    usdcDec.mint(DEPOSITOR, 1000e6);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    usdcDec.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(50e18), uint256(50e18), uint256(50e6), uint256(0)], 0);
+    assertGt(shares, 0);
+    uint256[4] memory mins = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    uint256[4] memory got = v.withdraw(shares, mins, false);
+    vm.stopPrank();
+    assertGt(got[0], 0); assertGt(got[1], 0); assertGt(got[2], 0); assertEq(got[3], 0);
+  }
+
+  function test_audit_W15_4token_vault_proportional_flows() public {
+    MockERC20LowDecimals usdcDec = new MockERC20LowDecimals("USDC", "USDC", 6);
+    MockERC20LowDecimals wbtcDec = new MockERC20LowDecimals("WBTC", "WBTC", 8);
+    address[4] memory toks = [address(tokenA), address(tokenB), address(usdcDec), address(wbtcDec)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(100e6), uint256(100e8)];
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    usdcDec.mint(address(v), 100e6);
+    wbtcDec.mint(address(v), 100e8);
+    v.initialize("V4T", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+    assertEq(v.tokenCount(), 4);
+
+    tokenA.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    usdcDec.mint(DEPOSITOR, 1000e6);
+    wbtcDec.mint(DEPOSITOR, 1000e8);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    usdcDec.approve(address(v), type(uint256).max);
+    wbtcDec.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(25e18), uint256(25e18), uint256(25e6), uint256(25e8)], 0);
+    assertGt(shares, 0);
+
+    uint256[4] memory mins = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    uint256[4] memory got = v.withdraw(shares, mins, false);
+    vm.stopPrank();
+    assertGt(got[0], 0); assertGt(got[1], 0); assertGt(got[2], 0); assertGt(got[3], 0);
+  }
+
+  function test_audit_W15_4token_partialDeposit_revertsInvalidRatio() public {
+    MockERC20LowDecimals usdcDec = new MockERC20LowDecimals("USDC", "USDC", 6);
+    MockERC20LowDecimals wbtcDec = new MockERC20LowDecimals("WBTC", "WBTC", 8);
+    address[4] memory toks = [address(tokenA), address(tokenB), address(usdcDec), address(wbtcDec)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(100e6), uint256(100e8)];
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    usdcDec.mint(address(v), 100e6);
+    wbtcDec.mint(address(v), 100e8);
+    v.initialize("V4TP", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    tokenA.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    usdcDec.mint(DEPOSITOR, 1000e6);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    usdcDec.approve(address(v), type(uint256).max);
+    vm.expectRevert(); // InvalidRatio — slot 3 balance > 0 but amount == 0
+    v.deposit([uint256(25e18), uint256(25e18), uint256(25e6), uint256(0)], 0);
+    vm.stopPrank();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // W-16: Reentrancy via malicious swap router blocked by ReentrancyGuard
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_W16_swapRouter_cannot_reenter_deposit() public {
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("W16", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    ReentrantSwapRouter rsr = new ReentrantSwapRouter();
+    tokenB.mint(address(rsr), 100e18);
+    address[] memory routers = new address[](1);
+    routers[0] = address(rsr);
+    configManager.setWhitelistSwapRouters(routers, true);
+    rsr.arm(v);
+
+    bytes memory swapData = abi.encodeCall(ReentrantSwapRouter.swap, (address(tokenA), 10e18, address(tokenB), 5e18));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(rsr),
+      data: abi.encode(address(tokenA), address(tokenB), uint256(10e18), uint256(5e18), swapData),
+      callType: ISharedCommon.CallType.CALL
+    });
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    assertTrue(rsr.reentryReverted(), "reentry into deposit() was blocked by ReentrancyGuard");
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Protocol-gap regressions: out-of-range LP + multi-position same pool
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_audit_protocol_outOfRange_singleSidedLp_principalSplit() public {
+    (SharedVault v, , ) = _setupVaultWithFeeAccrualPosition(1, 50e18, 0, 0, 0); // only tokenA principal
+    uint256[4] memory totals = v.getTotalBalances();
+    assertEq(totals[0], 150e18, "tokenA = idle 100 + LP 50");
+    assertEq(totals[1], 100e18, "tokenB = idle only");
+  }
+
+  function test_audit_multiplePositions_samePool_trackedIndependently() public {
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("MP", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    MockFeeAccrualStrategy strat = new MockFeeAccrualStrategy();
+    MockERC721 nft = new MockERC721();
+    nft.mint(address(v), 1);
+    nft.mint(address(v), 2);
+    nft.mint(address(v), 3);
+    address[] memory ts = new address[](1); ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1); ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    strat.register(address(nft), 1, address(tokenA), address(tokenB), 30e18, 30e18, 0, 0);
+    strat.register(address(nft), 2, address(tokenA), address(tokenB), 20e18, 20e18, 0, 0);
+    strat.register(address(nft), 3, address(tokenA), address(tokenB), 10e18, 10e18, 0, 0);
+
+    for (uint256 id = 1; id <= 3; id++) {
+      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+      actions[0] = ISharedVault.Action({
+        target: address(strat),
+        data: abi.encode(address(nft), id, address(tokenA), address(tokenB)),
+        callType: ISharedCommon.CallType.DELEGATECALL
+      });
+      vm.prank(VAULT_OWNER);
+      v.execute(actions);
+    }
+    assertEq(v.getPositionCount(), 3);
+
+    uint256[4] memory totals = v.getTotalBalances();
+    assertEq(totals[0], 160e18); // 100 idle + 30 + 20 + 10
+    assertEq(totals[1], 160e18);
   }
 }

@@ -205,6 +205,14 @@ function previewDeposit(uint256[4] amounts) external view returns (uint256 share
 function previewWithdraw(uint256 shares) external view returns (uint256[4] amounts)
 ```
 
+Preview token amounts returned for burning `shares`, NET of LP exit fees.
+
+_Returns the proportional share of (idle + LP principal + (1 − feeRate) × uncollected LP fees).
+     The fee deduction uses the same clamp logic as `SharedStrategyFeeConfig.performanceFeeConfig`:
+     `platformFeeBasisPoint` + `vaultOwnerFeeBasisPoint`, with the owner share silently clamped if
+     the sum exceeds 10000. Principal exits incur no perf/platform fee.
+     Callers should still apply an AMM-slippage margin when deriving `minAmounts` for `withdraw()`._
+
 ### getMinDepositAmounts
 
 ```solidity

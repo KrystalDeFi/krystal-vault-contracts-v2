@@ -196,23 +196,45 @@ contract SharedVault is
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
     uint256[4] memory totalBalancesBefore = _getTotalBalances();
+    // Snapshot idle balances BEFORE the wrap/pull so we can measure actual ERC20 deltas.
+    // This is the linchpin of FOT / non-standard ERC20 support (C-5): the vault credits
+    // the depositor for tokens it actually received, never for the requested transferFrom amount.
+    uint256[4] memory idleBeforePull = _getIdleBalances();
     uint256 wi = _validateWethDeposit(amounts);
 
     uint256[4] memory transferAmounts;
+    uint256[4] memory actualPulled;
     uint256 excessEthRefund;
     if (currentTotalSupply == 0) {
       (transferAmounts, shares) = _firstDepositTransfers(amounts);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
+      // INITIAL_SHARES is always minted on first deposit regardless of FOT loss. Measure actual
+      // arrival so the event reflects what the vault actually received, not what was requested.
+      actualPulled = _measureActualPulled(idleBeforePull);
       // No LP positions exist on first deposit — INITIAL_SHARES is always the correct amount.
     } else {
       (transferAmounts) = _subsequentDepositTransfers(amounts, currentTotalSupply, totalBalancesBefore);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);
-      // Push tokens into LP positions. Slippage may cause the LP to consume less than
-      // the full transferAmounts, so we re-snapshot balances after to measure what was
-      // actually deposited and compute shares from that delta.
-      _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, transferAmounts, slippageBps);
+      // Measure actual tokens received (FOT-safe). Two downstream consumers of this snapshot:
+      //
+      //   (a) `_depositProportionalToAllPositions` uses `actualPulled` because the per-position
+      //       LP top-up cannot push more tokens into a pool than the vault physically received
+      //       from the depositor (NOT a user-facing constraint — depositors can always add new
+      //       value; this is about the internal "push idle → LP" step that runs after the pull).
+      //
+      //   (b) `_computeSharesFromDelta` uses `transferAmounts` — the depositor's REQUIRED
+      //       contribution set — as its filter. This prevents a 100% FOT / rebasing token from
+      //       being silently skipped: if a required token has zero post-deposit delta, the
+      //       function returns 0 and the outer `require(shares > 0)` reverts. Without this,
+      //       the depositor would receive shares from the remaining tokens even though they
+      //       didn't satisfy the vault ratio.
+      actualPulled = _measureActualPulled(idleBeforePull);
+      // Push proportional slices into LP positions. Slippage may cause `increaseLiquidity` to
+      // consume less than the supplied amount; we re-snapshot balances after to measure what
+      // was actually deposited (idle + LP) and compute shares from the resulting delta.
+      _depositProportionalToAllPositions(currentTotalSupply, totalBalancesBefore, actualPulled, slippageBps);
       uint256[4] memory totalBalancesAfter = _getTotalBalances();
       shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter, transferAmounts);
       require(shares > 0, InsufficientShares());
@@ -225,7 +247,25 @@ contract SharedVault is
       require(ok, TransferFailed());
     }
 
-    emit VaultDeposit(vaultFactory, _msgSender(), transferAmounts, shares);
+    emit VaultDeposit(vaultFactory, _msgSender(), actualPulled, shares);
+  }
+
+  /// @dev Measure how much each vault token actually arrived in the vault since `idleBefore`.
+  ///      Used to credit depositors with the ACTUAL amount the vault holds, not the requested
+  ///      transferFrom amount. Critical for fee-on-transfer (FOT) tokens and other non-standard
+  ///      ERC20s where `transferFrom(X)` results in `< X` arriving at the recipient.
+  ///      For the WETH slot (when ETH was sent via msg.value), the wrap is exact: actualPulled[wi]
+  ///      equals the wrapped amount because IWETH9.deposit() always mints 1:1.
+  function _measureActualPulled(uint256[4] memory idleBefore) internal view returns (uint256[4] memory actualPulled) {
+    for (uint256 i; i < 4; ) {
+      if (tokens[i] != address(0)) {
+        uint256 idleNow = IERC20(tokens[i]).balanceOf(address(this));
+        if (idleNow > idleBefore[i]) actualPulled[i] = idleNow - idleBefore[i];
+      }
+      unchecked {
+        i++;
+      }
+    }
   }
 
   /// @dev If caller sent ETH, returns validated WETH slot index; otherwise `type(uint256).max`.
@@ -770,19 +810,57 @@ contract SharedVault is
     }
   }
 
-  /// @notice Preview token amounts returned for burning `_shares`.
-  /// @dev Computes proportional share of total balances (idle + LP position principal + uncollected fees).
-  ///      **Does NOT deduct LP exit fees** (platform fee and vault-owner performance fee) that are
-  ///      charged during the actual `withdraw()`. Actual received amounts will be slightly lower.
-  ///      Callers should apply an additional slippage margin beyond LP exit fees when deriving `minAmounts`.
+  /// @notice Preview token amounts returned for burning `_shares` NET of LP exit fees.
+  /// @dev Returns the proportional share of (idle + LP principal + (1 − feeRate) × uncollected LP fees).
+  ///      The fee deduction mirrors `SharedStrategyFeeConfig.performanceFeeConfig`: combined platform +
+  ///      vault-owner basis points are clamped to 10000 (silent platform clamp) and applied only to the
+  ///      uncollected-fees portion of each tracked position. Principal exits incur no perf/platform fee
+  ///      (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
+  ///      Callers should still apply a slippage margin for AMM price impact at exit time.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
     uint256 currentTotalSupply = totalSupply();
     if (currentTotalSupply == 0) return amounts;
 
-    uint256[4] memory totalBalances = _getTotalBalances();
+    // Compute the fraction of uncollected fees the withdrawer keeps after platform + vault-owner cut.
+    // Matches the silent clamp in SharedStrategyFeeConfig: if platform + owner > 10000, owner is squeezed.
+    uint16 platformBps = configManager.platformFeeBasisPoint();
+    uint16 ownerBps = vaultOwnerFeeBasisPoint;
+    if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
+      ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
+    }
+    uint256 combinedFeeBps = uint256(platformBps) + uint256(ownerBps);
+    uint256 keepFeeBps = combinedFeeBps >= 10_000 ? 0 : 10_000 - combinedFeeBps;
+
+    // Start with idle balances; LP principal/owed are added per tracked position.
+    uint256[4] memory netBalances = _getIdleBalances();
+
+    uint256 posLen = positions.length;
+    for (uint256 p; p < posLen; ) {
+      Position memory pos = positions[p];
+      (uint256 total0, uint256 total1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+      (uint256 principal0, uint256 principal1) = ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(
+        pos.nfpm,
+        pos.tokenId
+      );
+      uint256 owed0 = total0 > principal0 ? total0 - principal0 : 0;
+      uint256 owed1 = total1 > principal1 ? total1 - principal1 : 0;
+      uint256 netOwed0 = keepFeeBps == 10_000 ? owed0 : FullMath.mulDiv(owed0, keepFeeBps, 10_000);
+      uint256 netOwed1 = keepFeeBps == 10_000 ? owed1 : FullMath.mulDiv(owed1, keepFeeBps, 10_000);
+      for (uint256 i; i < 4; ) {
+        if (tokens[i] == pos.token0) netBalances[i] += principal0 + netOwed0;
+        else if (tokens[i] == pos.token1) netBalances[i] += principal1 + netOwed1;
+        unchecked {
+          i++;
+        }
+      }
+      unchecked {
+        p++;
+      }
+    }
+
     for (uint256 i; i < 4; ) {
       if (tokens[i] != address(0)) {
-        amounts[i] = FullMath.mulDiv(_shares, totalBalances[i], currentTotalSupply);
+        amounts[i] = FullMath.mulDiv(_shares, netBalances[i], currentTotalSupply);
       }
       unchecked {
         i++;
@@ -873,7 +951,12 @@ contract SharedVault is
 
   /// @inheritdoc ISharedVault
   /// @dev See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set.
-  function dropPosition(address nfpm, uint256 tokenId) external override onlyOwner {
+  ///      Callable by `vaultOwner` OR `operator`. The operator path exists as an emergency
+  ///      escape hatch: if a strategy or NFPM becomes bricked, deposits/withdrawals revert
+  ///      until the broken position is dropped. Allowing the operator to force-drop ensures
+  ///      depositors are not stranded when the vault owner is unavailable.
+  function dropPosition(address nfpm, uint256 tokenId) external override {
+    require(_msgSender() == vaultOwner || (operator != address(0) && _msgSender() == operator), Unauthorized());
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     require(positionIndex[key] != 0, InvalidOperation());
     _removePosition(nfpm, tokenId);
