@@ -164,6 +164,12 @@ contract SharedVaultFuzzerWithStrategy {
     });
 
     owner.callExecute(vault, actions);
+
+    // totalSupply and fee must be unaffected by LP position management
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
   // ── Properties ──────────────────────────────────────────────────────────────
@@ -192,6 +198,14 @@ contract SharedVaultFuzzerWithStrategy {
     if (!_hasEnoughBalance(address(player), amounts)) return;
     player.callDeposit(vault, amounts, 200);
     netWethDeposit[address(player)] += int256(wethAmount);
+
+    // totalSupply must equal sum of all share balances after every deposit
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+
+    // fee basis point must never change
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
   function _doWithdraw(SharedVaultPlayer player, uint256 shares) internal {
@@ -202,6 +216,17 @@ contract SharedVaultFuzzerWithStrategy {
     player.callWithdraw(vault, shares, false);
     uint256 wethAfter = IERC20(SV_WETH).balanceOf(address(player));
     netWethDeposit[address(player)] -= int256(wethAfter - wethBefore);
+
+    // totalSupply must equal sum of all share balances after every withdrawal
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+
+    // no player should ever withdraw more WETH than they deposited (with tiny rounding tolerance)
+    assert(netWethDeposit[address(player)] >= -int256(1e9));
+
+    // fee basis point must never change
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
   function _playerNetOk(SharedVaultPlayer player) internal view returns (bool) {

@@ -82,6 +82,7 @@ contract SharedVaultFuzzerSoloOwner {
     if (ownerShares == 0) return;
     shares = shares % ownerShares + 1;
     owner.callWithdraw(vault, shares, false);
+    _assertInvariants();
   }
 
   function owner_depositWeth(uint256 amount) external {
@@ -91,6 +92,7 @@ contract SharedVaultFuzzerSoloOwner {
     uint256[4] memory amounts = _proportionalDeposit(amount);
     if (!_hasEnoughBalance(address(owner), amounts)) return;
     owner.callDeposit(vault, amounts, 200);
+    _assertInvariants();
   }
 
   function player1_withdraw(uint256 shares) external {
@@ -98,6 +100,7 @@ contract SharedVaultFuzzerSoloOwner {
     if (p1Shares == 0) return;
     shares = shares % p1Shares + 1;
     player1.callWithdraw(vault, shares, false);
+    _assertInvariants();
   }
 
   function player1_depositWeth(uint256 amount) external {
@@ -107,6 +110,7 @@ contract SharedVaultFuzzerSoloOwner {
     uint256[4] memory amounts = _proportionalDeposit(amount);
     if (!_hasEnoughBalance(address(player1), amounts)) return;
     player1.callDeposit(vault, amounts, 200);
+    _assertInvariants();
   }
 
   function player2_withdraw(uint256 shares) external {
@@ -114,6 +118,7 @@ contract SharedVaultFuzzerSoloOwner {
     if (p2Shares == 0) return;
     shares = shares % p2Shares + 1;
     player2.callWithdraw(vault, shares, false);
+    _assertInvariants();
   }
 
   // ── Properties ──────────────────────────────────────────────────────────────
@@ -134,6 +139,18 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  function _assertInvariants() internal view {
+    // totalSupply must equal sum of all share balances
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+
+    // owner's total WETH (wallet + vault share value) must not exceed their starting balance
+    uint256 walletWeth = IERC20(SV_WETH).balanceOf(address(owner));
+    uint256 vaultWeth = _ownerVaultWeth();
+    assert(walletWeth + vaultWeth <= ownerInitialWeth + 1e9);
+  }
 
   function _fundWeth(address actor, uint256 amount) internal {
     hevm.deal(actor, amount);

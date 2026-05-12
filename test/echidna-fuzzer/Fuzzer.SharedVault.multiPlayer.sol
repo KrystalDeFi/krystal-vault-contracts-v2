@@ -125,6 +125,11 @@ contract SharedVaultFuzzerMultiPlayer {
     if (!_hasEnoughBalance(address(player), amounts)) return;
     player.callDeposit(vault, amounts, 200);
     netWethDeposit[address(player)] += int256(wethAmount);
+
+    // totalSupply must equal sum of all share balances after every deposit
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = player1.sharesBalance(vault) + player2.sharesBalance(vault) + player3.sharesBalance(vault);
+    assert(supply == sumBalances);
   }
 
   function _doWithdraw(SharedVaultPlayer player, uint256 shares) internal {
@@ -135,6 +140,14 @@ contract SharedVaultFuzzerMultiPlayer {
     player.callWithdraw(vault, shares, false);
     uint256 wethAfter = IERC20(SV_WETH).balanceOf(address(player));
     netWethDeposit[address(player)] -= int256(wethAfter - wethBefore);
+
+    // totalSupply must equal sum of all share balances after every withdrawal
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = player1.sharesBalance(vault) + player2.sharesBalance(vault) + player3.sharesBalance(vault);
+    assert(supply == sumBalances);
+
+    // no player should ever withdraw more WETH than they deposited (with tiny rounding tolerance)
+    assert(netWethDeposit[address(player)] >= -int256(1e9));
   }
 
   function _playerNetWethOk(SharedVaultPlayer player) internal view returns (bool) {
