@@ -4870,6 +4870,54 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  function test_audit_C5_oneHundredPercentFOT_initialize_reverts() public {
+    // Bug fix: factory path — factory calls safeTransferFrom(creator, vault, amount) then
+    // initialize(initialAmounts).  For a 100% FOT token the transfer delivers 0 to the vault,
+    // but initialAmounts[i] > 0.  Without the fix, INITIAL_SHARES would be minted against a
+    // zero balance, bricking every subsequent deposit.
+    FotToken fot100 = new FotToken(10_000); // 100% fee
+    address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
+
+    SharedVault v = new SharedVault();
+
+    // Simulate factory: mint to a sender, then transfer to vault (100% FOT delivers 0).
+    fot100.mint(DEPOSITOR, 100e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    fot100.transfer(address(v), 100e18); // delivers 0 to vault
+    tokenB.transfer(address(v), 100e18); // delivers 100e18 to vault
+    vm.stopPrank();
+
+    // initialize with initialAmounts[0] = 100e18 for the 100% FOT token (vault balance == 0).
+    // Must revert — vault cannot mint initial shares with zero balance for a declared token.
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    v.initialize("IFOT", toks, amounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+  }
+
+  function test_audit_C5_partialFOT_initialize_succeeds() public {
+    // Partial FOT (2% fee) in the factory/initialize path: vault receives 98% of the declared
+    // initialAmount.  Since balance > 0, initialize must succeed and mint INITIAL_SHARES.
+    FotToken fot = new FotToken(200); // 2% fee
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+
+    SharedVault v = new SharedVault();
+
+    fot.mint(DEPOSITOR, 100e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    fot.transfer(address(v), 100e18); // delivers 98e18
+    tokenB.transfer(address(v), 100e18);
+    vm.stopPrank();
+
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    v.initialize("PFOT", toks, amounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    assertEq(v.totalSupply(), v.INITIAL_SHARES(), "partial FOT initialize mints INITIAL_SHARES");
+    assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
+    assertEq(tokenB.balanceOf(address(v)), 100e18);
+  }
+
   function test_audit_C5_partialFOT_firstDeposit_succeeds_and_notBricked() public {
     // Partial FOT (2% fee): some tokens arrive, so first deposit should succeed and the vault
     // should not be bricked for subsequent depositors.

@@ -163,10 +163,15 @@ contract SharedVault is
     // Mint initial shares if tokens were deposited by factory.
     // Always mints INITIAL_SHARES regardless of deposit size so the initial
     // share price is predictable and independent of token decimals.
+    // Guard against FOT / short-transfer: require that the vault actually received
+    // tokens for every slot that declares a non-zero initialAmount.  A 100% FOT
+    // token passes safeTransferFrom without reverting but delivers zero to the
+    // vault; minting shares against a zero balance would brick all future deposits.
     uint256 refIndex = type(uint256).max;
     for (uint256 i; i < 4; ) {
       if (initialAmounts[i] > 0) {
         require(tokens[i] != address(0), InvalidToken());
+        require(IERC20(tokens[i]).balanceOf(address(this)) > 0, ISharedCommon.InvalidAmount());
         if (refIndex == type(uint256).max) refIndex = i;
       }
       unchecked {
