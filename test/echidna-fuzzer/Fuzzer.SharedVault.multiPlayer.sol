@@ -40,12 +40,12 @@ contract SharedVaultFuzzerMultiPlayer {
     player2 = new SharedVaultPlayer();
     player3 = new SharedVaultPlayer();
 
-    _setErc20Balance(SV_WETH, address(player1), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_WETH, address(player2), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_WETH, address(player3), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_USDC, address(player1), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
-    _setErc20Balance(SV_USDC, address(player2), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
-    _setErc20Balance(SV_USDC, address(player3), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
+    _fundWeth(address(player1), SV_INITIAL_WETH);
+    _fundWeth(address(player2), SV_INITIAL_WETH);
+    _fundWeth(address(player3), SV_INITIAL_WETH);
+    _fundUsdc(address(player1), SV_INITIAL_USDC);
+    _fundUsdc(address(player2), SV_INITIAL_USDC);
+    _fundUsdc(address(player3), SV_INITIAL_USDC);
 
     address[] memory nfpms = new address[](1);
     nfpms[0] = SV_NFPM;
@@ -143,9 +143,17 @@ contract SharedVaultFuzzerMultiPlayer {
     return net >= -int256(1e9);
   }
 
-  function _setErc20Balance(address token, address account, uint256 mappingSlot, uint256 amount) internal {
-    bytes32 slot = keccak256(abi.encode(account, mappingSlot));
-    hevm.store(token, slot, bytes32(amount));
+  function _fundWeth(address actor, uint256 amount) internal {
+    hevm.deal(actor, amount);
+    hevm.startPrank(actor);
+    IWETH(SV_WETH).deposit{ value: amount }();
+    hevm.stopPrank();
+  }
+
+  function _fundUsdc(address actor, uint256 amount) internal {
+    hevm.startPrank(SV_USDC_WHALE);
+    IERC20(SV_USDC).transfer(actor, amount);
+    hevm.stopPrank();
   }
 
   function _proportionalAmounts(uint256 wethAmount) internal view returns (uint256[4] memory amounts) {

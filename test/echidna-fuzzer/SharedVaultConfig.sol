@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+interface IWETH {
+  function deposit() external payable;
+  function transfer(address to, uint256 value) external returns (bool);
+  function balanceOf(address) external view returns (uint256);
+}
+
 // ── Base mainnet addresses ────────────────────────────────────────────────────
 address constant SV_WETH    = 0x4200000000000000000000000000000000000006;
 address constant SV_USDC    = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
@@ -18,11 +24,10 @@ address constant SV_HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 uint256 constant SV_INITIAL_WETH = 10 ether;
 uint256 constant SV_INITIAL_USDC = 30_000e6; // 30 000 USDC
 
-// ── ERC20 balanceOf storage slots (for hevm.store funding) ────────────────────
-// WETH on Base (OptimismMintableERC20): _balances mapping at slot 0
-uint256 constant SV_WETH_BALANCE_SLOT = 0;
-// USDC on Base (FiatTokenV2_2): _balanceAndBlacklistStates mapping at slot 9
-uint256 constant SV_USDC_BALANCE_SLOT = 9;
+// ── Funding whale ─────────────────────────────────────────────────────────────
+// Morpho on Base holds large USDC; used with hevm.startPrank to transfer USDC.
+// WETH is funded via hevm.deal (ETH) + WETH.deposit().
+address constant SV_USDC_WHALE = 0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842; // Morpho on Base
 
 // ── Uniswap V3 WETH/USDC 0.05% pool on Base ──────────────────────────────────
 // tick spacing = 10; use wide range to stay in range regardless of price drift

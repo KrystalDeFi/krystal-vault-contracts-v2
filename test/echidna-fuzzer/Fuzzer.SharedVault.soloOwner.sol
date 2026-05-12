@@ -36,13 +36,13 @@ contract SharedVaultFuzzerSoloOwner {
     player1 = new SharedVaultPlayer();
     player2 = new SharedVaultPlayer();
 
-    // Fund actors by writing directly to ERC20 storage (same principle as Foundry stdstore).
-    _setErc20Balance(SV_WETH, address(owner), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_WETH, address(player1), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_WETH, address(player2), SV_WETH_BALANCE_SLOT, SV_INITIAL_WETH);
-    _setErc20Balance(SV_USDC, address(owner), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
-    _setErc20Balance(SV_USDC, address(player1), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
-    _setErc20Balance(SV_USDC, address(player2), SV_USDC_BALANCE_SLOT, SV_INITIAL_USDC);
+    // Fund actors: ETH via hevm.deal → WETH.deposit(); USDC via prank on Morpho whale.
+    _fundWeth(address(owner), SV_INITIAL_WETH);
+    _fundWeth(address(player1), SV_INITIAL_WETH);
+    _fundWeth(address(player2), SV_INITIAL_WETH);
+    _fundUsdc(address(owner), SV_INITIAL_USDC);
+    _fundUsdc(address(player1), SV_INITIAL_USDC);
+    _fundUsdc(address(player2), SV_INITIAL_USDC);
 
     ownerInitialWeth = SV_INITIAL_WETH;
 
@@ -135,9 +135,17 @@ contract SharedVaultFuzzerSoloOwner {
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  function _setErc20Balance(address token, address account, uint256 mappingSlot, uint256 amount) internal {
-    bytes32 slot = keccak256(abi.encode(account, mappingSlot));
-    hevm.store(token, slot, bytes32(amount));
+  function _fundWeth(address actor, uint256 amount) internal {
+    hevm.deal(actor, amount);
+    hevm.startPrank(actor);
+    IWETH(SV_WETH).deposit{ value: amount }();
+    hevm.stopPrank();
+  }
+
+  function _fundUsdc(address actor, uint256 amount) internal {
+    hevm.startPrank(SV_USDC_WHALE);
+    IERC20(SV_USDC).transfer(actor, amount);
+    hevm.stopPrank();
   }
 
   function _ownerVaultWeth() internal view returns (uint256) {
