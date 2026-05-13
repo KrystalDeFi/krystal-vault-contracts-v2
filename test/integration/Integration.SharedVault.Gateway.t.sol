@@ -51,7 +51,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
   address public feeRecipient;
 
   function setUp() public {
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 45_893_511);
     vm.selectFork(fork);
 
     gatewayOwner = makeAddr("gatewayOwner");

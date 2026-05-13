@@ -53,7 +53,7 @@ log_info "[+] Move the hardhat.config.ts file to hardhat.config.ts.disabled to u
 mv hardhat.config.ts hardhat.config.ts.disabled
 
 log_info "[+] Disable the sanityCheck in the LpValidator.sol file"
-cp contracts/strategies/lpUniV3/LpValidator.sol contracts/strategies/lpUniV3/LpValidator.sol.tmp
+cp contracts/public-vault/strategies/lpUniV3/LpValidator.sol contracts/public-vault/strategies/lpUniV3/LpValidator.sol.tmp
 sed -i '' 's/function validatePriceSanity(address pool) external view override {/function validatePriceSanity(address pool) external view override { return; \/\/ to disable the sanityCheck for debugging purposes/g' contracts/strategies/lpUniV3/LpValidator.sol
 
 log_info "[+] Replace the out directory in foundry.toml"
@@ -99,8 +99,7 @@ log_info "[+] Restore the foundry.toml file"
 mv foundry.toml.tmp foundry.toml
 
 log_info "[+] Restore the LpValidator.sol file"
-mv contracts/strategies/lpUniV3/LpValidator.sol.tmp contracts/strategies/lpUniV3/LpValidator.sol
-
+mv contracts/public-vault/strategies/lpUniV3/LpValidator.sol.tmp contracts/public-vault/strategies/lpUniV3/LpValidator.sol
 
 log_info "[+] Remove the echidna-fuzzer contract in the contracts directory"
 rm -rf contracts/echidna-fuzzer

@@ -8,7 +8,16 @@ import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaul
 import "./SharedVaultConfig.sol";
 
 contract SharedVaultPlayer {
-  constructor() payable {}
+  address public immutable fuzzer;
+
+  constructor() payable {
+    fuzzer = msg.sender;
+  }
+
+  modifier onlyFuzzer() {
+    require(msg.sender == fuzzer, "only fuzzer");
+    _;
+  }
 
   // ── Deposit ───────────────────────────────────────────────────────────────
 
@@ -16,7 +25,7 @@ contract SharedVaultPlayer {
     address vault,
     uint256[4] memory amounts,
     uint16 slippageBps
-  ) external returns (uint256 shares) {
+  ) external onlyFuzzer returns (uint256 shares) {
     address[4] memory vaultTokens = ISharedVault(payable(vault)).getTokens();
     for (uint256 i; i < 4; i++) {
       if (vaultTokens[i] != address(0) && amounts[i] > 0) {
@@ -31,14 +40,14 @@ contract SharedVaultPlayer {
 
   // ── Withdraw ──────────────────────────────────────────────────────────────
 
-  function callWithdraw(address vault, uint256 shares, bool unwrap) external returns (uint256[4] memory amounts) {
+  function callWithdraw(address vault, uint256 shares, bool unwrap) external onlyFuzzer returns (uint256[4] memory amounts) {
     uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     amounts = ISharedVault(payable(vault)).withdraw(shares, minAmounts, unwrap);
   }
 
   // ── Execute (LP operations, owner/admin only) ─────────────────────────────
 
-  function callExecute(address vault, ISharedVault.Action[] memory actions) external {
+  function callExecute(address vault, ISharedVault.Action[] memory actions) external onlyFuzzer {
     ISharedVault(payable(vault)).execute(actions);
   }
 
@@ -50,7 +59,7 @@ contract SharedVaultPlayer {
     address[4] memory vaultTokens,
     uint256[4] memory initialAmounts,
     uint16 feeBps
-  ) external returns (address vault) {
+  ) external onlyFuzzer returns (address vault) {
     for (uint256 i; i < 4; i++) {
       if (vaultTokens[i] != address(0) && initialAmounts[i] > 0) {
         IERC20(vaultTokens[i]).approve(factory, initialAmounts[i]);
@@ -66,7 +75,7 @@ contract SharedVaultPlayer {
 
   // ── Config: whitelist strategy ────────────────────────────────────────────
 
-  function callWhitelistTarget(address configManager, address target, bool enabled) external {
+  function callWhitelistTarget(address configManager, address target, bool enabled) external onlyFuzzer {
     address[] memory targets = new address[](1);
     targets[0] = target;
     ISharedConfigManager(configManager).setWhitelistTargets(targets, enabled);

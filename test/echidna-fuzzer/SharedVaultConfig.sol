@@ -14,7 +14,7 @@ address constant SV_NFPM    = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1; // Uni
 address constant SV_V3UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
 // ── Fork pin ──────────────────────────────────────────────────────────────────
-uint256 constant SV_BLOCK_NUMBER    = 36_953_600;
+uint256 constant SV_BLOCK_NUMBER    = 45_893_511;
 uint256 constant SV_BLOCK_TIMESTAMP = 1_745_814_599;
 
 // ── Echidna cheat-code address ────────────────────────────────────────────────
