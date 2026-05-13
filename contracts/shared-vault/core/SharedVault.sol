@@ -262,7 +262,7 @@ contract SharedVault is
       require(ok, TransferFailed());
     }
 
-    emit VaultDeposit(vaultFactory, tx.origin, actualPulled, shares);
+    emit VaultDeposit(vaultFactory, _msgSender(), actualPulled, shares);
   }
 
   /// @dev Measure how much each vault token actually arrived in the vault since `idleBefore`.
@@ -623,7 +623,7 @@ contract SharedVault is
       }
     }
 
-    emit VaultWithdraw(vaultFactory, tx.origin, amounts, shares);
+    emit VaultWithdraw(vaultFactory, _msgSender(), amounts, shares);
   }
 
   // ==================== Execute (LP operations + swaps) ====================
