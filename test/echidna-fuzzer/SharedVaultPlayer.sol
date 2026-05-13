@@ -77,4 +77,10 @@ contract SharedVaultPlayer {
   function sharesBalance(address vault) external view returns (uint256) {
     return IERC20(vault).balanceOf(address(this));
   }
+
+  // ── ERC20 transfer (msg.sender = this player) ─────────────────────────────
+
+  function callTransfer(address token, address to, uint256 amount) external returns (bool) {
+    return IERC20(token).transfer(to, amount);
+  }
 }

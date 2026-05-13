@@ -118,6 +118,7 @@ contract SharedVaultFuzzerMultiPlayer {
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   function _doDeposit(SharedVaultPlayer player, uint256 wethAmount) internal {
+    _ensureFunded(player);
     uint256 bal = IERC20(SV_WETH).balanceOf(address(player));
     if (bal == 0) return;
     wethAmount = wethAmount % bal + 1;
@@ -133,6 +134,7 @@ contract SharedVaultFuzzerMultiPlayer {
   }
 
   function _doWithdraw(SharedVaultPlayer player, uint256 shares) internal {
+    _ensureFunded(player);
     uint256 playerShares = player.sharesBalance(vault);
     if (playerShares == 0) return;
     shares = shares % playerShares + 1;
@@ -154,6 +156,18 @@ contract SharedVaultFuzzerMultiPlayer {
     int256 net = netWethDeposit[address(player)];
     // net >= -1e9 means player never withdrew more than deposited (with tiny rounding tolerance)
     return net >= -int256(1e9);
+  }
+
+  function _ensureFunded(SharedVaultPlayer player) internal {
+    address actor = address(player);
+    if (IERC20(SV_WETH).balanceOf(actor) < 0.1 ether) {
+      _fundWeth(actor, SV_INITIAL_WETH);
+      // top-up is not player profit — offset it in net accounting
+      netWethDeposit[actor] -= int256(SV_INITIAL_WETH);
+    }
+    if (IERC20(SV_USDC).balanceOf(actor) < 100e6) {
+      _fundUsdc(actor, SV_INITIAL_USDC);
+    }
   }
 
   function _fundWeth(address actor, uint256 amount) internal {

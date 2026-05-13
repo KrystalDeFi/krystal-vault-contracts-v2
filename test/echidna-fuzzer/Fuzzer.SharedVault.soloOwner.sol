@@ -28,6 +28,9 @@ contract SharedVaultFuzzerSoloOwner {
 
   uint256 public ownerInitialWeth;
 
+  // track top-ups so invariant accounting stays correct
+  mapping(address => int256) public fundingAdjustment;
+
   constructor() payable {
     hevm.roll(SV_BLOCK_NUMBER);
     hevm.warp(SV_BLOCK_TIMESTAMP);
@@ -78,6 +81,7 @@ contract SharedVaultFuzzerSoloOwner {
   // ── Fuzzed actions ──────────────────────────────────────────────────────────
 
   function owner_withdraw(uint256 shares) external {
+    _ensureFunded(address(owner));
     uint256 ownerShares = owner.sharesBalance(vault);
     if (ownerShares == 0) return;
     shares = shares % ownerShares + 1;
@@ -86,6 +90,7 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   function owner_depositWeth(uint256 amount) external {
+    _ensureFunded(address(owner));
     uint256 bal = IERC20(SV_WETH).balanceOf(address(owner));
     if (bal == 0) return;
     amount = amount % bal + 1;
@@ -96,6 +101,7 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   function player1_withdraw(uint256 shares) external {
+    _ensureFunded(address(player1));
     uint256 p1Shares = player1.sharesBalance(vault);
     if (p1Shares == 0) return;
     shares = shares % p1Shares + 1;
@@ -104,6 +110,7 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   function player1_depositWeth(uint256 amount) external {
+    _ensureFunded(address(player1));
     uint256 bal = IERC20(SV_WETH).balanceOf(address(player1));
     if (bal == 0) return;
     amount = amount % bal + 1;
@@ -114,6 +121,7 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   function player2_withdraw(uint256 shares) external {
+    _ensureFunded(address(player2));
     uint256 p2Shares = player2.sharesBalance(vault);
     if (p2Shares == 0) return;
     shares = shares % p2Shares + 1;
@@ -128,7 +136,8 @@ contract SharedVaultFuzzerSoloOwner {
   function echidna_owner_cannot_profit() external view returns (bool) {
     uint256 walletWeth = IERC20(SV_WETH).balanceOf(address(owner));
     uint256 vaultWeth = _ownerVaultWeth();
-    return walletWeth + vaultWeth <= ownerInitialWeth + 1e9; // tiny tolerance for rounding
+    uint256 adjustedCeiling = ownerInitialWeth + uint256(fundingAdjustment[address(owner)]);
+    return walletWeth + vaultWeth <= adjustedCeiling + 1e9; // tiny tolerance for rounding
   }
 
   /// @dev Total supply must equal sum of all tracked share holders' balances.
@@ -146,10 +155,21 @@ contract SharedVaultFuzzerSoloOwner {
     uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
     assert(supply == sumBalances);
 
-    // owner's total WETH (wallet + vault share value) must not exceed their starting balance
+    // owner's total WETH (wallet + vault share value) must not exceed their starting balance + top-ups
     uint256 walletWeth = IERC20(SV_WETH).balanceOf(address(owner));
     uint256 vaultWeth = _ownerVaultWeth();
-    assert(walletWeth + vaultWeth <= ownerInitialWeth + 1e9);
+    uint256 adjustedCeiling = ownerInitialWeth + uint256(fundingAdjustment[address(owner)]);
+    assert(walletWeth + vaultWeth <= adjustedCeiling + 1e9);
+  }
+
+  function _ensureFunded(address actor) internal {
+    if (IERC20(SV_WETH).balanceOf(actor) < 0.1 ether) {
+      _fundWeth(actor, SV_INITIAL_WETH);
+      fundingAdjustment[actor] += int256(SV_INITIAL_WETH);
+    }
+    if (IERC20(SV_USDC).balanceOf(actor) < 100e6) {
+      _fundUsdc(actor, SV_INITIAL_USDC);
+    }
   }
 
   function _fundWeth(address actor, uint256 amount) internal {
