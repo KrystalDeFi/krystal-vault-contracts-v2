@@ -1,18 +1,19 @@
 {
   "base_mainnet": {
-    "sharedConfigManager": "0x44b5bdef17b15f0fb2dcc61067d7e8bf15ed8c9b",
-    "sharedVault": "0x5bc4a299f6b6b935665238c94575748caf4d825c",
-    "sharedVaultFactory": "0x5262d4fa38e5849980f7f630f9852052b09cbc98",
-    "sharedV3Strategy": "0x4108cbc6b187d957de4cba640e59c5fe9b638c4d",
-    "sharedV3StrategyBeacon": "0x20236beeb445ede31435d5bf3fda2baf69e1b9cf",
-    "sharedV3StrategyProxy": "0x9020adee34705a480892fd4def02386e3779dd8c",
-    "sharedV4Strategy": "0x7d29c096d96a9b8c5e57c8778d8b3bcdf382875f",
-    "sharedV4StrategyBeacon": "0x2607c68ec77c36e2d072533cdc03830d8307e310",
-    "sharedV4StrategyProxy": "0xdb29eec236c9b0cf3718d7fc24bdd7d5da8cece6",
-    "sharedAerodromeStrategy": "0xd0dbe733e99e3ccb9abf3dbabd0755f287b7ad5b",
-    "sharedAerodromeBeacon": "0x2cc799e2a5e0aac7bb1b5b4f873620dbbcd9bd82",
-    "sharedAerodromeProxy": "0xb12c8cd0054a417f0b93342390ec6bb960270f2c",
-    "sharedVaultAutomator": "0x577a45576ffae7281846779e1ef487e85679a455",
-    "sharedVaultGateway": "0x086ff740c55d486248e5d6b0d370d298e7236ca7"
+    "sharedConfigManager": "0xd5748e7f9220147f1c478e46ad3d1e151ebdb620",
+    "sharedVaultPreviewLib": "0x7a131796a8a411057ed0191faa3ec0278b1fd2e2",
+    "sharedVault": "0xcdf42b4da13cc2a1a7f1d131f84751a8359fe479",
+    "sharedVaultFactory": "0xb20b4517a17b8f9d1806906920071faca0c3bd26",
+    "sharedV3Strategy": "0x91b8ea9f7b8a8983c155c50a61b98c9e87b2319f",
+    "sharedV3StrategyBeacon": "0xe695bec3061ff6e8ac5b79b396132c84c1f3daa0",
+    "sharedV3StrategyProxy": "0xc2cbefac9423030333466c8b52b6ff4e85304a8c",
+    "sharedV4Strategy": "0xd9c0ce5d27798c07ea9b009e75d615d6d1038a23",
+    "sharedV4StrategyBeacon": "0x89f040d4e9feec0b8085808b143c138a84d7d35f",
+    "sharedV4StrategyProxy": "0x9ee88b6f447c3600a3e54b2555e7a68cc0de9010",
+    "sharedAerodromeStrategy": "0x820e68010fa6659946db3610a17c44fa8bf55aa7",
+    "sharedAerodromeBeacon": "0x31dc40efa84295a1e6687a25aa08033b6d50a5cd",
+    "sharedAerodromeProxy": "0x2c540870b3d19fb83f643ab3dca91c2b0d3d7ca3",
+    "sharedVaultAutomator": "0x1e83d4df29d94ac34765d80deddab95063942351",
+    "sharedVaultGateway": "0x7092197ea3809a75eda7e3273645c59260ca0817"
   }
 }
