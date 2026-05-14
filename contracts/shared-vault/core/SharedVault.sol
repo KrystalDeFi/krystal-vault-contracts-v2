@@ -26,6 +26,7 @@ import "../interfaces/ISharedVault.sol";
 import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedStrategy.sol";
+import "../libraries/SharedVaultPreviewLib.sol";
 import "../../public-vault/interfaces/IWETH9.sol";
 
 contract SharedVault is
@@ -40,27 +41,22 @@ contract SharedVault is
   using SafeERC20 for IERC20;
   using SafeApprovalLib for IERC20;
 
-  // Magic value per EIP-1271
-  bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
-
-  uint256 public constant SHARES_PRECISION = 1e18;
-
   /// @dev Fixed share count minted to the first depositor regardless of deposit amount.
   ///      This decouples share units from any specific token's decimals and prevents
   ///      the initial share price from being dictated by deposit size.
-  uint256 public constant INITIAL_SHARES = 10e18;
+  uint256 internal constant INITIAL_SHARES = 10e18;
 
   ISharedConfigManager public configManager;
   address public override vaultOwner;
-  address public vaultFactory;
-  address public operator;
+  address internal vaultFactory;
+  address internal operator;
   address public override weth;
 
   uint16 public override tokenCount;
-  address[4] public tokens;
+  address[4] internal tokens;
   mapping(address => bool) public override isVaultToken;
 
-  mapping(address => bool) public admins;
+  mapping(address => bool) internal admins;
 
   /// @inheritdoc ISharedVault
   /// @dev Locked at initialization. There is intentionally no setter — the value the depositor saw at
@@ -69,31 +65,47 @@ contract SharedVault is
   uint16 public override vaultOwnerFeeBasisPoint;
 
   /// @dev Array of tracked LP positions
-  Position[] public positions;
+  Position[] internal positions;
   /// @dev Quick lookup: keccak256(nfpm, tokenId) => index+1 (0 = not tracked)
   mapping(bytes32 => uint256) internal positionIndex;
 
   modifier onlyOwner() {
-    require(_msgSender() == vaultOwner, Unauthorized());
+    _onlyOwner();
     _;
   }
 
   modifier onlyAuthorized() {
-    require(
-      _msgSender() == vaultOwner || admins[_msgSender()] || configManager.isWhitelistedCaller(_msgSender()),
-      Unauthorized()
-    );
+    _onlyAuthorized();
     _;
   }
 
   modifier onlyOperator() {
-    require(_msgSender() == operator, Unauthorized());
+    _onlyOperator();
     _;
   }
 
   modifier whenVaultNotPaused() {
-    require(!paused() && !configManager.isVaultPaused(), VaultPaused());
+    _whenVaultNotPaused();
     _;
+  }
+
+  function _onlyOwner() internal view {
+    require(_msgSender() == vaultOwner, Unauthorized());
+  }
+
+  function _onlyAuthorized() internal view {
+    require(
+      _msgSender() == vaultOwner || admins[_msgSender()] || configManager.isWhitelistedCaller(_msgSender()),
+      Unauthorized()
+    );
+  }
+
+  function _onlyOperator() internal view {
+    require(_msgSender() == operator, Unauthorized());
+  }
+
+  function _whenVaultNotPaused() internal view {
+    require(!paused() && !configManager.isVaultPaused(), VaultPaused());
   }
 
   /// @notice Initializes the shared vault
@@ -197,6 +209,24 @@ contract SharedVault is
     uint256[4] calldata amounts,
     uint16 slippageBps
   ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
+    shares = _deposit(amounts, slippageBps, _msgSender());
+  }
+
+  /// @notice Deposit tokens proportionally and mint shares to `receiver`.
+  function deposit(
+    uint256[4] calldata amounts,
+    uint16 slippageBps,
+    address receiver
+  ) external payable override nonReentrant whenVaultNotPaused returns (uint256 shares) {
+    shares = _deposit(amounts, slippageBps, receiver);
+  }
+
+  function _deposit(
+    uint256[4] calldata amounts,
+    uint16 slippageBps,
+    address receiver
+  ) internal returns (uint256 shares) {
+    require(receiver != address(0), ZeroAddress());
     require(slippageBps <= 10000, ISharedCommon.InvalidAmount());
     // Snapshot pre-deposit state before any balance mutation so share pricing is unaffected by the wrap.
     uint256 currentTotalSupply = totalSupply();
@@ -255,14 +285,14 @@ contract SharedVault is
       require(shares > 0, InsufficientShares());
     }
 
-    _mint(_msgSender(), shares);
+    _mint(receiver, shares);
 
     if (excessEthRefund > 0) {
       (bool ok, ) = _msgSender().call{ value: excessEthRefund }("");
       require(ok, TransferFailed());
     }
 
-    emit VaultDeposit(vaultFactory, _msgSender(), actualPulled, shares);
+    emit VaultDeposit(vaultFactory, receiver, actualPulled, shares);
   }
 
   /// @dev Measure how much each vault token actually arrived in the vault since `idleBefore`.
@@ -330,60 +360,13 @@ contract SharedVault is
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances
   ) internal view returns (uint256[4] memory transferAmounts) {
-    // Find the binding token: the one that would yield the fewest shares. Floor division here is
-    // deliberate — sharesOut is a conservative lower bound on what the depositor is entitled to.
-    uint256 sharesOut = type(uint256).max;
-    for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
-        uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
-        if (s < sharesOut) sharesOut = s;
-      }
-      unchecked {
-        i++;
-      }
-    }
-    require(sharesOut != type(uint256).max, InvalidAmount());
-
-    bool valid;
-    (valid, transferAmounts) = _buildTransferAmounts(amounts, sharesOut, currentTotalSupply, totalBalances);
-    require(valid, InvalidRatio());
-  }
-
-  /// @dev Second pass of subsequent-deposit validation: for each active token slot, compute the
-  ///      required proportional amount (ceiling-rounded, floored to _minTokenAmt) and check that
-  ///      the caller supplied at least that much. Returns (false, _) on first violation so both
-  ///      _subsequentDepositTransfers (revert) and previewDeposit (return 0) can share the logic.
-  function _buildTransferAmounts(
-    uint256[4] calldata amounts,
-    uint256 sharesOut,
-    uint256 currentTotalSupply,
-    uint256[4] memory totalBalances
-  ) internal view returns (bool valid, uint256[4] memory transferAmounts) {
-    uint8 prec = configManager.minTokenPrecision();
-    for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0)) {
-        if (totalBalances[i] == 0) {
-          if (amounts[i] != 0) return (false, transferAmounts);
-        } else {
-          uint256 proportional = FullMath.mulDivRoundingUp(sharesOut, totalBalances[i], currentTotalSupply);
-          uint256 minAmt = _minTokenAmt(tokens[i], prec);
-          transferAmounts[i] = proportional < minAmt ? minAmt : proportional;
-          if (amounts[i] < transferAmounts[i]) return (false, transferAmounts);
-        }
-      }
-      unchecked {
-        i++;
-      }
-    }
-    valid = true;
-  }
-
-  /// @dev Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
-  ///      precision level get a floor of 1 (the smallest representable unit).
-  function _minTokenAmt(address token, uint8 prec) internal view returns (uint256) {
-    if (prec == 0) return 0;
-    uint8 dec = IERC20Metadata(token).decimals();
-    return dec > prec ? 10 ** uint256(dec - prec) : 1;
+    transferAmounts = SharedVaultPreviewLib.subsequentDepositTransfers(
+      amounts,
+      currentTotalSupply,
+      totalBalances,
+      tokens,
+      configManager
+    );
   }
 
   /// @dev Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
@@ -521,10 +504,33 @@ contract SharedVault is
     uint256[4] calldata minAmounts,
     bool unwrap
   ) external override nonReentrant returns (uint256[4] memory amounts) {
-    require(shares > 0 && shares <= balanceOf(_msgSender()), InsufficientShares());
+    amounts = _withdraw(shares, minAmounts, unwrap, _msgSender());
+  }
+
+  /// @notice Burn `account` shares and withdraw proportional tokens to the caller.
+  function withdraw(
+    uint256 shares,
+    uint256[4] calldata minAmounts,
+    bool unwrap,
+    address account
+  ) external override nonReentrant returns (uint256[4] memory amounts) {
+    amounts = _withdraw(shares, minAmounts, unwrap, account);
+  }
+
+  function _withdraw(
+    uint256 shares,
+    uint256[4] calldata minAmounts,
+    bool unwrap,
+    address account
+  ) internal returns (uint256[4] memory amounts) {
+    require(account != address(0), ZeroAddress());
+    require(shares > 0 && shares <= balanceOf(account), InsufficientShares());
+    if (account != _msgSender()) {
+      _spendAllowance(account, _msgSender(), shares);
+    }
 
     uint256 currentTotalSupply = totalSupply();
-    _burn(_msgSender(), shares);
+    _burn(account, shares);
 
     // Pre-collect accumulated LP fees into idle BEFORE snapshotting idleBefore so they are
     // distributed proportionally by share ratio (not entirely to the current withdrawer).
@@ -623,7 +629,7 @@ contract SharedVault is
       }
     }
 
-    emit VaultWithdraw(vaultFactory, _msgSender(), amounts, shares);
+    emit VaultWithdraw(vaultFactory, account, amounts, shares);
   }
 
   // ==================== Execute (LP operations + swaps) ====================
@@ -664,7 +670,7 @@ contract SharedVault is
           }
         }
 
-        _applyPositionChanges(action.target, result);
+        _applyPositionChanges(action.target, result, false);
       } else if (action.callType == CallType.CALL) {
         require(configManager.isWhitelistedSwapRouter(action.target), InvalidSwapRouter(action.target));
         // --- Swap: direct call to aggregator with token validation and slippage check ---
@@ -696,7 +702,7 @@ contract SharedVault is
           }
         }
 
-        _applyPositionChangesChecked(action.target, result);
+        _applyPositionChanges(action.target, result, true);
       }
 
       emit VaultExecute(vaultFactory, action.target, action.data);
@@ -707,64 +713,22 @@ contract SharedVault is
   }
 
   /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.
-  ///      DELEGATECALL path: mirrors `_applyPositionChangesChecked` — token0/token1 vault-token
-  ///      check plus staticcall ownership verification before recording any new position.
-  ///      Defense-in-depth: real strategies guarantee vault ownership via `swapAndMint(recipient=this)`;
-  ///      the check here catches a future buggy strategy that returns an unowned position.
-  function _applyPositionChanges(address strategy, bytes memory result) internal {
+  ///      `probeStrategy` is enabled only for CALL_WITH_POSITIONS, where an arbitrary target
+  ///      must prove it implements ISharedStrategy before the vault tracks a position for later
+  ///      delegatecall-based exits.
+  function _applyPositionChanges(address strategy, bytes memory result, bool probeStrategy) internal {
     if (result.length == 0) return;
 
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length; ) {
       if (changes[c].isAdd) {
-        require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
-        // Verify canonical token pair: a buggy delegatecall strategy can report any vault-token pair,
-        // causing _getTotalBalances() to attribute LP value to the wrong assets and misprice shares.
-        (bool tokensOk, bytes memory tokensData) = strategy.staticcall(
-          abi.encodeCall(ISharedStrategy.getPositionTokens, (changes[c].nfpm, changes[c].tokenId))
-        );
-        require(tokensOk && tokensData.length >= 64, InvalidTarget(strategy));
-        (address canonToken0, address canonToken1) = abi.decode(tokensData, (address, address));
-        require(canonToken0 == changes[c].token0 && canonToken1 == changes[c].token1, TokenNotConfigured());
-        (bool ownsNft, bytes memory ownerData) = changes[c].nfpm.staticcall(
-          abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId))
-        );
-        require(
-          ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this),
-          InvalidOperation()
-        );
-        _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
-      } else {
-        _verifyPositionExit(strategy, changes[c].nfpm, changes[c].tokenId);
-        _removePosition(changes[c].nfpm, changes[c].tokenId);
-      }
-      unchecked {
-        c++;
-      }
-    }
-  }
-
-  /// @dev Same as _applyPositionChanges but used for the CALL_WITH_POSITIONS path.
-  ///      Before tracking a new position, verifies that `strategy` implements ISharedStrategy
-  ///      by probing `getPositionAmounts`. Positions stored here are later exited via
-  ///      delegatecall to `exitProportional`; a target that lacks that selector would brick
-  ///      all future withdrawals for every vault depositor.
-  function _applyPositionChangesChecked(address strategy, bytes memory result) internal {
-    if (result.length == 0) return;
-
-    ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
-    for (uint256 c; c < changes.length; ) {
-      if (changes[c].isAdd) {
-        // Probe `getPositionAmounts` to confirm the strategy implements ISharedStrategy and that
-        // valuation succeeds. Must return ok=true with exactly two uint256 values (64 bytes).
-        // Accepting a reverting call (ok=false, non-empty revert data) would allow tracking a position
-        // whose valuation already reverts — bricking _getTotalBalances() for all users.
-        // Note: `exitProportional` is NOT probed because it is state-mutating; a staticcall to it
-        // reverts with *empty* data — indistinguishable from "selector missing".
-        (bool ok, bytes memory probeData) = strategy.staticcall(
-          abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
-        );
-        require(ok && probeData.length >= 64, InvalidTarget(strategy));
+        if (probeStrategy) {
+          // Probe `getPositionAmounts` to confirm the target can value the position before it is tracked.
+          (bool ok, bytes memory probeData) = strategy.staticcall(
+            abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
+          );
+          require(ok && probeData.length >= 64, InvalidTarget(strategy));
+        }
         // Verify canonical token pair via getPositionTokens: a buggy target can report any vault-token
         // pair but _getTotalBalances() would attribute LP value to the wrong assets, mispricing shares.
         (bool tokensOk, bytes memory tokensData) = strategy.staticcall(
@@ -819,37 +783,14 @@ contract SharedVault is
   }
 
   function previewDeposit(uint256[4] calldata amounts) external view override returns (uint256 shares) {
-    uint256 currentTotalSupply = totalSupply();
-    uint256[4] memory totalBalances = _getTotalBalances();
-
-    if (currentTotalSupply == 0) {
-      for (uint256 i; i < 4; ) {
-        if (amounts[i] > 0) {
-          return INITIAL_SHARES;
-        }
-        unchecked {
-          i++;
-        }
-      }
-    } else {
-      shares = type(uint256).max;
-      for (uint256 i; i < 4; ) {
-        if (tokens[i] != address(0) && totalBalances[i] > 0 && amounts[i] > 0) {
-          uint256 s = FullMath.mulDiv(amounts[i], currentTotalSupply, totalBalances[i]);
-          if (s < shares) shares = s;
-        }
-        unchecked {
-          i++;
-        }
-      }
-      if (shares == type(uint256).max) {
-        return 0;
-      }
-      // Reuse _buildTransferAmounts to mirror the same ratio validation that deposit() applies.
-      // Returns 0 (instead of reverting) so integrators/gateways can cheaply detect invalid inputs.
-      (bool valid, ) = _buildTransferAmounts(amounts, shares, currentTotalSupply, totalBalances);
-      if (!valid) return 0;
-    }
+    shares = SharedVaultPreviewLib.previewDeposit(
+      amounts,
+      totalSupply(),
+      _getTotalBalances(),
+      tokens,
+      configManager,
+      INITIAL_SHARES
+    );
   }
 
   /// @notice Preview token amounts returned for burning `_shares` NET of LP exit fees.
@@ -860,70 +801,20 @@ contract SharedVault is
   ///      (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
   ///      Callers should still apply a slippage margin for AMM price impact at exit time.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
-    uint256 currentTotalSupply = totalSupply();
-    if (currentTotalSupply == 0) return amounts;
-
-    // Compute the fraction of uncollected fees the withdrawer keeps after platform + vault-owner cut.
-    // Matches the silent clamp in SharedStrategyFeeConfig: if platform + owner > 10000, owner is squeezed.
-    uint16 platformBps = configManager.platformFeeBasisPoint();
-    uint16 ownerBps = vaultOwnerFeeBasisPoint;
-    if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
-      ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
-    }
-    uint256 combinedFeeBps = uint256(platformBps) + uint256(ownerBps);
-    uint256 keepFeeBps = combinedFeeBps >= 10_000 ? 0 : 10_000 - combinedFeeBps;
-
-    // Start with idle balances; LP principal/owed are added per tracked position.
-    uint256[4] memory netBalances = _getIdleBalances();
-
-    uint256 posLen = positions.length;
-    for (uint256 p; p < posLen; ) {
-      Position memory pos = positions[p];
-      (uint256 total0, uint256 total1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
-      (uint256 principal0, uint256 principal1) = ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(
-        pos.nfpm,
-        pos.tokenId
-      );
-      uint256 owed0 = total0 > principal0 ? total0 - principal0 : 0;
-      uint256 owed1 = total1 > principal1 ? total1 - principal1 : 0;
-      uint256 netOwed0 = keepFeeBps == 10_000 ? owed0 : FullMath.mulDiv(owed0, keepFeeBps, 10_000);
-      uint256 netOwed1 = keepFeeBps == 10_000 ? owed1 : FullMath.mulDiv(owed1, keepFeeBps, 10_000);
-      for (uint256 i; i < 4; ) {
-        if (tokens[i] == pos.token0) netBalances[i] += principal0 + netOwed0;
-        else if (tokens[i] == pos.token1) netBalances[i] += principal1 + netOwed1;
-        unchecked {
-          i++;
-        }
-      }
-      unchecked {
-        p++;
-      }
-    }
-
-    for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0)) {
-        amounts[i] = FullMath.mulDiv(_shares, netBalances[i], currentTotalSupply);
-      }
-      unchecked {
-        i++;
-      }
-    }
+    amounts = SharedVaultPreviewLib.previewWithdraw(
+      _shares,
+      totalSupply(),
+      _getIdleBalances(),
+      positions,
+      tokens,
+      configManager,
+      vaultOwnerFeeBasisPoint
+    );
   }
 
   /// @inheritdoc ISharedVault
   function getMinDepositAmounts() external view override returns (uint256[4] memory minAmounts) {
-    if (totalSupply() == 0) return minAmounts;
-
-    uint8 prec = configManager.minTokenPrecision();
-    uint256[4] memory totalBalances = _getTotalBalances();
-    for (uint256 i; i < 4; ) {
-      if (tokens[i] != address(0) && totalBalances[i] > 0) {
-        minAmounts[i] = _minTokenAmt(tokens[i], prec);
-      }
-      unchecked {
-        i++;
-      }
-    }
+    minAmounts = SharedVaultPreviewLib.minDepositAmounts(totalSupply(), _getTotalBalances(), tokens, configManager);
   }
 
   // ==================== Operator Sweep (non-vault tokens only) ====================
@@ -1030,9 +921,8 @@ contract SharedVault is
 
   // ==================== EIP-1271 ====================
 
-  function isValidSignature(bytes32 hash, bytes memory signature) public view override returns (bytes4 magicValue) {
-    bool success = SignatureChecker.isValidSignatureNow(vaultOwner, hash, signature);
-    magicValue = success ? MAGIC_VALUE : bytes4("");
+  function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
+    return SignatureChecker.isValidSignatureNow(vaultOwner, hash, signature) ? IERC1271.isValidSignature.selector : bytes4(0);
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

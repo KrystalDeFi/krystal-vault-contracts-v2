@@ -400,6 +400,35 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenD.balanceOf(address(gateway)), 0, "No tokenD leftover in gateway");
   }
 
+  function test_swapAndDeposit_emitsVaultDepositForShareholder() public {
+    tokenA.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    uint256[4] memory expectedAmounts = [uint256(100e18), uint256(200e18), uint256(50e6), uint256(100e18)];
+    uint256 expectedShares = vault.previewDeposit(expectedAmounts);
+
+    vm.expectEmit(true, true, false, true, address(vault));
+    emit ISharedVault.VaultDeposit(VAULT_OWNER, ALICE, expectedAmounts, expectedShares);
+
+    vm.prank(ALICE);
+    gateway.swapAndDeposit(params);
+
+    assertEq(vault.balanceOf(ALICE), expectedShares, "Alice receives shares directly");
+    assertEq(vault.balanceOf(address(gateway)), 0, "Gateway never holds minted shares");
+  }
+
   // ==================== SwapAndDeposit: Single Token → 4 Vault Tokens ====================
 
   function test_swapAndDeposit_single_token_to_four() public {
@@ -689,6 +718,30 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenC.balanceOf(address(gateway)), 0);
     assertEq(tokenD.balanceOf(address(gateway)), 0);
     assertEq(vault.balanceOf(ALICE), 0, "All shares burned");
+  }
+
+  function test_withdrawAndSwap_emitsVaultWithdrawForShareholder() public {
+    uint256 shares = _depositForAlice();
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    uint256[4] memory expectedAmounts = vault.previewWithdraw(shares);
+
+    vm.expectEmit(true, true, false, true, address(vault));
+    emit ISharedVault.VaultWithdraw(VAULT_OWNER, ALICE, expectedAmounts, shares);
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    assertEq(vault.balanceOf(ALICE), 0, "Alice shares burned");
+    assertEq(vault.balanceOf(address(gateway)), 0, "Gateway never holds burned shares");
   }
 
   // ==================== WithdrawAndSwap: Swap vault tokens to single output ====================

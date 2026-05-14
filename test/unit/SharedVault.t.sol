@@ -1648,6 +1648,7 @@ contract SharedVaultTest is TestCommon {
   address public constant OPERATOR = 0x1234567890123456789012345678901234567892;
   address public constant DEPOSITOR = 0x1234567890123456789012345678901234567893;
   address public constant NON_AUTHORIZED = 0x1234567890123456789012345678901234567894;
+  uint256 internal constant TEST_INITIAL_SHARES = 10e18;
 
   function setUp() public {
     // Deploy mock tokens
@@ -1742,7 +1743,7 @@ contract SharedVaultTest is TestCommon {
     assertFalse(vault.isVaultToken(address(tokenE)));
 
     // Initial shares minted to owner: always INITIAL_SHARES on first deposit
-    assertEq(vault.balanceOf(VAULT_OWNER), vault.INITIAL_SHARES());
+    assertEq(vault.balanceOf(VAULT_OWNER), TEST_INITIAL_SHARES);
     assertGt(vault.totalSupply(), 0);
   }
 
@@ -1784,7 +1785,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
     uint256 shares = vault2.deposit(depositAmounts, 0);
 
-    assertEq(shares, vault2.INITIAL_SHARES());
+    assertEq(shares, TEST_INITIAL_SHARES);
     assertEq(vault2.balanceOf(DEPOSITOR), shares);
     assertEq(tokenA.balanceOf(address(vault2)), 50e18);
     assertEq(tokenB.balanceOf(address(vault2)), 100e18);
@@ -3260,8 +3261,8 @@ contract SharedVaultTest is TestCommon {
     (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(100e18, 100e18);
 
     uint256 aliceShares = v.balanceOf(VAULT_OWNER);
-    assertEq(aliceShares, v.INITIAL_SHARES());
-    assertEq(v.totalSupply(), v.INITIAL_SHARES() * 2);
+    assertEq(aliceShares, TEST_INITIAL_SHARES);
+    assertEq(v.totalSupply(), TEST_INITIAL_SHARES * 2);
 
     // Verify total balances
     uint256[4] memory totalBal = v.getTotalBalances();
@@ -3904,7 +3905,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = vault.deposit(amts, 0);
     vm.stopPrank();
 
-    assertEq(shares, vault.INITIAL_SHARES() / 10, "10% of INITIAL_SHARES");
+    assertEq(shares, TEST_INITIAL_SHARES / 10, "10% of INITIAL_SHARES");
     assertEq(tokenA.balanceOf(address(vault)), 110e18);
     assertEq(tokenB.balanceOf(address(vault)), 220e18);
   }
@@ -5021,7 +5022,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    assertEq(shares, v.INITIAL_SHARES(), "INITIAL_SHARES minted regardless of FOT loss");
+    assertEq(shares, TEST_INITIAL_SHARES, "INITIAL_SHARES minted regardless of FOT loss");
     assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% (2% FOT fee burned)");
     assertEq(tokenB.balanceOf(address(v)), 100e18, "standard token received in full");
   }
@@ -5122,7 +5123,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     v.initialize("PFOT", toks, amounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
 
-    assertEq(v.totalSupply(), v.INITIAL_SHARES(), "partial FOT initialize mints INITIAL_SHARES");
+    assertEq(v.totalSupply(), TEST_INITIAL_SHARES, "partial FOT initialize mints INITIAL_SHARES");
     assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
     assertEq(tokenB.balanceOf(address(v)), 100e18);
   }
@@ -5144,7 +5145,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    assertEq(shares, v.INITIAL_SHARES(), "partial FOT first deposit mints INITIAL_SHARES");
+    assertEq(shares, TEST_INITIAL_SHARES, "partial FOT first deposit mints INITIAL_SHARES");
     // Vault holds 98e18 FOT (2% burned) and 100e18 tokenB — not bricked.
     assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
     assertEq(tokenB.balanceOf(address(v)), 100e18);
@@ -5176,7 +5177,7 @@ contract SharedVaultTest is TestCommon {
     tokenB.approve(address(v), type(uint256).max);
     uint256 firstShares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
-    assertEq(firstShares, v.INITIAL_SHARES());
+    assertEq(firstShares, TEST_INITIAL_SHARES);
 
     // Now subsequent depositor with partial FOT: should succeed (delta > 0 on both slots)
     address bob = address(0xB0B0B0);
@@ -5205,7 +5206,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    assertEq(shares, v.INITIAL_SHARES());
+    assertEq(shares, TEST_INITIAL_SHARES);
     assertEq(usdt.balanceOf(address(v)), 100e6);
     assertEq(tokenB.balanceOf(address(v)), 100e18);
   }
@@ -5393,6 +5394,37 @@ contract SharedVaultTest is TestCommon {
     (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
     bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
     assertEq(result, bytes4(0x1626ba7e), "smart-wallet owner validates via EIP-1271 cascade");
+  }
+
+  function test_erc20Permit_permitApprovesSpender() public {
+    (address owner, uint256 ownerPk) = makeAddrAndKey("permit-owner");
+    address spender = makeAddr("permit-spender");
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("PermitVault", toks, init, owner, OPERATOR, address(configManager), address(0), 0);
+
+    uint256 value = 5e18;
+    uint256 deadline = block.timestamp + 1 days;
+    bytes32 permitHash = keccak256(
+      abi.encode(
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+        owner,
+        spender,
+        value,
+        v.nonces(owner),
+        deadline
+      )
+    );
+    bytes32 digest = keccak256(abi.encodePacked(bytes2("\x19\x01"), v.DOMAIN_SEPARATOR(), permitHash));
+    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(ownerPk, digest);
+
+    v.permit(owner, spender, value, deadline, vv, r, s);
+
+    assertEq(v.allowance(owner, spender), value);
+    assertEq(v.nonces(owner), 1);
   }
 
   // ════════════════════════════════════════════════════════════════════════════

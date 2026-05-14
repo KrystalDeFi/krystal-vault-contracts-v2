@@ -248,6 +248,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
   address public constant FACTORY_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant VAULT_CREATOR = 0x1234567890123456789012345678901234567891;
+  uint256 internal constant TEST_INITIAL_SHARES = 10e18;
 
   function setUp() public {
     tokenA = new MockERC20("Token A", "TKA");
@@ -454,7 +455,7 @@ contract SharedVaultFactoryTest is TestCommon {
     // Strategy was called and returned a PositionChange — vault should have tracked it
     assertEq(ISharedVault(vaultAddr).getPositionCount(), 1);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -598,7 +599,7 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenB.balanceOf(vaultAddr), 100e18);
     assertEq(mockWeth.balanceOf(vaultAddr), 0);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -635,7 +636,7 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenA.balanceOf(vaultAddr), 100e18, "tokenA transferred as ERC20");
     assertEq(address(factory).balance, 0);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -894,7 +895,7 @@ contract SharedVaultFactoryTest is TestCommon {
     address vaultAddr = factory.createVault("FOT2Vault", tokens, amounts, 0);
     vm.stopPrank();
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares, "INITIAL_SHARES minted");
     assertEq(fot2.balanceOf(vaultAddr), 98e18, "vault received 98% of FOT");
     assertEq(tokenB.balanceOf(vaultAddr), 100e18, "tokenB received in full");

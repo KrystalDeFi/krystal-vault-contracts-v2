@@ -6,6 +6,8 @@ import "forge-std/Test.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
+import { SharedNfpmProportionalExit } from "../../contracts/shared-vault/libraries/SharedNfpmProportionalExit.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -420,5 +422,162 @@ contract SharedStrategyFeeAccrualTest is Test {
 
     assertEq(amount0, principal0 + STORED_OWED0, "Aerodrome pending=0, only stored owed");
     assertEq(amount1, principal1 + STORED_OWED1, "Aerodrome pending=0, only stored owed");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mocks for collectAccumulatedFees tests
+// ---------------------------------------------------------------------------
+
+/// @dev Minimal ERC20 used to verify token transfers in collectAccumulatedFees.
+contract MockFeeToken {
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  function mint(address to, uint256 amt) external { balanceOf[to] += amt; }
+
+  function transfer(address to, uint256 amt) external returns (bool) {
+    balanceOf[msg.sender] -= amt;
+    balanceOf[to] += amt;
+    return true;
+  }
+
+  function approve(address spender, uint256 amt) external returns (bool) {
+    allowance[msg.sender][spender] = amt;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amt) external returns (bool) {
+    allowance[from][msg.sender] -= amt;
+    balanceOf[from] -= amt;
+    balanceOf[to] += amt;
+    return true;
+  }
+}
+
+/// @dev Mock NFPM that simulates the canonical Uniswap V3 / Slipstream collect() behavior:
+///      when collect() is called it "syncs" pending fee growth (pendingFee0/1) on top of the
+///      already-stored tokensOwed* (storedOwed0/1) and transfers the combined amount to the
+///      recipient — mirroring the real NFPM's internal `pool.burn(tickLower, tickUpper, 0)` step.
+///      ABI matches INFPM.CollectParams so SharedNfpmProportionalExit can call it directly.
+contract MockNfpmFeeSync {
+  address public token0;
+  address public token1;
+  uint128 public storedOwed0;
+  uint128 public storedOwed1;
+  uint128 public pendingFee0;
+  uint128 public pendingFee1;
+
+  struct CollectParams {
+    uint256 tokenId;
+    address recipient;
+    uint128 amount0Max;
+    uint128 amount1Max;
+  }
+
+  constructor(
+    address _t0, address _t1,
+    uint128 _stored0, uint128 _stored1,
+    uint128 _pending0, uint128 _pending1
+  ) {
+    token0 = _t0;
+    token1 = _t1;
+    storedOwed0 = _stored0;
+    storedOwed1 = _stored1;
+    pendingFee0 = _pending0;
+    pendingFee1 = _pending1;
+  }
+
+  function collect(CollectParams calldata params) external returns (uint256 a0, uint256 a1) {
+    // Simulate fee-growth sync: stored + pending = total collectable
+    uint128 total0 = storedOwed0 + pendingFee0;
+    uint128 total1 = storedOwed1 + pendingFee1;
+    a0 = params.amount0Max > total0 ? total0 : params.amount0Max;
+    a1 = params.amount1Max > total1 ? total1 : params.amount1Max;
+    if (a0 > 0) MockFeeToken(token0).transfer(params.recipient, a0);
+    if (a1 > 0) MockFeeToken(token1).transfer(params.recipient, a1);
+    storedOwed0 = total0 - uint128(a0);
+    storedOwed1 = total1 - uint128(a1);
+    pendingFee0 = 0;
+    pendingFee1 = 0;
+  }
+}
+
+/// @dev Wrapper that exposes SharedNfpmProportionalExit.collectAccumulatedFees as an external
+///      call so tests can invoke it. `address(this)` inside the library call resolves to this
+///      contract, so collected tokens land here for balance assertions.
+contract CollectFeeWrapper {
+  function callCollect(address nfpm, address _token0, address _token1) external {
+    ICommon.FeeConfig memory noFee;
+    SharedNfpmProportionalExit.collectAccumulatedFees(
+      nfpm, 1, _token0, _token1, address(0), address(1), noFee
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// collectAccumulatedFees regression tests
+// ---------------------------------------------------------------------------
+
+contract CollectAccumulatedFeesTest is Test {
+  uint128 constant STORED0 = 5e18;
+  uint128 constant STORED1 = 3e18;
+  uint128 constant PENDING0 = 1e18;
+  uint128 constant PENDING1 = 2e18;
+
+  function _setup()
+    internal
+    returns (CollectFeeWrapper wrapper, MockNfpmFeeSync nfpm, MockFeeToken t0, MockFeeToken t1)
+  {
+    t0 = new MockFeeToken();
+    t1 = new MockFeeToken();
+    nfpm = new MockNfpmFeeSync(address(t0), address(t1), STORED0, STORED1, PENDING0, PENDING1);
+    t0.mint(address(nfpm), STORED0 + PENDING0);
+    t1.mint(address(nfpm), STORED1 + PENDING1);
+    wrapper = new CollectFeeWrapper();
+  }
+
+  /// @dev collectAccumulatedFees must collect BOTH the previously-stored tokensOwed* AND any
+  ///      pending fee growth that the NFPM syncs during collect(). If only stored fees were
+  ///      captured, the pending portion would later be swept by the first withdrawer via the
+  ///      decreaseLiquidityProportional path rather than distributed proportionally.
+  function test_collectAccumulatedFees_captures_stored_and_pending_fees() public {
+    (CollectFeeWrapper wrapper, MockNfpmFeeSync nfpm, MockFeeToken t0, MockFeeToken t1) = _setup();
+
+    wrapper.callCollect(address(nfpm), address(t0), address(t1));
+
+    assertEq(t0.balanceOf(address(wrapper)), STORED0 + PENDING0, "token0: stored+pending collected");
+    assertEq(t1.balanceOf(address(wrapper)), STORED1 + PENDING1, "token1: stored+pending collected");
+    assertEq(t0.balanceOf(address(nfpm)), 0, "token0: nfpm fully drained");
+    assertEq(t1.balanceOf(address(nfpm)), 0, "token1: nfpm fully drained");
+  }
+
+  /// @dev After collectAccumulatedFees the NFPM position must have zero stored AND zero pending
+  ///      fees. This proves the subsequent collect() in decreaseLiquidityProportional can only
+  ///      return principal — never residual fees that belong to remaining vault holders.
+  function test_no_residual_fees_for_withdrawer_after_collectAccumulatedFees() public {
+    (, MockNfpmFeeSync nfpm, MockFeeToken t0, MockFeeToken t1) = _setup();
+    CollectFeeWrapper wrapper = new CollectFeeWrapper();
+
+    wrapper.callCollect(address(nfpm), address(t0), address(t1));
+
+    assertEq(nfpm.storedOwed0(), 0, "storedOwed0 cleared after collect");
+    assertEq(nfpm.storedOwed1(), 0, "storedOwed1 cleared after collect");
+    assertEq(nfpm.pendingFee0(), 0, "pendingFee0 cleared after fee sync");
+    assertEq(nfpm.pendingFee1(), 0, "pendingFee1 cleared after fee sync");
+  }
+
+  /// @dev Verify that a zero-fee position (nothing owed, nothing pending) produces no transfer
+  ///      and does not revert — important so an idle position never blocks the withdraw loop.
+  function test_collectAccumulatedFees_zero_fees_no_transfer() public {
+    MockFeeToken t0 = new MockFeeToken();
+    MockFeeToken t1 = new MockFeeToken();
+    MockNfpmFeeSync nfpm = new MockNfpmFeeSync(address(t0), address(t1), 0, 0, 0, 0);
+    CollectFeeWrapper wrapper = new CollectFeeWrapper();
+
+    wrapper.callCollect(address(nfpm), address(t0), address(t1));
+
+    assertEq(t0.balanceOf(address(wrapper)), 0, "no token0 transferred");
+    assertEq(t1.balanceOf(address(wrapper)), 0, "no token1 transferred");
   }
 }

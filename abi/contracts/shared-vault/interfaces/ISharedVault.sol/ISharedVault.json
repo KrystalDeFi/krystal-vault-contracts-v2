@@ -422,6 +422,35 @@
         "internalType": "uint16",
         "name": "slippageBps",
         "type": "uint16"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "deposit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "amounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "slippageBps",
+        "type": "uint16"
       }
     ],
     "name": "deposit",
@@ -919,6 +948,40 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "minAmounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "bool",
+        "name": "unwrap",
+        "type": "bool"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "withdraw",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "amounts",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

@@ -62,6 +62,14 @@ interface ISharedVault is ISharedCommon {
   ///        Must be ≤ 10000. Pass 0 to skip the amountMin floor.
   function deposit(uint256[4] calldata amounts, uint16 slippageBps) external payable returns (uint256 shares);
 
+  /// @notice Deposit tokens from the caller and mint shares to `receiver`.
+  /// @dev Preserves gateway/account attribution while the caller supplies the tokens.
+  function deposit(
+    uint256[4] calldata amounts,
+    uint16 slippageBps,
+    address receiver
+  ) external payable returns (uint256 shares);
+
   /// @notice Burn shares and withdraw proportional tokens.
   ///         If the vault has active LP positions, each strategy exits its proportional share
   ///         of liquidity first; idle tokens are then withdrawn.
@@ -76,6 +84,15 @@ interface ISharedVault is ISharedCommon {
     uint256 shares,
     uint256[4] calldata minAmounts,
     bool unwrap
+  ) external returns (uint256[4] memory amounts);
+
+  /// @notice Burn `account` shares and withdraw proportional tokens to the caller.
+  /// @dev If caller is not `account`, the caller must have sufficient share allowance.
+  function withdraw(
+    uint256 shares,
+    uint256[4] calldata minAmounts,
+    bool unwrap,
+    address account
   ) external returns (uint256[4] memory amounts);
 
   // --- Execute (LP operations + swaps, onlyAuthorized) ---

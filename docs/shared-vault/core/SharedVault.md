@@ -2,18 +2,6 @@
 
 ## SharedVault
 
-### MAGIC_VALUE
-
-```solidity
-bytes4 MAGIC_VALUE
-```
-
-### SHARES_PRECISION
-
-```solidity
-uint256 SHARES_PRECISION
-```
-
 ### INITIAL_SHARES
 
 ```solidity
@@ -130,6 +118,30 @@ modifier onlyOperator()
 modifier whenVaultNotPaused()
 ```
 
+### _onlyOwner
+
+```solidity
+function _onlyOwner() internal view
+```
+
+### _onlyAuthorized
+
+```solidity
+function _onlyAuthorized() internal view
+```
+
+### _onlyOperator
+
+```solidity
+function _onlyOperator() internal view
+```
+
+### _whenVaultNotPaused
+
+```solidity
+function _whenVaultNotPaused() internal view
+```
+
 ### initialize
 
 ```solidity
@@ -164,6 +176,20 @@ _Share ratio is based on TOTAL balances (idle + LP positions valued by strategie
      Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
      minting shares so a malicious depositor cannot receive a refund callback between balance
      snapshots and share finalization (AMM / LP valuation manipulation)._
+
+### deposit
+
+```solidity
+function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+```
+
+Deposit tokens proportionally and mint shares to `receiver`.
+
+### _deposit
+
+```solidity
+function _deposit(uint256[4] amounts, uint16 slippageBps, address receiver) internal returns (uint256 shares)
+```
 
 ### _measureActualPulled
 
@@ -213,26 +239,6 @@ _Subsequent deposit — compute how many tokens to pull based on minimum ratio a
            cannot produce that exact micro-amount to satisfy the deposit.
      Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
      existing holders are never diluted and the gateway always sees a swappable amount._
-
-### _buildTransferAmounts
-
-```solidity
-function _buildTransferAmounts(uint256[4] amounts, uint256 sharesOut, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (bool valid, uint256[4] transferAmounts)
-```
-
-_Second pass of subsequent-deposit validation: for each active token slot, compute the
-     required proportional amount (ceiling-rounded, floored to _minTokenAmt) and check that
-     the caller supplied at least that much. Returns (false, _) on first violation so both
-     _subsequentDepositTransfers (revert) and previewDeposit (return 0) can share the logic._
-
-### _minTokenAmt
-
-```solidity
-function _minTokenAmt(address token, uint8 prec) internal view returns (uint256)
-```
-
-_Returns 10 ** max(0, decimals - precision). Tokens with fewer decimals than the
-     precision level get a floor of 1 (the smallest representable unit)._
 
 ### _computeSharesFromDelta
 
@@ -307,6 +313,20 @@ _For each tracked LP position the vault delegatecalls the strategy to exit
 | minAmounts | uint256[4] |  |
 | unwrap | bool | If true, any WETH output is unwrapped to native ETH before sending. |
 
+### withdraw
+
+```solidity
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address account) external returns (uint256[4] amounts)
+```
+
+Burn `account` shares and withdraw proportional tokens to the caller.
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address account) internal returns (uint256[4] amounts)
+```
+
 ### execute
 
 ```solidity
@@ -333,26 +353,13 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
 ### _applyPositionChanges
 
 ```solidity
-function _applyPositionChanges(address strategy, bytes result) internal
+function _applyPositionChanges(address strategy, bytes result, bool probeStrategy) internal
 ```
 
 _Decode a PositionChange[] from raw return bytes and update LP position tracking.
-     DELEGATECALL path: mirrors `_applyPositionChangesChecked` — token0/token1 vault-token
-     check plus staticcall ownership verification before recording any new position.
-     Defense-in-depth: real strategies guarantee vault ownership via `swapAndMint(recipient=this)`;
-     the check here catches a future buggy strategy that returns an unowned position._
-
-### _applyPositionChangesChecked
-
-```solidity
-function _applyPositionChangesChecked(address strategy, bytes result) internal
-```
-
-_Same as _applyPositionChanges but used for the CALL_WITH_POSITIONS path.
-     Before tracking a new position, verifies that `strategy` implements ISharedStrategy
-     by probing `getPositionAmounts`. Positions stored here are later exited via
-     delegatecall to `exitProportional`; a target that lacks that selector would brick
-     all future withdrawals for every vault depositor._
+     `probeStrategy` is enabled only for CALL_WITH_POSITIONS, where an arbitrary target
+     must prove it implements ISharedStrategy before the vault tracks a position for later
+     delegatecall-based exits._
 
 ### getTokens
 
@@ -513,7 +520,7 @@ _See `ISharedVault.recoverPosition` re `token0` / `token1` and vault token valid
 ### isValidSignature
 
 ```solidity
-function isValidSignature(bytes32 hash, bytes signature) public view returns (bytes4 magicValue)
+function isValidSignature(bytes32 hash, bytes signature) external view returns (bytes4)
 ```
 
 _Should return whether the signature provided is valid for the provided data_

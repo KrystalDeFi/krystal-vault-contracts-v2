@@ -151,12 +151,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _approveVaultTokens(vaultTokens, depositAmounts, address(params.vault));
 
-    shares = params.vault.deposit(depositAmounts, params.slippageBps);
+    shares = params.vault.deposit(depositAmounts, params.slippageBps, _msgSender());
     require(shares > 0, InsufficientShares());
 
     _revokeVaultTokenApprovals(vaultTokens, address(params.vault));
-
-    IERC20(address(params.vault)).safeTransfer(_msgSender(), shares);
 
     _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), nativeWrapped);
 
@@ -179,10 +177,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function withdrawAndSwap(
     WithdrawAndSwapParams calldata params
   ) external nonReentrant whenNotPaused returns (uint256[4] memory vaultAmounts) {
-    IERC20(address(params.vault)).safeTransferFrom(_msgSender(), address(this), params.shares);
-
     // Always withdraw as WETH (unwrap=false); the gateway handles unwrapping below if requested.
-    vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, false);
+    vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, false, _msgSender());
 
     _checkSwapInputBalances(params.swaps);
 

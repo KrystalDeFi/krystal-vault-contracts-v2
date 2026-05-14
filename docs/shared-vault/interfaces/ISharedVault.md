@@ -134,6 +134,16 @@ Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
 | amounts | uint256[4] |  |
 | slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).        Must be ≤ 10000. Pass 0 to skip the amountMin floor. |
 
+### deposit
+
+```solidity
+function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+```
+
+Deposit tokens from the caller and mint shares to `receiver`.
+
+_Preserves gateway/account attribution while the caller supplies the tokens._
+
 ### withdraw
 
 ```solidity
@@ -151,6 +161,16 @@ Burn shares and withdraw proportional tokens.
 | shares | uint256 | Number of vault shares to burn. |
 | minAmounts | uint256[4] | Per-token minimum output (aggregate slippage guard).        Individual LP exits use zero slippage bounds so one tight position cannot        revert the whole withdrawal. Instead, any sandwich-induced shortfall reduces        the aggregate `amounts[i]` and is caught here. Derive values from        `previewWithdraw()` minus acceptable slippage. |
 | unwrap | bool | If true, any WETH amount is unwrapped to native ETH before sending. |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address account) external returns (uint256[4] amounts)
+```
+
+Burn `account` shares and withdraw proportional tokens to the caller.
+
+_If caller is not `account`, the caller must have sufficient share allowance._
 
 ### execute
 
