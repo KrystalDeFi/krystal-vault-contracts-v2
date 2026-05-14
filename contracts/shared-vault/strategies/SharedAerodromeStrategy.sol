@@ -120,29 +120,25 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     uint256 balanceBefore = IERC721(_nfpm).balanceOf(address(this));
 
-    // Snapshot pre-call token IDs for CHANGE_RANGE so we can diff them after the call.
-    // Done before the transfer to capture the full pre-call owner set.
     bool isChangeRange = instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE;
-    uint256[] memory tokensBefore;
     if (isChangeRange) {
       require(balanceBefore > 0, InvalidPoolTokens());
       if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
-      }
-      tokensBefore = new uint256[](balanceBefore);
-      for (uint256 i; i < balanceBefore; ) {
-        tokensBefore[i] = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), i);
-        unchecked { i++; }
       }
     }
 
     IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
 
     if (isChangeRange) {
-      // Exactly one new NFT must have been added (old is returned, new is minted → net +1).
+      // After sending the old token the vault holds balanceBefore-1 tokens.
+      // Two tokens then arrive (new mint + old return, in either order) and are appended at
+      // indices balanceBefore-1 and balanceBefore. Since the old tokenId is known we check
+      // both slots and take whichever is not the original — O(1), ordering-agnostic.
       require(IERC721(_nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
-      uint256 newTokenId = _findNewTokenId(_nfpm, tokensBefore, balanceBefore + 1);
-      require(newTokenId != 0, InvalidPoolTokens());
+      uint256 t = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
+      uint256 newTokenId = (t != tokenId) ? t : IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore);
+      require(newTokenId != 0 && newTokenId != tokenId, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -355,30 +351,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
       tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
     }
-  }
-
-  /// @dev Finds the one token ID present in the post-call owner set that was absent in `tokensBefore`.
-  ///      Returns 0 if no new token is found (caller must treat 0 as an error: Aerodrome NFPM starts
-  ///      nextId at 1, so token ID 0 is never minted).
-  function _findNewTokenId(
-    address _nfpm,
-    uint256[] memory tokensBefore,
-    uint256 balanceAfter
-  ) private view returns (uint256) {
-    for (uint256 i; i < balanceAfter; ) {
-      uint256 candidateId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), i);
-      bool isKnown = false;
-      for (uint256 j; j < tokensBefore.length; ) {
-        if (tokensBefore[j] == candidateId) {
-          isKnown = true;
-          break;
-        }
-        unchecked { j++; }
-      }
-      if (!isKnown) return candidateId;
-      unchecked { i++; }
-    }
-    return 0;
   }
 
   /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:

@@ -180,8 +180,6 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     // Always withdraw as WETH (unwrap=false); the gateway handles unwrapping below if requested.
     vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, false, _msgSender());
 
-    _checkSwapInputBalances(params.swaps);
-
     _executeSwaps(params.swaps);
 
     address[4] memory vaultTokens = params.vault.getTokens();
@@ -223,64 +221,6 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Internal: Swap Execution ====================
 
-  /// @dev Verify the gateway holds enough of each explicit tokenIn before swap execution.
-  ///      Only checked when `amountIn > 0`; `amountIn == 0` swaps use the full balance
-  ///      and early-exit in `_executeSingleSwap` if that balance is also zero.
-  ///
-  ///      Accumulates required amounts per unique tokenIn so that two swaps sharing a
-  ///      tokenIn are checked against the *combined* required amount rather than each
-  ///      being checked independently against the full balance.
-  function _checkSwapInputBalances(SwapParams[] calldata swaps) internal view {
-    uint256 n = swaps.length;
-
-    // Parallel arrays acting as a memory-scoped accumulator keyed by tokenIn.
-    address[] memory tokens = new address[](n);
-    uint256[] memory required = new uint256[](n);
-    uint256[] memory firstIndex = new uint256[](n); // swap index of first occurrence (for error reporting)
-    uint256 uniqueCount;
-
-    for (uint256 i; i < n; ) {
-      if (swaps[i].swapData.length > 0 && swaps[i].amountIn > 0) {
-        address tokenIn = swaps[i].tokenIn;
-        uint256 amountIn = swaps[i].amountIn;
-
-        // Find existing accumulator slot for this tokenIn, or create a new one.
-        bool found;
-        for (uint256 j; j < uniqueCount; ) {
-          if (tokens[j] == tokenIn) {
-            required[j] += amountIn;
-            found = true;
-            break;
-          }
-          unchecked {
-            j++;
-          }
-        }
-        if (!found) {
-          tokens[uniqueCount] = tokenIn;
-          required[uniqueCount] = amountIn;
-          firstIndex[uniqueCount] = i;
-          unchecked {
-            uniqueCount++;
-          }
-        }
-      }
-      unchecked {
-        i++;
-      }
-    }
-
-    // Single balance read per unique tokenIn, compared against the cumulative required amount.
-    for (uint256 k; k < uniqueCount; ) {
-      if (IERC20(tokens[k]).balanceOf(address(this)) < required[k]) {
-        revert InsufficientWithdrawBalance(firstIndex[k]);
-      }
-      unchecked {
-        k++;
-      }
-    }
-  }
-
   /// @dev Execute each swap via the configured swapRouter with opaque calldata.
   ///      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
   function _executeSwaps(SwapParams[] calldata swaps) internal {
@@ -303,6 +243,12 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
       amountIn = IERC20(tokenIn).balanceOf(address(this));
     }
     if (amountIn == 0) return;
+
+    // Per-swap balance check: runs just before execution so that tokens produced by
+    // earlier swaps in the same batch are already available (multi-hop chains).
+    if (swap.amountIn > 0 && IERC20(tokenIn).balanceOf(address(this)) < amountIn) {
+      revert InsufficientWithdrawBalance(index);
+    }
 
     uint256 balOutBefore = IERC20(tokenOut).balanceOf(address(this));
 

@@ -1680,31 +1680,31 @@ contract SharedVaultGatewayTest is TestCommon {
   }
 
   /// @notice Two swaps share the same tokenIn with individual amountIn values that each fit
-  ///         within the withdrawn balance, but whose *sum* exceeds it — the cumulative check
-  ///         must catch this and revert with the index of the first offending entry (0).
+  ///         within the withdrawn balance, but whose *sum* exceeds it.  With per-swap balance
+  ///         checks, swap[0] (60e18 ≤ 100e18) executes and consumes 60A, then swap[1] (60e18
+  ///         > 40A remaining) reverts at index 1.
   ///
-  ///         Example: vault returns 100 tokenA. Swaps = [(tokenA→X, 60), (tokenA→Y, 60)].
-  ///         Each individual 60 ≤ 100, but 60 + 60 = 120 > 100 → revert InsufficientWithdrawBalance(0).
+  ///         Example: vault returns 100 tokenA. Swaps = [(tokenA→X, 60), (tokenA→X, 60)].
+  ///         swap[0] succeeds; swap[1] fails → revert InsufficientWithdrawBalance(1).
   function test_withdrawAndSwap_fail_cumulative_amountIn_exceeds_balance() public {
     uint256 shares = _depositForAlice();
     // Alice has exactly 100e18 tokenA after withdraw (10% of 1000e18 pool).
-    // Two swaps each ask for 60e18 tokenA → cumulative demand 120e18 > 100e18 → should revert.
-
-    // tokenOut can be any token — the revert happens in the pre-flight check, before any swap.
+    // Two swaps each ask for 60e18 tokenA → combined 120e18 > 100e18.
+    // swap[0] executes (60A consumed), swap[1] then detects 40A < 60A → revert at index 1.
     tokenX.mint(address(router), 1000e18);
     router.setRate(address(tokenA), address(tokenX), 1, 1);
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
     swaps[0] = SharedVaultGateway.SwapParams(
       address(tokenA),
-      60e18, // individually within balance
+      60e18, // within balance — executes successfully
       address(tokenX),
       0,
       _buildSwapCalldata(address(tokenA), address(tokenX), 60e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
       address(tokenA),
-      60e18, // cumulative sum (120e18) exceeds the 100e18 balance
+      60e18, // only 40e18 remains after swap[0] → reverts
       address(tokenX),
       0,
       _buildSwapCalldata(address(tokenA), address(tokenX), 60e18)
@@ -1720,8 +1720,55 @@ contract SharedVaultGatewayTest is TestCommon {
     });
 
     vm.prank(ALICE);
-    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientWithdrawBalance.selector, 0));
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientWithdrawBalance.selector, 1));
     gateway.withdrawAndSwap(params);
+  }
+
+  /// @notice Multi-hop chain: explicit amountIn on an intermediate token (tokenX) that the
+  ///         gateway holds zero of before any swap executes.  The old aggregate preflight check
+  ///         would have reverted here because it read balances before execution; the per-swap
+  ///         check succeeds because swap[0] produces tokenX before swap[1] checks it.
+  function test_withdrawAndSwap_multihop_chain_succeeds() public {
+    uint256 shares = _depositForAlice();
+    // Alice has ~100A, ~200B, ~50C, ~100D from her 10%-proportional deposit.
+    // Route: tokenA → tokenX → tokenB.  Gateway holds 0 tokenX before execution.
+    tokenX.mint(address(router), 200e18); // router gives tokenX on swap[0]
+    tokenB.mint(address(router), 200e18); // router gives tokenB on swap[1]
+    router.setRate(address(tokenA), address(tokenX), 1, 1); // 100A → 100X
+    router.setRate(address(tokenX), address(tokenB), 1, 1); // 100X → 100B
+
+    uint256 chainAmount = 100e18;
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenA),
+      chainAmount,
+      address(tokenX),
+      0,
+      _buildSwapCalldata(address(tokenA), address(tokenX), chainAmount)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tokenX),
+      chainAmount, // zero before swap[0]; available after swap[0] produces it
+      address(tokenB),
+      0,
+      _buildSwapCalldata(address(tokenX), address(tokenB), chainAmount)
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: _sweepTokensArray(address(tokenX))
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params); // must not revert
+
+    assertEq(tokenA.balanceOf(ALICE), 0, "All tokenA consumed in chain");
+    assertGt(tokenB.balanceOf(ALICE), 0, "Alice received tokenB output from chain");
+    assertEq(tokenX.balanceOf(address(gateway)), 0, "No residual tokenX in gateway");
   }
 
   /// @notice amountIn=0 swap entries bypass the balance check — they are "use full balance"
@@ -1786,7 +1833,7 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenD.balanceOf(ALICE), 0);
   }
 
-  /// @notice Swap entries without swapData are ignored by _checkSwapInputBalances.
+  /// @notice Swap entries without swapData are skipped by _executeSwaps and never reach the per-swap balance check.
   function test_withdrawAndSwap_no_swapdata_skips_balance_check() public {
     uint256 shares = _depositForAlice();
     // A swap entry with empty swapData and amountIn > balance should NOT trigger the check.
