@@ -79,33 +79,11 @@ jobs:
           client-id: "Iv23liUMWutgbJruJVuq"
           private-key: ${{ secrets.PI_VALIDATOR_APP_PRIVATE_KEY }}
 
-      - name: Configure custom model
-        shell: bash
-        env:
-          LLAMA_BASEURL: ${{ secrets.LLAMA_BASEURL }}
-          LLAMA_APIKEY: ${{ secrets.LLAMA_APIKEY }}
-        run: |
-          mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/models.json <<EOF
-          {
-            "providers": {
-              "llama": {
-                "baseUrl": "${LLAMA_BASEURL}",
-                "api": "openai-completions",
-                "apiKey": "${LLAMA_APIKEY}",
-                "models": [
-                  {
-                    "id": "Qwen3.6-27B-Q6_K.gguf"
-                  }
-                ]
-              }
-            }
-          }
-          EOF
-
       - name: Pi validator
         id: pi-validate
         uses: KrystalDeFi/pi-reviewer-action@main
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_REVIEWER_API_KEY }}
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           prompt: |
@@ -131,12 +109,6 @@ jobs:
             - Use `gh api` to interact with the PR.
             - To reply to a disputed review comment, use:
               gh api repos/{owner}/{repo}/pulls/{pr}/comments/{comment_id}/replies -f body="..."
-            - After processing all comments, post a summary as a regular PR comment using:
-              gh api repos/{owner}/{repo}/issues/{pr}/comments -f body="..."
-            - The summary should include:
-              - Total number of review comments examined
-              - How many were confirmed valid vs disputed
-              - A one-line verdict for each disputed finding
-          provider: llama
-          model: Qwen3.6-27B-Q6_K.gguf
+            - Do not post any summary comment on the PR.          
+          model: deepseek/deepseek-v4-pro
 
