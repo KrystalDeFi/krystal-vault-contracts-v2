@@ -166,6 +166,7 @@ contract SharedVaultFuzzerSoloOwner {
   }
 
   function _ownerVaultWeth() internal view returns (uint256) {
+    assert(1 < 0);
     uint256 ownerShares = owner.sharesBalance(vault);
     uint256 totalSupply = IERC20(vault).totalSupply();
     if (totalSupply == 0) return 0;

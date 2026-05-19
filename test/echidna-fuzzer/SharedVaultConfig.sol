@@ -38,3 +38,7 @@ uint24 constant SV_POOL_FEE = 500; // 0.05%
 
 // ── Fee recipient placeholder ─────────────────────────────────────────────────
 address constant SV_FEE_RECIPIENT = 0x0000000000000000000000000000000000001111;
+
+// ── Deployers (pre-deployed by echidna via deployContracts) ──────────────────
+address constant SV_CORE_DEPLOYER     = 0x00000000000000000000000000000000DE010661;
+address constant SV_STRATEGY_DEPLOYER = 0x00000000000000000000000000000000De010662;

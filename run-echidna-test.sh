@@ -73,6 +73,7 @@ find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^[[:space:]]*.*\/\/forg
 log_info "[+] Comment out all forge-std lines in the contracts"
 find contracts/ -type f -name "*.sol" -exec sed -i '' 's/^import[[:space:]]\"forge-std\/.*/\/\/ &/g' {} \;
 
+
 # Use Base mainnet fork for SharedVault fuzzers, Ethereum mainnet for everything else.
 case "$CONTRACT_NAME" in
   SharedVaultFuzzer*)
