@@ -32,6 +32,7 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_REVIEWER_API_KEY }}          
         with:
+          github_token: ${{ steps.app-token.outputs.token }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
