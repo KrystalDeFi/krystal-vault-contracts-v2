@@ -13,17 +13,18 @@ jobs:
   pi-reviewer-job:
     name: "Pi Review job"
     runs-on: [ubuntu-latest]
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: read
-      id-token: write
-      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3.1.1
+        with:
+          client-id: "Iv23linlQnCkaxGa7MBX"
+          private-key: ${{ secrets.PI_REVIEWER_APP_PRIVATE_KEY }}
 
       - name: Pi reviewer
         id: pi-review
@@ -31,6 +32,7 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_REVIEWER_API_KEY }}          
         with:
+          github_token: ${{ steps.app-token.outputs.token }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -59,4 +61,54 @@ jobs:
 
             Do not use GitHub CLI to approve pull requests or request changes on the PR.
           model: openai/gpt-5.5
+
+  pi-validate-job:
+    name: "Pi Validate job"
+    needs: pi-reviewer-job
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3.1.1
+        with:
+          client-id: "Iv23liUMWutgbJruJVuq"
+          private-key: ${{ secrets.PI_VALIDATOR_APP_PRIVATE_KEY }}
+
+      - name: Pi validator
+        id: pi-validate
+        uses: KrystalDeFi/pi-reviewer-action@main
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_REVIEWER_API_KEY }}
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are an independent validation agent. Your sole job is to scrutinize the existing review comments on this pull request and determine whether each finding is actually valid.
+
+            For each existing review comment, attempt to disprove it by:
+            - Reading the surrounding code context carefully to check if the reviewer misunderstood the logic
+            - Verifying whether the alleged issue actually exists or is already handled elsewhere
+            - Checking if the suggestion would introduce a regression or is unnecessary
+            - Assessing whether the concern is speculative rather than grounded in the actual code
+
+            Rules:
+            - You MUST NOT raise new findings of your own. You are only validating existing comments.
+            - If a finding is valid, do not reply to the comment, but still count it for the summary.
+            - If a finding is incorrect or misleading, reply to that comment explaining why it is wrong, with evidence from the code.
+            - Be precise. Cite specific lines or logic paths that support your verdict.
+            - If you cannot confidently disprove a finding, treat it as valid.
+
+            How to respond:
+            - Use `gh api` to interact with the PR.
+            - To reply to a disputed review comment, use:
+              gh api repos/{owner}/{repo}/pulls/{pr}/comments/{comment_id}/replies -f body="..."
+            - Do not post any summary comment on the PR.          
+          model: deepseek/deepseek-v4-pro
 
