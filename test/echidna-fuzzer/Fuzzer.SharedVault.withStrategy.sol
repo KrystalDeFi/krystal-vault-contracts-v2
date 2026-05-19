@@ -29,7 +29,7 @@ contract SharedVaultFuzzerWithStrategy {
   SharedVaultFactory public vaultFactory;
   address public vault;
 
-  uint16 public immutable INITIAL_FEE_BPS;
+  uint16 public INITIAL_FEE_BPS;
   mapping(address => int256) public netWethDeposit;
   uint256 public lastSharePriceWad;
 
