@@ -122,7 +122,7 @@ jobs:
 
             Rules:
             - You MUST NOT raise new findings of your own. You are only validating existing comments.
-            - If a finding is valid, just move on.
+            - If a finding is valid, do not reply to the comment, but still count it for the summary.
             - If a finding is incorrect or misleading, reply to that comment explaining why it is wrong, with evidence from the code.
             - Be precise. Cite specific lines or logic paths that support your verdict.
             - If you cannot confidently disprove a finding, treat it as valid.
