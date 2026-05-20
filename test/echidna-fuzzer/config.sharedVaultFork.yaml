@@ -1,0 +1,16 @@
+# Fork-backed SharedVault Echidna config.
+#
+# ECHIDNA_RPC_URL must point at Base because Fuzzer.sharedVaultFork.sol uses
+# Base WETH/USDC, Base Uniswap V3 NFPM, and Base V3Utils constants.
+
+testMode: "assertion"
+allContracts: false
+
+balanceContract: 1000000000000000000000000
+
+# Fork strategy calls are much heavier than the mock harness, so keep the
+# default fork campaign smaller. Increase locally for overnight runs.
+testLimit: 5000
+seqLen: 40
+
+deployer: "0x10000"

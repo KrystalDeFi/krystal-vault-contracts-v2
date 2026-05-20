@@ -11,10 +11,15 @@ testMode: "assertion"
 # allContracts: if true, all contracts in the codebase will be considered main contracts for testing
 # Default: false
 # guide: https://secure-contracts.com/program-analysis/echidna/advanced/using-all-contracts.html
-allContracts: true
+allContracts: false
+
+# SharedVault uses an external library. Echidna needs the library deployed and
+# crytic-compile needs the same address linked into SharedVault bytecode.
+deployContracts: [["0x1000000000000000000000000000000000000001", "SharedVaultPreviewLib"]]
+cryticArgs: ["--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001)"]
 
 # balanceContract: balance of deployed contract in wei
-# balanceContract: 99999999999999999999999
+balanceContract: 1000000000000000000000000
 # Default: 0
 
 # Directory to save corpus
