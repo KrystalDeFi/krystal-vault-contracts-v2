@@ -310,6 +310,32 @@ contract SharedVaultFuzzerWithStrategy {
     } catch {}
   }
 
+  /// @dev Drain every holder then re-deposit — exercises totalSupply==0 transition.
+  function drain_all_then_redeposit(uint256 wethAmount) external {
+    _fullWithdraw(owner);
+    _fullWithdraw(player1);
+    _fullWithdraw(player2);
+
+    assert(IERC20(vault).totalSupply() == 0);
+    assert(netWethDeposit[address(owner)] >= -(netAttackerCost + int256(1e9)));
+    assert(netWethDeposit[address(player1)] >= -(netAttackerCost + int256(1e9)));
+    assert(netWethDeposit[address(player2)] >= -(netAttackerCost + int256(1e9)));
+
+    uint256 bal = IERC20(SV_WETH).balanceOf(address(player1));
+    if (bal == 0) return;
+    wethAmount = wethAmount % bal + 1;
+    uint256[4] memory amts = _proportionalAmounts(wethAmount);
+    if (!_hasEnoughBalance(address(player1), amts)) return;
+
+    uint256 sBefore = player1.sharesBalance(vault);
+    player1.callDeposit(vault, amts, 200);
+    uint256 minted = player1.sharesBalance(vault) - sBefore;
+    netWethDeposit[address(player1)] += int256(wethAmount);
+
+    assert(minted > 0);
+    if (IERC20(vault).totalSupply() > 0) lastSharePriceWad = _sharePriceWad();
+  }
+
   // ── Properties ──────────────────────────────────────────────────────────────
 
   function echidna_fee_bps_immutable() external view returns (bool) {
@@ -392,6 +418,15 @@ contract SharedVaultFuzzerWithStrategy {
     hevm.startPrank(SV_USDC_WHALE);
     IERC20(SV_USDC).transfer(actor, amount);
     hevm.stopPrank();
+  }
+
+  function _fullWithdraw(SharedVaultPlayer player) internal {
+    uint256 shares = player.sharesBalance(vault);
+    if (shares == 0) return;
+    uint256 wethBefore = IERC20(SV_WETH).balanceOf(address(player));
+    player.callWithdraw(vault, shares, false);
+    uint256 wethAfter = IERC20(SV_WETH).balanceOf(address(player));
+    netWethDeposit[address(player)] -= int256(wethAfter - wethBefore);
   }
 
   function _proportionalAmounts(uint256 wethAmount) internal view returns (uint256[4] memory amounts) {
