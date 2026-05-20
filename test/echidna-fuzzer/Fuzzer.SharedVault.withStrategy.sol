@@ -42,6 +42,10 @@ contract SharedVaultFuzzerWithStrategy {
   int256 public netAttackerCost;
   uint256 public lastSharePriceWad;
 
+  mapping(address => uint256) public shadowSharesMinted;
+  mapping(address => uint256) public shadowSharesBurned;
+  uint256 public shadowDepositsWadSum;
+
   constructor() payable {
     hevm.roll(SV_BLOCK_NUMBER);
     hevm.warp(SV_BLOCK_TIMESTAMP);
@@ -88,13 +92,24 @@ contract SharedVaultFuzzerWithStrategy {
     uint256[4] memory initAmounts = [uint256(1 ether), uint256(3_000e6), 0, 0];
     vault = owner.callCreateVault(address(vaultFactory), "WithFees", vaultTokens, initAmounts, feeBps);
     netWethDeposit[address(owner)] += int256(1 ether);
+    uint256 ownerShares = owner.sharesBalance(vault);
+    shadowSharesMinted[address(owner)] += ownerShares;
+    shadowDepositsWadSum += 1 ether * 1e18 / ownerShares; // price at mint = 1 WAD
 
     uint256[4] memory pAmounts = [uint256(1 ether), uint256(3_000e6), 0, 0];
+    uint256 p1Before = player1.sharesBalance(vault);
     player1.callDeposit(vault, pAmounts, 0);
     netWethDeposit[address(player1)] += int256(1 ether);
+    uint256 p1Minted = player1.sharesBalance(vault) - p1Before;
+    shadowSharesMinted[address(player1)] += p1Minted;
+    shadowDepositsWadSum += 1 ether * 1e18 / (p1Minted > 0 ? p1Minted : 1);
 
+    uint256 p2Before = player2.sharesBalance(vault);
     player2.callDeposit(vault, pAmounts, 0);
     netWethDeposit[address(player2)] += int256(1 ether);
+    uint256 p2Minted = player2.sharesBalance(vault) - p2Before;
+    shadowSharesMinted[address(player2)] += p2Minted;
+    shadowDepositsWadSum += 1 ether * 1e18 / (p2Minted > 0 ? p2Minted : 1);
 
     lastSharePriceWad = _sharePriceWad();
   }
@@ -352,6 +367,25 @@ contract SharedVaultFuzzerWithStrategy {
     return _allPlayerProfitFunded();
   }
 
+  /// @dev Per-player balance must equal Σ minted − Σ burned.
+  function echidna_shadow_share_accounting() external view returns (bool) {
+    return _shadowOk(owner) && _shadowOk(player1) && _shadowOk(player2);
+  }
+
+  /// @dev Current share price must not fall below avg deposit price (bounded by rounding tolerance).
+  function echidna_solvency() external view returns (bool) {
+    uint256 supply = IERC20(vault).totalSupply();
+    if (supply == 0) return true;
+    uint256 totalMinted = shadowSharesMinted[address(owner)]
+      + shadowSharesMinted[address(player1)]
+      + shadowSharesMinted[address(player2)];
+    if (totalMinted == 0) return true;
+    uint256 avgDepositPriceWad = shadowDepositsWadSum / totalMinted;
+    uint256 currentPriceWad = SharedVault(payable(vault)).getTotalBalances()[0] * 1e18 / supply;
+    return currentPriceWad + 1e12 >= avgDepositPriceWad;
+  }
+
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   function _doDeposit(SharedVaultPlayer player, uint256 wethAmount) internal {
@@ -362,8 +396,12 @@ contract SharedVaultFuzzerWithStrategy {
     if (!_hasEnoughBalance(address(player), amounts)) return;
 
     uint256 priceBefore = _sharePriceWad();
+    uint256 sharesBefore = player.sharesBalance(vault);
     player.callDeposit(vault, amounts, 200);
     netWethDeposit[address(player)] += int256(wethAmount);
+    uint256 minted = player.sharesBalance(vault) - sharesBefore;
+    shadowSharesMinted[address(player)] += minted;
+    if (minted > 0) shadowDepositsWadSum += wethAmount * 1e18 / minted;
 
     uint256 supply = IERC20(vault).totalSupply();
     uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
@@ -383,6 +421,7 @@ contract SharedVaultFuzzerWithStrategy {
     player.callWithdraw(vault, shares, false);
     uint256 wethAfter = IERC20(SV_WETH).balanceOf(address(player));
     netWethDeposit[address(player)] -= int256(wethAfter - wethBefore);
+    shadowSharesBurned[address(player)] += shares;
 
     uint256 supply = IERC20(vault).totalSupply();
     uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
@@ -391,6 +430,13 @@ contract SharedVaultFuzzerWithStrategy {
     assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
 
     if (IERC20(vault).totalSupply() > 0) lastSharePriceWad = _sharePriceWad();
+  }
+
+  function _shadowOk(SharedVaultPlayer player) internal view returns (bool) {
+    uint256 minted = shadowSharesMinted[address(player)];
+    uint256 burned = shadowSharesBurned[address(player)];
+    uint256 actual = player.sharesBalance(vault);
+    return burned <= minted && actual == minted - burned;
   }
 
   function _playerProfit(SharedVaultPlayer player) internal view returns (int256) {
