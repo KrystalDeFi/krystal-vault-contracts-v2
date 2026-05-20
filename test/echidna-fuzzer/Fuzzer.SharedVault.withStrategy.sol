@@ -136,6 +136,58 @@ contract SharedVaultFuzzerWithStrategy {
     assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
+  /// @dev Close the first tracked LP position via exitProportional delegatecall.
+  function owner_closeLpPosition() external {
+    if (SharedVault(payable(vault)).getPositionCount() == 0) return;
+
+    (, address nfpm, uint256 tokenId,,) = SharedVault(payable(vault)).getPosition(0);
+    uint256 totalSupply = IERC20(vault).totalSupply();
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(v3Strategy),
+      data: abi.encodeCall(
+        ISharedStrategy.exitProportional,
+        (nfpm, tokenId, totalSupply, totalSupply, 0, 0, SharedVault(payable(vault)).vaultOwnerFeeBasisPoint())
+      ),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+
+    owner.callExecute(vault, actions);
+
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
+  }
+
+  /// @dev Close any tracked position by index — stresses multi-position accounting.
+  function owner_closePositionAt(uint256 index) external {
+    uint256 posCount = SharedVault(payable(vault)).getPositionCount();
+    if (posCount == 0) return;
+    index = index % posCount;
+
+    (, address nfpm, uint256 tokenId,,) = SharedVault(payable(vault)).getPosition(index);
+    uint256 totalSupply = IERC20(vault).totalSupply();
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(v3Strategy),
+      data: abi.encodeCall(
+        ISharedStrategy.exitProportional,
+        (nfpm, tokenId, totalSupply, totalSupply, 0, 0, SharedVault(payable(vault)).vaultOwnerFeeBasisPoint())
+      ),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+
+    owner.callExecute(vault, actions);
+
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
+  }
+
   /// @dev Open a wide-range WETH/USDC LP position using half the vault's idle WETH.
   function owner_openLpPosition() external {
     uint256[4] memory idle = SharedVault(payable(vault)).getIdleBalances();
