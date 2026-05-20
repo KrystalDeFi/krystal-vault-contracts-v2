@@ -24,6 +24,7 @@ contract SharedVaultFuzzerWithStrategy {
   SharedVaultPlayer public owner;
   SharedVaultPlayer public player1;
   SharedVaultPlayer public player2;
+  SharedVaultPlayer public attacker;
 
   SharedConfigManager public configManager;
   SharedVaultFactory public vaultFactory;
@@ -31,6 +32,7 @@ contract SharedVaultFuzzerWithStrategy {
 
   uint16 public INITIAL_FEE_BPS;
   mapping(address => int256) public netWethDeposit;
+  int256 public netAttackerCost;
   uint256 public lastSharePriceWad;
 
   constructor() payable {
@@ -40,10 +42,12 @@ contract SharedVaultFuzzerWithStrategy {
     owner = new SharedVaultPlayer();
     player1 = new SharedVaultPlayer();
     player2 = new SharedVaultPlayer();
+    attacker = new SharedVaultPlayer();
 
     _fundWeth(address(owner), SV_INITIAL_WETH);
     _fundWeth(address(player1), SV_INITIAL_WETH);
     _fundWeth(address(player2), SV_INITIAL_WETH);
+    _fundWeth(address(attacker), SV_INITIAL_WETH);
     _fundUsdc(address(owner), SV_INITIAL_USDC);
     _fundUsdc(address(player1), SV_INITIAL_USDC);
     _fundUsdc(address(player2), SV_INITIAL_USDC);
@@ -120,6 +124,38 @@ contract SharedVaultFuzzerWithStrategy {
     assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
+  /// @dev Direct WETH transfer to vault — no shares minted. Probes inflation-attack surface.
+  function attacker_donateWeth(uint256 amount) external {
+    uint256 bal = IERC20(SV_WETH).balanceOf(address(attacker));
+    if (bal == 0) return;
+    amount = amount % bal + 1;
+
+    uint256 supplyBefore = IERC20(vault).totalSupply();
+    uint256 priceBefore = _sharePriceWad();
+
+    hevm.prank(address(attacker));
+    IERC20(SV_WETH).transfer(vault, amount);
+    netAttackerCost += int256(amount);
+
+    assert(IERC20(vault).totalSupply() == supplyBefore);
+    uint256 priceAfter = _sharePriceWad();
+    assert(priceAfter >= priceBefore);
+    lastSharePriceWad = priceAfter;
+
+    // Immediate victim deposit must still mint non-zero shares (inflation-attack check).
+    uint256 victimWeth = 0.01 ether;
+    if (IERC20(SV_WETH).balanceOf(address(player1)) < victimWeth) return;
+    uint256[4] memory amts = _proportionalAmounts(victimWeth);
+    if (!_hasEnoughBalance(address(player1), amts)) return;
+
+    uint256 sBefore = player1.sharesBalance(vault);
+    try player1.callDeposit(vault, amts, 200) {
+      uint256 minted = player1.sharesBalance(vault) - sBefore;
+      netWethDeposit[address(player1)] += int256(victimWeth);
+      assert(minted > 0);
+    } catch {}
+  }
+
   // ── Properties ──────────────────────────────────────────────────────────────
 
   function echidna_fee_bps_immutable() external view returns (bool) {
@@ -133,7 +169,7 @@ contract SharedVaultFuzzerWithStrategy {
   }
 
   function echidna_no_player_profits() external view returns (bool) {
-    return _playerNetOk(owner) && _playerNetOk(player1) && _playerNetOk(player2);
+    return _allPlayerProfitFunded();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -171,10 +207,20 @@ contract SharedVaultFuzzerWithStrategy {
     uint256 supply = IERC20(vault).totalSupply();
     uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
     assert(supply == sumBalances);
-    assert(netWethDeposit[address(player)] >= -int256(1e9));
+    assert(_allPlayerProfitFunded());
     assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
 
     if (IERC20(vault).totalSupply() > 0) lastSharePriceWad = _sharePriceWad();
+  }
+
+  function _playerProfit(SharedVaultPlayer player) internal view returns (int256) {
+    int256 net = netWethDeposit[address(player)];
+    return net < 0 ? -net : int256(0);
+  }
+
+  function _allPlayerProfitFunded() internal view returns (bool) {
+    int256 totalProfit = _playerProfit(owner) + _playerProfit(player1) + _playerProfit(player2);
+    return totalProfit <= netAttackerCost + int256(1e9);
   }
 
   function _playerNetOk(SharedVaultPlayer player) internal view returns (bool) {
