@@ -12,8 +12,14 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
+import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
+import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
+import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
+import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
+import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 import "./IHevm.sol";
 import "./SharedVaultConfig.sol";
 import "./SharedVaultPlayer.sol";
@@ -28,6 +34,7 @@ contract SharedVaultFuzzerWithStrategy {
 
   SharedConfigManager public configManager;
   SharedVaultFactory public vaultFactory;
+  SharedV3Strategy public v3Strategy;
   address public vault;
 
   uint16 public INITIAL_FEE_BPS;
@@ -52,12 +59,17 @@ contract SharedVaultFuzzerWithStrategy {
     _fundUsdc(address(player1), SV_INITIAL_USDC);
     _fundUsdc(address(player2), SV_INITIAL_USDC);
 
+    LpFeeTaker lpFeeTaker = new LpFeeTaker();
+    v3Strategy = new SharedV3Strategy(SV_V3UTILS, address(lpFeeTaker));
+
+    address[] memory targets = new address[](1);
+    targets[0] = address(v3Strategy);
     address[] memory nfpms = new address[](1);
     nfpms[0] = SV_NFPM;
     configManager = new SharedConfigManager();
     configManager.initialize(
       address(owner),
-      new address[](0),
+      targets,
       new address[](0),
       SV_FEE_RECIPIENT,
       0,
@@ -117,6 +129,69 @@ contract SharedVaultFuzzerWithStrategy {
     blocks = (blocks % 7200) + 1;
     hevm.roll(block.number + blocks);
     hevm.warp(block.timestamp + blocks * 2);
+
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
+  }
+
+  /// @dev Open a wide-range WETH/USDC LP position using half the vault's idle WETH.
+  function owner_openLpPosition() external {
+    uint256[4] memory idle = SharedVault(payable(vault)).getIdleBalances();
+    if (idle[0] < 0.1 ether) return;
+
+    uint256 amt0 = idle[0] / 2;
+    uint256 amt1 = idle[1] / 2;
+
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = SV_WETH;
+    approveTokens[1] = SV_USDC;
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amt0;
+    approveAmounts[1] = amt1;
+
+    IV3Utils.SwapAndMintParams memory params = IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: SV_NFPM,
+      token0: SV_WETH,
+      token1: SV_USDC,
+      fee: SV_POOL_FEE,
+      tickSpacing: 10,
+      tickLower: SV_TICK_LOWER,
+      tickUpper: SV_TICK_UPPER,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: amt0,
+      amount1: amt1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+
+    bytes memory strategyData = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, approveTokens, approveAmounts, uint256(0))
+    );
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(v3Strategy),
+      data: strategyData,
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+
+    owner.callExecute(vault, actions);
 
     uint256 supply = IERC20(vault).totalSupply();
     uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
