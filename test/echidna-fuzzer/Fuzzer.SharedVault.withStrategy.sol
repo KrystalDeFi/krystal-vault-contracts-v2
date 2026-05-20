@@ -136,6 +136,33 @@ contract SharedVaultFuzzerWithStrategy {
     assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
   }
 
+  /// @dev Collect LP fees for all tracked positions — share price must not decrease.
+  function owner_collectFees() external {
+    uint256 posCount = SharedVault(payable(vault)).getPositionCount();
+    if (posCount == 0) return;
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](posCount);
+    for (uint256 i; i < posCount; i++) {
+      (, address nfpm, uint256 tokenId,,) = SharedVault(payable(vault)).getPosition(i);
+      actions[i] = ISharedVault.Action({
+        target: address(v3Strategy),
+        data: abi.encodeCall(ISharedStrategy.collectFees, (nfpm, tokenId, SharedVault(payable(vault)).vaultOwnerFeeBasisPoint())),
+        callType: ISharedCommon.CallType.DELEGATECALL
+      });
+    }
+
+    uint256 priceBefore = _sharePriceWad();
+    owner.callExecute(vault, actions);
+
+    uint256 supply = IERC20(vault).totalSupply();
+    uint256 sumBalances = owner.sharesBalance(vault) + player1.sharesBalance(vault) + player2.sharesBalance(vault);
+    assert(supply == sumBalances);
+    assert(SharedVault(payable(vault)).vaultOwnerFeeBasisPoint() == INITIAL_FEE_BPS);
+    uint256 priceAfter = _sharePriceWad();
+    assert(priceAfter + 1e9 >= priceBefore);
+    lastSharePriceWad = priceAfter;
+  }
+
   /// @dev Close the first tracked LP position via exitProportional delegatecall.
   function owner_closeLpPosition() external {
     if (SharedVault(payable(vault)).getPositionCount() == 0) return;
