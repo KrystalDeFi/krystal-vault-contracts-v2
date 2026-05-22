@@ -252,9 +252,9 @@ contract SharedV4Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Uses `INCREASE_LIQUIDITY_FROM_DELTAS` + `CLOSE_CURRENCY` so the PositionManager computes
-  ///      the required liquidity from amounts internally. Any unused tokens are swept back to the vault
-  ///      by `CLOSE_CURRENCY` (positive delta = take back). Permit2 approval is set inline.
+  /// @dev Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
+  ///      amounts required for the computed liquidity through Permit2. Any amount not needed for
+  ///      the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
   ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
   ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
   ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
@@ -278,13 +278,21 @@ contract SharedV4Strategy is ISharedStrategy {
     // Total ERC20 supply can never exceed uint128.max in practice, but we guard explicitly.
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
+    (uint160 sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
+    int24 tickLower = positionInfo.tickLower();
+    int24 tickUpper = positionInfo.tickUpper();
+    uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
+      sqrtPriceX96,
+      TickMath.getSqrtPriceAtTick(tickLower),
+      TickMath.getSqrtPriceAtTick(tickUpper),
+      amount0,
+      amount1
+    );
+    if (liquidityToAdd == 0) return;
+
     // Capture pre-deposit state for slippage check (only when slippage protection requested)
     uint128 liquidityBefore;
-    uint160 sqrtPriceX96;
-    if (slippageBps > 0) {
-      liquidityBefore = pm.getPositionLiquidity(tokenId);
-      (sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
-    }
+    if (slippageBps > 0) liquidityBefore = pm.getPositionLiquidity(tokenId);
 
     // Approve via Permit2: vault → Permit2 → PositionManager
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
@@ -299,10 +307,10 @@ contract SharedV4Strategy is ISharedStrategy {
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
     }
 
-    // INCREASE_LIQUIDITY_FROM_DELTAS (0x04) + CLOSE_CURRENCY (0x12) for each token
-    bytes memory actions = abi.encodePacked(uint8(0x04), uint8(0x12), uint8(0x12));
+    // INCREASE_LIQUIDITY (0x00) + CLOSE_CURRENCY (0x12) for each token
+    bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x12), uint8(0x12));
     bytes[] memory params = new bytes[](3);
-    params[0] = abi.encode(tokenId, uint128(amount0), uint128(amount1), bytes(""));
+    params[0] = abi.encode(tokenId, uint256(liquidityToAdd), uint128(amount0), uint128(amount1), bytes(""));
     params[1] = abi.encode(currency0);
     params[2] = abi.encode(currency1);
 
@@ -325,16 +333,7 @@ contract SharedV4Strategy is ISharedStrategy {
     // Slippage check: compare actual liquidity added to expected minimum
     if (slippageBps > 0) {
       uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;
-      int24 tickLower = positionInfo.tickLower();
-      int24 tickUpper = positionInfo.tickUpper();
-      uint128 expectedLiquidity = LiquidityAmounts.getLiquidityForAmounts(
-        sqrtPriceX96,
-        TickMath.getSqrtPriceAtTick(tickLower),
-        TickMath.getSqrtPriceAtTick(tickUpper),
-        amount0,
-        amount1
-      );
-      uint128 minLiquidity = uint128(FullMath.mulDiv(expectedLiquidity, 10_000 - slippageBps, 10_000));
+      uint128 minLiquidity = uint128(FullMath.mulDiv(liquidityToAdd, 10_000 - slippageBps, 10_000));
       require(liquidityAdded >= minLiquidity, ISharedCommon.InsufficientOutput());
     }
   }

@@ -191,6 +191,50 @@ contract MockERC20 {
   }
 }
 
+/// @dev Fee-on-transfer token: charges `feeBps` of every transferFrom.
+contract MockFOTToken {
+  string public name;
+  string public symbol;
+  uint8 public decimals = 18;
+  uint256 public feeBps;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+  uint256 public totalSupply;
+
+  constructor(string memory _name, string memory _symbol, uint256 _feeBps) {
+    name = _name;
+    symbol = _symbol;
+    feeBps = _feeBps;
+  }
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+    totalSupply += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount - fee;
+    totalSupply -= fee;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    if (allowance[from][msg.sender] != type(uint256).max) allowance[from][msg.sender] -= amount;
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount - fee;
+    totalSupply -= fee;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
 contract SharedVaultFactoryTest is TestCommon {
   SharedVaultFactory public factory;
   SharedConfigManager public configManager;
@@ -204,6 +248,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
   address public constant FACTORY_OWNER = 0x1234567890123456789012345678901234567890;
   address public constant VAULT_CREATOR = 0x1234567890123456789012345678901234567891;
+  uint256 internal constant TEST_INITIAL_SHARES = 10e18;
 
   function setUp() public {
     tokenA = new MockERC20("Token A", "TKA");
@@ -410,7 +455,7 @@ contract SharedVaultFactoryTest is TestCommon {
     // Strategy was called and returned a PositionChange — vault should have tracked it
     assertEq(ISharedVault(vaultAddr).getPositionCount(), 1);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -554,7 +599,7 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenB.balanceOf(vaultAddr), 100e18);
     assertEq(mockWeth.balanceOf(vaultAddr), 0);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -591,7 +636,7 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(tokenA.balanceOf(vaultAddr), 100e18, "tokenA transferred as ERC20");
     assertEq(address(factory).balance, 0);
 
-    uint256 expectedInitialShares = SharedVault(payable(vaultAddr)).INITIAL_SHARES();
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
     assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares);
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
@@ -807,6 +852,53 @@ contract SharedVaultFactoryTest is TestCommon {
     (bool ok, ) = vaultAddr.call(abi.encodeWithSelector(legacySelector, uint16(500)));
     assertFalse(ok, "legacy setter must not be callable on vault");
     assertEq(ISharedVault(vaultAddr).vaultOwnerFeeBasisPoint(), 123, "fee unchanged by stray call");
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Factory path FOT / short-transfer guard (symmetric to C-5 deposit fix)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_createVault_100pctFOT_initialDeposit_reverts() public {
+    // Factory calls safeTransferFrom(creator, vault, amount) then vault.initialize(initialAmounts).
+    // For a 100% FOT token the transfer delivers 0 to the vault; without the fix, initialize
+    // would mint INITIAL_SHARES against a zero balance, bricking all future deposits.
+    MockFOTToken fot100 = new MockFOTToken("FOT100", "F100", 10_000);
+    fot100.mint(VAULT_CREATOR, 100e18);
+    tokenB.mint(VAULT_CREATOR, 100e18);
+
+    vm.startPrank(VAULT_CREATOR);
+    fot100.approve(address(factory), type(uint256).max);
+    tokenB.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(fot100), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    factory.createVault("FOT100Vault", tokens, amounts, 0);
+    vm.stopPrank();
+  }
+
+  function test_createVault_partialFOT_initialDeposit_succeeds() public {
+    // Partial FOT (2% fee): vault receives 98% of the declared initialAmount.
+    // Since balance > 0, initialize must succeed and mint INITIAL_SHARES.
+    MockFOTToken fot2 = new MockFOTToken("FOT2", "F2", 200);
+    fot2.mint(VAULT_CREATOR, 100e18);
+    tokenB.mint(VAULT_CREATOR, 100e18);
+
+    vm.startPrank(VAULT_CREATOR);
+    fot2.approve(address(factory), type(uint256).max);
+    tokenB.approve(address(factory), type(uint256).max);
+
+    address[4] memory tokens = [address(fot2), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+
+    address vaultAddr = factory.createVault("FOT2Vault", tokens, amounts, 0);
+    vm.stopPrank();
+
+    uint256 expectedInitialShares = TEST_INITIAL_SHARES;
+    assertEq(IERC20(vaultAddr).balanceOf(VAULT_CREATOR), expectedInitialShares, "INITIAL_SHARES minted");
+    assertEq(fot2.balanceOf(vaultAddr), 98e18, "vault received 98% of FOT");
+    assertEq(tokenB.balanceOf(vaultAddr), 100e18, "tokenB received in full");
   }
 }
 

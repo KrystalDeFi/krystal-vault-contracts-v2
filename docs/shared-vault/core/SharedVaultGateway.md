@@ -212,20 +212,6 @@ _Wrap any native ETH to WETH first, then pull each declared input token in full 
 | ---- | ---- | ----------- |
 | nativeWrapped | bool | True when `msg.value > 0`; tells `_sweepAll` to unwrap any residual         WETH and return it as native ETH. |
 
-### _checkSwapInputBalances
-
-```solidity
-function _checkSwapInputBalances(struct SharedVaultGateway.SwapParams[] swaps) internal view
-```
-
-_Verify the gateway holds enough of each explicit tokenIn before swap execution.
-     Only checked when `amountIn > 0`; `amountIn == 0` swaps use the full balance
-     and early-exit in `_executeSingleSwap` if that balance is also zero.
-
-     Accumulates required amounts per unique tokenIn so that two swaps sharing a
-     tokenIn are checked against the *combined* required amount rather than each
-     being checked independently against the full balance._
-
 ### _executeSwaps
 
 ```solidity

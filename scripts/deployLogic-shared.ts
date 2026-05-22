@@ -11,6 +11,7 @@ import type {
   SharedVaultFactory,
   SharedVaultGateway,
 } from "../typechain-types/contracts/shared-vault/core";
+import type { SharedVaultPreviewLib } from "../typechain-types/contracts/shared-vault/libraries";
 import type {
   SharedAerodromeStrategy,
   SharedStrategyBeacon,
@@ -34,6 +35,7 @@ if (!networkConfig) {
 }
 
 export interface SharedContracts {
+  sharedVaultPreviewLib?: SharedVaultPreviewLib;
   sharedVault?: SharedVault;
   sharedVaultFactory?: SharedVaultFactory;
   sharedConfigManager?: SharedConfigManager;
@@ -89,14 +91,32 @@ async function deployContracts(
     )) as SharedConfigManager;
   }
 
-  // 2. Deploy SharedVault implementation
+  // 2. Deploy SharedVaultPreviewLib (required by SharedVault)
+  if (networkConfig.sharedVaultPreviewLib?.enabled) {
+    contracts.sharedVaultPreviewLib = (await deployContract(
+      ++step,
+      networkConfig.sharedVaultPreviewLib?.autoVerifyContract,
+      "SharedVaultPreviewLib",
+      existingContract?.["sharedVaultPreviewLib"],
+      "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib",
+    )) as SharedVaultPreviewLib;
+  }
+
+  // 3. Deploy SharedVault implementation
   if (networkConfig.sharedVault?.enabled) {
+    const previewLibAddress = contracts.sharedVaultPreviewLib?.target as string | undefined;
     contracts.sharedVault = (await deployContract(
       ++step,
       networkConfig.sharedVault?.autoVerifyContract,
       "SharedVault",
       existingContract?.["sharedVault"],
       "contracts/shared-vault/core/SharedVault.sol:SharedVault",
+      undefined,
+      undefined,
+      undefined,
+      previewLibAddress
+        ? { "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib": previewLibAddress }
+        : undefined,
     )) as SharedVault;
   }
 
@@ -323,6 +343,7 @@ async function deployContract(
   customSalt?: string,
   argsTypes?: string[],
   args?: any[],
+  libraries?: Record<string, string>,
 ): Promise<BaseContract> {
   log(1, `${step}. Deploying '${contractName}'`);
   log(1, "------------------------------------");
@@ -334,7 +355,7 @@ async function deployContract(
     log(2, `> address:\t${contractAddress}`);
     contract = await ethers.getContractAt(contractName, contractAddress, await ethers.provider.getSigner());
   } else {
-    let bytecode = (await ethers.getContractFactory(contractName)).bytecode;
+    let bytecode = (await ethers.getContractFactory(contractName, libraries ? { libraries } : undefined)).bytecode;
     const encoder = new ethers.AbiCoder();
     if (!!argsTypes?.length && !!args?.length && argsTypes.length === args.length) {
       bytecode = solidityPacked(["bytes", "bytes"], [bytecode, encoder.encode(argsTypes || [], args)]);

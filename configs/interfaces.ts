@@ -75,6 +75,10 @@ export interface IConfigAerodrome {
 }
 
 export interface IConfigShared {
+  sharedVaultPreviewLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   sharedVault?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;

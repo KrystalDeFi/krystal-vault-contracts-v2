@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -31,6 +32,8 @@ contract SharedV3Strategy is ISharedStrategy {
 
   address public immutable v3utils;
   address public immutable lpFeeTaker;
+
+  uint256 private constant Q128 = 0x100000000000000000000000000000000;
 
   enum OperationType {
     SWAP_AND_MINT,
@@ -106,13 +109,12 @@ contract SharedV3Strategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  /// @dev `CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
-  ///      **Assumed V3Utils ordering**: mints the new NFT to the vault first, THEN returns the old one.
-  ///      With this ordering the new token lands at owner-index `balanceBefore - 1` (appended while the old token
-  ///      is still absent), and the old token lands at `balanceBefore` after being returned.
-  ///      If a future V3Utils version returns the old NFT BEFORE minting the new one, the old token occupies
-  ///      index `balanceBefore - 1` and the check below (`newTokenId != tokenId`) catches the inversion.
-  ///      A post-call balance check enforces exactly one NFT was minted (mirrors SharedV4Strategy's guard).
+  /// @dev `CHANGE_RANGE`: Identifies the newly minted token by diffing the vault's pre/post token-ID sets.
+  ///      Snapshotting all token IDs before the call and finding the one absent from the snapshot after
+  ///      is insertion-order-agnostic: correct regardless of whether V3Utils mints the new NFT before or
+  ///      after returning the old one, and regardless of NFPM owner-array ordering.
+  ///      A strict post-call balance check (== balanceBefore + 1) enforces that exactly one NFT was minted,
+  ///      guarding against multi-mint or burn-and-no-return edge cases.
   function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
@@ -126,23 +128,27 @@ contract SharedV3Strategy is ISharedStrategy {
 
     instructions.recipient = address(this);
 
-    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
     uint256 balanceBefore = IERC721(nfpm).balanceOf(address(this));
 
-    IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
-
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    bool isChangeRange = instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE;
+    if (isChangeRange) {
+      require(balanceBefore > 0, InvalidPoolTokens());
       if (!IERC165(nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // V3Utils mints exactly one new NFT then returns the old NFT → post-call balance must be balanceBefore + 1.
-      // This mirrors SharedV4Strategy's nextTokenId guard, catching any future multi-mint V3Utils version.
-      require(balanceBefore > 0, InvalidPoolTokens());
+    }
+
+    IERC721(nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (isChangeRange) {
+      // After sending the old token the vault holds balanceBefore-1 tokens.
+      // Two tokens then arrive (new mint + old return, in either order) and are appended at
+      // indices balanceBefore-1 and balanceBefore. Since the old tokenId is known we check
+      // both slots and take whichever is not the original — O(1), ordering-agnostic.
       require(IERC721(nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
-      uint256 newTokenId = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
-      // Guard against inverted ordering (old returned before new minted): in that case the resolved
-      // index holds the original tokenId, not a newly minted position.
-      require(newTokenId != tokenId, InvalidPoolTokens());
+      uint256 t = IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
+      uint256 newTokenId = (t != tokenId) ? t : IERC721Enumerable(nfpm).tokenOfOwnerByIndex(address(this), balanceBefore);
+      require(newTokenId != 0 && newTokenId != tokenId, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
@@ -340,6 +346,8 @@ contract SharedV3Strategy is ISharedStrategy {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
+    uint256 feeGrowthInside0LastX128;
+    uint256 feeGrowthInside1LastX128;
     uint128 owed0;
     uint128 owed1;
     try INFPM(nfpm).positions(tokenId) returns (
@@ -351,8 +359,8 @@ contract SharedV3Strategy is ISharedStrategy {
       int24 _tickLower,
       int24 _tickUpper,
       uint128 _liquidity,
-      uint256,
-      uint256,
+      uint256 _fg0Last,
+      uint256 _fg1Last,
       uint128 _owed0,
       uint128 _owed1
     ) {
@@ -362,6 +370,8 @@ contract SharedV3Strategy is ISharedStrategy {
       tickLower = _tickLower;
       tickUpper = _tickUpper;
       liquidity = _liquidity;
+      feeGrowthInside0LastX128 = _fg0Last;
+      feeGrowthInside1LastX128 = _fg1Last;
       owed0 = _owed0;
       owed1 = _owed1;
     } catch {
@@ -377,8 +387,10 @@ contract SharedV3Strategy is ISharedStrategy {
     (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
     require(success, ISharedCommon.StrategyCallFailed());
     uint160 sqrtPriceX96;
+    int24 tick;
     assembly {
       sqrtPriceX96 := mload(add(returnedData, 0x20))
+      tick := mload(add(returnedData, 0x40))
     }
     (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
       sqrtPriceX96,
@@ -386,6 +398,45 @@ contract SharedV3Strategy is ISharedStrategy {
       TickMath.getSqrtRatioAtTick(tickUpper),
       liquidity
     );
+
+    // Include fees accrued since the last position update / collect (fee-growth delta).
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      IUniswapV3Pool(pool), tickLower, tickUpper, tick
+    );
+    unchecked {
+      tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
+      tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
+    }
+  }
+
+  /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:
+  ///      feeGrowthInside = feeGrowthGlobal − feeGrowthBelow − feeGrowthAbove.
+  ///      If a tick is uninitialized (feeGrowthOutside == 0), the math remains correct:
+  ///      — In-range (tick between lower and upper) with both outsides = 0: result = global (all fees inside).
+  ///      — Below range (tick < lower) with lower outside = 0: fgBelow = global − 0 = global → result = 0.
+  ///      — Above range (tick ≥ upper) with upper outside = 0: fgAbove = global → result = 0.
+  ///      A live tracked position always has its ticks initialized (liquidity was added), but this
+  ///      property ensures the helper is safe even in hypothetical edge-case invocations.
+  function _getFeeGrowthInside(
+    IUniswapV3Pool pool,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    unchecked {
+      (,, uint256 lowerFg0Outside, uint256 lowerFg1Outside,,,,) = pool.ticks(tickLower);
+      (,, uint256 upperFg0Outside, uint256 upperFg1Outside,,,,) = pool.ticks(tickUpper);
+      uint256 fg0Global = pool.feeGrowthGlobal0X128();
+      uint256 fg1Global = pool.feeGrowthGlobal1X128();
+
+      uint256 fg0Below = tickCurrent >= tickLower ? lowerFg0Outside : fg0Global - lowerFg0Outside;
+      uint256 fg1Below = tickCurrent >= tickLower ? lowerFg1Outside : fg1Global - lowerFg1Outside;
+      uint256 fg0Above = tickCurrent < tickUpper ? upperFg0Outside : fg0Global - upperFg0Outside;
+      uint256 fg1Above = tickCurrent < tickUpper ? upperFg1Outside : fg1Global - upperFg1Outside;
+
+      feeGrowthInside0X128 = fg0Global - fg0Below - fg0Above;
+      feeGrowthInside1X128 = fg1Global - fg1Below - fg1Above;
+    }
   }
 
   function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address) {

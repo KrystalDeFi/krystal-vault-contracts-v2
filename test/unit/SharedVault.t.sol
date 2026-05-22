@@ -14,6 +14,7 @@ import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedV4Strategy, IV4Utils } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -815,12 +816,130 @@ contract MockInvertedOrderingNfpm {
     ownerOf[newId] = from;
   }
 
-  /// @dev Minimal positions() returning only token0/token1 (others zeroed).
+  /// @dev positions() returns zero liquidity — mirrors the real CHANGE_RANGE behavior where the old
+  ///      position is fully closed, so getPositionAmounts returns (0,0) and _verifyPositionExit passes.
+  function positions(uint256) external view returns (
+    uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128
+  ) {
+    return (0, address(0), token0, token1, 0, 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  function _removeFromOwner(address owner, uint256 tokenId) private {
+    uint256[] storage arr = _ownedTokens[owner];
+    for (uint256 i; i < arr.length; i++) {
+      if (arr[i] == tokenId) {
+        arr[i] = arr[arr.length - 1];
+        arr.pop();
+        return;
+      }
+    }
+  }
+}
+
+/// @dev V3 NFPM that simulates CHANGE_RANGE minting a new token but burning (not returning) the old one.
+///      Post-call balance == balanceBefore (net zero), so the +1 check in _safeTransferNft reverts.
+contract MockBurnWithoutReturnNfpm {
+  address public immutable token0;
+  address public immutable token1;
+  uint256 private _nextNewId;
+
+  mapping(address => uint256[]) private _ownedTokens;
+  mapping(uint256 => address) public ownerOf;
+
+  constructor(address _t0, address _t1, uint256 startNextId) {
+    token0 = _t0;
+    token1 = _t1;
+    _nextNewId = startNextId;
+  }
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+    _ownedTokens[to].push(tokenId);
+  }
+
+  function balanceOf(address owner) external view returns (uint256) { return _ownedTokens[owner].length; }
+  function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+    return _ownedTokens[owner][index];
+  }
+  function supportsInterface(bytes4 id) external pure returns (bool) { return id == 0x780e9d63; }
+  function approve(address, uint256) external {}
+
+  /// @dev Burns the transferred NFT (does not return it) and mints a new one — net balance unchanged.
+  function safeTransferFrom(address from, address, uint256 tokenId, bytes calldata) external {
+    _removeFromOwner(from, tokenId);
+    ownerOf[tokenId] = address(0);
+    // Mint new token to the sender (from), but old token is burned → balance stays the same.
+    uint256 newId = _nextNewId++;
+    _ownedTokens[from].push(newId);
+    ownerOf[newId] = from;
+  }
+
   function positions(uint256) external view returns (
     uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128
   ) {
     return (0, address(0), token0, token1, 0, 0, 0, 1000, 0, 0, 0, 0);
   }
+
+  function _removeFromOwner(address owner, uint256 tokenId) private {
+    uint256[] storage arr = _ownedTokens[owner];
+    for (uint256 i; i < arr.length; i++) {
+      if (arr[i] == tokenId) {
+        arr[i] = arr[arr.length - 1];
+        arr.pop();
+        return;
+      }
+    }
+  }
+}
+
+/// @dev Aerodrome NFPM mock that simulates inverted CHANGE_RANGE ordering (old returned before new minted).
+///      Uses int24 tickSpacing in positions() to match Aerodrome's interface.
+contract MockAerodromeInvertedOrderingNfpm {
+  address public immutable token0;
+  address public immutable token1;
+  uint256 private _nextNewId;
+
+  mapping(address => uint256[]) private _ownedTokens;
+  mapping(uint256 => address) public ownerOf;
+
+  constructor(address _t0, address _t1, uint256 startNextId) {
+    token0 = _t0;
+    token1 = _t1;
+    _nextNewId = startNextId;
+  }
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+    _ownedTokens[to].push(tokenId);
+  }
+
+  function balanceOf(address owner) external view returns (uint256) { return _ownedTokens[owner].length; }
+  function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+    return _ownedTokens[owner][index];
+  }
+  function supportsInterface(bytes4 id) external pure returns (bool) { return id == 0x780e9d63; }
+  function approve(address, uint256) external {}
+
+  /// @dev Inverted ordering: returns old NFT first, then mints new one.
+  function safeTransferFrom(address from, address, uint256 tokenId, bytes calldata) external {
+    _removeFromOwner(from, tokenId);
+    ownerOf[tokenId] = address(0);
+    // Inverted: old returned first, new minted second.
+    _ownedTokens[from].push(tokenId);
+    ownerOf[tokenId] = from;
+    uint256 newId = _nextNewId++;
+    _ownedTokens[from].push(newId);
+    ownerOf[newId] = from;
+  }
+
+  /// @dev Aerodrome positions() uses int24 tickSpacing. Zero liquidity mirrors CHANGE_RANGE close behavior.
+  function positions(uint256) external view returns (
+    uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128
+  ) {
+    return (0, address(0), token0, token1, 60, 0, 0, 0, 0, 0, 0, 0);
+  }
+
+  function factory() external view returns (address) { return address(0); }
 
   function _removeFromOwner(address owner, uint256 tokenId) private {
     uint256[] storage arr = _ownedTokens[owner];
@@ -1529,6 +1648,7 @@ contract SharedVaultTest is TestCommon {
   address public constant OPERATOR = 0x1234567890123456789012345678901234567892;
   address public constant DEPOSITOR = 0x1234567890123456789012345678901234567893;
   address public constant NON_AUTHORIZED = 0x1234567890123456789012345678901234567894;
+  uint256 internal constant TEST_INITIAL_SHARES = 10e18;
 
   function setUp() public {
     // Deploy mock tokens
@@ -1623,7 +1743,7 @@ contract SharedVaultTest is TestCommon {
     assertFalse(vault.isVaultToken(address(tokenE)));
 
     // Initial shares minted to owner: always INITIAL_SHARES on first deposit
-    assertEq(vault.balanceOf(VAULT_OWNER), vault.INITIAL_SHARES());
+    assertEq(vault.balanceOf(VAULT_OWNER), TEST_INITIAL_SHARES);
     assertGt(vault.totalSupply(), 0);
   }
 
@@ -1665,7 +1785,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
     uint256 shares = vault2.deposit(depositAmounts, 0);
 
-    assertEq(shares, vault2.INITIAL_SHARES());
+    assertEq(shares, TEST_INITIAL_SHARES);
     assertEq(vault2.balanceOf(DEPOSITOR), shares);
     assertEq(tokenA.balanceOf(address(vault2)), 50e18);
     assertEq(tokenB.balanceOf(address(vault2)), 100e18);
@@ -2806,6 +2926,46 @@ contract SharedVaultTest is TestCommon {
     assertGt(previewShares, 0);
   }
 
+  /// @notice Bug fix (Bug 1): previewDeposit must return 0 when the caller omits a token that
+  ///         has a non-zero vault balance. Previously it returned a positive share count for
+  ///         single-token deposits against a multi-token vault, but deposit() would revert with
+  ///         InvalidRatio() because _subsequentDepositTransfers enforces proportional coverage.
+  function test_previewDeposit_returns_zero_when_missing_required_token() public {
+    // Dust vault: tokenA = 100e18, tokenB = 50 wei. A single-tokenA deposit omits tokenB.
+    SharedVault v = _setupDustVault();
+
+    // Caller provides only tokenA, skipping the 50 wei tokenB dust slot.
+    uint256[4] memory onlyA = [uint256(1e18), uint256(0), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(onlyA);
+
+    // deposit() would revert InvalidRatio; previewDeposit must agree and return 0.
+    assertEq(preview, 0, "previewDeposit must return 0 when a required token is omitted");
+  }
+
+  /// @notice previewDeposit returns 0 when the provided dust-token amount is below the min floor
+  ///         that _subsequentDepositTransfers would enforce (precision=5 → floor = 1e13 for 18-dec).
+  function test_previewDeposit_returns_zero_when_amount_below_dust_floor() public {
+    SharedVault v = _setupDustVault();
+    // Default precision = 5 → floor for 18-dec token = 10**(18-5) = 1e13.
+    // Provide tokenA=1e18 and tokenB=5 (well below 1e13).
+    uint256[4] memory tooLittle = [uint256(1e18), uint256(5), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(tooLittle);
+    assertEq(preview, 0, "previewDeposit must return 0 when dust amount is below the floor");
+  }
+
+  /// @notice previewDeposit returns a positive share count when all required tokens are supplied
+  ///         at or above the dust floor — consistent with deposit() succeeding.
+  function test_previewDeposit_returns_shares_when_all_tokens_supplied() public {
+    SharedVault v = _setupDustVault();
+    tokenA.mint(DEPOSITOR, 1e18);
+    tokenB.mint(DEPOSITOR, 1e13); // exactly the precision floor
+
+    // Provide tokenA=1e18 and tokenB=1e13 (exactly the precision floor).
+    uint256[4] memory valid = [uint256(1e18), uint256(1e13), uint256(0), uint256(0)];
+    uint256 preview = v.previewDeposit(valid);
+    assertGt(preview, 0, "previewDeposit must return shares when all required amounts are met");
+  }
+
   function test_preview_withdraw() public view {
     uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
     uint256[4] memory previewAmounts = vault.previewWithdraw(ownerShares);
@@ -3101,8 +3261,8 @@ contract SharedVaultTest is TestCommon {
     (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(100e18, 100e18);
 
     uint256 aliceShares = v.balanceOf(VAULT_OWNER);
-    assertEq(aliceShares, v.INITIAL_SHARES());
-    assertEq(v.totalSupply(), v.INITIAL_SHARES() * 2);
+    assertEq(aliceShares, TEST_INITIAL_SHARES);
+    assertEq(v.totalSupply(), TEST_INITIAL_SHARES * 2);
 
     // Verify total balances
     uint256[4] memory totalBal = v.getTotalBalances();
@@ -3745,7 +3905,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = vault.deposit(amts, 0);
     vm.stopPrank();
 
-    assertEq(shares, vault.INITIAL_SHARES() / 10, "10% of INITIAL_SHARES");
+    assertEq(shares, TEST_INITIAL_SHARES / 10, "10% of INITIAL_SHARES");
     assertEq(tokenA.balanceOf(address(vault)), 110e18);
     assertEq(tokenB.balanceOf(address(vault)), 220e18);
   }
@@ -4410,16 +4570,15 @@ contract SharedVaultTest is TestCommon {
     vault.execute(actions);
   }
 
-  /// @notice Issue 3: SharedV3Strategy._safeTransferNft CHANGE_RANGE guard rejects inverted ordering.
-  ///         If V3Utils returns the old NFT before minting the new one, index (balanceBefore - 1) holds
-  ///         the original tokenId — the guard `require(newTokenId != tokenId)` catches this.
-  function test_security_issue3_v3ChangeRange_revertsOnInvertedOrdering() public {
+  /// @notice Issue 3 (updated): SharedV3Strategy._safeTransferNft CHANGE_RANGE uses a pre/post token-ID
+  ///         diff to locate the new token. This is insertion-order-agnostic: inverted ordering (old NFT
+  ///         returned before new one minted) is now handled correctly instead of reverting.
+  function test_security_issue3_v3ChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
     SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
 
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(v3strat);
-    // NFPM added after init via setWhitelistNfpms
     v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
 
     // Deploy inverted-ordering NFPM; next new id = 999.
@@ -4439,7 +4598,6 @@ contract SharedVaultTest is TestCommon {
     uint256 tokenId = 7;
     invertedNfpm.mint(address(v3v), tokenId);
 
-    // Construct SAFE_TRANSFER_NFT calldata: OperationType.SAFE_TRANSFER_NFT (= 2) + (nfpm, tokenId, instructions)
     IV3Utils.Instructions memory instructions;
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
 
@@ -4449,8 +4607,100 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(v3strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    // With the pre/post diff approach, inverted ordering is handled correctly — no revert.
+    v3v.execute(actions);
+
+    // The new token (999) should be tracked; the old token (7) was removed.
+    assertEq(v3v.getPositionCount(), 1, "only new token should be tracked");
+    (, , uint256 trackedId, , ) = v3v.getPosition(0);
+    assertEq(trackedId, 999, "new token 999 must be tracked, not the original 7");
+  }
+
+  /// @notice Issue 3 (supplemental): CHANGE_RANGE reverts if the NFPM does not return the old NFT,
+  ///         causing the post-call balance to stay at balanceBefore (not +1). This guards against
+  ///         burn-without-return scenarios (net zero new NFTs minted).
+  function test_security_issue3_v3ChangeRange_revertsWhenBalanceNotIncreased() public {
+    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
+
+    SharedConfigManager v3cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v3strat);
+    v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+
+    // NFPM that mints a new token but does NOT return the old one (burns it).
+    MockBurnWithoutReturnNfpm burnNfpm = new MockBurnWithoutReturnNfpm(address(tokenA), address(tokenB), 888);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(burnNfpm);
+    v3cm.setWhitelistNfpms(nfpms, true);
+
+    SharedVault v3v = new SharedVault();
+    tokenA.mint(address(v3v), 100e18);
+    tokenB.mint(address(v3v), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v3v.initialize("V3Vault2", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(v3cm), address(0), 0);
+
+    uint256 tokenId = 42;
+    burnNfpm.mint(address(v3v), tokenId);
+
+    IV3Utils.Instructions memory instructions;
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+
+    bytes memory innerData = abi.encode(address(burnNfpm), tokenId, instructions);
+    bytes memory stratData = bytes.concat(abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v3strat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
     v3v.execute(actions);
+  }
+
+  /// @notice Aerodrome CHANGE_RANGE: pre/post diff correctly identifies the new token regardless of
+  ///         NFPM owner-array insertion order (mirrors the V3 strategy test above).
+  function test_security_aerodromeChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
+    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA), address(0xBBBB));
+
+    SharedConfigManager aerocm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(aerostrat);
+    aerocm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+
+    MockAerodromeInvertedOrderingNfpm aeroNfpm = new MockAerodromeInvertedOrderingNfpm(
+      address(tokenA), address(tokenB), 777
+    );
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(aeroNfpm);
+    aerocm.setWhitelistNfpms(nfpms, true);
+
+    SharedVault aerov = new SharedVault();
+    tokenA.mint(address(aerov), 100e18);
+    tokenB.mint(address(aerov), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    aerov.initialize("AeroVault", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(aerocm), address(0), 0);
+
+    uint256 tokenId = 55;
+    aeroNfpm.mint(address(aerov), tokenId);
+
+    IV3Utils.Instructions memory instructions;
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+
+    bytes memory innerData = abi.encode(address(aeroNfpm), tokenId, instructions);
+    bytes memory stratData = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SAFE_TRANSFER_NFT), innerData
+    );
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(aerostrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    aerov.execute(actions);
+
+    assertEq(aerov.getPositionCount(), 1, "only new Aerodrome token should be tracked");
+    (, , uint256 trackedId, , ) = aerov.getPosition(0);
+    assertEq(trackedId, 777, "new Aerodrome token 777 must be tracked, not original 55");
   }
 
   /// @notice Issue 4: SharedV4Strategy._execute must revoke the NFT approval granted to v4UtilsRouter
@@ -4772,7 +5022,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    assertEq(shares, v.INITIAL_SHARES(), "INITIAL_SHARES minted regardless of FOT loss");
+    assertEq(shares, TEST_INITIAL_SHARES, "INITIAL_SHARES minted regardless of FOT loss");
     assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% (2% FOT fee burned)");
     assertEq(tokenB.balanceOf(address(v)), 100e18, "standard token received in full");
   }
@@ -4808,41 +5058,98 @@ contract SharedVaultTest is TestCommon {
     assertGt(fotDelta, 0, "FOT delta still positive");
   }
 
-  function test_audit_C5_oneHundredPercentFOT_revertsOnSubsequentDeposit() public {
-    // Vault uses a 100% FOT token: every transferFrom delivers ZERO tokens to the vault.
-    // First deposit always mints INITIAL_SHARES regardless of FOT loss (vault state may be weird,
-    // but no existing shareholders are diluted because there are none yet). Subsequent depositors
-    // MUST revert: their proportional contribution to the FOT slot is zero, and if share math
-    // skipped that slot, they would receive shares funded by their OTHER token contributions only —
-    // diluting the first depositor.
+  function test_audit_C5_oneHundredPercentFOT_firstDepositReverts() public {
+    // Bug fix (Bug 2): a 100% FOT token delivers ZERO tokens to the vault on transferFrom.
+    // Previously, INITIAL_SHARES were minted even when actualPulled was all-zero, leaving
+    // totalSupply() > 0 with zero balances and bricking all future deposits. The fix requires
+    // every requested token slot to show positive receipt before minting initial shares.
     FotToken fot100 = new FotToken(10_000);
     address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
     uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
     SharedVault v = new SharedVault();
     v.initialize("F100", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
 
-    // First depositor (gets INITIAL_SHARES even though FOT delivers 0)
     fot100.mint(DEPOSITOR, 1000e18);
     tokenB.mint(DEPOSITOR, 1000e18);
     vm.startPrank(DEPOSITOR);
     fot100.approve(address(v), type(uint256).max);
     tokenB.approve(address(v), type(uint256).max);
+    // 100% FOT token delivers 0 to the vault — must revert, not mint shares with zero balance.
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
+  }
 
-    // After first deposit, vault holds 0 FOT and 100e18 tokenB (because FOT is 100%-fee).
-    // The vault's totalBalances[0] == 0 for the FOT slot.
-    // Subsequent depositor providing both tokens: the FOT slot has totalBalance == 0 →
-    // `_subsequentDepositTransfers` requires amounts[FOT] == 0 → revert with InvalidRatio.
-    address bob = address(0xB0B0B0);
-    fot100.mint(bob, 1000e18);
-    tokenB.mint(bob, 1000e18);
-    vm.startPrank(bob);
-    fot100.approve(address(v), type(uint256).max);
-    tokenB.approve(address(v), type(uint256).max);
-    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
-    v.deposit([uint256(50e18), uint256(50e18), uint256(0), uint256(0)], 0);
+  function test_audit_C5_oneHundredPercentFOT_initialize_reverts() public {
+    // Bug fix: factory path — factory calls safeTransferFrom(creator, vault, amount) then
+    // initialize(initialAmounts).  For a 100% FOT token the transfer delivers 0 to the vault,
+    // but initialAmounts[i] > 0.  Without the fix, INITIAL_SHARES would be minted against a
+    // zero balance, bricking every subsequent deposit.
+    FotToken fot100 = new FotToken(10_000); // 100% fee
+    address[4] memory toks = [address(fot100), address(tokenB), address(0), address(0)];
+
+    SharedVault v = new SharedVault();
+
+    // Simulate factory: mint to a sender, then transfer to vault (100% FOT delivers 0).
+    fot100.mint(DEPOSITOR, 100e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    fot100.transfer(address(v), 100e18); // delivers 0 to vault
+    tokenB.transfer(address(v), 100e18); // delivers 100e18 to vault
     vm.stopPrank();
+
+    // initialize with initialAmounts[0] = 100e18 for the 100% FOT token (vault balance == 0).
+    // Must revert — vault cannot mint initial shares with zero balance for a declared token.
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    v.initialize("IFOT", toks, amounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+  }
+
+  function test_audit_C5_partialFOT_initialize_succeeds() public {
+    // Partial FOT (2% fee) in the factory/initialize path: vault receives 98% of the declared
+    // initialAmount.  Since balance > 0, initialize must succeed and mint INITIAL_SHARES.
+    FotToken fot = new FotToken(200); // 2% fee
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+
+    SharedVault v = new SharedVault();
+
+    fot.mint(DEPOSITOR, 100e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    fot.transfer(address(v), 100e18); // delivers 98e18
+    tokenB.transfer(address(v), 100e18);
+    vm.stopPrank();
+
+    uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    v.initialize("PFOT", toks, amounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    assertEq(v.totalSupply(), TEST_INITIAL_SHARES, "partial FOT initialize mints INITIAL_SHARES");
+    assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
+    assertEq(tokenB.balanceOf(address(v)), 100e18);
+  }
+
+  function test_audit_C5_partialFOT_firstDeposit_succeeds_and_notBricked() public {
+    // Partial FOT (2% fee): some tokens arrive, so first deposit should succeed and the vault
+    // should not be bricked for subsequent depositors.
+    FotToken fot = new FotToken(200); // 2% fee
+    address[4] memory toks = [address(fot), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    v.initialize("PFT2", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    fot.mint(DEPOSITOR, 1000e18);
+    tokenB.mint(DEPOSITOR, 1000e18);
+    vm.startPrank(DEPOSITOR);
+    fot.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256 shares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    assertEq(shares, TEST_INITIAL_SHARES, "partial FOT first deposit mints INITIAL_SHARES");
+    // Vault holds 98e18 FOT (2% burned) and 100e18 tokenB — not bricked.
+    assertEq(fot.balanceOf(address(v)), 98e18, "vault received 98% of FOT");
+    assertEq(tokenB.balanceOf(address(v)), 100e18);
+    assertGt(v.totalSupply(), 0);
   }
 
   function test_audit_C5_partialFOT_acrossLpValuation_revertsOnZeroDelta() public {
@@ -4870,7 +5177,7 @@ contract SharedVaultTest is TestCommon {
     tokenB.approve(address(v), type(uint256).max);
     uint256 firstShares = v.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
-    assertEq(firstShares, v.INITIAL_SHARES());
+    assertEq(firstShares, TEST_INITIAL_SHARES);
 
     // Now subsequent depositor with partial FOT: should succeed (delta > 0 on both slots)
     address bob = address(0xB0B0B0);
@@ -4899,7 +5206,7 @@ contract SharedVaultTest is TestCommon {
     uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
     vm.stopPrank();
 
-    assertEq(shares, v.INITIAL_SHARES());
+    assertEq(shares, TEST_INITIAL_SHARES);
     assertEq(usdt.balanceOf(address(v)), 100e6);
     assertEq(tokenB.balanceOf(address(v)), 100e18);
   }
@@ -5087,6 +5394,37 @@ contract SharedVaultTest is TestCommon {
     (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
     bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
     assertEq(result, bytes4(0x1626ba7e), "smart-wallet owner validates via EIP-1271 cascade");
+  }
+
+  function test_erc20Permit_permitApprovesSpender() public {
+    (address owner, uint256 ownerPk) = makeAddrAndKey("permit-owner");
+    address spender = makeAddr("permit-spender");
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("PermitVault", toks, init, owner, OPERATOR, address(configManager), address(0), 0);
+
+    uint256 value = 5e18;
+    uint256 deadline = block.timestamp + 1 days;
+    bytes32 permitHash = keccak256(
+      abi.encode(
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+        owner,
+        spender,
+        value,
+        v.nonces(owner),
+        deadline
+      )
+    );
+    bytes32 digest = keccak256(abi.encodePacked(bytes2("\x19\x01"), v.DOMAIN_SEPARATOR(), permitHash));
+    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(ownerPk, digest);
+
+    v.permit(owner, spender, value, deadline, vv, r, s);
+
+    assertEq(v.allowance(owner, spender), value);
+    assertEq(v.nonces(owner), 1);
   }
 
   // ════════════════════════════════════════════════════════════════════════════

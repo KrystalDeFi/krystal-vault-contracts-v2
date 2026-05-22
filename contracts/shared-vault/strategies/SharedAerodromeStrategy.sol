@@ -35,6 +35,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   address public immutable v3utils;
   address public immutable lpFeeTaker;
 
+  uint256 private constant Q128 = 0x100000000000000000000000000000000;
+
   enum OperationType {
     SWAP_AND_MINT,
     SWAP_AND_INCREASE,
@@ -116,22 +118,27 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     instructions.recipient = address(this);
 
-    // Snapshot vault's NFT count before the transfer so we can locate the new token after CHANGE_RANGE.
     uint256 balanceBefore = IERC721(_nfpm).balanceOf(address(this));
 
-    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
-
-    if (instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE) {
+    bool isChangeRange = instructions.whatToDo == IV3Utils.WhatToDo.CHANGE_RANGE;
+    if (isChangeRange) {
+      require(balanceBefore > 0, InvalidPoolTokens());
       if (!IERC165(_nfpm).supportsInterface(type(IERC721Enumerable).interfaceId)) {
         revert ISharedCommon.NfpmEnumerableRequired();
       }
-      // Assumed V3Utils ordering: mints new NFT first (→ index balanceBefore - 1), then returns old NFT.
-      // Guard against inverted ordering: require resolved token is not the original tokenId.
-      // Post-call balance must be balanceBefore + 1 (exactly one new NFT minted).
-      require(balanceBefore > 0, InvalidPoolTokens());
+    }
+
+    IERC721(_nfpm).safeTransferFrom(address(this), v3utils, tokenId, abi.encode(instructions));
+
+    if (isChangeRange) {
+      // After sending the old token the vault holds balanceBefore-1 tokens.
+      // Two tokens then arrive (new mint + old return, in either order) and are appended at
+      // indices balanceBefore-1 and balanceBefore. Since the old tokenId is known we check
+      // both slots and take whichever is not the original — O(1), ordering-agnostic.
       require(IERC721(_nfpm).balanceOf(address(this)) == balanceBefore + 1, InvalidPoolTokens());
-      uint256 newTokenId = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
-      require(newTokenId != tokenId, InvalidPoolTokens());
+      uint256 t = IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore - 1);
+      uint256 newTokenId = (t != tokenId) ? t : IERC721Enumerable(_nfpm).tokenOfOwnerByIndex(address(this), balanceBefore);
+      require(newTokenId != 0 && newTokenId != tokenId, InvalidPoolTokens());
       require(_nfpmNftOwnedByVault(_nfpm, newTokenId), InvalidPoolTokens());
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
@@ -290,6 +297,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     int24 tickLower;
     int24 tickUpper;
     uint128 liquidity;
+    uint256 feeGrowthInside0LastX128;
+    uint256 feeGrowthInside1LastX128;
     uint128 owed0;
     uint128 owed1;
     try INonfungiblePositionManager(_nfpm).positions(tokenId) returns (
@@ -301,8 +310,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       int24 _tickLower,
       int24 _tickUpper,
       uint128 _liquidity,
-      uint256,
-      uint256,
+      uint256 _fg0Last,
+      uint256 _fg1Last,
       uint128 _owed0,
       uint128 _owed1
     ) {
@@ -312,6 +321,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       tickLower = _tickLower;
       tickUpper = _tickUpper;
       liquidity = _liquidity;
+      feeGrowthInside0LastX128 = _fg0Last;
+      feeGrowthInside1LastX128 = _fg1Last;
       owed0 = _owed0;
       owed1 = _owed1;
     } catch {
@@ -324,13 +335,52 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (liquidity == 0) return (0, 0, tokensOwed0, tokensOwed1);
 
     address pool = _getPool(_nfpm, token0, token1, tickSpacing);
-    (uint160 sqrtPriceX96, , , , , ) = ICLPool(pool).slot0();
+    (uint160 sqrtPriceX96, int24 tick, , , , ) = ICLPool(pool).slot0();
     (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
       sqrtPriceX96,
       TickMath.getSqrtRatioAtTick(tickLower),
       TickMath.getSqrtRatioAtTick(tickUpper),
       liquidity
     );
+
+    // Include fees accrued since the last position update / collect (fee-growth delta).
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      ICLPool(pool), tickLower, tickUpper, tick
+    );
+    unchecked {
+      tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
+      tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
+    }
+  }
+
+  /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:
+  ///      feeGrowthInside = feeGrowthGlobal − feeGrowthBelow − feeGrowthAbove.
+  ///      If a tick is uninitialized (feeGrowthOutside == 0), the math remains correct:
+  ///      — In-range (tick between lower and upper) with both outsides = 0: result = global (all fees inside).
+  ///      — Below range (tick < lower) with lower outside = 0: fgBelow = global − 0 = global → result = 0.
+  ///      — Above range (tick ≥ upper) with upper outside = 0: fgAbove = global → result = 0.
+  ///      A live tracked position always has its ticks initialized (liquidity was added), but this
+  ///      property ensures the helper is safe even in hypothetical edge-case invocations.
+  function _getFeeGrowthInside(
+    ICLPool pool,
+    int24 tickLower,
+    int24 tickUpper,
+    int24 tickCurrent
+  ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+    unchecked {
+      (,,, uint256 lowerFg0Outside, uint256 lowerFg1Outside,,,,,) = pool.ticks(tickLower);
+      (,,, uint256 upperFg0Outside, uint256 upperFg1Outside,,,,,) = pool.ticks(tickUpper);
+      uint256 fg0Global = pool.feeGrowthGlobal0X128();
+      uint256 fg1Global = pool.feeGrowthGlobal1X128();
+
+      uint256 fg0Below = tickCurrent >= tickLower ? lowerFg0Outside : fg0Global - lowerFg0Outside;
+      uint256 fg1Below = tickCurrent >= tickLower ? lowerFg1Outside : fg1Global - lowerFg1Outside;
+      uint256 fg0Above = tickCurrent < tickUpper ? upperFg0Outside : fg0Global - upperFg0Outside;
+      uint256 fg1Above = tickCurrent < tickUpper ? upperFg1Outside : fg1Global - upperFg1Outside;
+
+      feeGrowthInside0X128 = fg0Global - fg0Below - fg0Above;
+      feeGrowthInside1X128 = fg1Global - fg1Below - fg1Above;
+    }
   }
 
   /// @inheritdoc ISharedStrategy

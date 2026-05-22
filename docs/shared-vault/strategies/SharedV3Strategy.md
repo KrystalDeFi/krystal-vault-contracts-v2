@@ -73,13 +73,12 @@ function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedS
 function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-_`CHANGE_RANGE`: Detects the newly minted token via `tokenOfOwnerByIndex(address(this), balanceBefore - 1)`.
-     **Assumed V3Utils ordering**: mints the new NFT to the vault first, THEN returns the old one.
-     With this ordering the new token lands at owner-index `balanceBefore - 1` (appended while the old token
-     is still absent), and the old token lands at `balanceBefore` after being returned.
-     If a future V3Utils version returns the old NFT BEFORE minting the new one, the old token occupies
-     index `balanceBefore - 1` and the check below (`newTokenId != tokenId`) catches the inversion.
-     A post-call balance check enforces exactly one NFT was minted (mirrors SharedV4Strategy's guard)._
+_`CHANGE_RANGE`: Identifies the newly minted token by diffing the vault's pre/post token-ID sets.
+     Snapshotting all token IDs before the call and finding the one absent from the snapshot after
+     is insertion-order-agnostic: correct regardless of whether V3Utils mints the new NFT before or
+     after returning the old one, and regardless of NFPM owner-array ordering.
+     A strict post-call balance check (== balanceBefore + 1) enforces that exactly one NFT was minted,
+     guarding against multi-mint or burn-and-no-return edge cases._
 
 ### collectFees
 
