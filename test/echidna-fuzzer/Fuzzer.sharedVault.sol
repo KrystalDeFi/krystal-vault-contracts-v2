@@ -1071,15 +1071,13 @@ contract SharedVaultFuzzer {
   }
 
   /// @dev In these closed mock states, non-dust previews are expected to withdraw.
-  ///      This filter only tolerates strategy/NFPM allowlist failures if a future
-  ///      stateful action mutates allowlists between preview and execution.
+  ///      This filter only tolerates the strategy/NFPM allowlist failures that a
+  ///      future stateful action could trigger between preview and execution.
   function _isAcceptablePreviewedWithdrawRevert(bytes memory reason) internal pure returns (bool) {
     bytes4 selector = _revertSelector(reason);
     return
       selector == ISharedCommon.StrategyCallFailed.selector ||
-      selector == ISharedCommon.InvalidNfpm.selector ||
-      selector == ISharedCommon.InvalidTarget.selector ||
-      selector == ISharedCommon.InvalidOperation.selector;
+      selector == ISharedCommon.InvalidNfpm.selector;
   }
 
   function _revertSelector(bytes memory reason) internal pure returns (bytes4 selector) {

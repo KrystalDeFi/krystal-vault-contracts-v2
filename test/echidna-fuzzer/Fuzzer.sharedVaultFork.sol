@@ -31,6 +31,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
+import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { ISharedVaultFactory } from "../../contracts/shared-vault/interfaces/ISharedVaultFactory.sol";
@@ -59,7 +60,13 @@ interface IBaseV3Nfpm {
 }
 
 interface IForkVm {
+  function prank(address sender) external;
+
   function store(address target, bytes32 slot, bytes32 value) external;
+}
+
+interface IForkOwnable {
+  function owner() external view returns (address);
 }
 
 contract SharedVaultForkPlayer {
@@ -499,14 +506,27 @@ contract SharedVaultForkFuzzer {
       forkCwpTarget = new ForkCwpTarget(BASE_WETH, BASE_USDC);
     }
 
-    address cm = address(vault.configManager());
-    _setAddressBoolMapping(cm, 0, address(forkCwpTarget), true); // whitelistedTargets
-    _setAddressBoolMapping(cm, 2, address(forkCwpNfpm), true); // whitelistedNfpms
-    _setAddressBoolMapping(cm, 3, address(forkSwapRouter), true); // whitelistedSwapRouters
-  }
+    ISharedConfigManager cm = vault.configManager();
+    address cmOwner = IForkOwnable(address(cm)).owner();
 
-  function _setAddressBoolMapping(address target, uint256 slot, address key, bool value) internal {
-    vm.store(target, keccak256(abi.encode(key, slot)), bytes32(value ? uint256(1) : uint256(0)));
+    address[] memory targets = new address[](1);
+    targets[0] = address(forkCwpTarget);
+    vm.prank(cmOwner);
+    cm.setWhitelistTargets(targets, true);
+
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(forkCwpNfpm);
+    vm.prank(cmOwner);
+    cm.setWhitelistNfpms(nfpms, true);
+
+    address[] memory swapRouters = new address[](1);
+    swapRouters[0] = address(forkSwapRouter);
+    vm.prank(cmOwner);
+    cm.setWhitelistSwapRouters(swapRouters, true);
+
+    assert(cm.isWhitelistedTarget(address(forkCwpTarget)));
+    assert(cm.isWhitelistedNfpm(address(forkCwpNfpm)));
+    assert(cm.isWhitelistedSwapRouter(address(forkSwapRouter)));
   }
 
   function _swapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
