@@ -2,6 +2,11 @@
 #
 # ECHIDNA_RPC_URL must point at Base because Fuzzer.sharedVaultFork.sol uses
 # Base WETH/USDC, Base Uniswap V3 NFPM, and Base V3Utils constants.
+#
+# Keep --rpc-block aligned with BASE_FORK_BLOCK in Fuzzer.sharedVaultFork.sol.
+# After a Base shared-vault redeploy, refresh the factory/proxy constants in
+# that file from contracts-shared.json and update the pinned block in both
+# places before relying on fork results.
 
 testMode: "assertion"
 allContracts: false

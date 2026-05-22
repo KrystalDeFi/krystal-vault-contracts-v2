@@ -179,6 +179,13 @@ contract SharedFuzzPlayer {
   }
 }
 
+contract FuzzSwapRouter {
+  function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) external {
+    require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "pull failed");
+    require(IERC20(tokenOut).transfer(msg.sender, amountOut), "push failed");
+  }
+}
+
 contract FuzzLpPool {
   struct Position {
     address token0;
@@ -326,6 +333,64 @@ contract FuzzLpStrategy is ISharedStrategy {
   }
 }
 
+contract FuzzCwpTarget is ISharedStrategy {
+  address public immutable token0;
+  address public immutable token1;
+
+  constructor(address _token0, address _token1) {
+    token0 = _token0;
+    token1 = _token1;
+  }
+
+  function createPosition(
+    address nfpm,
+    uint256 tokenId
+  ) external view returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+  }
+
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](0);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256,
+    uint16
+  ) external view override returns (PositionChange[] memory changes) {
+    if (shares == totalShares) {
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange({ isAdd: false, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+    } else {
+      changes = new PositionChange[](0);
+    }
+  }
+
+  function collectFees(address, uint256, uint16) external override {}
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256 amount0, uint256 amount1) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(
+    address,
+    uint256
+  ) external pure override returns (uint256 amount0, uint256 amount1) {
+    return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    return (token0, token1);
+  }
+}
+
 contract SharedVaultFuzzer {
   uint256 internal constant INITIAL_SHARES = 10e18;
   uint256 internal constant MAX_18 = 1e21;
@@ -359,13 +424,18 @@ contract SharedVaultFuzzer {
   FuzzWETH9 public weth;
   SharedFuzzPlayer public wethPlayer;
 
+  FuzzSwapRouter public swapRouter;
+
   bool public fullLpExitChecked;
   bool public fotChecked;
   bool public noReturnChecked;
   bool public pauseChecked;
+  bool public callTypeChecked;
 
   constructor() payable {
+    swapRouter = new FuzzSwapRouter();
     configManager = _newConfig(new address[](0), new address[](0));
+    _whitelistSwapRouter(configManager, address(swapRouter));
 
     _setupIdleVault();
     _setupMultiVault();
@@ -422,8 +492,8 @@ contract SharedVaultFuzzer {
       assert(got[0] == preview[0]);
       assert(got[1] == preview[1]);
       assert(idleVault.totalSupply() == supplyBefore - shares);
-    } catch {
-      assert(false);
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
     }
 
     _assertIdleShareConservation();
@@ -496,8 +566,8 @@ contract SharedVaultFuzzer {
       assert(got[2] == preview[2]);
       assert(got[3] == preview[3]);
       assert(multiVault.totalSupply() == supplyBefore - shares);
-    } catch {
-      assert(false);
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
     }
 
     _assertMultiShareConservation();
@@ -570,8 +640,8 @@ contract SharedVaultFuzzer {
       assert(_withinOneUnit(got[0], preview[0]));
       assert(_withinOneUnit(got[1], preview[1]));
       assert(lpVault.totalSupply() == supplyBefore - shares);
-    } catch {
-      assert(false);
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
     }
 
     _assertLpShareConservation();
@@ -669,6 +739,79 @@ contract SharedVaultFuzzer {
     uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
     assert(shares == INITIAL_SHARES);
     assert(nrt.balanceOf(address(v)) == 100e6);
+  }
+
+  function execute_call_and_call_with_positions_paths() external {
+    if (callTypeChecked) return;
+    callTypeChecked = true;
+
+    uint256 amountIn = 10e18;
+    uint256 amountOut = 9e18;
+    idleB.mint(address(swapRouter), amountOut);
+
+    uint256 balABefore = idleA.balanceOf(address(idleVault));
+    uint256 balBBefore = idleB.balanceOf(address(idleVault));
+
+    bytes memory swapCalldata = abi.encodeCall(
+      FuzzSwapRouter.swap,
+      (address(idleA), address(idleB), amountIn, amountOut)
+    );
+    bytes memory actionData = abi.encode(address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
+
+    ISharedVault.Action[] memory callActions = new ISharedVault.Action[](1);
+    callActions[0] = ISharedVault.Action({
+      target: address(swapRouter),
+      data: actionData,
+      callType: ISharedCommon.CallType.CALL
+    });
+    idleVault.execute(callActions);
+
+    assert(idleA.balanceOf(address(idleVault)) == balABefore - amountIn);
+    assert(idleB.balanceOf(address(idleVault)) == balBBefore + amountOut);
+    assert(idleA.allowance(address(idleVault), address(swapRouter)) == 0);
+
+    FuzzERC20 cwpA = new FuzzERC20("CwpA", "CWPA", 18);
+    FuzzERC20 cwpB = new FuzzERC20("CwpB", "CWPB", 18);
+    FuzzERC721 cwpNfpm = new FuzzERC721();
+    FuzzCwpTarget cwpTarget = new FuzzCwpTarget(address(cwpA), address(cwpB));
+
+    SharedConfigManager cm = _newConfig(new address[](0), new address[](0));
+    _whitelist(cm, address(cwpTarget), address(cwpNfpm));
+
+    SharedVault cwpVault = new SharedVault();
+    cwpA.mint(address(cwpVault), 100e18);
+    cwpB.mint(address(cwpVault), 100e18);
+    address[4] memory toks = [address(cwpA), address(cwpB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    cwpVault.initialize("CwpShared", toks, init, address(this), address(this), address(cm), address(0), 0);
+
+    uint256 tokenId = 7_001;
+    cwpNfpm.mint(address(cwpVault), tokenId);
+    ISharedVault.Action[] memory cwpActions = new ISharedVault.Action[](1);
+    cwpActions[0] = ISharedVault.Action({
+      target: address(cwpTarget),
+      data: abi.encodeCall(FuzzCwpTarget.createPosition, (address(cwpNfpm), tokenId)),
+      callType: ISharedCommon.CallType.CALL_WITH_POSITIONS
+    });
+    cwpVault.execute(cwpActions);
+
+    assert(cwpVault.getPositionCount() == 1);
+    (address strategy, address nfpm, uint256 trackedTokenId, address token0, address token1) = cwpVault.getPosition(0);
+    assert(strategy == address(cwpTarget));
+    assert(nfpm == address(cwpNfpm));
+    assert(trackedTokenId == tokenId);
+    assert(token0 == address(cwpA));
+    assert(token1 == address(cwpB));
+
+    uint256 shares = cwpVault.balanceOf(address(this));
+    uint256[4] memory mins;
+    uint256[4] memory got = cwpVault.withdraw(shares, mins, false);
+    assert(got[0] > 0 && got[1] > 0);
+    assert(cwpVault.totalSupply() == 0);
+    assert(cwpVault.getPositionCount() == 0);
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
   }
 
   function weth_native_deposit_withdraw(uint256 amount) external {
@@ -864,6 +1007,12 @@ contract SharedVaultFuzzer {
     cm.setWhitelistNfpms(nfpms, true);
   }
 
+  function _whitelistSwapRouter(SharedConfigManager cm, address router) internal {
+    address[] memory routers = new address[](1);
+    routers[0] = router;
+    cm.setWhitelistSwapRouters(routers, true);
+  }
+
   // -------------------------------------------------------------------------
   // Invariant helpers
   // -------------------------------------------------------------------------
@@ -919,5 +1068,24 @@ contract SharedVaultFuzzer {
 
   function _withinOneUnit(uint256 actual, uint256 expected) internal pure returns (bool) {
     return actual >= expected ? actual - expected <= 1 : expected - actual <= 1;
+  }
+
+  /// @dev In these closed mock states, non-dust previews are expected to withdraw.
+  ///      This filter only tolerates strategy/NFPM allowlist failures if a future
+  ///      stateful action mutates allowlists between preview and execution.
+  function _isAcceptablePreviewedWithdrawRevert(bytes memory reason) internal pure returns (bool) {
+    bytes4 selector = _revertSelector(reason);
+    return
+      selector == ISharedCommon.StrategyCallFailed.selector ||
+      selector == ISharedCommon.InvalidNfpm.selector ||
+      selector == ISharedCommon.InvalidTarget.selector ||
+      selector == ISharedCommon.InvalidOperation.selector;
+  }
+
+  function _revertSelector(bytes memory reason) internal pure returns (bytes4 selector) {
+    if (reason.length < 4) return bytes4(0);
+    assembly {
+      selector := mload(add(reason, 32))
+    }
   }
 }

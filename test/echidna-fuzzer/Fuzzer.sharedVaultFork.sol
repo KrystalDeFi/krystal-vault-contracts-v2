@@ -12,6 +12,12 @@ pragma solidity ^0.8.28;
  * use deployed shared-vault infrastructure from contracts-shared.json at Base
  * block 46,190,000.
  *
+ * Refreshing this fork pin after a Base redeploy:
+ *   1. Update BASE_SHARED_VAULT_FACTORY and BASE_SHARED_V3_STRATEGY_PROXY from
+ *      contracts-shared.json for Base.
+ *   2. Update BASE_FORK_BLOCK below.
+ *   3. Pass the same block with --rpc-block when running Echidna.
+ *
  * Example:
  *   echidna test/echidna-fuzzer/Fuzzer.sharedVaultFork.sol \
  *     --config test/echidna-fuzzer/config.sharedVaultFork.yaml \
@@ -25,6 +31,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
+import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { ISharedVaultFactory } from "../../contracts/shared-vault/interfaces/ISharedVaultFactory.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
@@ -73,6 +80,79 @@ contract SharedVaultForkPlayer {
   }
 }
 
+contract ForkSwapRouter {
+  function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) external {
+    require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "pull failed");
+    require(IERC20(tokenOut).transfer(msg.sender, amountOut), "push failed");
+  }
+}
+
+contract ForkCwpNfpm {
+  mapping(uint256 => address) public ownerOf;
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+  }
+}
+
+contract ForkCwpTarget is ISharedStrategy {
+  address public immutable token0;
+  address public immutable token1;
+
+  constructor(address _token0, address _token1) {
+    token0 = _token0;
+    token1 = _token1;
+  }
+
+  function createPosition(
+    address nfpm,
+    uint256 tokenId
+  ) external view returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+  }
+
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory changes) {
+    changes = new PositionChange[](0);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256,
+    uint16
+  ) external view override returns (PositionChange[] memory changes) {
+    if (shares == totalShares) {
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange({ isAdd: false, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+    } else {
+      changes = new PositionChange[](0);
+    }
+  }
+
+  function collectFees(address, uint256, uint16) external override {}
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256 amount0, uint256 amount1) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(
+    address,
+    uint256
+  ) external pure override returns (uint256 amount0, uint256 amount1) {
+    return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    return (token0, token1);
+  }
+}
+
 contract SharedVaultForkFuzzer {
   address internal constant HEVM_ADDRESS = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
   address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
@@ -95,6 +175,9 @@ contract SharedVaultForkFuzzer {
   ISharedVaultFactory public factory;
   ISharedVault public vault;
   SharedVaultForkPlayer[2] public players;
+  ForkSwapRouter public forkSwapRouter;
+  ForkCwpNfpm public forkCwpNfpm;
+  ForkCwpTarget public forkCwpTarget;
 
   IForkVm internal constant vm = IForkVm(HEVM_ADDRESS);
 
@@ -105,6 +188,7 @@ contract SharedVaultForkFuzzer {
   bool public forkReady;
   bool public fullExitChecked;
   bool public collectChecked;
+  bool public cwpChecked;
 
   constructor() payable {}
 
@@ -157,17 +241,95 @@ contract SharedVaultForkFuzzer {
     uint256 supplyBefore = IERC20(address(vault)).totalSupply();
     uint256 sharesBefore = IERC20(address(vault)).balanceOf(address(players[idx]));
 
-    try players[idx].deposit(amounts, 100) returns (uint256 shares) {
+    try players[idx].deposit(amounts, 0) returns (uint256 shares) {
       assert(preview > 0);
       assert(shares > 0);
       assert(IERC20(address(vault)).totalSupply() == supplyBefore + shares);
       assert(IERC20(address(vault)).balanceOf(address(players[idx])) == sharesBefore + shares);
-      assert(vault.getPositionCount() == 1);
+      assert(vault.getPositionCount() >= 1);
       _assertTrackedPositionOwnedByVault(vault);
     } catch {
       assert(preview == 0);
     }
 
+    _assertShareConservation();
+    _assertVaultBacked(vault);
+  }
+
+  function fork_execute_call_swap(uint256 wethAmount) external {
+    _ensureReady();
+    if (vault.getPositionCount() == 0) return;
+    _ensureForkMockTargets();
+
+    uint256 idleWeth = IERC20(BASE_WETH).balanceOf(address(vault));
+    uint256 maxIn = idleWeth / 4;
+    if (maxIn < 1e13) return;
+
+    wethAmount = _clamp(wethAmount, 1e13, maxIn);
+    uint256 usdcOut = (wethAmount * 3_000e6) / 1 ether;
+    if (usdcOut == 0) return;
+
+    _dealERC20(BASE_USDC, address(forkSwapRouter), usdcOut);
+
+    uint256 wethBefore = IERC20(BASE_WETH).balanceOf(address(vault));
+    uint256 usdcBefore = IERC20(BASE_USDC).balanceOf(address(vault));
+
+    bytes memory swapCalldata = abi.encodeCall(
+      ForkSwapRouter.swap,
+      (BASE_WETH, BASE_USDC, wethAmount, usdcOut)
+    );
+    bytes memory actionData = abi.encode(BASE_WETH, BASE_USDC, wethAmount, usdcOut, swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(forkSwapRouter),
+      data: actionData,
+      callType: ISharedCommon.CallType.CALL
+    });
+    vault.execute(actions);
+
+    assert(IERC20(BASE_WETH).balanceOf(address(vault)) == wethBefore - wethAmount);
+    assert(IERC20(BASE_USDC).balanceOf(address(vault)) == usdcBefore + usdcOut);
+    assert(IERC20(BASE_WETH).allowance(address(vault), address(forkSwapRouter)) == 0);
+
+    _assertTrackedPositionOwnedByVault(vault);
+    _assertShareConservation();
+    _assertVaultBacked(vault);
+  }
+
+  function fork_execute_call_with_positions() external {
+    _ensureReady();
+    if (cwpChecked || vault.getPositionCount() == 0) return;
+    cwpChecked = true;
+    _ensureForkMockTargets();
+
+    uint256 beforeCount = vault.getPositionCount();
+    uint256 tokenId = 90_001;
+    forkCwpNfpm.mint(address(vault), tokenId);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(forkCwpTarget),
+      data: abi.encodeCall(ForkCwpTarget.createPosition, (address(forkCwpNfpm), tokenId)),
+      callType: ISharedCommon.CallType.CALL_WITH_POSITIONS
+    });
+    vault.execute(actions);
+
+    assert(vault.getPositionCount() == beforeCount + 1);
+    (
+      address strategy,
+      address nfpm,
+      uint256 trackedTokenId,
+      address token0,
+      address token1
+    ) = vault.getPosition(beforeCount);
+    assert(strategy == address(forkCwpTarget));
+    assert(nfpm == address(forkCwpNfpm));
+    assert(trackedTokenId == tokenId);
+    assert(token0 == BASE_WETH);
+    assert(token1 == BASE_USDC);
+
+    _assertTrackedPositionOwnedByVault(vault);
     _assertShareConservation();
     _assertVaultBacked(vault);
   }
@@ -220,7 +382,7 @@ contract SharedVaultForkFuzzer {
     });
     vault.execute(actions);
 
-    assert(vault.getPositionCount() == 1);
+    assert(vault.getPositionCount() >= 1);
     assert(_liquidity(tokenId) >= liquidityBefore);
     _assertTrackedPositionOwnedByVault(vault);
     _assertShareConservation();
@@ -272,7 +434,7 @@ contract SharedVaultForkFuzzer {
     });
     vault.execute(actions);
 
-    assert(vault.getPositionCount() == 1);
+    assert(vault.getPositionCount() >= 1);
     _assertTrackedPositionOwnedByVault(vault);
     _assertShareConservation();
   }
@@ -328,6 +490,23 @@ contract SharedVaultForkFuzzer {
     });
     targetVault.execute(actions);
     assert(targetVault.getPositionCount() == 1);
+  }
+
+  function _ensureForkMockTargets() internal {
+    if (address(forkSwapRouter) == address(0)) {
+      forkSwapRouter = new ForkSwapRouter();
+      forkCwpNfpm = new ForkCwpNfpm();
+      forkCwpTarget = new ForkCwpTarget(BASE_WETH, BASE_USDC);
+    }
+
+    address cm = address(vault.configManager());
+    _setAddressBoolMapping(cm, 0, address(forkCwpTarget), true); // whitelistedTargets
+    _setAddressBoolMapping(cm, 2, address(forkCwpNfpm), true); // whitelistedNfpms
+    _setAddressBoolMapping(cm, 3, address(forkSwapRouter), true); // whitelistedSwapRouters
+  }
+
+  function _setAddressBoolMapping(address target, uint256 slot, address key, bool value) internal {
+    vm.store(target, keccak256(abi.encode(key, slot)), bytes32(value ? uint256(1) : uint256(0)));
   }
 
   function _swapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
