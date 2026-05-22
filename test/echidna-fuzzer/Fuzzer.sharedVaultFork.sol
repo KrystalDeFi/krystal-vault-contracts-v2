@@ -604,14 +604,24 @@ contract SharedVaultForkFuzzer {
   }
 
   function _assertTrackedPositionOwnedByVault(ISharedVault targetVault) internal view {
-    assert(targetVault.getPositionCount() > 0);
-    (address strategy, address nfpm, uint256 tokenId, address token0, address token1) = targetVault.getPosition(0);
-    assert(strategy == BASE_SHARED_V3_STRATEGY_PROXY);
-    assert(nfpm == BASE_UNISWAP_V3_NFPM);
-    assert(token0 == BASE_WETH);
-    assert(token1 == BASE_USDC);
-    assert(IERC721(nfpm).ownerOf(tokenId) == address(targetVault));
-    assert(_liquidity(tokenId) > 0);
+    uint256 count = targetVault.getPositionCount();
+    assert(count > 0);
+
+    for (uint256 i; i < count; i++) {
+      (address strategy, address nfpm, uint256 tokenId, address token0, address token1) = targetVault.getPosition(i);
+
+      assert(token0 == BASE_WETH);
+      assert(token1 == BASE_USDC);
+      assert(IERC721(nfpm).ownerOf(tokenId) == address(targetVault));
+
+      if (nfpm == BASE_UNISWAP_V3_NFPM) {
+        assert(strategy == BASE_SHARED_V3_STRATEGY_PROXY);
+        assert(_liquidity(tokenId) > 0);
+      } else {
+        assert(nfpm == address(forkCwpNfpm));
+        assert(strategy == address(forkCwpTarget));
+      }
+    }
   }
 
   function _assertVaultBacked(ISharedVault targetVault) internal view {
