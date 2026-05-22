@@ -56,9 +56,17 @@ log_info "[+] Disable the sanityCheck in the LpValidator.sol file"
 cp contracts/public-vault/strategies/lpUniV3/LpValidator.sol contracts/public-vault/strategies/lpUniV3/LpValidator.sol.tmp
 sed -i '' 's/function validatePriceSanity(address pool) external view override {/function validatePriceSanity(address pool) external view override { return; \/\/ to disable the sanityCheck for debugging purposes/g' contracts/strategies/lpUniV3/LpValidator.sol
 
-log_info "[+] Replace the out directory in foundry.toml"
+log_info "[+] Replace the out directory in foundry.toml and enable build_info"
 cp foundry.toml foundry.toml.tmp
-sed -i '' 's/out = '\''artifacts'\''/out = '\''out\/'\''/g' foundry.toml
+python3 -c "
+import re, sys
+with open('foundry.toml') as f:
+    content = f.read()
+content = content.replace(\"out = 'artifacts'\", \"out = 'out'\")
+content = content.replace('[profile.default]\n', '[profile.default]\nbuild_info = true\nbuild_info_path = \"out/build-info\"\n', 1)
+with open('foundry.toml', 'w') as f:
+    f.write(content)
+"
 
 log_info "[+] Copy the echidna-fuzzer contract to the contracts directory"
 mkdir contracts/echidna-fuzzer/
