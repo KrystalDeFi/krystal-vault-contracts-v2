@@ -22,6 +22,7 @@ import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { PositionInfo } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
 contract MockWETH9 {
@@ -3936,6 +3937,71 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenB.balanceOf(address(v)), 60, "vault pulled exactly the 10-wei floor");
   }
 
+  /// @dev Vault with an 18-decimal token and an 8-decimal dust token.
+  ///      tokenB floor at default precision 5 is 10 ** (8 - 5) = 1_000.
+  function _setupEightDecimalDustVault()
+    internal
+    returns (SharedVault v, MockERC20 tA, MockERC20LowDecimals tB)
+  {
+    v = new SharedVault();
+    tA = new MockERC20("EightDecA", "EDA");
+    tB = new MockERC20LowDecimals("EightDecB", "EDB", 8);
+
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 5_521);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(5_521), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("EightDecimalDustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
+  }
+
+  function test_getMinDepositAmounts_8decimalToken_tracksPrecisionChanges() public {
+    (SharedVault v, , ) = _setupEightDecimalDustVault();
+
+    uint256[4] memory mins = v.getMinDepositAmounts();
+    assertEq(mins[1], 1_000, "8 decimals, precision 5 -> 1_000");
+
+    configManager.setMinTokenPrecision(4);
+    mins = v.getMinDepositAmounts();
+    assertEq(mins[1], 10_000, "8 decimals, precision 4 -> 10_000");
+
+    configManager.setMinTokenPrecision(9);
+    mins = v.getMinDepositAmounts();
+    assertEq(mins[1], 1, "precision above decimals -> smallest unit");
+  }
+
+  function test_deposit_8decimalToken_requiresPrecisionFloor() public {
+    (SharedVault v, MockERC20 tA, MockERC20LowDecimals tB) = _setupEightDecimalDustVault();
+
+    tA.mint(DEPOSITOR, 10e18);
+    tB.mint(DEPOSITOR, 999);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(v), type(uint256).max);
+    tB.approve(address(v), type(uint256).max);
+
+    vm.expectRevert(ISharedCommon.InvalidRatio.selector);
+    v.deposit([uint256(10e18), uint256(999), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+  }
+
+  function test_deposit_8decimalToken_pullsExactlyPrecisionFloor() public {
+    (SharedVault v, MockERC20 tA, MockERC20LowDecimals tB) = _setupEightDecimalDustVault();
+
+    tA.mint(DEPOSITOR, 10e18);
+    tB.mint(DEPOSITOR, 1_200);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(v), type(uint256).max);
+    tB.approve(address(v), type(uint256).max);
+
+    uint256 shares = v.deposit([uint256(10e18), uint256(1_200), uint256(0), uint256(0)], 0);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "shares minted");
+    assertEq(tB.balanceOf(DEPOSITOR), 200, "only the 1_000-unit floor was pulled");
+    assertEq(tB.balanceOf(address(v)), 6_521, "vault received exactly 1_000 dust-token units");
+  }
+
   // ---- withdraw: dust forwarded to caller ----
 
   /// @notice Withdrawal dust (proportional slices below any conceivable swap threshold) is
@@ -4017,6 +4083,24 @@ contract SharedVaultTest is TestCommon {
     assertEq(received[1], 25, "tokenB dust slice (25 wei) forwarded to caller");
     assertEq(tokenA.balanceOf(address(v)), aVaultBefore - 50e18, "tokenA left vault");
     assertEq(tokenB.balanceOf(address(v)), bVaultBefore - 25, "tokenB dust left vault");
+  }
+
+  function test_withdraw_8decimalDustBelowPrecisionFloor_isForwarded() public {
+    (SharedVault v, MockERC20 tA, MockERC20LowDecimals tB) = _setupEightDecimalDustVault();
+
+    uint256 sharesToBurn = 1e18; // 10% of INITIAL_SHARES
+    vm.prank(VAULT_OWNER);
+    v.transfer(DEPOSITOR, sharesToBurn);
+
+    uint256[4] memory minAmounts;
+    vm.prank(DEPOSITOR);
+    uint256[4] memory received = v.withdraw(sharesToBurn, minAmounts, false);
+
+    assertEq(received[0], 10e18, "10% tokenA withdrawn");
+    assertEq(received[1], 552, "10% of 5_521 floors to 552, below the 1_000 deposit floor");
+    assertLt(received[1], v.getMinDepositAmounts()[1], "withdraw dust may be below deposit floor");
+    assertEq(tA.balanceOf(DEPOSITOR), 10e18, "depositor received tokenA");
+    assertEq(tB.balanceOf(DEPOSITOR), 552, "depositor received below-floor tokenB dust");
   }
 
   function test_maxPositions_duplicatePositionDoesNotConsumeSlot() public {
@@ -4286,6 +4370,87 @@ contract SharedVaultTest is TestCommon {
     tA.transfer(address(strat), 15e18);
     tB.transfer(address(strat), 35e18);
     strat.depositProportional(address(nfpm), tokenId, 15e18, 35e18, uint16(100));
+  }
+
+  /// @notice Precision-floor overpayment on one side must stay idle instead of being force-fed into
+  ///         an LP top-up at an off-range ratio. This mirrors the production failure where an
+  ///         8-decimal token was rounded up to its 1_000-unit floor while token0 remained the
+  ///         binding proportional contribution.
+  function test_deposit_dustFloorExcessUsesBindingShareForLPTopup() public {
+    uint256 principal0 = 6_211_554_753_921_691;
+    uint256 principal1 = 2_557;
+    uint256 total0 = 6_353_008_156_094_482;
+    uint256 total1 = 5_521;
+    uint256 deposit0 = 516_081_745_220_545;
+    uint256 token1Floor = 1_000;
+
+    MockERC20 tA = new MockERC20("WETH-like", "WETH");
+    MockERC20LowDecimals tB = new MockERC20LowDecimals("BTC-like", "BTC", 8);
+    MockLPPool pool = new MockLPPool();
+    DepositProportionalRecorder recorder = new DepositProportionalRecorder();
+    MockRewardsAwareStrategy strat = new MockRewardsAwareStrategy(
+      address(pool),
+      address(recorder),
+      principal0,
+      principal1,
+      0,
+      0
+    );
+    MockERC721 nfpm = new MockERC721();
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(nfpm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    SharedVault rv = new SharedVault();
+    tA.mint(address(rv), total0);
+    tB.mint(address(rv), total1);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [total0, total1, uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    rv.initialize("DustFloorVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
+
+    nfpm.mint(address(rv), 478_578);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(strat),
+      abi.encode(address(nfpm), uint256(478_578), address(tA), address(tB)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(VAULT_OWNER);
+    rv.execute(actions);
+
+    uint256 idle1Before = tB.balanceOf(address(rv));
+    assertEq(idle1Before, total1 - principal1, "setup: token1 idle is total minus principal");
+    assertEq(rv.getMinDepositAmounts()[1], token1Floor, "setup: 8-dec token floor is 1_000");
+
+    tA.mint(DEPOSITOR, deposit0);
+    tB.mint(DEPOSITOR, token1Floor);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(rv), type(uint256).max);
+    tB.approve(address(rv), type(uint256).max);
+    uint256[4] memory amounts = [deposit0, token1Floor, uint256(0), uint256(0)];
+    uint256 shares = rv.deposit(amounts, uint16(200));
+    vm.stopPrank();
+
+    uint256 oldIndependentToken1Topup = FullMath.mulDiv(token1Floor, principal1, total1);
+
+    assertGt(shares, 0, "deposit succeeds with slippage guard");
+    assertEq(recorder.callCount(), 1, "LP top-up called");
+    assertLt(recorder.lastAmount1(), oldIndependentToken1Topup, "precision-floor excess token1 stays idle");
+    assertEq(
+      recorder.lastAmount1(),
+      FullMath.mulDiv(recorder.lastAmount0(), principal1, principal0),
+      "LP top-up uses token0's binding share for both sides"
+    );
+    assertEq(
+      tB.balanceOf(address(rv)),
+      idle1Before + token1Floor - recorder.lastAmount1(),
+      "unused precision-floor token1 remains idle"
+    );
   }
 
   // ==================== getMinDepositAmounts Tests ====================

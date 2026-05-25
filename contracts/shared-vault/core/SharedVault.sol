@@ -438,6 +438,11 @@ contract SharedVault is
   ///      not participate in the LP top-up. The depositor's proportional share of those fees remains
   ///      in the vault as a slightly higher idle reserve (or gets collected and proportionally returned
   ///      on the next `exitProportional`).
+  ///
+  ///      **Single binding share**: minimum-precision floors can intentionally make one token's pulled
+  ///      amount larger than its proportional share. For in-range positions, clamp the LP top-up to the
+  ///      smaller side's share so the floor excess stays idle instead of causing an off-ratio
+  ///      `increaseLiquidity` slippage revert.
   function _depositProportionalToAllPositions(
     uint256 currentTotalSupply,
     uint256[4] memory totalBalances,
@@ -465,6 +470,21 @@ contract SharedVault is
         }
         unchecked {
           i++;
+        }
+      }
+
+      if (posAmt0 > 0 && posAmt1 > 0) {
+        if (toAdd0 == 0 || toAdd1 == 0) {
+          toAdd0 = 0;
+          toAdd1 = 0;
+        } else {
+          uint256 toAdd1AtToken0Share = FullMath.mulDiv(toAdd0, posAmt1, posAmt0);
+          if (toAdd1AtToken0Share < toAdd1) {
+            toAdd1 = toAdd1AtToken0Share;
+          } else {
+            uint256 toAdd0AtToken1Share = FullMath.mulDiv(toAdd1, posAmt0, posAmt1);
+            if (toAdd0AtToken1Share < toAdd0) toAdd0 = toAdd0AtToken1Share;
+          }
         }
       }
 

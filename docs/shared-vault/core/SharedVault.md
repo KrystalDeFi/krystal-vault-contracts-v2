@@ -283,7 +283,12 @@ _Push proportional slices into tracked LP positions; no-op on first deposit or e
      treated as idle: they still count toward `_getTotalBalances` for share pricing, but they do
      not participate in the LP top-up. The depositor's proportional share of those fees remains
      in the vault as a slightly higher idle reserve (or gets collected and proportionally returned
-     on the next `exitProportional`)._
+     on the next `exitProportional`).
+
+     **Single binding share**: minimum-precision floors can intentionally make one token's pulled
+     amount larger than its proportional share. For in-range positions, clamp the LP top-up to the
+     smaller side's share so the floor excess stays idle instead of causing an off-ratio
+     `increaseLiquidity` slippage revert._
 
 ### withdraw
 

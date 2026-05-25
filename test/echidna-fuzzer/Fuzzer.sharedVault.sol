@@ -30,6 +30,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./Config.sol";
 
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
+import { SharedVaultGateway } from "../../contracts/shared-vault/core/SharedVaultGateway.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
@@ -424,6 +425,13 @@ contract SharedVaultFuzzer {
   FuzzWETH9 public weth;
   SharedFuzzPlayer public wethPlayer;
 
+  SharedConfigManager public precisionConfigManager;
+  SharedVault public precisionVault;
+  FuzzERC20 public precisionA;
+  FuzzERC20 public precisionB;
+  FuzzERC20 public precisionX;
+  SharedVaultGateway public gateway;
+
   FuzzSwapRouter public swapRouter;
 
   bool public fullLpExitChecked;
@@ -441,6 +449,7 @@ contract SharedVaultFuzzer {
     _setupMultiVault();
     _setupLpVault();
     _setupWethVault();
+    _setupPrecisionGatewayVault();
   }
 
   receive() external payable {}
@@ -871,6 +880,228 @@ contract SharedVaultFuzzer {
     } catch {}
   }
 
+  // -------------------------------------------------------------------------
+  // minTokenPrecision and gateway edge cases
+  // -------------------------------------------------------------------------
+
+  function precision_config_8decimals(uint8 rawPrecision) external {
+    uint8 precision = uint8(_bound(rawPrecision, 0, 12));
+    precisionConfigManager.setMinTokenPrecision(precision);
+
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    uint256 expected;
+    if (precision == 0) expected = 0;
+    else if (precision < 8) expected = 10 ** uint256(8 - precision);
+    else expected = 1;
+    assert(mins[1] == expected);
+
+    precisionConfigManager.setMinTokenPrecision(5);
+  }
+
+  function precision_direct_deposit_floor(uint8 mode) external {
+    precisionConfigManager.setMinTokenPrecision(5);
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    if (mins[0] == 0 || mins[1] <= 1) return;
+
+    if (mode % 2 == 0) {
+      precisionA.mint(address(this), mins[0]);
+      precisionB.mint(address(this), mins[1] - 1);
+      uint256[4] memory below = [mins[0], mins[1] - 1, uint256(0), uint256(0)];
+      try precisionVault.deposit(below, 0) returns (uint256) {
+        assert(false);
+      } catch {}
+      return;
+    }
+
+    precisionA.mint(address(this), mins[0]);
+    precisionB.mint(address(this), mins[1]);
+    uint256 vaultBBefore = precisionB.balanceOf(address(precisionVault));
+    uint256 sharesBefore = precisionVault.balanceOf(address(this));
+    uint256[4] memory exact = [mins[0], mins[1], uint256(0), uint256(0)];
+
+    try precisionVault.deposit(exact, 0) returns (uint256 shares) {
+      assert(shares > 0);
+      assert(precisionVault.balanceOf(address(this)) == sharesBefore + shares);
+      assert(precisionB.balanceOf(address(precisionVault)) == vaultBBefore + mins[1]);
+    } catch {
+      assert(false);
+    }
+
+    _assertPrecisionShareConservation();
+    _assertPositiveBacking(precisionVault);
+  }
+
+  function precision_withdraw_forwards_below_floor() external {
+    precisionConfigManager.setMinTokenPrecision(5);
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    if (mins[1] <= 1) return;
+
+    uint256 shares = _belowFloorWithdrawShares(precisionVault, mins[1]);
+    if (shares == 0 || shares > precisionVault.balanceOf(address(this))) return;
+
+    uint256[4] memory preview = precisionVault.previewWithdraw(shares);
+    if (preview[1] == 0 || preview[1] >= mins[1]) return;
+
+    uint256 bBefore = precisionB.balanceOf(address(this));
+    uint256[4] memory emptyMins;
+    try precisionVault.withdraw(shares, emptyMins, false) returns (uint256[4] memory got) {
+      assert(got[1] == preview[1]);
+      assert(got[1] < mins[1]);
+      assert(precisionB.balanceOf(address(this)) == bBefore + got[1]);
+    } catch {
+      assert(false);
+    }
+
+    _assertPrecisionShareConservation();
+    _assertPositiveBacking(precisionVault);
+  }
+
+  function gateway_direct_deposit_precision_floor(uint8 mode) external {
+    precisionConfigManager.setMinTokenPrecision(5);
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    if (mins[0] == 0 || mins[1] <= 1) return;
+
+    if (mode % 2 == 0) {
+      precisionA.mint(address(this), mins[0]);
+      precisionB.mint(address(this), mins[1] - 1);
+      SharedVaultGateway.SwapAndDepositParams memory below = SharedVaultGateway.SwapAndDepositParams({
+        vault: ISharedVault(address(precisionVault)),
+        inputs: _gatewayInputs2(address(precisionA), mins[0], address(precisionB), mins[1] - 1),
+        swaps: new SharedVaultGateway.SwapParams[](0),
+        minDepositAmounts: [mins[0], mins[1] - 1, uint256(0), uint256(0)],
+        slippageBps: 0,
+        sweepTokens: new address[](0)
+      });
+      try gateway.swapAndDeposit(below) returns (uint256) {
+        assert(false);
+      } catch {}
+      return;
+    }
+
+    precisionA.mint(address(this), mins[0]);
+    precisionB.mint(address(this), mins[1]);
+    uint256 sharesBefore = precisionVault.balanceOf(address(this));
+    uint256 vaultBBefore = precisionB.balanceOf(address(precisionVault));
+    SharedVaultGateway.SwapAndDepositParams memory exact = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(precisionVault)),
+      inputs: _gatewayInputs2(address(precisionA), mins[0], address(precisionB), mins[1]),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: mins,
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    try gateway.swapAndDeposit(exact) returns (uint256 shares) {
+      assert(shares > 0);
+      assert(precisionVault.balanceOf(address(this)) == sharesBefore + shares);
+      assert(precisionB.balanceOf(address(precisionVault)) == vaultBBefore + mins[1]);
+      assert(precisionA.balanceOf(address(gateway)) == 0);
+      assert(precisionB.balanceOf(address(gateway)) == 0);
+    } catch {
+      assert(false);
+    }
+
+    _assertPrecisionShareConservation();
+    _assertPositiveBacking(precisionVault);
+  }
+
+  function gateway_swapAndDeposit_precision_floor(uint8 mode) external {
+    precisionConfigManager.setMinTokenPrecision(5);
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    if (mins[0] == 0 || mins[1] <= 1) return;
+
+    bool belowFloor = mode % 2 == 0;
+    uint256 outB = belowFloor ? mins[1] - 1 : mins[1];
+    uint256 inA = 1e18;
+    uint256 inB = 1e18;
+
+    precisionX.mint(address(this), inA + inB);
+    precisionA.mint(address(swapRouter), mins[0]);
+    precisionB.mint(address(swapRouter), outB);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams({
+      tokenIn: address(precisionX),
+      amountIn: inA,
+      tokenOut: address(precisionA),
+      amountOutMin: mins[0],
+      swapData: abi.encodeCall(FuzzSwapRouter.swap, (address(precisionX), address(precisionA), inA, mins[0]))
+    });
+    swaps[1] = SharedVaultGateway.SwapParams({
+      tokenIn: address(precisionX),
+      amountIn: inB,
+      tokenOut: address(precisionB),
+      amountOutMin: outB,
+      swapData: abi.encodeCall(FuzzSwapRouter.swap, (address(precisionX), address(precisionB), inB, outB))
+    });
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(precisionVault)),
+      inputs: _gatewayInputs1(address(precisionX), inA + inB),
+      swaps: swaps,
+      minDepositAmounts: mins,
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    if (belowFloor) {
+      try gateway.swapAndDeposit(params) returns (uint256) {
+        assert(false);
+      } catch {}
+      return;
+    }
+
+    uint256 sharesBefore = precisionVault.balanceOf(address(this));
+    uint256 vaultBBefore = precisionB.balanceOf(address(precisionVault));
+    try gateway.swapAndDeposit(params) returns (uint256 shares) {
+      assert(shares > 0);
+      assert(precisionVault.balanceOf(address(this)) == sharesBefore + shares);
+      assert(precisionB.balanceOf(address(precisionVault)) == vaultBBefore + mins[1]);
+      assert(precisionX.balanceOf(address(gateway)) == 0);
+    } catch {
+      assert(false);
+    }
+
+    _assertPrecisionShareConservation();
+    _assertPositiveBacking(precisionVault);
+  }
+
+  function gateway_withdraw_forwards_below_floor() external {
+    precisionConfigManager.setMinTokenPrecision(5);
+    uint256[4] memory mins = precisionVault.getMinDepositAmounts();
+    if (mins[1] <= 1) return;
+
+    uint256 shares = _belowFloorWithdrawShares(precisionVault, mins[1]);
+    if (shares == 0 || shares > precisionVault.balanceOf(address(this))) return;
+
+    uint256[4] memory preview = precisionVault.previewWithdraw(shares);
+    if (preview[1] == 0 || preview[1] >= mins[1]) return;
+
+    uint256 bBefore = precisionB.balanceOf(address(this));
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(precisionVault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    try gateway.withdrawAndSwap(params) returns (uint256[4] memory got) {
+      assert(got[1] == preview[1]);
+      assert(got[1] < mins[1]);
+      assert(precisionB.balanceOf(address(this)) == bBefore + got[1]);
+      assert(precisionA.balanceOf(address(gateway)) == 0);
+      assert(precisionB.balanceOf(address(gateway)) == 0);
+      assert(precisionVault.balanceOf(address(gateway)) == 0);
+    } catch {
+      assert(false);
+    }
+
+    _assertPrecisionShareConservation();
+    _assertPositiveBacking(precisionVault);
+  }
+
   // Assertion-mode standalone checks. These are deliberately assert-based
   // instead of echidna_* bool properties because config.yaml uses assertion mode.
   function assert_idle_share_conservation() public view {
@@ -885,11 +1116,16 @@ contract SharedVaultFuzzer {
     _assertLpShareConservation();
   }
 
+  function assert_precision_share_conservation() public view {
+    _assertPrecisionShareConservation();
+  }
+
   function assert_all_backed_when_supply_exists() public view {
     _assertPositiveBacking(idleVault);
     _assertPositiveBacking(multiVault);
     _assertPositiveBacking(lpVault);
     _assertPositiveBacking(wethVault);
+    _assertPositiveBacking(precisionVault);
   }
 
   // -------------------------------------------------------------------------
@@ -992,6 +1228,38 @@ contract SharedVaultFuzzer {
     wethTokenA.mint(address(wethPlayer), 1e30);
   }
 
+  function _setupPrecisionGatewayVault() internal {
+    precisionConfigManager = _newConfig(new address[](0), new address[](0));
+    precisionVault = new SharedVault();
+    precisionA = new FuzzERC20("PrecisionA", "PRA", 18);
+    precisionB = new FuzzERC20("PrecisionB", "PRB", 8);
+    precisionX = new FuzzERC20("PrecisionX", "PRX", 18);
+    gateway = new SharedVaultGateway();
+    gateway.initialize(address(this), address(swapRouter), address(weth));
+
+    precisionA.mint(address(precisionVault), 100e18);
+    precisionB.mint(address(precisionVault), 5_521);
+    address[4] memory toks = [address(precisionA), address(precisionB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(5_521), uint256(0), uint256(0)];
+    precisionVault.initialize(
+      "PrecisionShared",
+      toks,
+      init,
+      address(this),
+      address(this),
+      address(precisionConfigManager),
+      address(0),
+      0
+    );
+
+    precisionA.approve(address(precisionVault), type(uint256).max);
+    precisionB.approve(address(precisionVault), type(uint256).max);
+    precisionA.approve(address(gateway), type(uint256).max);
+    precisionB.approve(address(gateway), type(uint256).max);
+    precisionX.approve(address(gateway), type(uint256).max);
+    precisionVault.approve(address(gateway), type(uint256).max);
+  }
+
   function _newConfig(address[] memory targets, address[] memory nfpms) internal returns (SharedConfigManager cm) {
     cm = new SharedConfigManager();
     address[] memory empty = new address[](0);
@@ -1034,6 +1302,10 @@ contract SharedVaultFuzzer {
     assert(sum == lpVault.totalSupply());
   }
 
+  function _assertPrecisionShareConservation() internal view {
+    assert(precisionVault.balanceOf(address(this)) == precisionVault.totalSupply());
+  }
+
   function _assertPositiveBacking(SharedVault v) internal view {
     if (v.totalSupply() == 0) return;
     uint256[4] memory totals = v.getTotalBalances();
@@ -1064,6 +1336,34 @@ contract SharedVaultFuzzer {
 
   function _hasNonDustOutput(uint256[4] memory amounts) internal pure returns (bool) {
     return amounts[0] > 1 || amounts[1] > 1 || amounts[2] > 1 || amounts[3] > 1;
+  }
+
+  function _belowFloorWithdrawShares(SharedVault v, uint256 floor) internal view returns (uint256 shares) {
+    uint256[4] memory totals = v.getTotalBalances();
+    uint256 supply = v.totalSupply();
+    if (supply == 0 || totals[1] == 0 || floor <= 1) return 0;
+    shares = (supply * (floor - 1)) / totals[1];
+    if (shares == 0) return 0;
+    if (shares >= supply) shares = supply - 1;
+  }
+
+  function _gatewayInputs1(
+    address token0,
+    uint256 amount0
+  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+    inputs = new SharedVaultGateway.InputToken[](1);
+    inputs[0] = SharedVaultGateway.InputToken({ token: token0, amount: amount0 });
+  }
+
+  function _gatewayInputs2(
+    address token0,
+    uint256 amount0,
+    address token1,
+    uint256 amount1
+  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+    inputs = new SharedVaultGateway.InputToken[](2);
+    inputs[0] = SharedVaultGateway.InputToken({ token: token0, amount: amount0 });
+    inputs[1] = SharedVaultGateway.InputToken({ token: token1, amount: amount1 });
   }
 
   function _withinOneUnit(uint256 actual, uint256 expected) internal pure returns (bool) {
