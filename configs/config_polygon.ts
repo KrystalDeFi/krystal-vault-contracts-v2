@@ -1,4 +1,4 @@
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   polygon_mainnet: {
@@ -33,6 +33,44 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     v3UtilsAddress: "0xb4acbc082b5e7ded571c98ee4257778a9d784b36",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+  },
+};
+
+const SharedConfig: Record<string, IConfigShared> = {
+  polygon_mainnet: {
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0x1ec2ebf4f37e7363fdfe3551602425af0b3ceef9"],
   },
 };
 
@@ -118,5 +156,6 @@ export const PolygonConfig: Record<string, IConfig> = {
     swapRouters: ["0x70270C228c5B4279d1578799926873aa72446CcD"],
     nfpmAddresses: ["0xC36442b4a4522E871399CD717aBDD847Ab11FE88", "0xb7402ee99F0A008e461098AC3A27F4957Df89a40"],
     ...PrivateConfig.polygon_mainnet,
+    ...SharedConfig.polygon_mainnet,
   },
 };

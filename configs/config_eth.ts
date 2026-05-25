@@ -1,4 +1,4 @@
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   eth_mainnet: {
@@ -43,6 +43,44 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
+  },
+};
+
+const SharedConfig: Record<string, IConfigShared> = {
+  eth_mainnet: {
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e"],
   },
 };
 
@@ -150,5 +188,6 @@ export const EthereumConfig: Record<string, IConfig> = {
       "0x2214A42d8e2A1d20635c2cb0664422c528B6A432",
     ],
     ...PrivateConfig.eth_mainnet,
+    ...SharedConfig.eth_mainnet,
   },
 };

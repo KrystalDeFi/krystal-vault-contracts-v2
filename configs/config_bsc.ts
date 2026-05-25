@@ -1,4 +1,4 @@
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   bsc_mainnet: {
@@ -43,6 +43,44 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
+  },
+};
+
+const SharedConfig: Record<string, IConfigShared> = {
+  bsc_mainnet: {
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0x7a4a5c919ae2541aed11041a1aeee68f1287f95b", "0x55f4c8abA71A1e923edC303eb4fEfF14608cC226"],
   },
 };
 
@@ -140,5 +178,6 @@ export const BscConfig: Record<string, IConfig> = {
       "0xF70c086618dcf2b1A461311275e00D6B722ef914",
     ],
     ...PrivateConfig.bsc_mainnet,
+    ...SharedConfig.bsc_mainnet,
   },
 };
