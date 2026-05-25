@@ -55,6 +55,19 @@ export interface SharedContracts {
   sharedAerodromeProxy?: SharedStrategyProxy;
 }
 
+const SHARED_VAULT_PREVIEW_LIB =
+  "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib";
+
+export function getSharedVaultLibrariesForDeployment(
+  existingContract: Record<string, any> | undefined,
+  contracts: SharedContracts,
+): Record<string, string> | undefined {
+  const previewLibAddress =
+    (contracts.sharedVaultPreviewLib?.target as string | undefined) ?? existingContract?.["sharedVaultPreviewLib"];
+
+  return previewLibAddress ? { [SHARED_VAULT_PREVIEW_LIB]: previewLibAddress } : undefined;
+}
+
 export const deploy = async (
   existingContract: Record<string, any> | undefined = undefined,
 ): Promise<SharedContracts> => {
@@ -104,7 +117,13 @@ async function deployContracts(
 
   // 3. Deploy SharedVault implementation
   if (networkConfig.sharedVault?.enabled) {
-    const previewLibAddress = contracts.sharedVaultPreviewLib?.target as string | undefined;
+    const sharedVaultLibraries = getSharedVaultLibrariesForDeployment(existingContract, contracts);
+    if (!existingContract?.["sharedVault"] && !sharedVaultLibraries) {
+      throw new Error(
+        "SharedVault deployment requires SharedVaultPreviewLib. Enable sharedVaultPreviewLib deployment or provide existingContract.sharedVaultPreviewLib.",
+      );
+    }
+
     contracts.sharedVault = (await deployContract(
       ++step,
       networkConfig.sharedVault?.autoVerifyContract,
@@ -114,9 +133,7 @@ async function deployContracts(
       undefined,
       undefined,
       undefined,
-      previewLibAddress
-        ? { "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib": previewLibAddress }
-        : undefined,
+      sharedVaultLibraries,
     )) as SharedVault;
   }
 
@@ -387,6 +404,7 @@ async function deployContract(
           address: contract.target,
           constructorArguments: args,
           contract: contractLocation,
+          ...(libraries ? { libraries } : {}),
         });
       } else {
         if (!!contractLocation) {
@@ -394,11 +412,13 @@ async function deployContract(
             address: contract.target,
             constructorArguments: args,
             contract: contractLocation,
+            ...(libraries ? { libraries } : {}),
           });
         } else {
           await run("verify:verify", {
             address: contract.target,
             constructorArguments: args,
+            ...(libraries ? { libraries } : {}),
           });
         }
       }

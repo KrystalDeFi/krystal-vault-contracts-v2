@@ -2,7 +2,7 @@
   "base_mainnet": {
     "sharedConfigManager": "0xd5748e7f9220147f1c478e46ad3d1e151ebdb620",
     "sharedVaultPreviewLib": "0x7a131796a8a411057ed0191faa3ec0278b1fd2e2",
-    "sharedVault": "0xcdf42b4da13cc2a1a7f1d131f84751a8359fe479",
+    "sharedVault": "0x7b0fa0ca8e4c4e4b71b8759362443d681c42e293",
     "sharedVaultFactory": "0xb20b4517a17b8f9d1806906920071faca0c3bd26",
     "sharedV3Strategy": "0x9674a628d5d4f0ba77f802822ad2ffaf0e5ead5a",
     "sharedV3StrategyBeacon": "0xe695bec3061ff6e8ac5b79b396132c84c1f3daa0",
