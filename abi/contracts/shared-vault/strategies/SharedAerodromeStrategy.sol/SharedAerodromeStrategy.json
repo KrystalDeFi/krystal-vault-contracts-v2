@@ -3,7 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_v3utils",
+        "name": "_swapRouter",
         "type": "address"
       },
       {
@@ -23,6 +23,16 @@
   {
     "inputs": [],
     "name": "ApproveFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAmount",
     "type": "error"
   },
   {
@@ -53,12 +63,17 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVaultOwnerFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LengthMismatch",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NfpmEnumerableRequired",
+    "name": "SwapFailed",
     "type": "error"
   },
   {
@@ -85,7 +100,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "vaultOwnerFeeBasisPoint",
+        "name": "",
         "type": "uint16"
       }
     ],
@@ -207,7 +222,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "vaultOwnerFeeBasisPoint",
+        "name": "",
         "type": "uint16"
       }
     ],
@@ -351,7 +366,7 @@
   },
   {
     "inputs": [],
-    "name": "v3utils",
+    "name": "swapRouter",
     "outputs": [
       {
         "internalType": "address",

@@ -16,11 +16,10 @@ interface ISharedStrategy {
   /// @dev Strategy MUST validate that pool tokens are vault tokens.
   ///      Since this runs via delegatecall, address(this) is the vault.
   /// @param data ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,
-  ///        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:
-  ///        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /
-  ///        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.
-  ///        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a
-  ///        different layout.
+  ///        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.
+  ///        `SharedV4Strategy` accepts `IV4Utils`-compatible instructions and executes them natively through the
+  ///        PositionManager. Utility fee fields remain API-controlled; platform and owner fees are read from
+  ///        shared-vault config and vault state.
   /// @return changes Array of position changes (added/removed)
   function execute(bytes calldata data) external payable returns (PositionChange[] memory changes);
 
@@ -35,7 +34,7 @@ interface ISharedStrategy {
   /// @param totalShares Total vault share supply (snapshot before burn)
   /// @param minAmount0 Minimum token0 to receive (slippage guard)
   /// @param minAmount1 Minimum token1 to receive (slippage guard)
-  /// @param vaultOwnerFeeBasisPoint Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits.
+  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from the vault.
   /// @return changes Empty if partial exit; single removal entry if fully exited
   function exitProportional(
     address nfpm,
@@ -87,16 +86,14 @@ interface ISharedStrategy {
   /// @return token1 Canonical pool token1 address
   function getPositionTokens(address nfpm, uint256 tokenId) external view returns (address token0, address token1);
 
-  /// @notice Pre-collect accumulated LP fees into vault idle balance so they are distributed
-  ///         proportionally by share ratio rather than entirely to the next withdrawer.
-  /// @dev Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot.
-  ///      Implementations should collect fees from the NFPM/POSM and take performance + platform fees
-  ///      via the appropriate fee mechanism. Failures are silently ignored by the vault so that a
-  ///      collect failure never bricks withdrawals — fee distribution falls back to the old (per-withdrawer)
-  ///      behavior.
+  /// @notice Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
+  /// @dev Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot. Strategy execute
+  ///      paths also call their internal collect logic before mutating an existing position. Implementations
+  ///      should collect fees from the NFPM/POSM and take performance + platform fees via the appropriate
+  ///      fee mechanism.
   /// @param nfpm NFT Position Manager (or V4 PositionManager) address
   /// @param tokenId Position NFT ID
-  /// @param vaultOwnerFeeBasisPoint Vault owner bps for performance fee; platform fee from configManager.
+  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from the vault.
   function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external;
 
   /// @notice Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.

@@ -33,6 +33,7 @@ import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { SharedVaultGateway } from "../../contracts/shared-vault/core/SharedVaultGateway.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
+import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 
@@ -233,6 +234,11 @@ contract FuzzLpPool {
     return (p.principal0, p.principal1);
   }
 
+  function hasPosition(address nfpm, uint256 tokenId) external view returns (bool) {
+    Position storage p = positions[keccak256(abi.encodePacked(nfpm, tokenId))];
+    return p.token0 != address(0);
+  }
+
   function collectRewards(address nfpm, uint256 tokenId, address recipient) external {
     Position storage p = positions[keccak256(abi.encodePacked(nfpm, tokenId))];
     uint256 reward0 = p.rewards0;
@@ -282,6 +288,7 @@ contract FuzzLpStrategy is ISharedStrategy {
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     (uint256 amount0, uint256 amount1) = abi.decode(data, (uint256, uint256));
+    if (pool.hasPosition(nfpm, tokenId)) _collectAndDistributeFees();
     if (amount0 > 0) IERC20(token0).transfer(address(pool), amount0);
     if (amount1 > 0) IERC20(token1).transfer(address(pool), amount1);
     pool.deposit(nfpm, tokenId, token0, token1, amount0, amount1);
@@ -315,7 +322,7 @@ contract FuzzLpStrategy is ISharedStrategy {
   }
 
   function collectFees(address, uint256, uint16) external override {
-    pool.collectRewards(nfpm, tokenId, address(this));
+    _collectAndDistributeFees();
   }
 
   function getPositionAmounts(address, uint256) external view override returns (uint256 amount0, uint256 amount1) {
@@ -331,6 +338,44 @@ contract FuzzLpStrategy is ISharedStrategy {
 
   function getPositionTokens(address, uint256) external view override returns (address, address) {
     return (token0, token1);
+  }
+
+  function _collectAndDistributeFees() private {
+    uint256 before0 = IERC20(token0).balanceOf(address(this));
+    uint256 before1 = IERC20(token1).balanceOf(address(this));
+    pool.collectRewards(nfpm, tokenId, address(this));
+    uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
+    uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
+    if (collected0 == 0 && collected1 == 0) return;
+
+    ISharedVault v = ISharedVault(address(this));
+    ISharedConfigManager cm = v.configManager();
+    uint16 platformBps = cm.platformFeeBasisPoint();
+    uint16 ownerBps = v.vaultOwnerFeeBasisPoint();
+    uint16 maxOwnerBps = 10_000 - platformBps;
+    if (ownerBps > maxOwnerBps) ownerBps = maxOwnerBps;
+
+    _distributeFee(token0, collected0, cm.feeRecipient(), platformBps, v.vaultOwner(), ownerBps);
+    _distributeFee(token1, collected1, cm.feeRecipient(), platformBps, v.vaultOwner(), ownerBps);
+  }
+
+  function _distributeFee(
+    address token,
+    uint256 amount,
+    address platformRecipient,
+    uint16 platformBps,
+    address vaultOwner,
+    uint16 ownerBps
+  ) private {
+    uint256 platformFee = _feeAmount(amount, platformBps);
+    if (platformFee > 0) IERC20(token).transfer(platformRecipient, platformFee);
+
+    uint256 ownerFee = _feeAmount(amount, ownerBps);
+    if (ownerFee > 0) IERC20(token).transfer(vaultOwner, ownerFee);
+  }
+
+  function _feeAmount(uint256 amount, uint16 bps) private pure returns (uint256) {
+    return (amount / 10_000) * bps + ((amount % 10_000) * bps) / 10_000;
   }
 }
 
@@ -692,6 +737,77 @@ contract SharedVaultFuzzer {
     assert(got[0] > 0 && got[1] > 0);
     assert(v.totalSupply() == 0);
     assert(v.getPositionCount() == 0);
+  }
+
+  function lp_generated_fee_distribution(
+    uint256 reward0,
+    uint256 reward1,
+    uint16 rawPlatformBps,
+    uint16 rawOwnerBps
+  ) external {
+    reward0 = _bound(reward0, 0, type(uint256).max / 4);
+    reward1 = _bound(reward1, 0, type(uint256).max / 4);
+    uint16 platformBps = rawPlatformBps % 10_001;
+    uint16 ownerBps = rawOwnerBps % 10_001;
+    uint16 effectiveOwnerBps = ownerBps;
+    uint16 maxOwnerBps = 10_000 - platformBps;
+    if (effectiveOwnerBps > maxOwnerBps) effectiveOwnerBps = maxOwnerBps;
+
+    address platformRecipient = address(0xBEEF);
+    address ownerRecipient = address(0xCAFE);
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory empty = new address[](0);
+    address[] memory callers = new address[](1);
+    callers[0] = address(this);
+    cm.initialize(address(this), empty, callers, platformRecipient, platformBps, empty, empty);
+
+    FuzzERC20 t0 = new FuzzERC20("GeneratedFeeA", "GFA", 18);
+    FuzzERC20 t1 = new FuzzERC20("GeneratedFeeB", "GFB", 18);
+    FuzzERC721 nfpm = new FuzzERC721();
+    FuzzLpPool pool = new FuzzLpPool();
+    FuzzLpStrategy strategy = new FuzzLpStrategy(pool, address(nfpm), 707, address(t0), address(t1));
+    _whitelist(cm, address(strategy), address(nfpm));
+
+    SharedVault v = new SharedVault();
+    t0.mint(address(v), 100e18);
+    t1.mint(address(v), 100e18);
+    address[4] memory toks = [address(t0), address(t1), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    v.initialize("GeneratedFees", toks, init, ownerRecipient, address(0), address(cm), address(0), ownerBps);
+
+    nfpm.mint(address(v), 707);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(strategy),
+      data: abi.encode(uint256(50e18), uint256(50e18)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    v.execute(actions);
+
+    uint256 vault0Before = t0.balanceOf(address(v));
+    uint256 vault1Before = t1.balanceOf(address(v));
+    t0.mint(address(pool), reward0);
+    t1.mint(address(pool), reward1);
+    pool.setRewards(address(nfpm), 707, reward0, reward1);
+
+    actions[0] = ISharedVault.Action({
+      target: address(strategy),
+      data: abi.encode(uint256(0), uint256(0)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    v.execute(actions);
+
+    uint256 platformFee0 = _feeAmount(reward0, platformBps);
+    uint256 platformFee1 = _feeAmount(reward1, platformBps);
+    uint256 ownerFee0 = _feeAmount(reward0, effectiveOwnerBps);
+    uint256 ownerFee1 = _feeAmount(reward1, effectiveOwnerBps);
+
+    assert(t0.balanceOf(platformRecipient) == platformFee0);
+    assert(t1.balanceOf(platformRecipient) == platformFee1);
+    assert(t0.balanceOf(ownerRecipient) == ownerFee0);
+    assert(t1.balanceOf(ownerRecipient) == ownerFee1);
+    assert(t0.balanceOf(address(v)) == vault0Before + reward0 - platformFee0 - ownerFee0);
+    assert(t1.balanceOf(address(v)) == vault1Before + reward1 - platformFee1 - ownerFee1);
   }
 
   // -------------------------------------------------------------------------
@@ -1323,6 +1439,10 @@ contract SharedVaultFuzzer {
     if (value < min) return min;
     if (value > max) return max;
     return value;
+  }
+
+  function _feeAmount(uint256 amount, uint16 bps) internal pure returns (uint256) {
+    return (amount / 10_000) * bps + ((amount % 10_000) * bps) / 10_000;
   }
 
   function _ceilMulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256) {

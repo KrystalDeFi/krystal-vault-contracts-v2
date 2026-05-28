@@ -8,6 +8,8 @@ import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { SharedNfpmProportionalExit } from "../../contracts/shared-vault/libraries/SharedNfpmProportionalExit.sol";
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { IFeeTaker } from "../../contracts/public-vault/interfaces/strategies/IFeeTaker.sol";
+import { ILpFeeTaker } from "../../contracts/public-vault/interfaces/strategies/ILpFeeTaker.sol";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -513,6 +515,54 @@ contract CollectFeeWrapper {
       nfpm, 1, _token0, _token1, address(0), address(1), noFee
     );
   }
+
+  function callCollectWithFee(
+    address nfpm,
+    address _token0,
+    address _token1,
+    address lpFeeTaker,
+    ICommon.FeeConfig memory feeConfig
+  ) external {
+    SharedNfpmProportionalExit.collectAccumulatedFees(
+      nfpm, 1, _token0, _token1, address(0), lpFeeTaker, feeConfig
+    );
+  }
+}
+
+contract MockCollectLpFeeTaker is ILpFeeTaker {
+  function takeFees(
+    address token0,
+    uint256 amount0,
+    address token1,
+    uint256 amount1,
+    FeeConfig memory feeConfig,
+    address,
+    address,
+    address
+  ) external override returns (uint256 fee0, uint256 fee1) {
+    fee0 = _takeTokenFees(token0, amount0, feeConfig);
+    fee1 = _takeTokenFees(token1, amount1, feeConfig);
+  }
+
+  function _takeTokenFees(
+    address token,
+    uint256 amount,
+    FeeConfig memory feeConfig
+  ) private returns (uint256 totalFee) {
+    uint256 platformFee = (amount * feeConfig.platformFeeBasisPoint) / 10_000;
+    if (platformFee > 0) {
+      MockFeeToken(token).transferFrom(msg.sender, feeConfig.platformFeeRecipient, platformFee);
+      emit FeeCollected(msg.sender, IFeeTaker.FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, platformFee);
+      totalFee += platformFee;
+    }
+
+    uint256 ownerFee = (amount * feeConfig.vaultOwnerFeeBasisPoint) / 10_000;
+    if (ownerFee > 0) {
+      MockFeeToken(token).transferFrom(msg.sender, feeConfig.vaultOwner, ownerFee);
+      emit FeeCollected(msg.sender, IFeeTaker.FeeType.OWNER, feeConfig.vaultOwner, token, ownerFee);
+      totalFee += ownerFee;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -579,5 +629,41 @@ contract CollectAccumulatedFeesTest is Test {
 
     assertEq(t0.balanceOf(address(wrapper)), 0, "no token0 transferred");
     assertEq(t1.balanceOf(address(wrapper)), 0, "no token1 transferred");
+  }
+
+  function test_collectAccumulatedFees_distributes_generated_fees_to_platform_and_owner() public {
+    (CollectFeeWrapper wrapper, MockNfpmFeeSync nfpm, MockFeeToken t0, MockFeeToken t1) = _setup();
+    MockCollectLpFeeTaker feeTaker = new MockCollectLpFeeTaker();
+    address platformRecipient = address(0x1234);
+    address vaultOwner = address(0x5678);
+
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 500,
+      vaultOwner: vaultOwner,
+      platformFeeBasisPoint: 1000,
+      platformFeeRecipient: platformRecipient,
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+
+    vm.expectEmit(true, true, true, true, address(feeTaker));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t0), 0.6e18);
+    vm.expectEmit(true, true, true, true, address(feeTaker));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t0), 0.3e18);
+    vm.expectEmit(true, true, true, true, address(feeTaker));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t1), 0.5e18);
+    vm.expectEmit(true, true, true, true, address(feeTaker));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t1), 0.25e18);
+
+    wrapper.callCollectWithFee(address(nfpm), address(t0), address(t1), address(feeTaker), feeConfig);
+
+    assertEq(t0.balanceOf(platformRecipient), 0.6e18, "token0 platform fee");
+    assertEq(t1.balanceOf(platformRecipient), 0.5e18, "token1 platform fee");
+    assertEq(t0.balanceOf(vaultOwner), 0.3e18, "token0 owner fee");
+    assertEq(t1.balanceOf(vaultOwner), 0.25e18, "token1 owner fee");
+    assertEq(t0.balanceOf(address(wrapper)), 5.1e18, "token0 net generated fees stay idle");
+    assertEq(t1.balanceOf(address(wrapper)), 4.25e18, "token1 net generated fees stay idle");
+    assertEq(t0.balanceOf(address(nfpm)), 0, "token0: nfpm fully drained");
+    assertEq(t1.balanceOf(address(nfpm)), 0, "token1: nfpm fully drained");
   }
 }

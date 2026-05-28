@@ -35,7 +35,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` accepts `IV4Utils`-compatible instructions and executes them natively through the        PositionManager. Utility fee fields remain API-controlled; platform and owner fees are read from        shared-vault config and vault state. |
 
 #### Return Values
 
@@ -66,7 +66,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
+| vaultOwnerFeeBasisPoint | uint16 | Deprecated compatibility argument. Implementations must read vault-owner bps from the vault. |
 
 #### Return Values
 
@@ -156,14 +156,12 @@ _Used by SharedVault.recoverPosition to validate operator-supplied token0/token1
 function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external
 ```
 
-Pre-collect accumulated LP fees into vault idle balance so they are distributed
-        proportionally by share ratio rather than entirely to the next withdrawer.
+Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
 
-_Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot.
-     Implementations should collect fees from the NFPM/POSM and take performance + platform fees
-     via the appropriate fee mechanism. Failures are silently ignored by the vault so that a
-     collect failure never bricks withdrawals — fee distribution falls back to the old (per-withdrawer)
-     behavior._
+_Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot. Strategy execute
+     paths also call their internal collect logic before mutating an existing position. Implementations
+     should collect fees from the NFPM/POSM and take performance + platform fees via the appropriate
+     fee mechanism._
 
 #### Parameters
 
@@ -171,7 +169,7 @@ _Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance sna
 | ---- | ---- | ----------- |
 | nfpm | address | NFT Position Manager (or V4 PositionManager) address |
 | tokenId | uint256 | Position NFT ID |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for performance fee; platform fee from configManager. |
+| vaultOwnerFeeBasisPoint | uint16 | Deprecated compatibility argument. Implementations must read vault-owner bps from the vault. |
 
 ### getPositionPrincipalAmounts
 

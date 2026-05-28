@@ -62,15 +62,18 @@ contract V4ForkMockERC20 {
   }
 }
 
-contract RecordingV4UtilsRouter {
-  address public lastPosm;
+contract RecordingSwapRouter {
   bytes public lastData;
-  uint256 public lastValue;
+  uint256 public callCount;
+  uint256 public lastAmountIn;
 
-  function execute(address posm, bytes calldata data) external payable {
-    lastPosm = posm;
-    lastData = data;
-    lastValue = msg.value;
+  function swap(address tokenIn, address tokenOut, uint256 amountOut) external {
+    callCount++;
+    lastData = msg.data;
+    uint256 amountIn = IERC20(tokenIn).allowance(msg.sender, address(this));
+    lastAmountIn = amountIn;
+    IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    V4ForkMockERC20(tokenOut).mint(msg.sender, amountOut == 0 ? amountIn : amountOut);
   }
 }
 
@@ -94,7 +97,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   SharedConfigManager internal configManager;
   SharedVault internal vault;
   SharedV4Strategy internal strategy;
-  RecordingV4UtilsRouter internal v4UtilsRouter;
+  RecordingSwapRouter internal swapRouter;
   uint256 internal tokenId;
 
   address internal vaultOwner;
@@ -125,8 +128,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
     posm.initializePool(poolKey, SQRT_PRICE_1_1);
 
-    v4UtilsRouter = new RecordingV4UtilsRouter();
-    strategy = new SharedV4Strategy(address(v4UtilsRouter));
+    swapRouter = new RecordingSwapRouter();
+    strategy = new SharedV4Strategy(address(swapRouter));
 
     address[] memory targets = new address[](1);
     targets[0] = address(strategy);
@@ -199,25 +202,27 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   }
 
   function test_execute_forwardsMultiHopDecreaseAndSwapPayloadWithRealV4PositionManager() public {
+    uint256 token1Before = token1.balanceOf(address(vault));
+
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
       tokenIn: address(token0),
       amountIn: 0.01 ether,
       tokenOut: address(hopToken),
       amountOutMin: 1,
-      swapData: abi.encode("token0-hop")
+      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
     });
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: address(hopToken),
       amountIn: 0,
       tokenOut: address(token1),
       amountOutMin: 1,
-      swapData: abi.encode("hop-token1")
+      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether))
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: 1, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
       }),
       swapParams: swaps,
       swapDestToken: address(token1),
@@ -245,10 +250,12 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     vault.execute(actions);
 
-    assertEq(v4UtilsRouter.lastPosm(), BASE_V4_POSM, "router receives POSM");
-    assertEq(keccak256(v4UtilsRouter.lastData()), keccak256(params), "router receives multi-hop payload");
-    assertEq(token0.allowance(address(vault), address(v4UtilsRouter)), 0, "token0 router approval cleared");
-    assertEq(token1.allowance(address(vault), address(v4UtilsRouter)), 0, "token1 router approval cleared");
+    assertEq(swapRouter.callCount(), 2, "native strategy executes both swap hops");
+    assertEq(keccak256(swapRouter.lastData()), keccak256(swaps[1].swapData), "router receives final hop payload");
+    assertGt(token1.balanceOf(address(vault)), token1Before, "vault receives final hop output");
+    assertEq(token0.allowance(address(vault), address(swapRouter)), 0, "token0 router approval cleared");
+    assertEq(hopToken.allowance(address(vault), address(swapRouter)), 0, "hop router approval cleared");
+    assertEq(token1.allowance(address(vault), address(swapRouter)), 0, "token1 router approval cleared");
     assertEq(IERC721(BASE_V4_POSM).getApproved(tokenId), address(0), "NFT approval cleared");
   }
 

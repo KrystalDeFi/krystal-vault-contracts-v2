@@ -179,7 +179,7 @@ contract SharedStrategyApprovalsTest is Test {
 
     cm = _setupConfigManager(address(nfpm));
 
-    // V3Strategy with dummy v3utils (not called in depositProportional)
+    // V3Strategy with dummy swap router (not called in depositProportional)
     SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
 
     StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));

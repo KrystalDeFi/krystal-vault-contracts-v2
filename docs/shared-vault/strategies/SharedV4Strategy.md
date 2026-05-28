@@ -36,6 +36,28 @@ struct DecreaseLiquidityParams {
 }
 ```
 
+### MintParams
+
+```solidity
+struct MintParams {
+  int24 tickLower;
+  int24 tickUpper;
+  uint256 minLiquidity;
+  bytes hookData;
+  uint256 deadline;
+}
+```
+
+### IncreaseLiquidityParams
+
+```solidity
+struct IncreaseLiquidityParams {
+  uint256 minLiquidity;
+  bytes hookData;
+  uint256 deadline;
+}
+```
+
 ### SwapParams
 
 ```solidity
@@ -61,6 +83,33 @@ struct DecreaseAndSwapParams {
 }
 ```
 
+### AdjustRangeParams
+
+```solidity
+struct AdjustRangeParams {
+  bytes collectFeesHookData;
+  struct IV4Utils.SwapParams[] swapParams;
+  struct IV4Utils.MintParams mintParams;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
+  uint64 gasFeeX64;
+  bool compoundFees;
+}
+```
+
+### CompoundFeesParams
+
+```solidity
+struct CompoundFeesParams {
+  bytes collectFeesHookData;
+  struct IV4Utils.SwapParams[] swapParams;
+  struct IV4Utils.IncreaseLiquidityParams increaseParams;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
+  uint64 gasFeeX64;
+}
+```
+
 ### execute
 
 ```solidity
@@ -71,10 +120,10 @@ function execute(address posm, uint256 tokenId, struct IV4Utils.Instructions ins
 
 Uniswap V4 LP operations for SharedVault with token validation and position tracking
 
-### v4UtilsRouter
+### swapRouter
 
 ```solidity
-address v4UtilsRouter
+address swapRouter
 ```
 
 ### OperationType
@@ -89,7 +138,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _v4UtilsRouter) public
+constructor(address _swapRouter) public
 ```
 
 ### execute
@@ -107,7 +156,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` accepts `IV4Utils`-compatible instructions and executes them natively through the        PositionManager. Utility fee fields remain API-controlled; platform and owner fees are read from        shared-vault config and vault state. |
 
 #### Return Values
 
@@ -155,11 +204,10 @@ _Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the e
 ### collectFees
 
 ```solidity
-function collectFees(address posm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external
+function collectFees(address posm, uint256 tokenId, uint16) external
 ```
 
-Pre-collect accumulated LP fees into vault idle balance so they are distributed
-        proportionally by share ratio rather than entirely to the next withdrawer.
+Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
 
 _Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
      decrease syncs fee growth without touching principal; CLOSE_CURRENCY sweeps accumulated fees
@@ -174,7 +222,7 @@ _Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a
 | ---- | ---- | ----------- |
 | posm | address |  |
 | tokenId | uint256 | Position NFT ID |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for performance fee; platform fee from configManager. |
+|  | uint16 |  |
 
 ### exitProportional
 
@@ -184,11 +232,8 @@ function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
-     Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
-     The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-     Fees on accumulated LP income are handled in collectFees (pre-collect) — not charged here
-     on principal, to match V3/Aerodrome which only takes gas fees on proportional exits._
+_Withdraw exits collect generated LP fees through collectFees() before the vault's idle snapshot.
+     This function only decreases principal natively and never charges platform/owner fees on principal._
 
 #### Parameters
 
