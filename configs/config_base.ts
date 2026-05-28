@@ -120,7 +120,19 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    sharedV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedPancakeV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedPancakeV4Strategy: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -128,7 +140,8 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v4NfpmAddresses: ["0x7c5f5a4bbd8fd63184577525326123b519429bdc", "0x55f4c8aba71a1e923edc303eb4feff14608cc226"],
+    v4NfpmAddresses: ["0x7c5f5a4bbd8fd63184577525326123b519429bdc"],
+    pancakeV4NfpmAddresses: ["0x55f4c8aba71a1e923edc303eb4feff14608cc226"],
   },
 };
 

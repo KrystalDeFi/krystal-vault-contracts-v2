@@ -3,10 +3,6 @@ pragma solidity ^0.8.28;
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
-import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
@@ -14,12 +10,13 @@ import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 import { IFeeTaker } from "../../public-vault/interfaces/strategies/IFeeTaker.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-import { SharedV4StrategyLib } from "../libraries/SharedV4StrategyLib.sol";
-import { ISharedV4Utils } from "../interfaces/ISharedV4Utils.sol";
+import { SharedPancakeV4StrategyLib } from "../libraries/SharedPancakeV4StrategyLib.sol";
+import { ISharedPancakeV4Utils, PancakeV4PoolKey } from "../interfaces/ISharedPancakeV4Utils.sol";
+import { IPancakeV4PositionManager } from "../interfaces/IPancakeV4PositionManager.sol";
 
-/// @title SharedV4Strategy
-/// @notice Uniswap V4 LP operations for SharedVault with token validation and position tracking
-contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
+/// @title SharedPancakeV4Strategy
+/// @notice PancakeSwap V4 LP operations for SharedVault with token validation and position tracking
+contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
   address public immutable swapRouter;
 
   enum OperationType {
@@ -57,25 +54,25 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     bytes4 selector = _v4ParamsSelector(params);
     _validateApprovalList(approveTokens, approveAmounts);
     require(ethValue == 0, ISharedCommon.InvalidAmount());
-    bool isExecute = selector == ISharedV4Utils.execute.selector;
-    bool isSwapAndMint = selector == ISharedV4Utils.swapAndMint.selector;
-    bool isSwapAndIncrease = selector == ISharedV4Utils.swapAndIncrease.selector;
+    bool isExecute = selector == ISharedPancakeV4Utils.execute.selector;
+    bool isSwapAndMint = selector == ISharedPancakeV4Utils.swapAndMint.selector;
+    bool isSwapAndIncrease = selector == ISharedPancakeV4Utils.swapAndIncrease.selector;
     if (!isExecute && !isSwapAndMint && !isSwapAndIncrease) revert ISharedCommon.InvalidOperation();
 
-    IPositionManager pm = IPositionManager(posm);
+    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
 
     // Snapshot next tokenId before the call to detect newly minted positions
     uint256 nextIdBefore = pm.nextTokenId();
 
     if (isExecute) {
       require(tokenId != 0, ISharedCommon.InvalidOperation());
-      SharedV4StrategyLib.executeCalldata(swapRouter, posm, tokenId, params);
+      SharedPancakeV4StrategyLib.executeCalldata(swapRouter, posm, tokenId, params);
     } else if (isSwapAndMint) {
       require(tokenId == 0, ISharedCommon.InvalidOperation());
-      SharedV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
+      SharedPancakeV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
     } else {
       require(tokenId != 0, ISharedCommon.InvalidOperation());
-      SharedV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
+      SharedPancakeV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
     }
 
     // Compute position changes from on-chain state — never trust caller-supplied values
@@ -84,9 +81,9 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       uint256 newId = nextIdBefore;
       require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
-      (PoolKey memory key,) = pm.getPoolAndPositionInfo(newId);
-      address c0 = Currency.unwrap(key.currency0);
-      address c1 = Currency.unwrap(key.currency1);
+      (PancakeV4PoolKey memory key,) = pm.getPoolAndPositionInfo(newId);
+      address c0 = key.currency0;
+      address c1 = key.currency1;
       _validateVaultToken(c0);
       _validateVaultToken(c1);
       changes = new PositionChange[](1);
@@ -97,19 +94,16 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     ) {
       // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory oldKey,) = pm.getPoolAndPositionInfo(tokenId);
-      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PancakeV4PoolKey memory oldKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PancakeV4PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
-      changes[0] =
-        PositionChange(false, posm, tokenId, Currency.unwrap(oldKey.currency0), Currency.unwrap(oldKey.currency1));
-      changes[1] = PositionChange(
-        true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1)
-      );
+      changes[0] = PositionChange(false, posm, tokenId, oldKey.currency0, oldKey.currency1);
+      changes[1] = PositionChange(true, posm, nextIdBefore, newKey.currency0, newKey.currency1);
     } else if (pm.getPositionLiquidity(tokenId) == 0) {
       // Full exit: liquidity drained to zero
-      (PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
+      (PancakeV4PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
       changes = new PositionChange[](1);
-      changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
+      changes[0] = PositionChange(false, posm, tokenId, key.currency0, key.currency1);
     } else {
       // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
@@ -122,17 +116,17 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
 
     _requireWhitelistedPosm(posm);
 
-    IPositionManager pm = IPositionManager(posm);
+    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
 
     // Read tokens and snapshot nextTokenId before transferring
-    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address c0 = Currency.unwrap(poolKey.currency0);
-    address c1 = Currency.unwrap(poolKey.currency1);
+    (PancakeV4PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+    address c0 = poolKey.currency0;
+    address c1 = poolKey.currency1;
     _validateVaultToken(c0);
     _validateVaultToken(c1);
     uint256 nextIdBefore = pm.nextTokenId();
 
-    SharedV4StrategyLib.executeInstructionBytes(swapRouter, posm, tokenId, instruction);
+    SharedPancakeV4StrategyLib.executeInstructionBytes(swapRouter, posm, tokenId, instruction);
 
     // Compute position changes from on-chain state after the transfer
     if (
@@ -141,12 +135,10 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     ) {
       // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PancakeV4PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
-      changes[1] = PositionChange(
-        true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1)
-      );
+      changes[1] = PositionChange(true, posm, nextIdBefore, newKey.currency0, newKey.currency1);
     } else if (!_posmNftOwnedByVault(posm, tokenId) || pm.getPositionLiquidity(tokenId) == 0) {
       // Full exit: vault no longer holds the NFT, or position liquidity is zero
       changes = new PositionChange[](1);
@@ -169,15 +161,15 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     external
     override
   {
-    SharedV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
+    SharedPancakeV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Collects accumulated fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
+  /// @dev Collects accumulated fees via CL_DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
   ///      decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
   ///      to the vault (address(this) in delegatecall context). Performance and platform fees are
   ///      then applied inline since V4Strategy has no dedicated lpFeeTaker.
-  ///      Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by
+  ///      Native ETH positions (currency address(0)) are rejected at position-add time by
   ///      _validateVaultToken, so this function is never called for native-currency pools.
   function collectFees(
     address posm,
@@ -187,7 +179,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     external
     override
   {
-    SharedV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
+    SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
   }
 
   /// @inheritdoc ISharedStrategy
@@ -202,7 +194,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     uint256 minAmount1,
     uint16 /* vaultOwnerFeeBasisPoint */
   ) external override returns (PositionChange[] memory changes) {
-    changes = SharedV4StrategyLib.exitProportional(posm, tokenId, shares, totalShares, minAmount0, minAmount1);
+    changes = SharedPancakeV4StrategyLib.exitProportional(posm, tokenId, shares, totalShares, minAmount0, minAmount1);
   }
 
   /// @inheritdoc ISharedStrategy
@@ -216,7 +208,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     override
     returns (uint256 amount0, uint256 amount1)
   {
-    (amount0, amount1) = SharedV4StrategyLib.getPositionAmounts(posm, tokenId);
+    (amount0, amount1) = SharedPancakeV4StrategyLib.getPositionAmounts(posm, tokenId);
   }
 
   /// @inheritdoc ISharedStrategy
@@ -226,9 +218,9 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     override
     returns (address token0, address token1)
   {
-    (PoolKey memory poolKey,) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
-    token0 = Currency.unwrap(poolKey.currency0);
-    token1 = Currency.unwrap(poolKey.currency1);
+    (PancakeV4PoolKey memory poolKey,) = IPancakeV4PositionManager(posm).getPoolAndPositionInfo(tokenId);
+    token0 = poolKey.currency0;
+    token1 = poolKey.currency1;
   }
 
   /// @inheritdoc ISharedStrategy
@@ -238,7 +230,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     override
     returns (uint256 amount0, uint256 amount1)
   {
-    (amount0, amount1) = SharedV4StrategyLib.getPositionPrincipalAmounts(posm, tokenId);
+    (amount0, amount1) = SharedPancakeV4StrategyLib.getPositionPrincipalAmounts(posm, tokenId);
   }
 
   function _posmNftOwnedByVault(address posm, uint256 id) private view returns (bool) {

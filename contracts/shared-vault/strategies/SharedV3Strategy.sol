@@ -232,9 +232,15 @@ contract SharedV3Strategy is ISharedStrategy {
       });
       (uint256 newTokenId, , , ) = _mintPosition(mintParams, total0, total1);
 
-      changes = new PositionChange[](2);
-      changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
-      changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
+      (, , , , , , , uint128 liqAfter, , , , ) = INFPM(nfpm).positions(tokenId);
+      if (liqAfter == 0) {
+        changes = new PositionChange[](2);
+        changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+        changes[1] = PositionChange(true, nfpm, newTokenId, token0, token1);
+      } else {
+        changes = new PositionChange[](1);
+        changes[0] = PositionChange(true, nfpm, newTokenId, token0, token1);
+      }
       return changes;
     }
 

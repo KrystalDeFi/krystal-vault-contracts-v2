@@ -1,121 +1,5 @@
 # Solidity API
 
-## IV4Utils
-
-_Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
-     Currency = address underneath, so address is used here for ABI-encoding compatibility._
-
-### UtilActions
-
-```solidity
-enum UtilActions {
-  ADJUST_RANGE,
-  DECREASE_AND_SWAP,
-  COMPOUND
-}
-```
-
-### Instructions
-
-```solidity
-struct Instructions {
-  enum IV4Utils.UtilActions action;
-  bytes params;
-}
-```
-
-### DecreaseLiquidityParams
-
-```solidity
-struct DecreaseLiquidityParams {
-  uint128 liquidity;
-  uint256 deadline;
-  uint256 amount0Min;
-  uint256 amount1Min;
-  bytes hookData;
-}
-```
-
-### MintParams
-
-```solidity
-struct MintParams {
-  int24 tickLower;
-  int24 tickUpper;
-  uint256 minLiquidity;
-  bytes hookData;
-  uint256 deadline;
-}
-```
-
-### IncreaseLiquidityParams
-
-```solidity
-struct IncreaseLiquidityParams {
-  uint256 minLiquidity;
-  bytes hookData;
-  uint256 deadline;
-}
-```
-
-### SwapParams
-
-```solidity
-struct SwapParams {
-  address tokenIn;
-  uint256 amountIn;
-  address tokenOut;
-  uint256 amountOutMin;
-  bytes swapData;
-}
-```
-
-### DecreaseAndSwapParams
-
-```solidity
-struct DecreaseAndSwapParams {
-  struct IV4Utils.DecreaseLiquidityParams decreaseParams;
-  struct IV4Utils.SwapParams[] swapParams;
-  address swapDestToken;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
-  uint64 gasFeeX64;
-}
-```
-
-### AdjustRangeParams
-
-```solidity
-struct AdjustRangeParams {
-  bytes collectFeesHookData;
-  struct IV4Utils.SwapParams[] swapParams;
-  struct IV4Utils.MintParams mintParams;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
-  uint64 gasFeeX64;
-  bool compoundFees;
-}
-```
-
-### CompoundFeesParams
-
-```solidity
-struct CompoundFeesParams {
-  bytes collectFeesHookData;
-  struct IV4Utils.SwapParams[] swapParams;
-  struct IV4Utils.IncreaseLiquidityParams increaseParams;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
-  uint64 gasFeeX64;
-}
-```
-
-### execute
-
-```solidity
-function execute(address posm, uint256 tokenId, struct IV4Utils.Instructions instructions) external
-```
-
 ## SharedV4Strategy
 
 Uniswap V4 LP operations for SharedVault with token validation and position tracking
@@ -156,7 +40,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` accepts `IV4Utils`-compatible instructions and executes them natively through the        PositionManager. Utility fee fields remain API-controlled; platform and owner fees are read from        shared-vault config and vault state. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` and `SharedPancakeV4Strategy` accept protocol-specific V4Utils-compatible        instructions and execute them natively through the relevant PositionManager. Utility fee fields remain        API-controlled; platform and owner fees are read from shared-vault config and vault state. |
 
 #### Return Values
 
@@ -209,8 +93,8 @@ function collectFees(address posm, uint256 tokenId, uint16) external
 
 Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
 
-_Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
-     decrease syncs fee growth without touching principal; CLOSE_CURRENCY sweeps accumulated fees
+_Collects accumulated fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
+     decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
      to the vault (address(this) in delegatecall context). Performance and platform fees are
      then applied inline since V4Strategy has no dedicated lpFeeTaker.
      Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by

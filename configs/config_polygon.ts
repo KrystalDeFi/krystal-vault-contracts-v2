@@ -66,6 +66,10 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    sharedV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedV4Strategy: {
       enabled: true,
       autoVerifyContract: true,
