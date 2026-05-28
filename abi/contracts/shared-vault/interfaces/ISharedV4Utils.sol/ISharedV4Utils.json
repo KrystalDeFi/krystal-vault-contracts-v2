@@ -120,11 +120,6 @@
             "type": "tuple[]"
           },
           {
-            "internalType": "Currency[]",
-            "name": "sweepTokens",
-            "type": "address[]"
-          },
-          {
             "internalType": "uint64",
             "name": "protocolFeeX64",
             "type": "uint64"
@@ -271,11 +266,6 @@
             "internalType": "struct ISharedV4Utils.InputTokenParams[]",
             "name": "inputTokens",
             "type": "tuple[]"
-          },
-          {
-            "internalType": "Currency[]",
-            "name": "sweepTokens",
-            "type": "address[]"
           },
           {
             "internalType": "uint64",

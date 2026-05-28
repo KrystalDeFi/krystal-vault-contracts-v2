@@ -39,7 +39,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   enum OperationType {
     SWAP_AND_MINT,
     SWAP_AND_INCREASE,
-    SAFE_TRANSFER_NFT
+    /// @dev Historically named `SAFE_TRANSFER_NFT`; the NFT no longer moves — the strategy
+    ///      executes the encoded instruction bytes inline. Renamed for clarity.
+    EXECUTE_INSTRUCTIONS
   }
 
   constructor(address _swapRouter, address _lpFeeTaker) {
@@ -56,8 +58,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       return _swapAndMint(data[32:]);
     } else if (opType == OperationType.SWAP_AND_INCREASE) {
       return _swapAndIncreaseLiquidity(data[32:]);
-    } else if (opType == OperationType.SAFE_TRANSFER_NFT) {
-      return _safeTransferNft(data[32:]);
+    } else if (opType == OperationType.EXECUTE_INSTRUCTIONS) {
+      return _executeInstructions(data[32:]);
     } else {
       revert ISharedCommon.InvalidOperation();
     }
@@ -119,7 +121,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
+  /// @dev Despite the historical `SAFE_TRANSFER_NFT` name, the NFT itself is never transferred —
+  ///      the strategy mutates the position in-place.
+  function _executeInstructions(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address _nfpm, uint256 tokenId, IV3Utils.Instructions memory instructions) = abi.decode(
       data,
       (address, uint256, IV3Utils.Instructions)
@@ -246,10 +250,15 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         pool,
         instructions.gasFeeX64
       );
+      // Cap requested liquidity at the position's current liquidity to match V4's
+      // `_decreaseV4Principal` semantics: oversized requests (e.g. `type(uint128).max` as a
+      // full-exit sentinel) collapse to a full exit instead of reverting in the NFPM.
+      // `liquidity == 0` still means "collect fees only, do not touch principal".
+      uint128 liquidityToRemove = instructions.liquidity > posLiquidity ? posLiquidity : instructions.liquidity;
       (uint256 principal0, uint256 principal1) = _decreasePrincipal(
         _nfpm,
         tokenId,
-        instructions.liquidity,
+        liquidityToRemove,
         instructions.amountRemoveMin0,
         instructions.amountRemoveMin1,
         token0,
@@ -276,12 +285,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  function collectFees(address _nfpm, uint256 tokenId, uint16 /* vaultOwnerFeeBasisPoint */ ) external override {
+  function collectFees(address _nfpm, uint256 tokenId, uint16 /* vaultOwnerFeeBasisPoint */) external override {
     _collectFees(_nfpm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
   }
 
   function _collectFees(address _nfpm, uint256 tokenId, ICommon.FeeConfig memory perfFee) internal {
-    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(_nfpm)
+      .positions(tokenId);
     address pool = _getPool(_nfpm, token0, token1, tickSpacing);
     SharedNfpmProportionalExit.collectAccumulatedFees(_nfpm, tokenId, token0, token1, pool, lpFeeTaker, perfFee);
   }
@@ -352,16 +362,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
-    _decreaseVaultPosition(
-      _nfpm,
-      tokenId,
-      liquidityToRemove,
-      minAmount0,
-      minAmount1,
-      token0,
-      token1,
-      tickSpacing
-    );
+    _decreaseVaultPosition(_nfpm, tokenId, liquidityToRemove, minAmount0, minAmount1, token0, token1, tickSpacing);
 
     if (isFullExit) {
       changes = new PositionChange[](1);
@@ -624,12 +625,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     ICommon.FeeConfig memory fc
   ) private returns (uint256 fee0, uint256 fee1) {
     if (
-      amount0 == 0 && amount1 == 0 ||
-      (
-        fc.platformFeeBasisPoint == 0 &&
-        fc.vaultOwnerFeeBasisPoint == 0 &&
-        fc.gasFeeX64 == 0
-      )
+      (amount0 == 0 && amount1 == 0) ||
+      (fc.platformFeeBasisPoint == 0 && fc.vaultOwnerFeeBasisPoint == 0 && fc.gasFeeX64 == 0)
     ) return (0, 0);
 
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(lpFeeTaker, amount0);
@@ -810,7 +807,10 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     // Include fees accrued since the last position update / collect (fee-growth delta).
     (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
-      ICLPool(pool), tickLower, tickUpper, tick
+      ICLPool(pool),
+      tickLower,
+      tickUpper,
+      tick
     );
     unchecked {
       tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
@@ -833,8 +833,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     int24 tickCurrent
   ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
     unchecked {
-      (,,, uint256 lowerFg0Outside, uint256 lowerFg1Outside,,,,,) = pool.ticks(tickLower);
-      (,,, uint256 upperFg0Outside, uint256 upperFg1Outside,,,,,) = pool.ticks(tickUpper);
+      (, , , uint256 lowerFg0Outside, uint256 lowerFg1Outside, , , , , ) = pool.ticks(tickLower);
+      (, , , uint256 upperFg0Outside, uint256 upperFg1Outside, , , , , ) = pool.ticks(tickUpper);
       uint256 fg0Global = pool.feeGrowthGlobal0X128();
       uint256 fg1Global = pool.feeGrowthGlobal1X128();
 
@@ -893,6 +893,10 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     require(ISharedVault(address(this)).isVaultToken(token), InvalidPoolTokens());
   }
 
+  /// @dev `approveTokens` / `approveAmounts` are NOT used to issue ERC20 approvals — those happen
+  ///      per-hop inside `_swap` against the immutable `swapRouter`. They are walked here purely
+  ///      to enforce that any positive-amount entry references a vault-tracked token, blocking
+  ///      operators from sneaking unrelated tokens through this entry point.
   function _validateApprovalList(address[] memory _tokens, uint256[] memory approveAmounts) internal view {
     require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length; ) {

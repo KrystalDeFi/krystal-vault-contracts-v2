@@ -157,7 +157,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // SAFE_TRANSFER_NFT: collect fees without removing liquidity
+  // EXECUTE_INSTRUCTIONS: collect fees without removing liquidity
   // =========================================================
 
   function test_safeTransferNft_collectFees() public {
@@ -202,7 +202,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     });
 
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
       abi.encode(NFPM, tokenId, instructions)
     );
 
@@ -219,7 +219,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // SAFE_TRANSFER_NFT: full withdraw removes position from tracking
+  // EXECUTE_INSTRUCTIONS: full withdraw removes position from tracking
   // =========================================================
 
   function test_safeTransferNft_fullWithdraw_removesPosition() public {
@@ -267,7 +267,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     });
 
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
       abi.encode(NFPM, tokenId, instructions)
     );
 
@@ -278,7 +278,69 @@ contract SharedVaultIntegrationTest is TestCommon {
     }
 
     assertEq(vault.getPositionCount(), 0, "position removed after full withdrawal");
-    console.log("SAFE_TRANSFER_NFT full withdraw: position removed");
+    console.log("EXECUTE_INSTRUCTIONS full withdraw: position removed");
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // EXECUTE_INSTRUCTIONS: oversized liquidity request collapses to a full exit
+  //
+  // Before the cap was added in SharedV3Strategy, passing a sentinel like type(uint128).max
+  // would revert at the NFPM. After the fix it collapses to the position's liquidity and
+  // becomes a clean full exit, matching V4's `_decreaseV4Principal` semantics.
+  // =========================================================
+  function test_executeInstructions_withdrawAndCollectAndSwap_capsOversizedLiquidityToFullExit() public {
+    vm.startPrank(vaultOwner);
+
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy),
+        _swapAndMintData(0.5 ether, 1500e6),
+        ISharedCommon.CallType.DELEGATECALL
+      );
+      vault.execute(mintActions);
+    }
+    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
+
+    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: 0,
+      amountRemoveMin1: 0,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: false,
+      liquidity: type(uint128).max, // oversized "full exit" sentinel
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp + 300,
+      recipient: address(vault),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(NFPM, tokenId, instructions)
+    );
+
+    ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
+    withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
+
+    vault.execute(withdrawActions);
+
+    assertEq(vault.getPositionCount(), 0, "oversized liquidity collapses to full exit and removes position");
 
     vm.stopPrank();
   }
@@ -386,7 +448,9 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     // msg.value = wethAmt for WETH initial deposit (wrapped by factory)
     SharedVault vault2 = SharedVault(
-      payable(vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, 0, actions))
+      payable(
+        vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, 0, actions)
+      )
     );
 
     // Vault should have exactly 1 LP position created atomically during vault creation

@@ -85,7 +85,6 @@ struct SwapAndMintParams {
   struct ISharedV4Utils.MintParams mintParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
   struct ISharedV4Utils.InputTokenParams[] inputTokens;
-  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -101,7 +100,6 @@ struct SwapAndIncreaseParams {
   struct ISharedV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
   struct ISharedV4Utils.InputTokenParams[] inputTokens;
-  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -114,7 +112,6 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
-  address swapDestToken;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;

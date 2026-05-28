@@ -24,7 +24,9 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
 
   enum OperationType {
     EXECUTE,
-    SAFE_TRANSFER_NFT
+    /// @dev Historically named `SAFE_TRANSFER_NFT`; the NFT no longer moves — the strategy
+    ///      executes the encoded instruction bytes inline via the lib. Renamed for clarity.
+    EXECUTE_INSTRUCTIONS
   }
 
   constructor(address _swapRouter) {
@@ -37,10 +39,15 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     OperationType opType = abi.decode(data[:32], (OperationType));
 
     if (opType == OperationType.EXECUTE) return _execute(data[32:]);
-    else if (opType == OperationType.SAFE_TRANSFER_NFT) return _safeTransferNft(data[32:]);
+    else if (opType == OperationType.EXECUTE_INSTRUCTIONS) return _executeInstructions(data[32:]);
     else revert ISharedCommon.InvalidOperation();
   }
 
+  /// @dev `approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
+  ///      used for ERC20 approvals. Approvals are issued per-hop inside `_swapV4` against the
+  ///      immutable `swapRouter`. These arrays are still walked by `_validateApprovalList` to
+  ///      enforce that any positive-amount entry references a vault-tracked token, which prevents
+  ///      operators from silently sneaking unrelated tokens through this entry point.
   function _execute(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (
       address posm,
@@ -84,7 +91,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       uint256 newId = nextIdBefore;
       require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
-      (PoolKey memory key,) = pm.getPoolAndPositionInfo(newId);
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(newId);
       address c0 = Currency.unwrap(key.currency0);
       address c1 = Currency.unwrap(key.currency1);
       _validateVaultToken(c0);
@@ -92,22 +99,32 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
       changes = new PositionChange[](1);
       changes[0] = PositionChange(true, posm, newId, c0, c1);
     } else if (
-      pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)
-        && pm.getPositionLiquidity(tokenId) == 0
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
     ) {
       // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory oldKey,) = pm.getPoolAndPositionInfo(tokenId);
-      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
-      changes[0] =
-        PositionChange(false, posm, tokenId, Currency.unwrap(oldKey.currency0), Currency.unwrap(oldKey.currency1));
+      changes[0] = PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(oldKey.currency0),
+        Currency.unwrap(oldKey.currency1)
+      );
       changes[1] = PositionChange(
-        true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1)
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
       );
     } else if (pm.getPositionLiquidity(tokenId) == 0) {
       // Full exit: liquidity drained to zero
-      (PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(tokenId);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
     } else {
@@ -117,15 +134,17 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     }
   }
 
-  function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
+  /// @dev Executes the encoded instruction bytes inline against the position; despite the
+  ///      historical name `SAFE_TRANSFER_NFT`, the NFT itself is never transferred — the strategy
+  ///      operates on the position in-place via the shared lib.
+  function _executeInstructions(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address posm, uint256 tokenId, bytes memory instruction) = abi.decode(data, (address, uint256, bytes));
 
     _requireWhitelistedPosm(posm);
 
     IPositionManager pm = IPositionManager(posm);
 
-    // Read tokens and snapshot nextTokenId before transferring
-    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
     address c0 = Currency.unwrap(poolKey.currency0);
     address c1 = Currency.unwrap(poolKey.currency1);
     _validateVaultToken(c0);
@@ -134,25 +153,26 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
 
     SharedV4StrategyLib.executeInstructionBytes(swapRouter, posm, tokenId, instruction);
 
-    // Compute position changes from on-chain state after the transfer
     if (
-      pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)
-        && pm.getPositionLiquidity(tokenId) == 0
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
     ) {
-      // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
       changes[1] = PositionChange(
-        true, posm, nextIdBefore, Currency.unwrap(newKey.currency0), Currency.unwrap(newKey.currency1)
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
       );
     } else if (!_posmNftOwnedByVault(posm, tokenId) || pm.getPositionLiquidity(tokenId) == 0) {
-      // Full exit: vault no longer holds the NFT, or position liquidity is zero
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
     } else {
-      // Partial or non-exit operation — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
       changes = new PositionChange[](0);
     }
@@ -165,10 +185,13 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
   ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
   ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
-  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
-    external
-    override
-  {
+  function depositProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
     SharedV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
   }
 
@@ -179,14 +202,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   ///      then applied inline since V4Strategy has no dedicated lpFeeTaker.
   ///      Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by
   ///      _validateVaultToken, so this function is never called for native-currency pools.
-  function collectFees(
-    address posm,
-    uint256 tokenId,
-    uint16 /* vaultOwnerFeeBasisPoint */
-  )
-    external
-    override
-  {
+  function collectFees(address posm, uint256 tokenId, uint16 /* vaultOwnerFeeBasisPoint */) external override {
     SharedV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
   }
 
@@ -210,34 +226,28 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   ///      and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
   ///      Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
   ///      no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions.
-  function getPositionAmounts(address posm, uint256 tokenId)
-    external
-    view
-    override
-    returns (uint256 amount0, uint256 amount1)
-  {
+  function getPositionAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
     (amount0, amount1) = SharedV4StrategyLib.getPositionAmounts(posm, tokenId);
   }
 
   /// @inheritdoc ISharedStrategy
-  function getPositionTokens(address posm, uint256 tokenId)
-    external
-    view
-    override
-    returns (address token0, address token1)
-  {
-    (PoolKey memory poolKey,) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
+  function getPositionTokens(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (address token0, address token1) {
+    (PoolKey memory poolKey, ) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
     token0 = Currency.unwrap(poolKey.currency0);
     token1 = Currency.unwrap(poolKey.currency1);
   }
 
   /// @inheritdoc ISharedStrategy
-  function getPositionPrincipalAmounts(address posm, uint256 tokenId)
-    external
-    view
-    override
-    returns (uint256 amount0, uint256 amount1)
-  {
+  function getPositionPrincipalAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
     (amount0, amount1) = SharedV4StrategyLib.getPositionPrincipalAmounts(posm, tokenId);
   }
 
@@ -258,7 +268,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   }
 
   function _validateApprovalList(address[] memory approveTokens, uint256[] memory approveAmounts) private view {
-    for (uint256 i; i < approveTokens.length;) {
+    for (uint256 i; i < approveTokens.length; ) {
       if (approveAmounts[i] > 0) _validateVaultToken(approveTokens[i]);
       unchecked {
         i++;

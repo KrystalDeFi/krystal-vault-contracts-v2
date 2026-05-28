@@ -63,7 +63,6 @@ interface ISharedPancakeV4Utils {
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
-    address[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -75,7 +74,6 @@ interface ISharedPancakeV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
-    address[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -84,7 +82,6 @@ interface ISharedPancakeV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
-    address swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -109,7 +106,11 @@ interface ISharedPancakeV4Utils {
     uint64 gasFeeX64;
   }
 
-  function swapAndMint(SwapAndMintParams calldata params) external payable;
-  function swapAndIncrease(SwapAndIncreaseParams calldata params) external payable;
+  /// @dev Not `payable`: `SharedPancakeV4Strategy._execute` enforces `ethValue == 0` and
+  ///      `_validateVaultToken` rejects `address(0)`, so native-currency pools are not supported.
+  function swapAndMint(SwapAndMintParams calldata params) external;
+
+  function swapAndIncrease(SwapAndIncreaseParams calldata params) external;
+
   function execute(address posm, uint256 tokenId, Instructions calldata instructions) external;
 }

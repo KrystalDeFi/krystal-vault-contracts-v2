@@ -105,7 +105,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   address internal depositor;
   address internal feeRecipient;
 
-  receive() external payable { }
+  receive() external payable {}
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), BASE_FORK_BLOCK);
@@ -180,8 +180,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(token0.allowance(address(vault), address(permit2)), 0, "token0 ERC20 Permit2 approval cleared");
     assertEq(token1.allowance(address(vault), address(permit2)), 0, "token1 ERC20 Permit2 approval cleared");
 
-    (uint160 permitAmount0,,) = permit2.allowance(address(vault), address(token0), BASE_V4_POSM);
-    (uint160 permitAmount1,,) = permit2.allowance(address(vault), address(token1), BASE_V4_POSM);
+    (uint160 permitAmount0, , ) = permit2.allowance(address(vault), address(token0), BASE_V4_POSM);
+    (uint160 permitAmount1, , ) = permit2.allowance(address(vault), address(token1), BASE_V4_POSM);
     assertEq(permitAmount0, 0, "token0 Permit2 POSM allowance cleared");
     assertEq(permitAmount1, 0, "token1 Permit2 POSM allowance cleared");
   }
@@ -223,16 +223,21 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+        liquidity: 0.5 ether,
+        deadline: block.timestamp,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
       }),
       swapParams: swaps,
-      swapDestToken: address(token1),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory instructions =
-      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
+    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
+    });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, tokenId, instructions));
 
     address[] memory approveTokens = new address[](2);
@@ -260,6 +265,60 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(IERC721(BASE_V4_POSM).getApproved(tokenId), address(0), "NFT approval cleared");
   }
 
+  // =========================================================
+  // Virtual ledger: a multi-hop pipeline that fails to fully consume an intermediate token
+  // MUST revert. Here hop 1 produces 0.01 ether of hopToken but hop 2 only consumes 0.005 ether,
+  // leaving 0.005 ether of an untracked token stranded in the vault outside TVL/share accounting.
+  // =========================================================
+  function test_execute_revertsWhenPipelineLeavesUnconsumedIntermediate() public {
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: address(token0),
+      amountIn: 0.01 ether,
+      tokenOut: address(hopToken),
+      amountOutMin: 1,
+      // RecordingSwapRouter mints `amountOut` of `tokenOut`; the third arg specifies the amountOut.
+      // First hop produces 0.01 ether of hopToken.
+      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
+    });
+    swaps[1] = IV4Utils.SwapParams({
+      tokenIn: address(hopToken),
+      amountIn: 0.005 ether, // intentionally consumes less than what hop 1 produced
+      tokenOut: address(token1),
+      amountOutMin: 1,
+      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether))
+    });
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether,
+        deadline: block.timestamp,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
+      }),
+      swapParams: swaps,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
+    });
+    bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, tokenId, instructions));
+
+    bytes memory innerData = abi.encode(BASE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+  }
+
   function _deploySortedTokenPair() internal returns (V4ForkMockERC20 sorted0, V4ForkMockERC20 sorted1) {
     V4ForkMockERC20 a = new V4ForkMockERC20("Token A", "TKNA");
     V4ForkMockERC20 b = new V4ForkMockERC20("Token B", "TKNB");
@@ -282,8 +341,16 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       params[2] = abi.encode(Currency.wrap(address(0)), address(this));
     }
 
-    params[0] =
-      abi.encode(key, TICK_LOWER, TICK_UPPER, INITIAL_LIQUIDITY, MAX_TOKEN_IN, MAX_TOKEN_IN, address(this), bytes(""));
+    params[0] = abi.encode(
+      key,
+      TICK_LOWER,
+      TICK_UPPER,
+      INITIAL_LIQUIDITY,
+      MAX_TOKEN_IN,
+      MAX_TOKEN_IN,
+      address(this),
+      bytes("")
+    );
     params[1] = abi.encode(key.currency0, key.currency1);
 
     mintedTokenId = posm.nextTokenId();

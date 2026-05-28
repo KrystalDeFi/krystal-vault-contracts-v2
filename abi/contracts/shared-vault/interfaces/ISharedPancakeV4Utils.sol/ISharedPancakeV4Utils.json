@@ -120,11 +120,6 @@
             "type": "tuple[]"
           },
           {
-            "internalType": "address[]",
-            "name": "sweepTokens",
-            "type": "address[]"
-          },
-          {
             "internalType": "uint64",
             "name": "protocolFeeX64",
             "type": "uint64"
@@ -147,7 +142,7 @@
     ],
     "name": "swapAndIncrease",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -278,11 +273,6 @@
             "type": "tuple[]"
           },
           {
-            "internalType": "address[]",
-            "name": "sweepTokens",
-            "type": "address[]"
-          },
-          {
             "internalType": "uint64",
             "name": "protocolFeeX64",
             "type": "uint64"
@@ -305,7 +295,7 @@
     ],
     "name": "swapAndMint",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ]

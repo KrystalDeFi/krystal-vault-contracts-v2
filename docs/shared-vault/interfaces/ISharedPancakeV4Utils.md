@@ -98,7 +98,6 @@ struct SwapAndMintParams {
   struct ISharedPancakeV4Utils.MintParams mintParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
-  address[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -114,7 +113,6 @@ struct SwapAndIncreaseParams {
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
-  address[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -127,7 +125,6 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedPancakeV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
-  address swapDestToken;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -164,13 +161,16 @@ struct CompoundFeesParams {
 ### swapAndMint
 
 ```solidity
-function swapAndMint(struct ISharedPancakeV4Utils.SwapAndMintParams params) external payable
+function swapAndMint(struct ISharedPancakeV4Utils.SwapAndMintParams params) external
 ```
+
+_Not `payable`: `SharedPancakeV4Strategy._execute` enforces `ethValue == 0` and
+     `_validateVaultToken` rejects `address(0)`, so native-currency pools are not supported._
 
 ### swapAndIncrease
 
 ```solidity
-function swapAndIncrease(struct ISharedPancakeV4Utils.SwapAndIncreaseParams params) external payable
+function swapAndIncrease(struct ISharedPancakeV4Utils.SwapAndIncreaseParams params) external
 ```
 
 ### execute

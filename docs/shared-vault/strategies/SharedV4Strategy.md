@@ -15,7 +15,7 @@ address swapRouter
 ```solidity
 enum OperationType {
   EXECUTE,
-  SAFE_TRANSFER_NFT
+  EXECUTE_INSTRUCTIONS
 }
 ```
 
@@ -54,11 +54,21 @@ _Strategy MUST validate that pool tokens are vault tokens.
 function _execute(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-### _safeTransferNft
+_`approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
+     used for ERC20 approvals. Approvals are issued per-hop inside `_swapV4` against the
+     immutable `swapRouter`. These arrays are still walked by `_validateApprovalList` to
+     enforce that any positive-amount entry references a vault-tracked token, which prevents
+     operators from silently sneaking unrelated tokens through this entry point._
+
+### _executeInstructions
 
 ```solidity
-function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
+function _executeInstructions(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
+
+_Executes the encoded instruction bytes inline against the position; despite the
+     historical name `SAFE_TRANSFER_NFT`, the NFT itself is never transferred — the strategy
+     operates on the position in-place via the shared lib._
 
 ### depositProportional
 

@@ -24,7 +24,7 @@ address lpFeeTaker
 enum OperationType {
   SWAP_AND_MINT,
   SWAP_AND_INCREASE,
-  SAFE_TRANSFER_NFT
+  EXECUTE_INSTRUCTIONS
 }
 ```
 
@@ -69,11 +69,14 @@ function _swapAndMint(bytes data) internal returns (struct ISharedStrategy.Posit
 function _swapAndIncreaseLiquidity(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-### _safeTransferNft
+### _executeInstructions
 
 ```solidity
-function _safeTransferNft(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
+function _executeInstructions(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
 ```
+
+_Despite the historical `SAFE_TRANSFER_NFT` name, the NFT itself is never transferred —
+     the strategy mutates the position in-place._
 
 ### collectFees
 
@@ -269,4 +272,9 @@ function _validateVaultToken(address token) internal view
 ```solidity
 function _validateApprovalList(address[] _tokens, uint256[] approveAmounts) internal view
 ```
+
+_`approveTokens` / `approveAmounts` are NOT used to issue ERC20 approvals — those happen
+     per-hop inside `_swap` against the immutable `swapRouter`. They are walked here purely
+     to enforce that any positive-amount entry references a vault-tracked token, blocking
+     operators from sneaking unrelated tokens through this entry point._
 

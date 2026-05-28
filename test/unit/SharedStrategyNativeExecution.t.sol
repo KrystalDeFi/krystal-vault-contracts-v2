@@ -99,20 +99,13 @@ contract NativeStrategyNfpm {
     return ownerOf[1] == owner ? 1 : 0;
   }
 
-  function positions(uint256) external view returns (
-    uint96,
-    address,
-    address,
-    address,
-    uint24,
-    int24,
-    int24,
-    uint128,
-    uint256,
-    uint256,
-    uint128,
-    uint128
-  ) {
+  function positions(
+    uint256
+  )
+    external
+    view
+    returns (uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128)
+  {
     return (
       0,
       address(0),
@@ -139,10 +132,9 @@ contract NativeStrategyNfpm {
     if (amount1 > 0) NativeStrategyToken(token1).mint(params.recipient, amount1);
   }
 
-  function increaseLiquidity(INFPM.IncreaseLiquidityParams calldata params)
-    external
-    returns (uint128 addedLiquidity, uint256 amount0, uint256 amount1)
-  {
+  function increaseLiquidity(
+    INFPM.IncreaseLiquidityParams calldata params
+  ) external returns (uint128 addedLiquidity, uint256 amount0, uint256 amount1) {
     amount0 = params.amount0Desired;
     amount1 = params.amount1Desired;
     if (amount0 > 0) IERC20(token0).transferFrom(msg.sender, address(this), amount0);
@@ -157,11 +149,9 @@ contract NativeStrategyNfpm {
 }
 
 contract NativeStrategyNoopV3Utils {
-  function swapAndIncreaseLiquidity(IV3Utils.SwapAndIncreaseLiquidityParams calldata)
-    external
-    payable
-    returns (IV3Utils.SwapAndIncreaseLiquidityResult memory result)
-  {
+  function swapAndIncreaseLiquidity(
+    IV3Utils.SwapAndIncreaseLiquidityParams calldata
+  ) external payable returns (IV3Utils.SwapAndIncreaseLiquidityResult memory result) {
     return result;
   }
 }
@@ -183,7 +173,11 @@ contract NativeStrategyLpFeeTaker is ILpFeeTaker {
     fee1 = _takeTokenFees(token1, amount1, feeConfig);
   }
 
-  function _takeTokenFees(address token, uint256 amount, FeeConfig memory feeConfig) private returns (uint256 totalFee) {
+  function _takeTokenFees(
+    address token,
+    uint256 amount,
+    FeeConfig memory feeConfig
+  ) private returns (uint256 totalFee) {
     uint256 platformFee = (amount * feeConfig.platformFeeBasisPoint) / 10_000;
     if (platformFee > 0) {
       IERC20(token).transferFrom(msg.sender, feeConfig.platformFeeRecipient, platformFee);
@@ -223,7 +217,10 @@ contract NativeStrategyVaultHarness {
     isVaultToken[token] = true;
   }
 
-  function executeStrategy(address strategy, bytes memory data) external returns (ISharedStrategy.PositionChange[] memory changes) {
+  function executeStrategy(
+    address strategy,
+    bytes memory data
+  ) external returns (ISharedStrategy.PositionChange[] memory changes) {
     (bool ok, bytes memory result) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
     if (!ok) {
       assembly {
@@ -344,7 +341,7 @@ contract SharedStrategyNativeExecutionTest is Test {
     });
 
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
       abi.encode(address(nfpm), uint256(1), instructions)
     );
 
