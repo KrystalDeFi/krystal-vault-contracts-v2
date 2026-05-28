@@ -32,7 +32,7 @@ contract GatewayMockWETH9 {
   function withdraw(uint256 wad) external {
     require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
     balanceOf[msg.sender] -= wad;
-    (bool ok, ) = msg.sender.call{ value: wad }("");
+    (bool ok,) = msg.sender.call{ value: wad }("");
     require(ok, "ETH transfer failed");
   }
 
@@ -105,6 +105,52 @@ contract GatewayMockERC20 {
   }
 }
 
+contract GatewayFotToken {
+  string public name = "Gateway FOT";
+  string public symbol = "GFOT";
+  uint8 public decimals = 18;
+  uint256 public immutable feeBps;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+  uint256 public totalSupply;
+
+  constructor(uint256 _feeBps) {
+    feeBps = _feeBps;
+  }
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+    totalSupply += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    _transfer(msg.sender, to, amount);
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+      allowance[from][msg.sender] -= amount;
+    }
+    _transfer(from, to, amount);
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+
+  function _transfer(address from, address to, uint256 amount) internal {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount - fee;
+    totalSupply -= fee;
+  }
+}
+
 /// @dev Simulates a swap aggregator router. Given pre-funded output tokens, it executes
 ///      a 1:rate swap. Rate is configurable per pair at deploy time, defaults to 1:1.
 contract MockAggregatorRouter {
@@ -128,11 +174,8 @@ contract MockAggregatorRouter {
     bytes32 key = keccak256(abi.encodePacked(tokenIn, tokenOut));
     Rate memory r = rates[key];
     uint256 amountOut;
-    if (r.rateDen > 0) {
-      amountOut = (amountIn * r.rateNum) / r.rateDen;
-    } else {
-      amountOut = amountIn; // default 1:1
-    }
+    if (r.rateDen > 0) amountOut = (amountIn * r.rateNum) / r.rateDen;
+    else amountOut = amountIn; // default 1:1
     GatewayMockERC20(tokenOut).transfer(msg.sender, amountOut);
   }
 
@@ -147,11 +190,8 @@ contract MockAggregatorRouter {
     bytes32 key = keccak256(abi.encodePacked(tokenIn, tokenOut));
     Rate memory r = rates[key];
     uint256 amountOut;
-    if (r.rateDen > 0) {
-      amountOut = (amountIn * r.rateNum) / r.rateDen;
-    } else {
-      amountOut = amountIn;
-    }
+    if (r.rateDen > 0) amountOut = (amountIn * r.rateNum) / r.rateDen;
+    else amountOut = amountIn;
     GatewayMockERC20(tokenOut).transfer(msg.sender, amountOut);
   }
 }
@@ -218,24 +258,17 @@ contract SharedVaultGatewayTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     vault.initialize(
-      "4-Token Vault",
-      vaultTokens,
-      initialAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "4-Token Vault", vaultTokens, initialAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
   }
 
   // ==================== Helpers ====================
 
-  function _buildSwapCalldata(
-    address tokenIn,
-    address tokenOut,
-    uint256 amountIn
-  ) internal pure returns (bytes memory) {
+  function _buildSwapCalldata(address tokenIn, address tokenOut, uint256 amountIn)
+    internal
+    pure
+    returns (bytes memory)
+  {
     return abi.encodeCall(MockAggregatorRouter.swap, (tokenIn, tokenOut, amountIn));
   }
 
@@ -269,41 +302,32 @@ contract SharedVaultGatewayTest is TestCommon {
     inputs[0] = SharedVaultGateway.InputToken(t0, a0);
   }
 
-  function _inputs2(
-    address t0,
-    uint256 a0,
-    address t1,
-    uint256 a1
-  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+  function _inputs2(address t0, uint256 a0, address t1, uint256 a1)
+    internal
+    pure
+    returns (SharedVaultGateway.InputToken[] memory inputs)
+  {
     inputs = new SharedVaultGateway.InputToken[](2);
     inputs[0] = SharedVaultGateway.InputToken(t0, a0);
     inputs[1] = SharedVaultGateway.InputToken(t1, a1);
   }
 
-  function _inputs3(
-    address t0,
-    uint256 a0,
-    address t1,
-    uint256 a1,
-    address t2,
-    uint256 a2
-  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+  function _inputs3(address t0, uint256 a0, address t1, uint256 a1, address t2, uint256 a2)
+    internal
+    pure
+    returns (SharedVaultGateway.InputToken[] memory inputs)
+  {
     inputs = new SharedVaultGateway.InputToken[](3);
     inputs[0] = SharedVaultGateway.InputToken(t0, a0);
     inputs[1] = SharedVaultGateway.InputToken(t1, a1);
     inputs[2] = SharedVaultGateway.InputToken(t2, a2);
   }
 
-  function _inputs4(
-    address t0,
-    uint256 a0,
-    address t1,
-    uint256 a1,
-    address t2,
-    uint256 a2,
-    address t3,
-    uint256 a3
-  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+  function _inputs4(address t0, uint256 a0, address t1, uint256 a1, address t2, uint256 a2, address t3, uint256 a3)
+    internal
+    pure
+    returns (SharedVaultGateway.InputToken[] memory inputs)
+  {
     inputs = new SharedVaultGateway.InputToken[](4);
     inputs[0] = SharedVaultGateway.InputToken(t0, a0);
     inputs[1] = SharedVaultGateway.InputToken(t1, a1);
@@ -315,21 +339,27 @@ contract SharedVaultGatewayTest is TestCommon {
     return new SharedVaultGateway.InputToken[](0);
   }
 
-  function _setupEightDecimalGatewayVault()
-    internal
-    returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB)
-  {
+  function _setupEightDecimalGatewayVault() internal returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB) {
     v = new SharedVault();
     tA = new GatewayMockERC20("Gateway Eight A", "GEA", 18);
     tB = new GatewayMockERC20("Gateway Eight B", "GEB", 8);
 
     tA.mint(address(v), 100e18);
-    tB.mint(address(v), 5_521);
+    tB.mint(address(v), 5521);
 
     address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
-    uint256[4] memory initAmounts = [uint256(100e18), uint256(5_521), uint256(0), uint256(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(5521), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("Gateway Eight Decimal Vault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
+    v.initialize(
+      "Gateway Eight Decimal Vault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      0
+    );
   }
 
   // ==================== Initialization Tests ====================
@@ -399,7 +429,9 @@ contract SharedVaultGatewayTest is TestCommon {
     // Pull all 4 tokens directly via inputs[]; no swaps needed.
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -417,6 +449,62 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenD.balanceOf(address(gateway)), 0, "No tokenD leftover in gateway");
   }
 
+  function test_swapAndDeposit_feeOnTransferVaultToken_usesActualGatewayBalanceAndSweepsClean() public {
+    GatewayFotToken fot = new GatewayFotToken(200);
+    GatewayMockERC20 paired = new GatewayMockERC20("Paired", "PAIR", 18);
+    SharedVault fotVault = new SharedVault();
+
+    fot.mint(address(this), 100e18);
+    paired.mint(address(this), 100e18);
+    fot.transfer(address(fotVault), 100e18); // vault receives 98e18
+    paired.transfer(address(fotVault), 100e18);
+
+    address[4] memory vaultTokens = [address(fot), address(paired), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    fotVault.initialize(
+      "Gateway FOT Vault", vaultTokens, initialAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
+    );
+
+    fot.mint(ALICE, 50e18);
+    paired.mint(ALICE, 50e18);
+
+    vm.startPrank(ALICE);
+    fot.approve(address(gateway), type(uint256).max);
+    paired.approve(address(gateway), type(uint256).max);
+
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](2);
+    inputs[0] = SharedVaultGateway.InputToken({ token: address(fot), amount: 50e18 });
+    inputs[1] = SharedVaultGateway.InputToken({ token: address(paired), amount: 50e18 });
+
+    address[] memory sweepTokens = new address[](2);
+    sweepTokens[0] = address(fot);
+    sweepTokens[1] = address(paired);
+
+    uint256 fotVaultBefore = fot.balanceOf(address(fotVault));
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(fotVault)),
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: sweepTokens
+    });
+
+    uint256 shares = gateway.swapAndDeposit(params);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "FOT gateway deposit mints shares from actual receipt");
+    assertEq(fotVault.balanceOf(ALICE), shares, "shares are attributed to caller");
+    assertEq(
+      fot.balanceOf(address(fotVault)) - fotVaultBefore,
+      (49e18 * 9800) / 10_000,
+      "vault credits actual second-hop FOT receipt"
+    );
+    assertEq(fot.balanceOf(address(gateway)), 0, "no FOT stranded in gateway");
+    assertEq(paired.balanceOf(address(gateway)), 0, "no paired token stranded in gateway");
+  }
+
   function test_swapAndDeposit_emitsVaultDepositForShareholder() public {
     tokenA.mint(ALICE, 100e18);
     tokenB.mint(ALICE, 200e18);
@@ -426,7 +514,9 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -471,32 +561,16 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenA),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
+      address(tokenX), 100e18, address(tokenA), 90e18, _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenB),
-      180e18,
-      _buildSwapCalldata(address(tokenX), address(tokenB), 100e18)
+      address(tokenX), 100e18, address(tokenB), 180e18, _buildSwapCalldata(address(tokenX), address(tokenB), 100e18)
     );
     swaps[2] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenC),
-      45e6,
-      _buildSwapCalldata(address(tokenX), address(tokenC), 100e18)
+      address(tokenX), 100e18, address(tokenC), 45e6, _buildSwapCalldata(address(tokenX), address(tokenC), 100e18)
     );
     swaps[3] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenD),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tokenD), 100e18)
+      address(tokenX), 100e18, address(tokenD), 90e18, _buildSwapCalldata(address(tokenX), address(tokenD), 100e18)
     );
 
     // Single tokenX input of 400, split internally across 4 swaps.
@@ -532,7 +606,9 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs4(address(tokenA), 150e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      inputs: _inputs4(
+        address(tokenA), 150e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -568,11 +644,7 @@ contract SharedVaultGatewayTest is TestCommon {
     // Then swap 100A → 50C from gateway balance.
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenA),
-      100e18,
-      address(tokenC),
-      45e6,
-      _buildSwapCalldata(address(tokenA), address(tokenC), 100e18)
+      address(tokenA), 100e18, address(tokenC), 45e6, _buildSwapCalldata(address(tokenA), address(tokenC), 100e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -606,11 +678,7 @@ contract SharedVaultGatewayTest is TestCommon {
     // amountOutMin = 90A, but router will only give 50A → SlippageExceeded
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenA),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
+      address(tokenX), 100e18, address(tokenA), 90e18, _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -636,11 +704,7 @@ contract SharedVaultGatewayTest is TestCommon {
     // Router has no output tokens → swap will fail
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenA),
-      0,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
+      address(tokenX), 100e18, address(tokenA), 0, _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -688,7 +752,9 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -776,25 +842,13 @@ contract SharedVaultGatewayTest is TestCommon {
     // Use amountIn=0 to swap full balance of each, with swapAll calldata
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](3);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenB),
-      0,
-      address(tokenA),
-      0,
-      _buildSwapAllCalldata(address(tokenB), address(tokenA))
+      address(tokenB), 0, address(tokenA), 0, _buildSwapAllCalldata(address(tokenB), address(tokenA))
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenC),
-      0,
-      address(tokenA),
-      0,
-      _buildSwapAllCalldata(address(tokenC), address(tokenA))
+      address(tokenC), 0, address(tokenA), 0, _buildSwapAllCalldata(address(tokenC), address(tokenA))
     );
     swaps[2] = SharedVaultGateway.SwapParams(
-      address(tokenD),
-      0,
-      address(tokenA),
-      0,
-      _buildSwapAllCalldata(address(tokenD), address(tokenA))
+      address(tokenD), 0, address(tokenA), 0, _buildSwapAllCalldata(address(tokenD), address(tokenA))
     );
 
     address[] memory sweepTokens = new address[](0);
@@ -912,11 +966,7 @@ contract SharedVaultGatewayTest is TestCommon {
     // Pull 200X total but only swap 50X → tokenA; 150X remains and is swept back.
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      50e18,
-      address(tokenA),
-      0,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 50e18)
+      address(tokenX), 50e18, address(tokenA), 0, _buildSwapCalldata(address(tokenX), address(tokenA), 50e18)
     );
 
     address[] memory sweepTokens = new address[](1);
@@ -999,7 +1049,9 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory depositParams = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -1088,11 +1140,7 @@ contract SharedVaultGatewayTest is TestCommon {
     // Swap amountIn=150A but calldata only asks the router to pull 100A (partial fill).
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenA),
-      150e18,
-      address(tokenB),
-      0,
-      _buildSwapCalldata(address(tokenA), address(tokenB), 100e18)
+      address(tokenA), 150e18, address(tokenB), 0, _buildSwapCalldata(address(tokenA), address(tokenB), 100e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -1128,14 +1176,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     vault2.initialize(
-      "Two Token",
-      v2Tokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "Two Token", v2Tokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
 
     // Alice deposits a single token (tokenX) and swaps to A and B
@@ -1152,18 +1193,10 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tA),
-      40e18,
-      _buildSwapCalldata(address(tokenX), address(tA), 100e18)
+      address(tokenX), 100e18, address(tA), 40e18, _buildSwapCalldata(address(tokenX), address(tA), 100e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tB),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tB), 100e18)
+      address(tokenX), 100e18, address(tB), 90e18, _buildSwapCalldata(address(tokenX), address(tB), 100e18)
     );
 
     address[] memory sweepTokens = new address[](1);
@@ -1218,10 +1251,10 @@ contract SharedVaultGatewayTest is TestCommon {
     (SharedVault dustVault, GatewayMockERC20 tA, GatewayMockERC20 tB) = _setupEightDecimalGatewayVault();
 
     uint256[4] memory vaultMins = dustVault.getMinDepositAmounts();
-    assertEq(vaultMins[1], 1_000, "8-decimal vault floor");
+    assertEq(vaultMins[1], 1000, "8-decimal vault floor");
 
     tA.mint(ALICE, 10e18);
-    tB.mint(ALICE, 1_000);
+    tB.mint(ALICE, 1000);
     vm.startPrank(ALICE);
     tA.approve(address(gateway), type(uint256).max);
     tB.approve(address(gateway), type(uint256).max);
@@ -1229,7 +1262,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(dustVault)),
-      inputs: _inputs2(address(tA), 10e18, address(tB), 1_000),
+      inputs: _inputs2(address(tA), 10e18, address(tB), 1000),
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: vaultMins,
       slippageBps: 0,
@@ -1241,7 +1274,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertGt(shares, 0, "shares minted");
     assertEq(dustVault.balanceOf(ALICE), shares, "gateway deposits to Alice");
-    assertEq(tB.balanceOf(address(dustVault)), 6_521, "vault received the 1_000-unit floor");
+    assertEq(tB.balanceOf(address(dustVault)), 6521, "vault received the 1_000-unit floor");
     assertEq(tA.balanceOf(address(gateway)), 0, "gateway has no tokenA residue");
     assertEq(tB.balanceOf(address(gateway)), 0, "gateway has no tokenB residue");
   }
@@ -1260,18 +1293,10 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      10e18,
-      address(tA),
-      10e18,
-      _buildSwapCalldata(address(tokenX), address(tA), 10e18)
+      address(tokenX), 10e18, address(tA), 10e18, _buildSwapCalldata(address(tokenX), address(tA), 10e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      1e18,
-      address(tB),
-      999,
-      _buildSwapCalldata(address(tokenX), address(tB), 1e18)
+      address(tokenX), 1e18, address(tB), 999, _buildSwapCalldata(address(tokenX), address(tB), 1e18)
     );
 
     uint256[4] memory vaultMins = dustVault.getMinDepositAmounts();
@@ -1293,9 +1318,9 @@ contract SharedVaultGatewayTest is TestCommon {
     (SharedVault dustVault, GatewayMockERC20 tA, GatewayMockERC20 tB) = _setupEightDecimalGatewayVault();
 
     tA.mint(address(router), 10e18);
-    tB.mint(address(router), 1_000);
+    tB.mint(address(router), 1000);
     router.setRate(address(tokenX), address(tA), 1, 1);
-    router.setRate(address(tokenX), address(tB), 1_000, 1e18);
+    router.setRate(address(tokenX), address(tB), 1000, 1e18);
 
     tokenX.mint(ALICE, 11e18);
     vm.prank(ALICE);
@@ -1303,18 +1328,10 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      10e18,
-      address(tA),
-      10e18,
-      _buildSwapCalldata(address(tokenX), address(tA), 10e18)
+      address(tokenX), 10e18, address(tA), 10e18, _buildSwapCalldata(address(tokenX), address(tA), 10e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      1e18,
-      address(tB),
-      1_000,
-      _buildSwapCalldata(address(tokenX), address(tB), 1e18)
+      address(tokenX), 1e18, address(tB), 1000, _buildSwapCalldata(address(tokenX), address(tB), 1e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -1331,7 +1348,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertGt(shares, 0, "shares minted from swapped floor amount");
     assertEq(dustVault.balanceOf(ALICE), shares, "shares minted to Alice");
-    assertEq(tB.balanceOf(address(dustVault)), 6_521, "vault received 1_000 swapped units");
+    assertEq(tB.balanceOf(address(dustVault)), 6521, "vault received 1_000 swapped units");
     assertEq(tokenX.balanceOf(address(gateway)), 0, "gateway has no tokenX residue");
   }
 
@@ -1393,32 +1410,16 @@ contract SharedVaultGatewayTest is TestCommon {
     // Deposit: 400X → 100A + 200B + 50C + 100D → vault shares
     SharedVaultGateway.SwapParams[] memory depositSwaps = new SharedVaultGateway.SwapParams[](4);
     depositSwaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenA),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
+      address(tokenX), 100e18, address(tokenA), 90e18, _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
     );
     depositSwaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenB),
-      180e18,
-      _buildSwapCalldata(address(tokenX), address(tokenB), 100e18)
+      address(tokenX), 100e18, address(tokenB), 180e18, _buildSwapCalldata(address(tokenX), address(tokenB), 100e18)
     );
     depositSwaps[2] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenC),
-      45e6,
-      _buildSwapCalldata(address(tokenX), address(tokenC), 100e18)
+      address(tokenX), 100e18, address(tokenC), 45e6, _buildSwapCalldata(address(tokenX), address(tokenC), 100e18)
     );
     depositSwaps[3] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      100e18,
-      address(tokenD),
-      90e18,
-      _buildSwapCalldata(address(tokenX), address(tokenD), 100e18)
+      address(tokenX), 100e18, address(tokenD), 90e18, _buildSwapCalldata(address(tokenX), address(tokenD), 100e18)
     );
 
     address[] memory sweepTokens = new address[](1);
@@ -1441,32 +1442,16 @@ contract SharedVaultGatewayTest is TestCommon {
     // Withdraw: shares → 4 vault tokens → swaps → tokenX
     SharedVaultGateway.SwapParams[] memory withdrawSwaps = new SharedVaultGateway.SwapParams[](4);
     withdrawSwaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenA),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenA), address(tokenX))
+      address(tokenA), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenA), address(tokenX))
     );
     withdrawSwaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenB),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenB), address(tokenX))
+      address(tokenB), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenB), address(tokenX))
     );
     withdrawSwaps[2] = SharedVaultGateway.SwapParams(
-      address(tokenC),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenC), address(tokenX))
+      address(tokenC), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenC), address(tokenX))
     );
     withdrawSwaps[3] = SharedVaultGateway.SwapParams(
-      address(tokenD),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenD), address(tokenX))
+      address(tokenD), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenD), address(tokenX))
     );
 
     SharedVaultGateway.WithdrawAndSwapParams memory withdrawParams = SharedVaultGateway.WithdrawAndSwapParams({
@@ -1535,11 +1520,7 @@ contract SharedVaultGatewayTest is TestCommon {
       _buildSwapCalldata(address(mockWeth), address(tokenB), 1 ether)
     );
     swaps[2] = SharedVaultGateway.SwapParams(
-      address(mockWeth),
-      1 ether,
-      address(tokenC),
-      45e6,
-      _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
+      address(mockWeth), 1 ether, address(tokenC), 45e6, _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
     );
     swaps[3] = SharedVaultGateway.SwapParams(
       address(mockWeth),
@@ -1662,32 +1643,16 @@ contract SharedVaultGatewayTest is TestCommon {
     // The swapData hard-codes the exact WETH amount so the router takes the right portion each time
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(mockWeth),
-      0,
-      address(tokenA),
-      90e18,
-      _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
+      address(mockWeth), 0, address(tokenA), 90e18, _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(mockWeth),
-      0,
-      address(tokenB),
-      180e18,
-      _buildSwapCalldata(address(mockWeth), address(tokenB), 1 ether)
+      address(mockWeth), 0, address(tokenB), 180e18, _buildSwapCalldata(address(mockWeth), address(tokenB), 1 ether)
     );
     swaps[2] = SharedVaultGateway.SwapParams(
-      address(mockWeth),
-      0,
-      address(tokenC),
-      45e6,
-      _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
+      address(mockWeth), 0, address(tokenC), 45e6, _buildSwapCalldata(address(mockWeth), address(tokenC), 1 ether)
     );
     swaps[3] = SharedVaultGateway.SwapParams(
-      address(mockWeth),
-      0,
-      address(tokenD),
-      90e18,
-      _buildSwapCalldata(address(mockWeth), address(tokenD), 1 ether)
+      address(mockWeth), 0, address(tokenD), 90e18, _buildSwapCalldata(address(mockWeth), address(tokenD), 1 ether)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -1981,32 +1946,16 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenA),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenA), address(tokenX))
+      address(tokenA), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenA), address(tokenX))
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenB),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenB), address(tokenX))
+      address(tokenB), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenB), address(tokenX))
     );
     swaps[2] = SharedVaultGateway.SwapParams(
-      address(tokenC),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenC), address(tokenX))
+      address(tokenC), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenC), address(tokenX))
     );
     swaps[3] = SharedVaultGateway.SwapParams(
-      address(tokenD),
-      0,
-      address(tokenX),
-      0,
-      _buildSwapAllCalldata(address(tokenD), address(tokenX))
+      address(tokenD), 0, address(tokenX), 0, _buildSwapAllCalldata(address(tokenD), address(tokenX))
     );
 
     SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
@@ -2077,14 +2026,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     wethVault.initialize(
-      "WETH-TokenA Vault",
-      vaultTokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "WETH-TokenA Vault", vaultTokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
 
     // Alice deposits 1 WETH (ERC20) + 100 tokenA = 10% of pool
@@ -2256,11 +2198,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenC),
-      2e6,
-      address(tokenA),
-      3e18,
-      _buildSwapCalldata(address(tokenC), address(tokenA), 2e6)
+      address(tokenC), 2e6, address(tokenA), 3e18, _buildSwapCalldata(address(tokenC), address(tokenA), 2e6)
     );
 
     // BUG SIMULATION: Alice (or the off-chain API) only declares 2 tokenC in inputs —
@@ -2299,18 +2237,10 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      60e18,
-      address(tokenA),
-      55e18,
-      _buildSwapCalldata(address(tokenX), address(tokenA), 60e18)
+      address(tokenX), 60e18, address(tokenA), 55e18, _buildSwapCalldata(address(tokenX), address(tokenA), 60e18)
     );
     swaps[1] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      40e18,
-      address(tokenB),
-      75e18,
-      _buildSwapCalldata(address(tokenX), address(tokenB), 40e18)
+      address(tokenX), 40e18, address(tokenB), 75e18, _buildSwapCalldata(address(tokenX), address(tokenB), 40e18)
     );
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
@@ -2363,7 +2293,7 @@ contract SharedVaultGatewayTest is TestCommon {
   // ==================== Withdrawable Tests ====================
 
   // Allow this test contract to receive ETH so sweepNativeToken can transfer to address(this).
-  receive() external payable {}
+  receive() external payable { }
 
   function test_withdrawable_sweepNativeToken_owner_succeeds() public {
     vm.deal(address(gateway), 1 ether);

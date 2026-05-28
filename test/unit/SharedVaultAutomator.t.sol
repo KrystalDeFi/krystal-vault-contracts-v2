@@ -70,15 +70,12 @@ contract MockAutomatorStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -94,9 +91,9 @@ contract MockAutomatorStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock EIP-1271 multisig wallet — validates signatures from a set of approved signers
@@ -126,14 +123,14 @@ contract MockMultisig {
   }
 
   // Allow the multisig to receive calls (for cancelOrder via msg.sender)
-  fallback() external payable {}
+  fallback() external payable { }
 
-  receive() external payable {}
+  receive() external payable { }
 }
 
 // Expose internal EIP-712 helpers for test signing
 contract SharedVaultAutomatorHelper is SharedVaultAutomator {
-  constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) {}
+  constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) { }
 
   function hashTypedDataV4(bytes32 structHash) external view returns (bytes32) {
     return super._hashTypedDataV4(structHash);
@@ -186,14 +183,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
     vault.initialize(
-      "Test Vault",
-      vaultTokens,
-      initialAmounts,
-      VAULT_OWNER,
-      address(0),
-      address(configManager),
-      address(0),
-      0
+      "Test Vault", vaultTokens, initialAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0
     );
     vm.stopPrank();
 
@@ -210,16 +200,15 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.stopPrank();
   }
 
-  // ─── Helper: build and sign an AgentAllowance ───────────────────────────
+  // ─── Helper: build and sign an AgentAllowance
+  // ───────────────────────────
 
   uint256 private _nonce;
 
   function _agentAllowanceDigest(address _vault) internal returns (bytes32 digest, bytes memory encoded) {
     _nonce++;
     AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
-      vault: _vault,
-      signatureTime: uint64(block.timestamp + _nonce),
-      expirationTime: uint64(block.timestamp + 3600)
+      vault: _vault, signatureTime: uint64(block.timestamp + _nonce), expirationTime: uint64(block.timestamp + 3600)
     });
     encoded = abi.encode(allowance);
     bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
@@ -251,32 +240,28 @@ contract SharedVaultAutomatorTest is TestCommon {
     sig = abi.encodePacked(r, s, v);
   }
 
-  // ─── Helper: single strategy action (delegatecall) ──────────────────────
+  // ─── Helper: single strategy action (delegatecall)
+  // ──────────────────────
 
   function _executeOp(bytes memory data) internal view returns (ISharedVault.Action[] memory actions) {
     actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action({
-      target: address(mockStrategy),
-      data: data,
-      callType: ISharedCommon.CallType.DELEGATECALL
-    });
+    actions[0] =
+      ISharedVault.Action({ target: address(mockStrategy), data: data, callType: ISharedCommon.CallType.DELEGATECALL });
   }
 
-  // ─── Helper: single swap action (call) ──────────────────────────────────
+  // ─── Helper: single swap action (call)
+  // ──────────────────────────────────
 
-  function _swapOp(
-    address tokenIn,
-    address tokenOut,
-    uint256 amountIn
-  ) internal view returns (ISharedVault.Action[] memory actions) {
+  function _swapOp(address tokenIn, address tokenOut, uint256 amountIn)
+    internal
+    view
+    returns (ISharedVault.Action[] memory actions)
+  {
     bytes memory swapCall = abi.encodeWithSelector(MockSwapTarget.swap.selector, tokenIn, tokenOut, amountIn);
     bytes memory opData = abi.encode(tokenIn, tokenOut, amountIn, uint256(0), swapCall);
     actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action({
-      target: address(swapTarget),
-      data: opData,
-      callType: ISharedCommon.CallType.CALL
-    });
+    actions[0] =
+      ISharedVault.Action({ target: address(swapTarget), data: opData, callType: ISharedCommon.CallType.CALL });
   }
 
   // ============ Constructor tests ============
@@ -296,6 +281,17 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(OPERATOR);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
     // No revert = success; strategy ran inside vault
+  }
+
+  /// @dev Agent allowances are intentionally reusable until expiry or explicit cancellation.
+  function test_executeWithAgentAllowance_replayableUntilCancelled() public {
+    (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.startPrank(OPERATOR);
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
+    vm.stopPrank();
   }
 
   function test_executeWithAgentAllowance_fail_nonOperator() public {
@@ -455,7 +451,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   // ============ cancelOrder ============
 
   function test_cancelOrder_success() public {
-    (bytes32 digest, ) = _agentAllowanceDigest(address(vault));
+    (bytes32 digest,) = _agentAllowanceDigest(address(vault));
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
@@ -467,8 +463,22 @@ contract SharedVaultAutomatorTest is TestCommon {
     assertTrue(automator.isOrderCancelled(digest));
   }
 
+  function test_cancelOrder_succeedsWhileAutomatorPaused() public {
+    (bytes32 digest,) = _agentAllowanceDigest(address(vault));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    vm.prank(ADMIN);
+    automator.pause();
+
+    vm.prank(VAULT_OWNER);
+    automator.cancelOrder(digest, sig);
+
+    assertTrue(automator.isOrderCancelled(digest));
+  }
+
   function test_cancelOrder_fail_wrongSigner() public {
-    (bytes32 digest, ) = _agentAllowanceDigest(address(vault));
+    (bytes32 digest,) = _agentAllowanceDigest(address(vault));
     // Sign with a different key than the expected signer
     uint256 wrongKey = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
@@ -599,7 +609,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   }
 
   function test_multisig_executeWithUserOrder_replayable() public {
-    (SharedVault msVault, , SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+    (SharedVault msVault,, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
 
     _nonce++;
     StructHash.Order memory order;
@@ -622,7 +632,7 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function test_receive_acceptsETH() public {
     vm.deal(address(this), 1 ether);
-    (bool ok, ) = address(automator).call{ value: 1 ether }("");
+    (bool ok,) = address(automator).call{ value: 1 ether }("");
     assertTrue(ok);
     assertEq(address(automator).balance, 1 ether);
   }
@@ -768,7 +778,8 @@ contract SharedVaultAutomatorTest is TestCommon {
   }
 }
 
-// ─── Minimal token mocks for sweep tests ──────────────────────────────────
+// ─── Minimal token mocks for sweep tests
+// ──────────────────────────────────
 
 contract MockAutomatorERC721 {
   mapping(uint256 => address) private _owners;
@@ -800,7 +811,7 @@ contract MockAutomatorERC1155 {
     balanceOf[to][tokenId] += amount;
   }
 
-  function setApprovalForAll(address, bool) external {}
+  function setApprovalForAll(address, bool) external { }
 
   function isApprovedForAll(address, address) external pure returns (bool) {
     return false;

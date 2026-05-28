@@ -16,7 +16,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
-import { ISharedPancakeV4Utils as IPancakeV4Utils, PancakeV4PoolKey } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import {
+  ISharedPancakeV4Utils as IPancakeV4Utils,
+  PancakeV4PoolKey
+} from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
 import { PancakeV4PositionInfo } from "../../contracts/shared-vault/interfaces/IPancakeV4PositionManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
@@ -49,7 +52,7 @@ contract MockWETH9 {
   function withdraw(uint256 wad) external {
     require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
     balanceOf[msg.sender] -= wad;
-    (bool ok, ) = msg.sender.call{ value: wad }("");
+    (bool ok,) = msg.sender.call{ value: wad }("");
     require(ok, "ETH transfer failed");
   }
 
@@ -122,6 +125,46 @@ contract MockERC20 {
   }
 }
 
+contract MockERC20NoDecimals {
+  string public name = "No Decimals";
+  string public symbol = "NODEC";
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+  }
+
+  function transfer(address to, uint256 amount) external returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    require(balanceOf[from] >= amount, "Insufficient balance");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "Insufficient allowance");
+      allowance[from][msg.sender] -= amount;
+    }
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+}
+
+contract RejectNativeReceiver {
+  receive() external payable {
+    revert("reject native");
+  }
+}
+
 // Mock ERC20 token with configurable decimals for testing non-18-decimal tokens
 contract MockERC20LowDecimals {
   string public name;
@@ -172,15 +215,12 @@ contract MockSharedStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -196,9 +236,9 @@ contract MockSharedStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock strategy whose exitProportional always reverts (simulates a buggy deployed strategy)
@@ -215,23 +255,18 @@ contract MockBrokenExitStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
-      data,
-      (address, uint256, address, address)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1) =
+      abi.decode(data, (address, uint256, address, address));
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     revert("broken exit");
   }
 
@@ -248,9 +283,9 @@ contract MockBrokenExitStrategy is ISharedStrategy {
     return (_token0[key], _token1[key]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
@@ -266,23 +301,18 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
-      data,
-      (address, uint256, address, address)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1) =
+      abi.decode(data, (address, uint256, address, address));
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -305,7 +335,7 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
     revert("pool rugged");
   }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev DELEGATECALL strategy that returns `PositionChange.isAdd` with `token0`/`token1` from immutables,
@@ -321,20 +351,17 @@ contract MockMisreportingTokenAddStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, , ) = abi.decode(data, (address, uint256, address, address));
+    (address nfpm, uint256 tokenId,,) = abi.decode(data, (address, uint256, address, address));
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, nfpm, tokenId, token0Out, token1Out);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -350,9 +377,9 @@ contract MockMisreportingTokenAddStrategy is ISharedStrategy {
     return (token0Out, token1Out);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock strategy that fails
@@ -361,15 +388,12 @@ contract MockFailingStrategy is ISharedStrategy {
     revert("Strategy failed");
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -385,9 +409,9 @@ contract MockFailingStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock swap target
@@ -416,12 +440,10 @@ contract MockDirectPositionCreator is ISharedStrategy {
   mapping(address => mapping(uint256 => address)) private _token1;
 
   /// @dev Creates a position: stores token pair, returns PositionChange with isAdd=true.
-  function createPosition(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1
-  ) external returns (PositionChange[] memory changes) {
+  function createPosition(address nfpm, uint256 tokenId, address token0, address token1)
+    external
+    returns (PositionChange[] memory changes)
+  {
     _token0[nfpm][tokenId] = token0;
     _token1[nfpm][tokenId] = token1;
     changes = new PositionChange[](1);
@@ -429,12 +451,11 @@ contract MockDirectPositionCreator is ISharedStrategy {
   }
 
   /// @dev Removes a position: returns PositionChange with isAdd=false.
-  function removePosition(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1
-  ) external pure returns (PositionChange[] memory changes) {
+  function removePosition(address nfpm, uint256 tokenId, address token0, address token1)
+    external
+    pure
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](1);
     changes[0] = PositionChange({ isAdd: false, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
   }
@@ -454,15 +475,12 @@ contract MockDirectPositionCreator is ISharedStrategy {
     return new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -478,20 +496,19 @@ contract MockDirectPositionCreator is ISharedStrategy {
     return (_token0[nfpm][tokenId], _token1[nfpm][tokenId]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev CALL_WITH_POSITIONS strategy whose getPositionAmounts always reverts with non-empty data.
 ///      Used to verify that the probe in _applyPositionChangesChecked requires ok=true.
 contract MockRevertingGetPositionAmountsStrategy is ISharedStrategy {
-  function createPosition(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1
-  ) external pure returns (PositionChange[] memory changes) {
+  function createPosition(address nfpm, uint256 tokenId, address token0, address token1)
+    external
+    pure
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](1);
     changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
   }
@@ -500,15 +517,12 @@ contract MockRevertingGetPositionAmountsStrategy is ISharedStrategy {
     return new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -524,9 +538,9 @@ contract MockRevertingGetPositionAmountsStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev CALL_WITH_POSITIONS strategy that reports a different (but valid vault-token) pair than what
@@ -541,35 +555,26 @@ contract MockWrongCanonicalTokensStrategy is ISharedStrategy {
   }
 
   /// @dev Reports token0/token1 that differ from what getPositionTokens returns.
-  function createPositionWrongTokens(
-    address nfpm,
-    uint256 tokenId,
-    address reportedToken0,
-    address reportedToken1
-  ) external pure returns (PositionChange[] memory changes) {
+  function createPositionWrongTokens(address nfpm, uint256 tokenId, address reportedToken0, address reportedToken1)
+    external
+    pure
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](1);
-    changes[0] = PositionChange({
-      isAdd: true,
-      nfpm: nfpm,
-      tokenId: tokenId,
-      token0: reportedToken0,
-      token1: reportedToken1
-    });
+    changes[0] =
+      PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: reportedToken0, token1: reportedToken1 });
   }
 
   function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
     return new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -586,9 +591,9 @@ contract MockWrongCanonicalTokensStrategy is ISharedStrategy {
     return (canonToken0, canonToken1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev V4UtilsRouter mock: execute is a no-op, used to test V4Strategy without real router deps.
@@ -633,9 +638,11 @@ contract MockV4PoolManager {
     values = new bytes32[](nSlots);
   }
 
-  function getSlot0(
-    bytes32
-  ) external pure returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee) {
+  function getSlot0(bytes32)
+    external
+    pure
+    returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)
+  {
     sqrtPriceX96 = SQRT_PRICE_1_1;
     tick = 0;
     protocolFee = 0;
@@ -712,9 +719,11 @@ contract MockV4PositionManager {
     return _liquidity[tokenId];
   }
 
-  function getPoolAndPositionInfo(
-    uint256 tokenId
-  ) external view returns (PoolKey memory poolKey, PositionInfo posInfo) {
+  function getPoolAndPositionInfo(uint256 tokenId)
+    external
+    view
+    returns (PoolKey memory poolKey, PositionInfo posInfo)
+  {
     poolKey.currency0 = Currency.wrap(_currency0[tokenId]);
     poolKey.currency1 = Currency.wrap(_currency1[tokenId]);
     // fee, tickSpacing, hooks left at zero defaults; PositionInfo default-zero is fine for tests.
@@ -747,10 +756,8 @@ contract MockV4PositionManager {
       PoolKey memory poolKey;
       uint128 liquidity;
       address recipient;
-      (poolKey, , , liquidity, , , recipient, ) = abi.decode(
-        params[0],
-        (PoolKey, int24, int24, uint128, uint128, uint128, address, bytes)
-      );
+      (poolKey,,, liquidity,,, recipient,) =
+        abi.decode(params[0], (PoolKey, int24, int24, uint128, uint128, uint128, address, bytes));
       tokenId = _nextTokenId;
       ownerOf[tokenId] = recipient;
       _currency0[tokenId] = Currency.unwrap(poolKey.currency0);
@@ -766,11 +773,9 @@ contract MockV4PositionManager {
     }
 
     if (action == 0x01) {
-      (, uint128 liquidityToDecrease, , , ) = abi.decode(params[0], (uint256, uint128, uint256, uint256, bytes));
+      (, uint128 liquidityToDecrease,,,) = abi.decode(params[0], (uint256, uint128, uint256, uint256, bytes));
       if (liquidityToDecrease > 0) {
-        _liquidity[tokenId] = liquidityToDecrease >= _liquidity[tokenId]
-          ? 0
-          : _liquidity[tokenId] - liquidityToDecrease;
+        _liquidity[tokenId] = liquidityToDecrease >= _liquidity[tokenId] ? 0 : _liquidity[tokenId] - liquidityToDecrease;
       }
     }
 
@@ -780,11 +785,11 @@ contract MockV4PositionManager {
     _collectAmount1[tokenId] = 0;
 
     if (amount0 > 0) {
-      (bool ok, ) = _currency0[tokenId].call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0));
+      (bool ok,) = _currency0[tokenId].call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0));
       require(ok, "mint0");
     }
     if (amount1 > 0) {
-      (bool ok, ) = _currency1[tokenId].call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1));
+      (bool ok,) = _currency1[tokenId].call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1));
       require(ok, "mint1");
     }
   }
@@ -815,9 +820,11 @@ contract MockPancakeV4PoolManager {
     tick = 0;
   }
 
-  function getSlot0(
-    bytes32
-  ) external pure returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee) {
+  function getSlot0(bytes32)
+    external
+    pure
+    returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)
+  {
     sqrtPriceX96 = SQRT_PRICE_1_1;
     tick = 0;
     protocolFee = 0;
@@ -886,16 +893,20 @@ contract MockPancakeV4PositionManager {
     return _liquidity[tokenId];
   }
 
-  function getPoolAndPositionInfo(
-    uint256 tokenId
-  ) external view returns (PancakeV4PoolKey memory poolKey, PancakeV4PositionInfo posInfo) {
+  function getPoolAndPositionInfo(uint256 tokenId)
+    external
+    view
+    returns (PancakeV4PoolKey memory poolKey, PancakeV4PositionInfo posInfo)
+  {
     poolKey = _poolKey[tokenId];
     posInfo = _positionInfo(-60, 60);
   }
 
-  function positions(
-    uint256 tokenId
-  ) external view returns (PancakeV4PoolKey memory poolKey, int24, int24, uint128, uint256, uint256, address) {
+  function positions(uint256 tokenId)
+    external
+    view
+    returns (PancakeV4PoolKey memory poolKey, int24, int24, uint128, uint256, uint256, address)
+  {
     return (_poolKey[tokenId], -60, 60, _liquidity[tokenId], 0, 0, address(0));
   }
 
@@ -908,10 +919,8 @@ contract MockPancakeV4PositionManager {
       PancakeV4PoolKey memory key;
       uint128 liquidity;
       address recipient;
-      (key, , , liquidity, , , recipient, ) = abi.decode(
-        params[0],
-        (PancakeV4PoolKey, int24, int24, uint128, uint128, uint128, address, bytes)
-      );
+      (key,,, liquidity,,, recipient,) =
+        abi.decode(params[0], (PancakeV4PoolKey, int24, int24, uint128, uint128, uint128, address, bytes));
       tokenId = _nextTokenId;
       ownerOf[tokenId] = recipient;
       _poolKey[tokenId] = key;
@@ -926,11 +935,9 @@ contract MockPancakeV4PositionManager {
     }
 
     if (action == 0x01) {
-      (, uint128 liquidityToDecrease, , , ) = abi.decode(params[0], (uint256, uint128, uint256, uint256, bytes));
+      (, uint128 liquidityToDecrease,,,) = abi.decode(params[0], (uint256, uint128, uint256, uint256, bytes));
       if (liquidityToDecrease > 0) {
-        _liquidity[tokenId] = liquidityToDecrease >= _liquidity[tokenId]
-          ? 0
-          : _liquidity[tokenId] - liquidityToDecrease;
+        _liquidity[tokenId] = liquidityToDecrease >= _liquidity[tokenId] ? 0 : _liquidity[tokenId] - liquidityToDecrease;
       }
     }
 
@@ -939,15 +946,13 @@ contract MockPancakeV4PositionManager {
     _collectAmount0[tokenId] = 0;
     _collectAmount1[tokenId] = 0;
     if (amount0 > 0) {
-      (bool ok, ) = _poolKey[tokenId].currency0.call(
-        abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0)
-      );
+      (bool ok,) =
+        _poolKey[tokenId].currency0.call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0));
       require(ok, "mint0");
     }
     if (amount1 > 0) {
-      (bool ok, ) = _poolKey[tokenId].currency1.call(
-        abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1)
-      );
+      (bool ok,) =
+        _poolKey[tokenId].currency1.call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1));
       require(ok, "mint1");
     }
   }
@@ -960,7 +965,7 @@ contract MockPancakeV4PositionManager {
     return _approved[tokenId];
   }
 
-  function safeTransferFrom(address, address, uint256, bytes calldata) external {}
+  function safeTransferFrom(address, address, uint256, bytes calldata) external { }
 
   function _positionInfo(int24 tickLower, int24 tickUpper) private pure returns (PancakeV4PositionInfo) {
     return PancakeV4PositionInfo.wrap((uint256(uint24(tickLower)) << 8) | (uint256(uint24(tickUpper)) << 32));
@@ -1003,23 +1008,18 @@ contract MockPreCollectStrategy is ISharedStrategy {
       emit ExecuteCalled();
       return new PositionChange[](0);
     }
-    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
-      data,
-      (address, uint256, address, address)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1) =
+      abi.decode(data, (address, uint256, address, address));
     changes = new PositionChange[](1);
     changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -1036,7 +1036,7 @@ contract MockPreCollectStrategy is ISharedStrategy {
     return (_token0[key], _token1[key]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
   function collectFees(address nfpm, uint256 tokenId, uint16 ignoredVaultOwnerBps) external override {
     emit LegacyCollectFees(nfpm, tokenId, ignoredVaultOwnerBps);
@@ -1045,9 +1045,8 @@ contract MockPreCollectStrategy is ISharedStrategy {
 
 contract SharedVaultCollectHarness is SharedVault {
   function collectWithStrategy(address strategy, address posm, uint256 tokenId) external {
-    (bool ok, bytes memory result) = strategy.delegatecall(
-      abi.encodeCall(ISharedStrategy.collectFees, (posm, tokenId, vaultOwnerFeeBasisPoint))
-    );
+    (bool ok, bytes memory result) =
+      strategy.delegatecall(abi.encodeCall(ISharedStrategy.collectFees, (posm, tokenId, vaultOwnerFeeBasisPoint)));
     if (!ok) {
       if (result.length == 0) revert ISharedCommon.StrategyCallFailed();
       assembly {
@@ -1087,15 +1086,12 @@ contract MockDelegatecallWrongCanonTokensStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, nfpm, tokenId, t0, t1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -1112,9 +1108,9 @@ contract MockDelegatecallWrongCanonTokensStrategy is ISharedStrategy {
     return (canonToken0, canonToken1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev Delegatecall strategy that issues an isAdd=false PositionChange for a position the vault
@@ -1127,15 +1123,12 @@ contract MockFalseRemoveStrategy is ISharedStrategy {
     changes[0] = PositionChange(false, nfpm, tokenId, t0, t1); // isAdd=false despite live position
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -1152,21 +1145,20 @@ contract MockFalseRemoveStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev CALL_WITH_POSITIONS target that issues an isAdd=false PositionChange while the vault still
 ///      owns the NFT and getPositionAmounts is non-zero — tests Issue 8 on the _applyPositionChangesChecked path.
 contract MockCwpFalseRemoveStrategy is ISharedStrategy {
   // Returns remove change directly — used via CALL_WITH_POSITIONS.
-  function removePosition(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1
-  ) external pure returns (PositionChange[] memory changes) {
+  function removePosition(address nfpm, uint256 tokenId, address token0, address token1)
+    external
+    pure
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](1);
     changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
   }
@@ -1175,15 +1167,12 @@ contract MockCwpFalseRemoveStrategy is ISharedStrategy {
     return new PositionChange[](0);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
     return new PositionChange[](0);
   }
 
@@ -1200,9 +1189,9 @@ contract MockCwpFalseRemoveStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev V3 NFPM mock that simulates *inverted* CHANGE_RANGE ordering:
@@ -1271,7 +1260,7 @@ contract MockInvertedOrderingNfpm {
     return id == 0x780e9d63;
   }
 
-  function approve(address, uint256) external {}
+  function approve(address, uint256) external { }
 
   function transferFrom(address from, address to, uint256 tokenId) external {
     _removeFromOwner(from, tokenId);
@@ -1291,17 +1280,19 @@ contract MockInvertedOrderingNfpm {
     return (0, 0);
   }
 
-  function decreaseLiquidity(
-    DecreaseLiquidityParams calldata params
-  ) external returns (uint256 amount0, uint256 amount1) {
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
     uint128 current = _liquidity[params.tokenId];
     _liquidity[params.tokenId] = params.liquidity >= current ? 0 : current - params.liquidity;
     return (0, 0);
   }
 
-  function mint(
-    MintParams calldata params
-  ) external returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
+  function mint(MintParams calldata params)
+    external
+    returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+  {
     tokenId = _nextNewId++;
     ownerOf[tokenId] = params.recipient;
     _ownedTokens[params.recipient].push(tokenId);
@@ -1323,9 +1314,7 @@ contract MockInvertedOrderingNfpm {
   }
 
   /// @dev positions() returns tracked liquidity so native CHANGE_RANGE can close the old position.
-  function positions(
-    uint256 tokenId
-  )
+  function positions(uint256 tokenId)
     external
     view
     returns (uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128)
@@ -1409,7 +1398,7 @@ contract MockBurnWithoutReturnNfpm {
     return id == 0x780e9d63;
   }
 
-  function approve(address, uint256) external {}
+  function approve(address, uint256) external { }
 
   function factory() external view returns (address) {
     return address(this);
@@ -1423,16 +1412,18 @@ contract MockBurnWithoutReturnNfpm {
     return (0, 0);
   }
 
-  function decreaseLiquidity(
-    DecreaseLiquidityParams calldata params
-  ) external returns (uint256 amount0, uint256 amount1) {
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
     _liquidity[params.tokenId] = 0;
     return (0, 0);
   }
 
-  function mint(
-    MintParams calldata
-  ) external returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
+  function mint(MintParams calldata)
+    external
+    returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+  {
     tokenId = _nextNewId++;
     _liquidity[tokenId] = 0;
     return (tokenId, 0, 0, 0);
@@ -1448,9 +1439,7 @@ contract MockBurnWithoutReturnNfpm {
     ownerOf[newId] = from;
   }
 
-  function positions(
-    uint256 tokenId
-  )
+  function positions(uint256 tokenId)
     external
     view
     returns (uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128)
@@ -1535,7 +1524,7 @@ contract MockAerodromeInvertedOrderingNfpm {
     return id == 0x780e9d63;
   }
 
-  function approve(address, uint256) external {}
+  function approve(address, uint256) external { }
 
   function transferFrom(address from, address to, uint256 tokenId) external {
     _removeFromOwner(from, tokenId);
@@ -1555,17 +1544,20 @@ contract MockAerodromeInvertedOrderingNfpm {
     return (0, 0);
   }
 
-  function decreaseLiquidity(
-    DecreaseLiquidityParams calldata params
-  ) external returns (uint256 amount0, uint256 amount1) {
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
     uint128 current = _liquidity[params.tokenId];
     _liquidity[params.tokenId] = params.liquidity >= current ? 0 : current - params.liquidity;
     return (0, 0);
   }
 
-  function mint(
-    MintParams calldata params
-  ) external payable returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
+  function mint(MintParams calldata params)
+    external
+    payable
+    returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+  {
     tokenId = _nextNewId++;
     ownerOf[tokenId] = params.recipient;
     _ownedTokens[params.recipient].push(tokenId);
@@ -1585,9 +1577,7 @@ contract MockAerodromeInvertedOrderingNfpm {
   }
 
   /// @dev Aerodrome positions() uses int24 tickSpacing. Zero liquidity mirrors CHANGE_RANGE close behavior.
-  function positions(
-    uint256 tokenId
-  )
+  function positions(uint256 tokenId)
     external
     view
     returns (uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128)
@@ -1615,7 +1605,7 @@ contract MockSilentTransferNfpm {
     ownerOf[tokenId] = to;
   }
 
-  function approve(address, uint256) external {}
+  function approve(address, uint256) external { }
 
   function transferFrom(address, address, uint256) external {
     // Intentional no-op: NFT stays with its current owner.
@@ -1683,14 +1673,9 @@ contract MockLPPool {
 
   mapping(bytes32 => LP) public lps;
 
-  function deposit(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1,
-    uint256 _amount0,
-    uint256 _amount1
-  ) external {
+  function deposit(address nfpm, uint256 tokenId, address token0, address token1, uint256 _amount0, uint256 _amount1)
+    external
+  {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     LP storage lp = lps[key];
     lp.token0 = token0;
@@ -1733,10 +1718,8 @@ contract MockLPExitStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
-      data,
-      (address, uint256, address, address, uint256, uint256)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) =
+      abi.decode(data, (address, uint256, address, address, uint256, uint256));
 
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
@@ -1761,46 +1744,49 @@ contract MockLPExitStrategy is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function getPositionAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (uint256 amount0, uint256 amount1) {
+  function getPositionAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
   /// @dev Mock pool doesn't separate principal vs rewards — treat the whole balance as principal.
   ///      Integration coverage for the real split lives in SharedV3/V4/Aerodrome strategy tests.
-  function getPositionPrincipalAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (uint256 amount0, uint256 amount1) {
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function getPositionTokens(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (address token0, address token1) {
+  function getPositionTokens(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (address token0, address token1)
+  {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (token0, token1, , ) = MockLPPool(lpPool).lps(key);
+    (token0, token1,,) = MockLPPool(lpPool).lps(key);
   }
 
-  function depositProportional(
-    address nfpm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16
-  ) external override {
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
+    external
+    override
+  {
     if (amount0 == 0 && amount1 == 0) return;
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (address token0, address token1, , ) = MockLPPool(lpPool).lps(key);
+    (address token0, address token1,,) = MockLPPool(lpPool).lps(key);
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
   }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev Like MockLPExitStrategy but collectFees always reverts. Used to verify that a failing
@@ -1814,10 +1800,8 @@ contract MockCollectFailingStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
-      data,
-      (address, uint256, address, address, uint256, uint256)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) =
+      abi.decode(data, (address, uint256, address, address, uint256, uint256));
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
@@ -1842,20 +1826,22 @@ contract MockCollectFailingStrategy is ISharedStrategy {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function getPositionPrincipalAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (uint256, uint256) {
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256, uint256)
+  {
     return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
   function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (address t0, address t1, , ) = MockLPPool(lpPool).lps(key);
+    (address t0, address t1,,) = MockLPPool(lpPool).lps(key);
     return (t0, t1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
   function collectFees(address, uint256, uint16) external pure override {
     revert("collectFees intentionally fails");
@@ -1878,14 +1864,9 @@ contract MockDropAfterSecondDepositPool {
   mapping(bytes32 => LP) public lps;
   uint256 public depositCount;
 
-  function deposit(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1,
-    uint256 _amount0,
-    uint256 _amount1
-  ) external {
+  function deposit(address nfpm, uint256 tokenId, address token0, address token1, uint256 _amount0, uint256 _amount1)
+    external
+  {
     depositCount++;
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     LP storage lp = lps[key];
@@ -1926,10 +1907,8 @@ contract MockDropAfterSecondDepositStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) = abi.decode(
-      data,
-      (address, uint256, address, address, uint256, uint256)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) =
+      abi.decode(data, (address, uint256, address, address, uint256, uint256));
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockDropAfterSecondDepositPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
@@ -1937,16 +1916,13 @@ contract MockDropAfterSecondDepositStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
   }
 
-  function depositProportional(
-    address nfpm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16
-  ) external override {
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
+    external
+    override
+  {
     if (amount0 == 0 && amount1 == 0) return;
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (address token0, address token1, , ) = MockDropAfterSecondDepositPool(lpPool).lps(key);
+    (address token0, address token1,,) = MockDropAfterSecondDepositPool(lpPool).lps(key);
     if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
     if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
     MockDropAfterSecondDepositPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
@@ -1969,22 +1945,26 @@ contract MockDropAfterSecondDepositStrategy is ISharedStrategy {
     return MockDropAfterSecondDepositPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function getPositionPrincipalAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (uint256, uint256) {
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256, uint256)
+  {
     return MockDropAfterSecondDepositPool(lpPool).getAmounts(nfpm, tokenId);
   }
 
-  function getPositionTokens(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (address token0, address token1) {
+  function getPositionTokens(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (address token0, address token1)
+  {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (token0, token1, , ) = MockDropAfterSecondDepositPool(lpPool).lps(key);
+    (token0, token1,,) = MockDropAfterSecondDepositPool(lpPool).lps(key);
   }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev Tracks the last (amount0, amount1) passed to depositProportional through a delegatecall.
@@ -2035,10 +2015,8 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
   }
 
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
-    (address nfpm, uint256 tokenId, address token0, address token1) = abi.decode(
-      data,
-      (address, uint256, address, address)
-    );
+    (address nfpm, uint256 tokenId, address token0, address token1) =
+      abi.decode(data, (address, uint256, address, address));
     // Seed the mock pool with the configured principal amounts so getPositionPrincipalAmounts
     // is consistent with actual pool-side accounting used by exitProportional.
     if (principal0 > 0) IERC20(token0).transfer(lpPool, principal0);
@@ -2069,12 +2047,14 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
     return (principal0, principal1);
   }
 
-  function getPositionTokens(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (address token0, address token1) {
+  function getPositionTokens(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (address token0, address token1)
+  {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (token0, token1, , ) = MockLPPool(lpPool).lps(key);
+    (token0, token1,,) = MockLPPool(lpPool).lps(key);
   }
 
   /// @dev Simulates Uniswap V3's `increaseLiquidity` behavior when `amount*Min > 0`:
@@ -2082,13 +2062,10 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
   ///      side would *actually* consume, then reverts if the consumed amount is below amountMin.
   ///      When `slippageBps == 0` it mirrors real V3 by just consuming whatever the pool accepts
   ///      (no revert) — so idle leftovers can be verified by the test.
-  function depositProportional(
-    address nfpm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16 slippageBps
-  ) external override {
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
+    external
+    override
+  {
     // Record via external CALL (can't use storage under delegatecall without corrupting vault).
     recorder.record(amount0, amount1, slippageBps);
     if (amount0 == 0 && amount1 == 0) return;
@@ -2114,13 +2091,13 @@ contract MockRewardsAwareStrategy is ISharedStrategy {
     }
 
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
-    (address token0, address token1, , ) = MockLPPool(lpPool).lps(key);
+    (address token0, address token1,,) = MockLPPool(lpPool).lps(key);
     if (consumed0 > 0) IERC20(token0).transfer(lpPool, consumed0);
     if (consumed1 > 0) IERC20(token1).transfer(lpPool, consumed1);
     MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, consumed0, consumed1);
   }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 /// @dev Minimal harness that exposes SharedStrategyFeeConfig.performanceFeeConfig for unit testing.
@@ -2233,7 +2210,7 @@ contract AuditEip1271Wallet is IERC1271 {
   }
 
   function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
-    (address recovered, , ) = ECDSA.tryRecover(hash, signature);
+    (address recovered,,) = ECDSA.tryRecover(hash, signature);
     return recovered == signer ? MAGIC_VALUE : bytes4(0);
   }
 }
@@ -2256,14 +2233,15 @@ contract ReentrantSwapRouter {
       attemptReentry = false; // avoid infinite recursion if it ever succeeded
       uint256[4] memory zeros;
       try vault.deposit(zeros, 0) {
-        // Unreachable: ReentrancyGuard must revert before this branch.
-      } catch {
+      // Unreachable: ReentrancyGuard must revert before this branch.
+      }
+      catch {
         reentryReverted = true;
       }
     }
   }
 
-  receive() external payable {}
+  receive() external payable { }
 }
 
 /// @dev Strategy mock that exposes per-(nfpm,tokenId) principal AND uncollected fee splits.
@@ -2314,25 +2292,20 @@ contract MockFeeAccrualStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, nfpm, tokenId, t0, t1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory c) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory c)
+  {
     c = new PositionChange[](0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
   function collectFees(address nfpm, uint256 tokenId, uint16) external override {
-    (address token0, address token1, uint256 owed0, uint256 owed1) = MockFeeAccrualStrategy(_self).consumeGeneratedFees(
-      nfpm,
-      tokenId
-    );
+    (address token0, address token1, uint256 owed0, uint256 owed1) =
+      MockFeeAccrualStrategy(_self).consumeGeneratedFees(nfpm, tokenId);
 
     ISharedVault v = ISharedVault(address(this));
     ISharedConfigManager cm = v.configManager();
@@ -2351,10 +2324,10 @@ contract MockFeeAccrualStrategy is ISharedStrategy {
     }
   }
 
-  function consumeGeneratedFees(
-    address nfpm,
-    uint256 tokenId
-  ) external returns (address token0, address token1, uint256 owed0, uint256 owed1) {
+  function consumeGeneratedFees(address nfpm, uint256 tokenId)
+    external
+    returns (address token0, address token1, uint256 owed0, uint256 owed1)
+  {
     bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
     token0 = _token0[k];
     token1 = _token1[k];
@@ -2393,10 +2366,12 @@ contract MockFeeAccrualStrategy is ISharedStrategy {
     return (_principal0[k] + _owed0[k], _principal1[k] + _owed1[k]);
   }
 
-  function getPositionPrincipalAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view override returns (uint256, uint256) {
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256, uint256)
+  {
     bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
     return (_principal0[k], _principal1[k]);
   }
@@ -2443,8 +2418,8 @@ contract SharedVaultTest is TestCommon {
 
   function _assertTrackedIds(SharedVault v, uint256 expectedA, uint256 expectedB) internal view {
     assertEq(v.getPositionCount(), 2, "expected two tracked positions");
-    (, , uint256 tracked0, , ) = v.getPosition(0);
-    (, , uint256 tracked1, , ) = v.getPosition(1);
+    (,, uint256 tracked0,,) = v.getPosition(0);
+    (,, uint256 tracked1,,) = v.getPosition(1);
     bool sawA = tracked0 == expectedA || tracked1 == expectedA;
     bool sawB = tracked0 == expectedB || tracked1 == expectedB;
     assertTrue(sawA, "expected original tokenId to remain tracked");
@@ -2552,14 +2527,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initialAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
     vault.initialize(
-      "Shared Vault",
-      vaultTokens,
-      initialAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "Shared Vault", vaultTokens, initialAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
 
     // Setup roles
@@ -2597,6 +2565,34 @@ contract SharedVaultTest is TestCommon {
     address[4] memory tokens = [address(tokenA), address(0), address(0), address(0)];
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.expectRevert(ISharedCommon.NoTokensConfigured.selector);
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
+  }
+
+  function test_initialize_fail_zero_config_manager() public {
+    SharedVault vault2 = new SharedVault();
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(0), address(0), 0);
+  }
+
+  function test_initialize_fail_zero_owner() public {
+    SharedVault vault2 = new SharedVault();
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault2.initialize("Test", tokens, amounts, address(0), address(0), address(configManager), address(0), 0);
+  }
+
+  function test_initialize_fail_token_without_decimals() public {
+    MockERC20NoDecimals noDecimals = new MockERC20NoDecimals();
+    SharedVault vault2 = new SharedVault();
+    address[4] memory tokens = [address(noDecimals), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.InvalidToken.selector);
     vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
   }
 
@@ -2644,6 +2640,38 @@ contract SharedVaultTest is TestCommon {
 
     assertGt(shares, 0);
     assertEq(vault.balanceOf(DEPOSITOR), shares);
+    vm.stopPrank();
+  }
+
+  function test_deposit_mints_shares_to_receiver() public {
+    address receiver = address(0xB0B);
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(depositAmounts, 0, receiver);
+    vm.stopPrank();
+
+    assertGt(shares, 0);
+    assertEq(vault.balanceOf(receiver), shares);
+    assertEq(vault.balanceOf(DEPOSITOR), 0);
+  }
+
+  function test_deposit_fail_zero_receiver() public {
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault.deposit(depositAmounts, 0, address(0));
     vm.stopPrank();
   }
 
@@ -2757,6 +2785,63 @@ contract SharedVaultTest is TestCommon {
     assertEq(vault.totalSupply(), 0);
   }
 
+  function test_withdraw_from_account_spends_finite_allowance_and_pays_caller() public {
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256 burnShares = ownerShares / 2;
+    uint256[4] memory minAmounts;
+
+    vm.prank(VAULT_OWNER);
+    vault.approve(NON_AUTHORIZED, burnShares);
+
+    uint256 callerTokenABefore = tokenA.balanceOf(NON_AUTHORIZED);
+    uint256 callerTokenBBefore = tokenB.balanceOf(NON_AUTHORIZED);
+
+    vm.expectEmit(true, true, false, true, address(vault));
+    emit ISharedVault.VaultWithdraw(
+      VAULT_OWNER, VAULT_OWNER, [uint256(50e18), uint256(100e18), uint256(0), uint256(0)], burnShares
+    );
+
+    vm.prank(NON_AUTHORIZED);
+    uint256[4] memory amounts = vault.withdraw(burnShares, minAmounts, false, VAULT_OWNER);
+
+    assertEq(amounts[0], 50e18);
+    assertEq(amounts[1], 100e18);
+    assertEq(tokenA.balanceOf(NON_AUTHORIZED), callerTokenABefore + 50e18, "caller receives tokenA");
+    assertEq(tokenB.balanceOf(NON_AUTHORIZED), callerTokenBBefore + 100e18, "caller receives tokenB");
+    assertEq(vault.balanceOf(VAULT_OWNER), ownerShares - burnShares, "owner shares burned");
+    assertEq(vault.allowance(VAULT_OWNER, NON_AUTHORIZED), 0, "finite allowance spent");
+  }
+
+  function test_withdraw_from_account_keeps_infinite_allowance() public {
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256 burnShares = ownerShares / 2;
+    uint256[4] memory minAmounts;
+
+    vm.prank(VAULT_OWNER);
+    vault.approve(NON_AUTHORIZED, type(uint256).max);
+
+    vm.prank(NON_AUTHORIZED);
+    vault.withdraw(burnShares, minAmounts, false, VAULT_OWNER);
+
+    assertEq(vault.allowance(VAULT_OWNER, NON_AUTHORIZED), type(uint256).max);
+  }
+
+  function test_withdraw_from_account_reverts_without_allowance() public {
+    uint256 burnShares = vault.balanceOf(VAULT_OWNER) / 2;
+    uint256[4] memory minAmounts;
+
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert();
+    vault.withdraw(burnShares, minAmounts, false, VAULT_OWNER);
+  }
+
+  function test_withdraw_from_account_fail_zero_account() public {
+    uint256[4] memory minAmounts;
+
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault.withdraw(1, minAmounts, false, address(0));
+  }
+
   function test_withdraw_fail_insufficient_shares() public {
     uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
@@ -2805,14 +2890,8 @@ contract SharedVaultTest is TestCommon {
     // Add a position via DELEGATECALL so the vault tracks it
     failNfpm.mint(address(v), 1);
     vm.prank(VAULT_OWNER);
-    bytes memory stratData = abi.encode(
-      address(failNfpm),
-      uint256(1),
-      address(tA),
-      address(tB),
-      uint256(50e18),
-      uint256(50e18)
-    );
+    bytes memory stratData =
+      abi.encode(address(failNfpm), uint256(1), address(tA), address(tB), uint256(50e18), uint256(50e18));
     ISharedVault.Action[] memory acts = new ISharedVault.Action[](1);
     acts[0] = ISharedVault.Action(address(failingCollectStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     v.execute(acts);
@@ -2830,11 +2909,8 @@ contract SharedVaultTest is TestCommon {
   function test_execute_success() public {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     vm.stopPrank();
   }
@@ -2857,7 +2933,7 @@ contract SharedVaultTest is TestCommon {
     for (uint256 i; i < logs.length; i++) {
       if (logs[i].emitter != address(v) || logs[i].topics.length == 0) continue;
       if (logs[i].topics[0] == collectSig) {
-        (address loggedNfpm, uint256 loggedTokenId, ) = abi.decode(logs[i].data, (address, uint256, uint16));
+        (address loggedNfpm, uint256 loggedTokenId,) = abi.decode(logs[i].data, (address, uint256, uint16));
         assertEq(loggedNfpm, address(nfpm), "pre-collect nfpm");
         assertEq(loggedTokenId, 1, "pre-collect tokenId");
         sawCollect = true;
@@ -2874,9 +2950,8 @@ contract SharedVaultTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
     vm.prank(VAULT_OWNER);
-    (bool ok, ) = address(vault).call(
-      abi.encodeWithSignature("execute((address,bytes,uint8)[],uint64)", actions, uint64(0))
-    );
+    (bool ok,) =
+      address(vault).call(abi.encodeWithSignature("execute((address,bytes,uint8)[],uint64)", actions, uint64(0)));
 
     assertFalse(ok, "execute platform fee override overload must not exist");
   }
@@ -2884,11 +2959,8 @@ contract SharedVaultTest is TestCommon {
   function test_execute_admin() public {
     vm.startPrank(ADMIN);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     vm.stopPrank();
   }
@@ -2896,11 +2968,8 @@ contract SharedVaultTest is TestCommon {
   function test_execute_fail_unauthorized() public {
     vm.startPrank(NON_AUTHORIZED);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -2909,11 +2978,8 @@ contract SharedVaultTest is TestCommon {
   function test_execute_fail_non_whitelisted_strategy() public {
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(failingStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(failingStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(failingStrategy)));
     vault.execute(actions);
     vm.stopPrank();
@@ -3030,6 +3096,18 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  function test_sweep_tokens_fail_length_mismatch() public {
+    address[] memory sweepTokens = new address[](1);
+    sweepTokens[0] = address(tokenE);
+    uint256[] memory sweepAmounts = new uint256[](2);
+    sweepAmounts[0] = 1e18;
+    sweepAmounts[1] = 2e18;
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.sweepTokens(sweepTokens, sweepAmounts, OPERATOR);
+  }
+
   function test_sweep_native_token() public {
     vm.deal(address(vault), 1 ether);
 
@@ -3040,6 +3118,15 @@ contract SharedVaultTest is TestCommon {
     assertEq(OPERATOR.balance, 1 ether);
   }
 
+  function test_sweep_native_token_reverts_when_recipient_rejects_eth() public {
+    RejectNativeReceiver receiver = new RejectNativeReceiver();
+    vm.deal(address(vault), 1 ether);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.SwapFailed.selector);
+    vault.sweepNativeToken(1 ether, address(receiver));
+  }
+
   function test_sweep_erc721() public {
     mockERC721.mint(address(vault), 1);
 
@@ -3048,6 +3135,24 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
 
     assertEq(mockERC721.ownerOf(1), OPERATOR);
+  }
+
+  function test_sweep_erc721_reverts_for_tracked_position_nft() public {
+    uint256 tokenId = 42;
+    cwpNfpm.mint(address(vault), tokenId);
+
+    bytes memory callData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+    );
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vault.execute(actions);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.CannotSweepVaultToken.selector);
+    vault.sweepERC721(address(cwpNfpm), tokenId, OPERATOR);
   }
 
   function test_sweep_erc1155() public {
@@ -3072,11 +3177,8 @@ contract SharedVaultTest is TestCommon {
     // New admin can execute
     vm.startPrank(newAdmin);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     vm.stopPrank();
 
@@ -3251,14 +3353,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     vaultNoOp.initialize(
-      "No-Op Vault",
-      vaultTokens,
-      initAmounts,
-      VAULT_OWNER,
-      address(0),
-      address(configManager),
-      address(0),
-      0
+      "No-Op Vault", vaultTokens, initAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0
     );
 
     // Mint the NFT to the vault and add the position
@@ -3302,7 +3397,7 @@ contract SharedVaultTest is TestCommon {
 
     assertEq(vault.getPositionCount(), 1, "position back in tracking");
     assertEq(mockNfpm.ownerOf(tokenId), address(vault), "NFT back in vault");
-    (address storedStrategy, address storedNfpm, uint256 storedTokenId, , ) = vault.getPosition(0);
+    (address storedStrategy, address storedNfpm, uint256 storedTokenId,,) = vault.getPosition(0);
     assertEq(storedStrategy, strategy);
     assertEq(storedNfpm, address(mockNfpm));
     assertEq(storedTokenId, tokenId);
@@ -3440,14 +3535,8 @@ contract SharedVaultTest is TestCommon {
 
     // Do NOT mint the NFT to vault — vault doesn't own it
     uint256 tokenId = 77;
-    bytes memory stratData = abi.encode(
-      address(cwpNfpm),
-      tokenId,
-      address(tokenA),
-      address(tokenB),
-      uint256(0),
-      uint256(0)
-    );
+    bytes memory stratData =
+      abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB), uint256(0), uint256(0));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
 
@@ -3476,11 +3565,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(1)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
     vault.execute(actions);
     vm.stopPrank();
@@ -3496,6 +3581,20 @@ contract SharedVaultTest is TestCommon {
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
     vault.execute(actions);
     vm.stopPrank();
+  }
+
+  function test_global_pause_allows_withdraw() public {
+    configManager.setVaultPaused(true);
+
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory amounts = vault.withdraw(ownerShares / 2, minAmounts, false);
+
+    assertEq(amounts[0], 50e18);
+    assertEq(amounts[1], 100e18);
+    assertEq(vault.balanceOf(VAULT_OWNER), ownerShares - ownerShares / 2);
   }
 
   function test_per_vault_pause_blocks_deposit() public {
@@ -3515,11 +3614,7 @@ contract SharedVaultTest is TestCommon {
 
   function test_per_vault_pause_blocks_execute() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(1)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), ISharedCommon.CallType.DELEGATECALL);
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     vm.expectRevert(ISharedCommon.VaultPaused.selector);
@@ -3527,13 +3622,24 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  function test_per_vault_pause_allows_withdraw() public {
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER);
+    uint256[4] memory minAmounts;
+
+    vm.startPrank(VAULT_OWNER);
+    vault.setPaused(true);
+    uint256[4] memory amounts = vault.withdraw(ownerShares / 2, minAmounts, false);
+    vm.stopPrank();
+
+    assertEq(amounts[0], 50e18);
+    assertEq(amounts[1], 100e18);
+    assertEq(vault.balanceOf(VAULT_OWNER), ownerShares - ownerShares / 2);
+  }
+
   function test_per_vault_pause_unpause() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
     vm.startPrank(VAULT_OWNER);
     vault.setPaused(true);
     assertTrue(vault.paused());
@@ -3549,11 +3655,7 @@ contract SharedVaultTest is TestCommon {
 
   function test_per_vault_pause_independent_of_global() public {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(1)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), ISharedCommon.CallType.DELEGATECALL);
 
     // Per-vault paused, global not paused
     vm.startPrank(VAULT_OWNER);
@@ -3636,14 +3738,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "V4ConfigPlatformFee",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      OPERATOR,
-      address(configManager),
-      address(0),
-      500
+      "V4ConfigPlatformFee", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 500
     );
 
     MockV4PositionManager posm = new MockV4PositionManager(2);
@@ -3704,10 +3799,8 @@ contract SharedVaultTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: uint64(1 << 62)
     });
-    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.COMPOUND,
-      params: abi.encode(compoundParams)
-    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (address(posm), tokenId, instructions));
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
@@ -3778,11 +3871,7 @@ contract SharedVaultTest is TestCommon {
       posm: address(posm),
       poolKey: key,
       mintParams: IV4Utils.MintParams({
-        tickLower: -60,
-        tickUpper: 60,
-        minLiquidity: 1,
-        hookData: "",
-        deadline: block.timestamp
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
@@ -3792,14 +3881,8 @@ contract SharedVaultTest is TestCommon {
     });
 
     bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
-    bytes memory innerData = abi.encode(
-      address(posm),
-      uint256(0),
-      params,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -3847,10 +3930,8 @@ contract SharedVaultTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: type(uint64).max
     });
-    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.COMPOUND,
-      params: abi.encode(compoundParams)
-    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (address(posm), tokenId, instructions));
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
@@ -3883,14 +3964,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "PancakeV4FeeEvents",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      OPERATOR,
-      address(configManager),
-      address(0),
-      500
+      "PancakeV4FeeEvents", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 500
     );
 
     MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
@@ -3960,11 +4034,7 @@ contract SharedVaultTest is TestCommon {
       posm: address(posm),
       poolKey: key,
       mintParams: IPancakeV4Utils.MintParams({
-        tickLower: -60,
-        tickUpper: 60,
-        minLiquidity: 1,
-        hookData: "",
-        deadline: block.timestamp
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
@@ -3974,14 +4044,8 @@ contract SharedVaultTest is TestCommon {
     });
 
     bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
-    bytes memory innerData = abi.encode(
-      address(posm),
-      uint256(0),
-      params,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -4039,14 +4103,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "MaxFeeVault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      10_000
+      "MaxFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_000
     );
 
     assertEq(v.vaultOwnerFeeBasisPoint(), 10_000);
@@ -4066,14 +4123,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
     v.initialize(
-      "BadFeeVault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      10_001
+      "BadFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 10_001
     );
   }
 
@@ -4091,14 +4141,7 @@ contract SharedVaultTest is TestCommon {
     vm.expectEmit(true, false, false, true, address(v));
     emit ISharedVault.VaultOwnerFeeBasisPointSet(VAULT_OWNER, 777);
     v.initialize(
-      "EmitFeeVault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      777
+      "EmitFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 777
     );
   }
 
@@ -4118,14 +4161,7 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "ImmutableFeeVault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      321
+      "ImmutableFeeVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 321
     );
 
     // Exercise state-changing owner-only paths; none of these may mutate the stored fee.
@@ -4198,11 +4234,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(address(this));
     configManager.setPlatformFeeBasisPoint(3000);
 
-    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(
-      address(configManager),
-      address(0xBEEF),
-      8000
-    );
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 8000);
     ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig();
 
     assertEq(fc.vaultOwnerFeeBasisPoint, 7000, "clamped to 10000 - platformBps");
@@ -4214,11 +4246,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(address(this));
     configManager.setPlatformFeeBasisPoint(2000);
 
-    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(
-      address(configManager),
-      address(0xBEEF),
-      3000
-    );
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 3000);
     ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig();
 
     assertEq(fc.vaultOwnerFeeBasisPoint, 3000, "no clamping when sum = 5000");
@@ -4230,11 +4258,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(address(this));
     configManager.setPlatformFeeBasisPoint(5000);
 
-    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(
-      address(configManager),
-      address(0xBEEF),
-      5000
-    );
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 5000);
 
     ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig();
     assertEq(fc.vaultOwnerFeeBasisPoint, 5000, "exactly at boundary - not clamped");
@@ -4347,14 +4371,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
     wv.initialize(
-      "WETH Vault",
-      wvTokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(mockWeth),
-      0
+      "WETH Vault", wvTokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(mockWeth), 0
     );
     vm.stopPrank();
     // VAULT_OWNER now has all shares = 100e18 * SHARES_PRECISION
@@ -4492,14 +4509,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(1e18), uint256(1), uint256(0), uint256(0)];
     vm.startPrank(VAULT_OWNER);
     wv.initialize(
-      "Dust Vault",
-      wvTokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(mockWeth),
-      0
+      "Dust Vault", wvTokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(mockWeth), 0
     );
     vm.stopPrank();
 
@@ -4531,10 +4541,10 @@ contract SharedVaultTest is TestCommon {
   ///      Then `lpAmount` of each token is moved into a mock LP position.
   ///      Final state: idle = 2*depositPerUser - lpAmount, LP = lpAmount, total = 2*depositPerUser per token.
   ///      Alice and Bob each hold 50% of shares → each entitled to `depositPerUser` per token.
-  function _setupLPVault(
-    uint256 depositPerUser,
-    uint256 lpAmount
-  ) internal returns (SharedVault v, MockERC20 tA, MockERC20 tB, MockLPPool lpPoolContract) {
+  function _setupLPVault(uint256 depositPerUser, uint256 lpAmount)
+    internal
+    returns (SharedVault v, MockERC20 tA, MockERC20 tB, MockLPPool lpPoolContract)
+  {
     lpPoolContract = new MockLPPool();
     MockLPExitStrategy lpStrategy = new MockLPExitStrategy(address(lpPoolContract));
     MockERC721 lpNfpm = new MockERC721();
@@ -4595,7 +4605,7 @@ contract SharedVaultTest is TestCommon {
   function test_withdraw_no_double_dilution_with_lp() public {
     // depositPerUser=100e18, lpAmount=100e18
     // total=200e18, idle=100e18, LP=100e18 per token
-    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(100e18, 100e18);
+    (SharedVault v, MockERC20 tA, MockERC20 tB,) = _setupLPVault(100e18, 100e18);
 
     uint256 aliceShares = v.balanceOf(VAULT_OWNER);
     assertEq(aliceShares, TEST_INITIAL_SHARES);
@@ -4648,7 +4658,7 @@ contract SharedVaultTest is TestCommon {
   function test_withdraw_heavy_lp_no_double_dilution() public {
     // depositPerUser=500e18, lpAmount=900e18
     // total=1000e18, idle=100e18, LP=900e18 per token
-    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(500e18, 900e18);
+    (SharedVault v, MockERC20 tA, MockERC20 tB,) = _setupLPVault(500e18, 900e18);
 
     uint256[4] memory totalBal = v.getTotalBalances();
     assertEq(totalBal[0], 1000e18, "total A");
@@ -4688,7 +4698,7 @@ contract SharedVaultTest is TestCommon {
   function test_withdraw_zero_idle_all_lp_no_double_dilution() public {
     // depositPerUser=50e18, lpAmount=100e18
     // total=100e18, idle=0, LP=100e18 per token
-    (SharedVault v, MockERC20 tA, MockERC20 tB, ) = _setupLPVault(50e18, 100e18);
+    (SharedVault v, MockERC20 tA, MockERC20 tB,) = _setupLPVault(50e18, 100e18);
 
     assertEq(tA.balanceOf(address(v)), 0, "idle A = 0");
     uint256[4] memory totalBal = v.getTotalBalances();
@@ -4733,11 +4743,7 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(VAULT_OWNER);
     // MockSharedStrategy.execute() returns empty PositionChange[] — simulates a token-only op
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(0)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     vm.stopPrank();
 
@@ -4767,21 +4773,15 @@ contract SharedVaultTest is TestCommon {
     tokenB.mint(address(pool), 10e18); // pool needs tokenB to return on exit
 
     vm.startPrank(VAULT_OWNER);
-    bytes memory stratData = abi.encode(
-      address(cwpNfpm),
-      tokenId,
-      address(tokenA),
-      address(tokenB),
-      uint256(10e18),
-      uint256(0)
-    );
+    bytes memory stratData =
+      abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(lpStrategy), stratData, ISharedCommon.CallType.DELEGATECALL);
     vault.execute(actions);
     vm.stopPrank();
 
     assertEq(vault.getPositionCount(), 1, "one LP position should be tracked");
-    (address strategy, address nfpm, uint256 tid, , ) = vault.getPosition(0);
+    (address strategy, address nfpm, uint256 tid,,) = vault.getPosition(0);
     assertEq(strategy, address(lpStrategy), "strategy stored correctly");
     assertEq(nfpm, address(cwpNfpm), "nfpm stored correctly");
     assertEq(tid, tokenId, "tokenId stored correctly");
@@ -4823,8 +4823,7 @@ contract SharedVaultTest is TestCommon {
     cwpNfpm.mint(address(vault), tokenId);
 
     bytes memory callData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.startPrank(VAULT_OWNER);
@@ -4858,14 +4857,8 @@ contract SharedVaultTest is TestCommon {
     tokenB.mint(address(pool), 10e18);
 
     vm.startPrank(VAULT_OWNER);
-    bytes memory addData = abi.encode(
-      address(cwpNfpm),
-      tokenId,
-      address(tokenA),
-      address(tokenB),
-      uint256(10e18),
-      uint256(0)
-    );
+    bytes memory addData =
+      abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB), uint256(10e18), uint256(0));
     ISharedVault.Action[] memory addActions = new ISharedVault.Action[](1);
     addActions[0] = ISharedVault.Action(address(lpStrategy), addData, ISharedCommon.CallType.DELEGATECALL);
     vault.execute(addActions);
@@ -4875,17 +4868,13 @@ contract SharedVaultTest is TestCommon {
 
     // Now remove via CALL_WITH_POSITIONS
     bytes memory removeCallData = abi.encodeCall(
-      MockDirectPositionCreator.removePosition,
-      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.removePosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.startPrank(VAULT_OWNER);
     ISharedVault.Action[] memory removeActions = new ISharedVault.Action[](1);
-    removeActions[0] = ISharedVault.Action(
-      address(directCreator),
-      removeCallData,
-      ISharedCommon.CallType.CALL_WITH_POSITIONS
-    );
+    removeActions[0] =
+      ISharedVault.Action(address(directCreator), removeCallData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
     vault.execute(removeActions);
     vm.stopPrank();
 
@@ -4938,8 +4927,7 @@ contract SharedVaultTest is TestCommon {
     // Intentionally do NOT mint the NFT to the vault — vault has no ownership
 
     bytes memory callData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.startPrank(VAULT_OWNER);
@@ -4968,14 +4956,8 @@ contract SharedVaultTest is TestCommon {
     cwpNfpm.mint(address(vault), 2); // CWP position tokenId=2
 
     // Action 1: DELEGATECALL — strategy creates LP position
-    bytes memory dcData = abi.encode(
-      address(cwpNfpm),
-      uint256(1),
-      address(tokenA),
-      address(tokenB),
-      uint256(10e18),
-      uint256(0)
-    );
+    bytes memory dcData =
+      abi.encode(address(cwpNfpm), uint256(1), address(tokenA), address(tokenB), uint256(10e18), uint256(0));
 
     // Action 2: CALL — token swap tokenA → tokenB
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 5e18));
@@ -4983,8 +4965,7 @@ contract SharedVaultTest is TestCommon {
 
     // Action 3: CALL_WITH_POSITIONS — direct call creates another position
     bytes memory cwpData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), 2, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), 2, address(tokenA), address(tokenB))
     );
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
@@ -5009,8 +4990,7 @@ contract SharedVaultTest is TestCommon {
   function _addPositionViaDirectCreator(uint256 tokenId) internal {
     cwpNfpm.mint(address(vault), tokenId);
     bytes memory cwpData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
@@ -5032,8 +5012,7 @@ contract SharedVaultTest is TestCommon {
 
     cwpNfpm.mint(address(vault), 3);
     bytes memory cwpData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), 3, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), 3, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
@@ -5294,19 +5273,12 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(100e18), uint256(5521), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "EightDecimalDustVault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "EightDecimalDustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
   }
 
   function test_getMinDepositAmounts_8decimalToken_tracksPrecisionChanges() public {
-    (SharedVault v, , ) = _setupEightDecimalDustVault();
+    (SharedVault v,,) = _setupEightDecimalDustVault();
 
     uint256[4] memory mins = v.getMinDepositAmounts();
     assertEq(mins[1], 1000, "8 decimals, precision 5 -> 1_000");
@@ -5458,8 +5430,7 @@ contract SharedVaultTest is TestCommon {
 
     cwpNfpm.mint(address(vault), 99);
     bytes memory cwpData = abi.encodeCall(
-      MockDirectPositionCreator.createPosition,
-      (address(cwpNfpm), 99, address(tokenA), address(tokenB))
+      MockDirectPositionCreator.createPosition, (address(cwpNfpm), 99, address(tokenA), address(tokenB))
     );
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(directCreator), cwpData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
@@ -5574,15 +5545,8 @@ contract SharedVaultTest is TestCommon {
   ///         pre-fix behavior and would push tokens in at the wrong range ratio.
   function test_deposit_rewardsRatio_usesPrincipalAmountsForLPTopup() public {
     // Arrange: fresh vault with a rewards-bearing position. State documented in helper.
-    (
-      SharedVault rv,
-      MockERC20 tA,
-      MockERC20 tB,
-      DepositProportionalRecorder recorder,
-      ,
-      ,
-
-    ) = _setupVaultWithRewardsAwarePosition();
+    (SharedVault rv, MockERC20 tA, MockERC20 tB, DepositProportionalRecorder recorder,,,) =
+      _setupVaultWithRewardsAwarePosition();
 
     // totalBalances = (20 idle + 40 position, 80 idle + 80 position) = (60, 160).
     // A 50% proportional deposit therefore transfers (30, 80).
@@ -5618,7 +5582,7 @@ contract SharedVaultTest is TestCommon {
   ///         the fix this would revert with `"OffRatioDeposit"` because the pre-fix top-up at the
   ///         totals-ratio consumes less than `amountMin` on the binding side.
   function test_deposit_rewardsRatio_doesNotRevertUnderSlippageCheck() public {
-    (SharedVault rv, MockERC20 tA, MockERC20 tB, , , , ) = _setupVaultWithRewardsAwarePosition();
+    (SharedVault rv, MockERC20 tA, MockERC20 tB,,,,) = _setupVaultWithRewardsAwarePosition();
 
     tA.mint(DEPOSITOR, 30e18);
     tB.mint(DEPOSITOR, 80e18);
@@ -5641,15 +5605,8 @@ contract SharedVaultTest is TestCommon {
   ///         in the vault as idle balance (instead of being force-fed to the LP at the wrong ratio
   ///         and silently leaking). This is the "fees-count-as-idle" invariant the fix establishes.
   function test_deposit_rewardsRatio_leavesRewardsSliceAsIdle() public {
-    (
-      SharedVault rv,
-      MockERC20 tA,
-      MockERC20 tB,
-      ,
-      MockERC721 nfpm,
-      uint256 tokenId,
-      MockRewardsAwareStrategy strat
-    ) = _setupVaultWithRewardsAwarePosition();
+    (SharedVault rv, MockERC20 tA, MockERC20 tB,, MockERC721 nfpm, uint256 tokenId, MockRewardsAwareStrategy strat) =
+      _setupVaultWithRewardsAwarePosition();
 
     uint256 idleABefore = tA.balanceOf(address(rv));
     uint256 idleBBefore = tB.balanceOf(address(rv));
@@ -5685,14 +5642,8 @@ contract SharedVaultTest is TestCommon {
     // depositProportional directly to simulate what the pre-fix SharedVault would have sent.
     MockLPPool pool = new MockLPPool();
     DepositProportionalRecorder recorder = new DepositProportionalRecorder();
-    MockRewardsAwareStrategy strat = new MockRewardsAwareStrategy(
-      address(pool),
-      address(recorder),
-      30e18,
-      70e18,
-      10e18,
-      10e18
-    );
+    MockRewardsAwareStrategy strat =
+      new MockRewardsAwareStrategy(address(pool), address(recorder), 30e18, 70e18, 10e18, 10e18);
 
     // Seed the pool with principal so the ratio-consumption math in depositProportional lines up
     // with the registered position's principal slot.
@@ -5737,14 +5688,8 @@ contract SharedVaultTest is TestCommon {
     MockERC20LowDecimals tB = new MockERC20LowDecimals("BTC-like", "BTC", 8);
     MockLPPool pool = new MockLPPool();
     DepositProportionalRecorder recorder = new DepositProportionalRecorder();
-    MockRewardsAwareStrategy strat = new MockRewardsAwareStrategy(
-      address(pool),
-      address(recorder),
-      principal0,
-      principal1,
-      0,
-      0
-    );
+    MockRewardsAwareStrategy strat =
+      new MockRewardsAwareStrategy(address(pool), address(recorder), principal0, principal1, 0, 0);
     MockERC721 nfpm = new MockERC721();
 
     SharedConfigManager cm = new SharedConfigManager();
@@ -5824,14 +5769,7 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory noAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     emptyVault.initialize(
-      "EmptyVault",
-      vtokens,
-      noAmounts,
-      VAULT_OWNER,
-      address(0),
-      address(configManager),
-      address(0),
-      0
+      "EmptyVault", vtokens, noAmounts, VAULT_OWNER, address(0), address(configManager), address(0), 0
     );
 
     // Act
@@ -5995,14 +5933,8 @@ contract SharedVaultTest is TestCommon {
     dv.initialize("DropVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
 
     nfpm.mint(address(dv), tokenId);
-    bytes memory stratData = abi.encode(
-      address(nfpm),
-      tokenId,
-      address(tA),
-      address(tB),
-      uint256(50e18),
-      uint256(50e18)
-    );
+    bytes memory stratData =
+      abi.encode(address(nfpm), tokenId, address(tA), address(tB), uint256(50e18), uint256(50e18));
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(dropStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
@@ -6055,14 +5987,8 @@ contract SharedVaultTest is TestCommon {
 
     // Params with an unknown selector — not IV4Utils.execute — should be rejected fail-closed.
     bytes memory badParams = abi.encodeWithSelector(bytes4(0xDEADBEEF), whitelistedPosm, uint256(1));
-    bytes memory innerData = abi.encode(
-      whitelistedPosm,
-      uint256(1),
-      badParams,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(whitelistedPosm, uint256(1), badParams, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
     vm.prank(VAULT_OWNER);
@@ -6138,7 +6064,7 @@ contract SharedVaultTest is TestCommon {
 
     // The new token (999) should be tracked; the old token (7) was removed.
     assertEq(v3v.getPositionCount(), 1, "only new token should be tracked");
-    (, , uint256 trackedId, , ) = v3v.getPosition(0);
+    (,, uint256 trackedId,,) = v3v.getPosition(0);
     assertEq(trackedId, 999, "new token 999 must be tracked, not the original 7");
   }
 
@@ -6232,11 +6158,8 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(aerostrat);
     aerocm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
 
-    MockAerodromeInvertedOrderingNfpm aeroNfpm = new MockAerodromeInvertedOrderingNfpm(
-      address(tokenA),
-      address(tokenB),
-      777
-    );
+    MockAerodromeInvertedOrderingNfpm aeroNfpm =
+      new MockAerodromeInvertedOrderingNfpm(address(tokenA), address(tokenB), 777);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(aeroNfpm);
     aerocm.setWhitelistNfpms(nfpms, true);
@@ -6256,10 +6179,8 @@ contract SharedVaultTest is TestCommon {
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
 
     bytes memory innerData = abi.encode(address(aeroNfpm), tokenId, instructions);
-    bytes memory stratData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
-      innerData
-    );
+    bytes memory stratData =
+      bytes.concat(abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS), innerData);
 
     vm.prank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -6267,17 +6188,14 @@ contract SharedVaultTest is TestCommon {
     aerov.execute(actions);
 
     assertEq(aerov.getPositionCount(), 1, "only new Aerodrome token should be tracked");
-    (, , uint256 trackedId, , ) = aerov.getPosition(0);
+    (,, uint256 trackedId,,) = aerov.getPosition(0);
     assertEq(trackedId, 777, "new Aerodrome token 777 must be tracked, not original 55");
   }
 
   function test_security_aerodromeChangeRange_partialRemovalKeepsOldPositionTracked() public {
     SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA), address(0xBBBB));
-    MockAerodromeInvertedOrderingNfpm aeroNfpm = new MockAerodromeInvertedOrderingNfpm(
-      address(tokenA),
-      address(tokenB),
-      777
-    );
+    MockAerodromeInvertedOrderingNfpm aeroNfpm =
+      new MockAerodromeInvertedOrderingNfpm(address(tokenA), address(tokenB), 777);
 
     SharedConfigManager aerocm = new SharedConfigManager();
     address[] memory targets = new address[](1);
@@ -6305,10 +6223,8 @@ contract SharedVaultTest is TestCommon {
     instructions.liquidity = 400;
 
     bytes memory innerData = abi.encode(address(aeroNfpm), tokenId, instructions);
-    bytes memory stratData = bytes.concat(
-      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
-      innerData
-    );
+    bytes memory stratData =
+      bytes.concat(abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS), innerData);
 
     vm.prank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -6357,10 +6273,8 @@ contract SharedVaultTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory instr = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.COMPOUND,
-      params: abi.encode(compoundParams)
-    });
+    IV4Utils.Instructions memory instr =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (address(posm), tokenId, instr));
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
@@ -6383,10 +6297,7 @@ contract SharedVaultTest is TestCommon {
   ///         LP value from being attributed to the wrong assets, which would misprice shares.
   function test_security_issue5_cwp_rejectsWrongCanonicalTokens() public {
     // Strategy canonical pair: tokenA/tokenB. But createPositionWrongTokens reports tokenB/tokenA.
-    MockWrongCanonicalTokensStrategy wrongStrat = new MockWrongCanonicalTokensStrategy(
-      address(tokenA),
-      address(tokenB)
-    );
+    MockWrongCanonicalTokensStrategy wrongStrat = new MockWrongCanonicalTokensStrategy(address(tokenA), address(tokenB));
     address[] memory newTargets = new address[](1);
     newTargets[0] = address(wrongStrat);
     configManager.setWhitelistTargets(newTargets, true);
@@ -6451,10 +6362,8 @@ contract SharedVaultTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory instr = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.COMPOUND,
-      params: abi.encode(compoundParams)
-    });
+    IV4Utils.Instructions memory instr =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (address(posm), tokenId, instr));
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
@@ -6583,8 +6492,7 @@ contract SharedVaultTest is TestCommon {
     cwpNfpm.mint(address(vault), tokenId);
 
     bytes memory callData = abi.encodeCall(
-      MockCwpFalseRemoveStrategy.removePosition,
-      (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+      MockCwpFalseRemoveStrategy.removePosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
     );
 
     vm.prank(VAULT_OWNER);
@@ -6833,13 +6741,10 @@ contract SharedVaultTest is TestCommon {
   // W-5 / W-10: Operator can dropPosition (owner-unavailable escape hatch)
   // ════════════════════════════════════════════════════════════════════════════
 
-  function _setupVaultWithFeeAccrualPosition(
-    uint256 tokenId,
-    uint256 p0,
-    uint256 p1,
-    uint256 o0,
-    uint256 o1
-  ) internal returns (SharedVault v, MockFeeAccrualStrategy strat, MockERC721 nft) {
+  function _setupVaultWithFeeAccrualPosition(uint256 tokenId, uint256 p0, uint256 p1, uint256 o0, uint256 o1)
+    internal
+    returns (SharedVault v, MockFeeAccrualStrategy strat, MockERC721 nft)
+  {
     address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     v = new SharedVault();
@@ -6869,7 +6774,7 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_audit_W5_operator_can_dropPosition_when_owner_unavailable() public {
-    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(1, 0, 0, 0, 0);
+    (SharedVault v,, MockERC721 nft) = _setupVaultWithFeeAccrualPosition(1, 0, 0, 0, 0);
     assertEq(v.getPositionCount(), 1);
 
     vm.prank(OPERATOR);
@@ -6880,14 +6785,14 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_audit_W5_owner_still_can_dropPosition() public {
-    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(2, 0, 0, 0, 0);
+    (SharedVault v,, MockERC721 nft) = _setupVaultWithFeeAccrualPosition(2, 0, 0, 0, 0);
     vm.prank(VAULT_OWNER);
     v.dropPosition(address(nft), 2);
     assertEq(v.getPositionCount(), 0);
   }
 
   function test_audit_W5_random_caller_cannot_dropPosition() public {
-    (SharedVault v, , MockERC721 nft) = _setupVaultWithFeeAccrualPosition(3, 0, 0, 0, 0);
+    (SharedVault v,, MockERC721 nft) = _setupVaultWithFeeAccrualPosition(3, 0, 0, 0, 0);
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vm.prank(NON_AUTHORIZED);
     v.dropPosition(address(nft), 3);
@@ -7249,7 +7154,7 @@ contract SharedVaultTest is TestCommon {
   // ════════════════════════════════════════════════════════════════════════════
 
   function test_audit_protocol_outOfRange_singleSidedLp_principalSplit() public {
-    (SharedVault v, , ) = _setupVaultWithFeeAccrualPosition(1, 50e18, 0, 0, 0); // only tokenA principal
+    (SharedVault v,,) = _setupVaultWithFeeAccrualPosition(1, 50e18, 0, 0, 0); // only tokenA principal
     uint256[4] memory totals = v.getTotalBalances();
     assertEq(totals[0], 150e18, "tokenA = idle 100 + LP 50");
     assertEq(totals[1], 100e18, "tokenB = idle only");

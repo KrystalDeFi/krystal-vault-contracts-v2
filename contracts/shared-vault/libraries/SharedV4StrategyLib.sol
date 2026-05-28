@@ -50,13 +50,9 @@ library SharedV4StrategyLib {
     uint256 amount
   );
 
-  function depositProportional(
-    address posm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16 slippageBps
-  ) external {
+  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
+    external
+  {
     if (amount0 == 0 && amount1 == 0) return;
 
     _requireWhitelistedPosm(posm);
@@ -68,15 +64,11 @@ library SharedV4StrategyLib {
 
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
-    (uint160 sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
+    (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
     int24 tickLower = positionInfo.tickLower();
     int24 tickUpper = positionInfo.tickUpper();
     uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96,
-      TickMath.getSqrtPriceAtTick(tickLower),
-      TickMath.getSqrtPriceAtTick(tickUpper),
-      amount0,
-      amount1
+      sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), amount0, amount1
     );
     if (liquidityToAdd == 0) return;
 
@@ -130,12 +122,9 @@ library SharedV4StrategyLib {
     _executeInstruction(swapRouter, posm, tokenId, instructions);
   }
 
-  function executeInstructionBytes(
-    address swapRouter,
-    address posm,
-    uint256 tokenId,
-    bytes memory instruction
-  ) external {
+  function executeInstructionBytes(address swapRouter, address posm, uint256 tokenId, bytes memory instruction)
+    external
+  {
     ISharedV4Utils.Instructions memory instructions = abi.decode(instruction, (ISharedV4Utils.Instructions));
     _executeInstruction(swapRouter, posm, tokenId, instructions);
   }
@@ -146,11 +135,7 @@ library SharedV4StrategyLib {
   }
 
   function swapAndIncreaseCalldata(address swapRouter, address posm, uint256 tokenId, bytes memory params) external {
-    ISharedV4Utils.SwapAndIncreaseParams memory increaseParams = _decodeV4SwapAndIncreaseCalldata(
-      params,
-      posm,
-      tokenId
-    );
+    ISharedV4Utils.SwapAndIncreaseParams memory increaseParams = _decodeV4SwapAndIncreaseCalldata(params, posm, tokenId);
     _executeSwapAndIncrease(swapRouter, posm, tokenId, increaseParams);
   }
 
@@ -168,14 +153,10 @@ library SharedV4StrategyLib {
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
 
     if (posLiquidity == 0) {
-      (PoolKey memory zeroLiquidityKey, ) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory zeroLiquidityKey,) = pm.getPoolAndPositionInfo(tokenId);
       changes = new ISharedStrategy.PositionChange[](1);
       changes[0] = ISharedStrategy.PositionChange(
-        false,
-        posm,
-        tokenId,
-        Currency.unwrap(zeroLiquidityKey.currency0),
-        Currency.unwrap(zeroLiquidityKey.currency1)
+        false, posm, tokenId, Currency.unwrap(zeroLiquidityKey.currency0), Currency.unwrap(zeroLiquidityKey.currency1)
       );
       return changes;
     }
@@ -185,17 +166,13 @@ library SharedV4StrategyLib {
 
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     _decreaseV4Principal(posm, poolKey, tokenId, liquidityToRemove, minAmount0, minAmount1, "", 0, block.timestamp);
 
     if (isFullExit) {
       changes = new ISharedStrategy.PositionChange[](1);
       changes[0] = ISharedStrategy.PositionChange(
-        false,
-        posm,
-        tokenId,
-        Currency.unwrap(poolKey.currency0),
-        Currency.unwrap(poolKey.currency1)
+        false, posm, tokenId, Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1)
       );
     } else {
       changes = new ISharedStrategy.PositionChange[](0);
@@ -208,16 +185,17 @@ library SharedV4StrategyLib {
     amount1 = principal1 + fees1;
   }
 
-  function getPositionPrincipalAmounts(
-    address posm,
-    uint256 tokenId
-  ) external view returns (uint256 amount0, uint256 amount1) {
-    (amount0, amount1, , ) = _positionAmountsSplit(posm, tokenId);
+  function getPositionPrincipalAmounts(address posm, uint256 tokenId)
+    external
+    view
+    returns (uint256 amount0, uint256 amount1)
+  {
+    (amount0, amount1,,) = _positionAmountsSplit(posm, tokenId);
   }
 
   function _collectFees(address posm, uint256 tokenId, ICommon.FeeConfig memory fc) private {
     IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     address token0 = Currency.unwrap(poolKey.currency0);
     address token1 = Currency.unwrap(poolKey.currency1);
 
@@ -237,13 +215,10 @@ library SharedV4StrategyLib {
     _applyFees(token0, collected0, token1, collected1, fc);
   }
 
-  function _applyFees(
-    address token0,
-    uint256 amount0,
-    address token1,
-    uint256 amount1,
-    ICommon.FeeConfig memory fc
-  ) private returns (uint256 feeTaken0, uint256 feeTaken1) {
+  function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc)
+    private
+    returns (uint256 feeTaken0, uint256 feeTaken1)
+  {
     uint256 remaining0 = amount0;
     uint256 remaining1 = amount1;
 
@@ -288,23 +263,18 @@ library SharedV4StrategyLib {
     emit FeeCollected(address(this), feeType, recipient, token, amount);
   }
 
-  function _executeSwapAndMint(
-    address swapRouter,
-    address posm,
-    ISharedV4Utils.SwapAndMintParams memory params
-  ) private {
+  function _executeSwapAndMint(address swapRouter, address posm, ISharedV4Utils.SwapAndMintParams memory params)
+    private
+  {
     require(params.posm == posm, ISharedCommon.InvalidOperation());
     address token0 = Currency.unwrap(params.poolKey.currency0);
     address token1 = Currency.unwrap(params.poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
-    _validateV4InputTokens(params.inputTokens);
+    _validateV4InputTokens(params.inputTokens, params.poolKey.currency0, params.poolKey.currency1);
 
     (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
-      params.poolKey.currency0,
-      params.poolKey.currency1,
-      params.inputTokens,
-      params.gasFeeX64
+      params.poolKey.currency0, params.poolKey.currency1, params.inputTokens, params.gasFeeX64
     );
     (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
@@ -318,19 +288,15 @@ library SharedV4StrategyLib {
   ) private {
     require(params.posm == posm && params.tokenId == tokenId, ISharedCommon.InvalidOperation());
     IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     address token0 = Currency.unwrap(poolKey.currency0);
     address token1 = Currency.unwrap(poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
-    _validateV4InputTokens(params.inputTokens);
+    _validateV4InputTokens(params.inputTokens, poolKey.currency0, poolKey.currency1);
 
-    (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
-      poolKey.currency0,
-      poolKey.currency1,
-      params.inputTokens,
-      params.gasFeeX64
-    );
+    (uint256 amount0, uint256 amount1) =
+      _takeInputGasFeesAndGetPoolAmounts(poolKey.currency0, poolKey.currency1, params.inputTokens, params.gasFeeX64);
     (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
   }
@@ -342,38 +308,24 @@ library SharedV4StrategyLib {
     ISharedV4Utils.Instructions memory instructions
   ) private {
     IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     address token0 = Currency.unwrap(poolKey.currency0);
     address token1 = Currency.unwrap(poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
 
     if (instructions.action == ISharedV4Utils.UtilActions.COMPOUND) {
-      ISharedV4Utils.CompoundFeesParams memory compoundParams = abi.decode(
-        instructions.params,
-        (ISharedV4Utils.CompoundFeesParams)
-      );
-      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
-        posm,
-        tokenId,
-        poolKey,
-        compoundParams.collectFeesHookData,
-        compoundParams.gasFeeX64
-      );
+      ISharedV4Utils.CompoundFeesParams memory compoundParams =
+        abi.decode(instructions.params, (ISharedV4Utils.CompoundFeesParams));
+      (uint256 amount0, uint256 amount1) =
+        _collectV4GeneratedFees(posm, tokenId, poolKey, compoundParams.collectFeesHookData, compoundParams.gasFeeX64);
       (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, compoundParams.swapParams);
       _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, compoundParams.increaseParams);
     } else if (instructions.action == ISharedV4Utils.UtilActions.DECREASE_AND_SWAP) {
-      ISharedV4Utils.DecreaseAndSwapParams memory decParams = abi.decode(
-        instructions.params,
-        (ISharedV4Utils.DecreaseAndSwapParams)
-      );
-      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
-        posm,
-        tokenId,
-        poolKey,
-        decParams.decreaseParams.hookData,
-        decParams.gasFeeX64
-      );
+      ISharedV4Utils.DecreaseAndSwapParams memory decParams =
+        abi.decode(instructions.params, (ISharedV4Utils.DecreaseAndSwapParams));
+      (uint256 amount0, uint256 amount1) =
+        _collectV4GeneratedFees(posm, tokenId, poolKey, decParams.decreaseParams.hookData, decParams.gasFeeX64);
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
         posm,
         poolKey,
@@ -392,28 +344,13 @@ library SharedV4StrategyLib {
       // intermediates via the virtual ledger inside `_executeV4Swaps`.
       _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, decParams.swapParams);
     } else if (instructions.action == ISharedV4Utils.UtilActions.ADJUST_RANGE) {
-      ISharedV4Utils.AdjustRangeParams memory adjustParams = abi.decode(
-        instructions.params,
-        (ISharedV4Utils.AdjustRangeParams)
-      );
-      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
-        posm,
-        tokenId,
-        poolKey,
-        adjustParams.collectFeesHookData,
-        adjustParams.gasFeeX64
-      );
+      ISharedV4Utils.AdjustRangeParams memory adjustParams =
+        abi.decode(instructions.params, (ISharedV4Utils.AdjustRangeParams));
+      (uint256 amount0, uint256 amount1) =
+        _collectV4GeneratedFees(posm, tokenId, poolKey, adjustParams.collectFeesHookData, adjustParams.gasFeeX64);
       uint128 liquidity = pm.getPositionLiquidity(tokenId);
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
-        posm,
-        poolKey,
-        tokenId,
-        liquidity,
-        0,
-        0,
-        "",
-        adjustParams.gasFeeX64,
-        adjustParams.mintParams.deadline
+        posm, poolKey, tokenId, liquidity, 0, 0, "", adjustParams.gasFeeX64, adjustParams.mintParams.deadline
       );
       amount0 += principal0;
       amount1 += principal1;
@@ -512,7 +449,7 @@ library SharedV4StrategyLib {
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     IPositionManager pm = IPositionManager(posm);
     PositionInfo positionInfo = pm.positionInfo(tokenId);
-    (uint160 sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
+    (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       sqrtPriceX96,
       TickMath.getSqrtPriceAtTick(positionInfo.tickLower()),
@@ -525,9 +462,7 @@ library SharedV4StrategyLib {
 
     _approveV4PositionManager(posm, poolKey, amount0, amount1);
     bytes memory actions = abi.encodePacked(
-      uint8(Actions.INCREASE_LIQUIDITY),
-      uint8(Actions.CLOSE_CURRENCY),
-      uint8(Actions.CLOSE_CURRENCY)
+      uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY)
     );
     bytes[] memory callParams = new bytes[](3);
     callParams[0] = abi.encode(tokenId, uint256(liquidity), uint128(amount0), uint128(amount1), params.hookData);
@@ -547,7 +482,7 @@ library SharedV4StrategyLib {
     if (amount0 == 0 && amount1 == 0) revert ISharedCommon.InvalidAmount();
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     IPositionManager pm = IPositionManager(posm);
-    (uint160 sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
+    (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       sqrtPriceX96,
       TickMath.getSqrtPriceAtTick(params.tickLower),
@@ -604,11 +539,11 @@ library SharedV4StrategyLib {
     uint256[] memory intBalances = new uint256[](swapParams.length);
     uint256 intCount;
 
-    for (uint256 i; i < swapParams.length; ) {
+    for (uint256 i; i < swapParams.length;) {
       ISharedV4Utils.SwapParams memory swapParam = swapParams[i];
       require(
-        _isV4SwapInputAllowed(token0, token1, swapParam.tokenIn, swapParams, i) &&
-          _isV4SwapOutputAllowed(token0, token1, swapParam.tokenOut, swapParams, i),
+        _isV4SwapInputAllowed(token0, token1, swapParam.tokenIn, swapParams, i)
+          && _isV4SwapOutputAllowed(token0, token1, swapParam.tokenOut, swapParams, i),
         ISharedStrategy.InvalidPoolTokens()
       );
 
@@ -638,21 +573,12 @@ library SharedV4StrategyLib {
       }
 
       (uint256 amountInDelta, uint256 amountOutDelta) = _swapV4(
-        swapRouter,
-        swapParam.tokenIn,
-        swapParam.tokenOut,
-        amountIn,
-        swapParam.amountOutMin,
-        swapParam.swapData
+        swapRouter, swapParam.tokenIn, swapParam.tokenOut, amountIn, swapParam.amountOutMin, swapParam.swapData
       );
 
-      if (inIsIntermediate) {
-        intBalances[inIdx] -= amountInDelta;
-      } else if (swapParam.tokenIn == token0) {
-        total0 -= amountInDelta;
-      } else {
-        total1 -= amountInDelta;
-      }
+      if (inIsIntermediate) intBalances[inIdx] -= amountInDelta;
+      else if (swapParam.tokenIn == token0) total0 -= amountInDelta;
+      else total1 -= amountInDelta;
 
       if (swapParam.tokenOut == token0) {
         total0 += amountOutDelta;
@@ -676,7 +602,7 @@ library SharedV4StrategyLib {
 
     // Every non-pool intermediate produced by the pipeline must have been fully consumed by a
     // subsequent hop. Leftover intermediates would land in the vault outside TVL accounting.
-    for (uint256 j; j < intCount; ) {
+    for (uint256 j; j < intCount;) {
       require(intBalances[j] == 0, ISharedCommon.InvalidAmount());
       unchecked {
         j++;
@@ -684,12 +610,12 @@ library SharedV4StrategyLib {
     }
   }
 
-  function _findIntermediate(
-    address[] memory intTokens,
-    uint256 intCount,
-    address token
-  ) private pure returns (uint256 idx) {
-    for (uint256 i; i < intCount; ) {
+  function _findIntermediate(address[] memory intTokens, uint256 intCount, address token)
+    private
+    pure
+    returns (uint256 idx)
+  {
+    for (uint256 i; i < intCount;) {
       if (intTokens[i] == token) return i;
       unchecked {
         i++;
@@ -706,7 +632,7 @@ library SharedV4StrategyLib {
     uint256 index
   ) private pure returns (bool) {
     if (tokenIn == token0 || tokenIn == token1) return true;
-    for (uint256 i; i < index; ) {
+    for (uint256 i; i < index;) {
       if (swapParams[i].tokenOut == tokenIn) return true;
       unchecked {
         i++;
@@ -724,7 +650,7 @@ library SharedV4StrategyLib {
   ) private pure returns (bool) {
     if (tokenOut == token0 || tokenOut == token1) return true;
     if (tokenOut == address(0)) return false;
-    for (uint256 i = index + 1; i < swapParams.length; ) {
+    for (uint256 i = index + 1; i < swapParams.length;) {
       if (swapParams[i].tokenIn == tokenOut) return true;
       unchecked {
         i++;
@@ -753,7 +679,7 @@ library SharedV4StrategyLib {
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
-    (bool success, ) = swapRouter.call(swapData);
+    (bool success,) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed();
     IERC20(tokenIn).safeApprove(swapRouter, 0);
     uint256 balanceInAfter = IERC20(tokenIn).balanceOf(address(this));
@@ -778,12 +704,9 @@ library SharedV4StrategyLib {
     }
   }
 
-  function _clearV4PositionManagerApprovals(
-    address posm,
-    PoolKey memory poolKey,
-    uint256 amount0,
-    uint256 amount1
-  ) private {
+  function _clearV4PositionManagerApprovals(address posm, PoolKey memory poolKey, uint256 amount0, uint256 amount1)
+    private
+  {
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
     if (amount0 > 0) {
       address token0 = Currency.unwrap(poolKey.currency0);
@@ -797,10 +720,11 @@ library SharedV4StrategyLib {
     }
   }
 
-  function _positionAmountsSplit(
-    address posm,
-    uint256 tokenId
-  ) private view returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) {
+  function _positionAmountsSplit(address posm, uint256 tokenId)
+    private
+    view
+    returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1)
+  {
     IPositionManager pm = IPositionManager(posm);
     PoolKey memory poolKey;
     PositionInfo positionInfo;
@@ -816,14 +740,11 @@ library SharedV4StrategyLib {
 
     IPoolManager manager = pm.poolManager();
     PoolId poolId = poolKey.toId();
-    (uint160 sqrtPriceX96, , , ) = manager.getSlot0(poolId);
+    (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolId);
 
     if (liquidity > 0) {
       (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96,
-        TickMath.getSqrtPriceAtTick(tickLower),
-        TickMath.getSqrtPriceAtTick(tickUpper),
-        liquidity
+        sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
       );
     }
 
@@ -838,30 +759,22 @@ library SharedV4StrategyLib {
     int24 tickUpper,
     uint256 tokenId
   ) private view returns (uint256 fee0, uint256 fee1) {
-    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = manager.getPositionInfo(
-      poolId,
-      address(posm),
-      tickLower,
-      tickUpper,
-      bytes32(tokenId)
-    );
+    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) =
+      manager.getPositionInfo(poolId, address(posm), tickLower, tickUpper, bytes32(tokenId));
     if (liquidity == 0) return (0, 0);
 
-    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = manager.getFeeGrowthInside(
-      poolId,
-      tickLower,
-      tickUpper
-    );
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+      manager.getFeeGrowthInside(poolId, tickLower, tickUpper);
 
     fee0 = uint256(_feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity));
     fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
   }
 
-  function _feeOwed(
-    uint256 feeGrowthInsideX128,
-    uint256 feeGrowthInsideLastX128,
-    uint256 liquidity
-  ) private pure returns (uint128) {
+  function _feeOwed(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
+    private
+    pure
+    returns (uint128)
+  {
     if (liquidity == 0) return 0;
     unchecked {
       return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
@@ -876,9 +789,23 @@ library SharedV4StrategyLib {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
   }
 
-  function _validateV4InputTokens(ISharedV4Utils.InputTokenParams[] memory inputTokens) private view {
-    for (uint256 i; i < inputTokens.length; ) {
-      if (inputTokens[i].amount > 0) _validateVaultToken(Currency.unwrap(inputTokens[i].token));
+  /// @dev Every positive-amount input must be both a vault token AND one of the pool currencies.
+  ///      The currency match is essential: without it, an authorized executor could include a
+  ///      non-pool vault token (e.g. DAI in a WETH/USDC mint) with a nonzero `gasFeeX64` and have
+  ///      `_takeInputGasFeesAndGetPoolAmounts` siphon `amount * gasFeeX64 / Q64` of that token to
+  ///      `msg.sender` while the remainder dangles unused (never folded into `amount0`/`amount1`).
+  ///      Zero-amount entries are tolerated (they're a no-op for both fee and pool accounting).
+  function _validateV4InputTokens(
+    ISharedV4Utils.InputTokenParams[] memory inputTokens,
+    Currency currency0,
+    Currency currency1
+  ) private view {
+    for (uint256 i; i < inputTokens.length;) {
+      if (inputTokens[i].amount > 0) {
+        Currency token = inputTokens[i].token;
+        _validateVaultToken(Currency.unwrap(token));
+        require(token == currency0 || token == currency1, ISharedStrategy.InvalidPoolTokens());
+      }
       unchecked {
         i++;
       }
@@ -891,7 +818,7 @@ library SharedV4StrategyLib {
     ISharedV4Utils.InputTokenParams[] memory inputTokens,
     uint64 gasFeeX64
   ) private returns (uint256 amount0, uint256 amount1) {
-    for (uint256 i; i < inputTokens.length; ) {
+    for (uint256 i; i < inputTokens.length;) {
       uint256 amount = inputTokens[i].amount;
       address token = Currency.unwrap(inputTokens[i].token);
       if (amount > 0 && gasFeeX64 > 0) {
@@ -918,7 +845,7 @@ library SharedV4StrategyLib {
   function _v4ParamsBody(bytes memory params) private pure returns (bytes memory body) {
     require(params.length >= 4, ISharedCommon.InvalidOperation());
     body = new bytes(params.length - 4);
-    for (uint256 j; j < body.length; ) {
+    for (uint256 j; j < body.length;) {
       body[j] = params[j + 4];
       unchecked {
         ++j;
@@ -926,35 +853,34 @@ library SharedV4StrategyLib {
     }
   }
 
-  function _decodeV4ExecuteCalldata(
-    bytes memory params,
-    address posm,
-    uint256 tokenId
-  ) private pure returns (ISharedV4Utils.Instructions memory instructions) {
+  function _decodeV4ExecuteCalldata(bytes memory params, address posm, uint256 tokenId)
+    private
+    pure
+    returns (ISharedV4Utils.Instructions memory instructions)
+  {
     require(_v4ParamsSelector(params) == ISharedV4Utils.execute.selector, ISharedCommon.InvalidOperation());
     bytes memory body = _v4ParamsBody(params);
-    (address p, uint256 tid, ISharedV4Utils.Instructions memory decodedInstructions) = abi.decode(
-      body,
-      (address, uint256, ISharedV4Utils.Instructions)
-    );
+    (address p, uint256 tid, ISharedV4Utils.Instructions memory decodedInstructions) =
+      abi.decode(body, (address, uint256, ISharedV4Utils.Instructions));
     require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
     instructions = decodedInstructions;
   }
 
-  function _decodeV4SwapAndMintCalldata(
-    bytes memory params,
-    address posm
-  ) private pure returns (ISharedV4Utils.SwapAndMintParams memory decodedParams) {
+  function _decodeV4SwapAndMintCalldata(bytes memory params, address posm)
+    private
+    pure
+    returns (ISharedV4Utils.SwapAndMintParams memory decodedParams)
+  {
     require(_v4ParamsSelector(params) == ISharedV4Utils.swapAndMint.selector, ISharedCommon.InvalidOperation());
     decodedParams = abi.decode(_v4ParamsBody(params), (ISharedV4Utils.SwapAndMintParams));
     require(decodedParams.posm == posm, ISharedCommon.InvalidOperation());
   }
 
-  function _decodeV4SwapAndIncreaseCalldata(
-    bytes memory params,
-    address posm,
-    uint256 tokenId
-  ) private pure returns (ISharedV4Utils.SwapAndIncreaseParams memory decodedParams) {
+  function _decodeV4SwapAndIncreaseCalldata(bytes memory params, address posm, uint256 tokenId)
+    private
+    pure
+    returns (ISharedV4Utils.SwapAndIncreaseParams memory decodedParams)
+  {
     require(_v4ParamsSelector(params) == ISharedV4Utils.swapAndIncrease.selector, ISharedCommon.InvalidOperation());
     decodedParams = abi.decode(_v4ParamsBody(params), (ISharedV4Utils.SwapAndIncreaseParams));
     require(decodedParams.posm == posm && decodedParams.tokenId == tokenId, ISharedCommon.InvalidOperation());

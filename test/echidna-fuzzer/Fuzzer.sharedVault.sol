@@ -124,7 +124,7 @@ contract NoReturnERC20 {
 }
 
 contract FuzzWETH9 is FuzzERC20 {
-  constructor() FuzzERC20("Wrapped Ether", "WETH", 18) {}
+  constructor() FuzzERC20("Wrapped Ether", "WETH", 18) { }
 
   receive() external payable {
     deposit();
@@ -138,7 +138,7 @@ contract FuzzWETH9 is FuzzERC20 {
   function withdraw(uint256 amount) external {
     balanceOf[msg.sender] -= amount;
     totalSupply -= amount;
-    (bool ok, ) = msg.sender.call{ value: amount }("");
+    (bool ok,) = msg.sender.call{ value: amount }("");
     require(ok, "ETH transfer failed");
   }
 }
@@ -170,7 +170,7 @@ contract SharedFuzzPlayer {
     }
   }
 
-  receive() external payable {}
+  receive() external payable { }
 
   function deposit(uint256[4] memory amounts, uint16 slippageBps) external payable returns (uint256 shares) {
     return vault.deposit{ value: msg.value }(amounts, slippageBps);
@@ -178,6 +178,15 @@ contract SharedFuzzPlayer {
 
   function withdraw(uint256 shares, uint256[4] memory mins, bool unwrap) external returns (uint256[4] memory amounts) {
     return vault.withdraw(shares, mins, unwrap);
+  }
+}
+
+contract SharedDelegatedWithdrawer {
+  function withdrawFor(SharedVault vault, uint256 shares, uint256[4] memory mins, address account)
+    external
+    returns (uint256[4] memory amounts)
+  {
+    return vault.withdraw(shares, mins, false, account);
   }
 }
 
@@ -200,14 +209,9 @@ contract FuzzLpPool {
 
   mapping(bytes32 => Position) internal positions;
 
-  function deposit(
-    address nfpm,
-    uint256 tokenId,
-    address token0,
-    address token1,
-    uint256 amount0,
-    uint256 amount1
-  ) external {
+  function deposit(address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1)
+    external
+  {
     bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
     Position storage p = positions[key];
     if (p.token0 == address(0)) {
@@ -249,13 +253,10 @@ contract FuzzLpPool {
     if (reward1 > 0) IERC20(p.token1).transfer(recipient, reward1);
   }
 
-  function exit(
-    address nfpm,
-    uint256 tokenId,
-    uint256 shares,
-    uint256 totalShares,
-    address recipient
-  ) external returns (bool fullyExited) {
+  function exit(address nfpm, uint256 tokenId, uint256 shares, uint256 totalShares, address recipient)
+    external
+    returns (bool fullyExited)
+  {
     Position storage p = positions[keccak256(abi.encodePacked(nfpm, tokenId))];
     uint256 exit0 = (p.principal0 * shares) / totalShares;
     uint256 exit1 = (p.principal1 * shares) / totalShares;
@@ -303,15 +304,11 @@ contract FuzzLpStrategy is ISharedStrategy {
     pool.deposit(nfpm, tokenId, token0, token1, amount0, amount1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256 shares,
-    uint256 totalShares,
-    uint256,
-    uint256,
-    uint16
-  ) external override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256 shares, uint256 totalShares, uint256, uint256, uint16)
+    external
+    override
+    returns (PositionChange[] memory changes)
+  {
     bool fullyExited = pool.exit(nfpm, tokenId, shares, totalShares, address(this));
     if (fullyExited) {
       changes = new PositionChange[](1);
@@ -329,10 +326,12 @@ contract FuzzLpStrategy is ISharedStrategy {
     return pool.getAmounts(nfpm, tokenId);
   }
 
-  function getPositionPrincipalAmounts(
-    address,
-    uint256
-  ) external view override returns (uint256 amount0, uint256 amount1) {
+  function getPositionPrincipalAmounts(address, uint256)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
     return pool.getPrincipal(nfpm, tokenId);
   }
 
@@ -388,10 +387,7 @@ contract FuzzCwpTarget is ISharedStrategy {
     token1 = _token1;
   }
 
-  function createPosition(
-    address nfpm,
-    uint256 tokenId
-  ) external view returns (PositionChange[] memory changes) {
+  function createPosition(address nfpm, uint256 tokenId) external view returns (PositionChange[] memory changes) {
     changes = new PositionChange[](1);
     changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
   }
@@ -400,7 +396,7 @@ contract FuzzCwpTarget is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
   function exitProportional(
     address nfpm,
@@ -419,16 +415,18 @@ contract FuzzCwpTarget is ISharedStrategy {
     }
   }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 
   function getPositionAmounts(address, uint256) external pure override returns (uint256 amount0, uint256 amount1) {
     return (0, 0);
   }
 
-  function getPositionPrincipalAmounts(
-    address,
-    uint256
-  ) external pure override returns (uint256 amount0, uint256 amount1) {
+  function getPositionPrincipalAmounts(address, uint256)
+    external
+    pure
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
     return (0, 0);
   }
 
@@ -476,6 +474,7 @@ contract SharedVaultFuzzer {
   FuzzERC20 public precisionB;
   FuzzERC20 public precisionX;
   SharedVaultGateway public gateway;
+  SharedDelegatedWithdrawer public delegatedWithdrawer;
 
   FuzzSwapRouter public swapRouter;
 
@@ -484,9 +483,12 @@ contract SharedVaultFuzzer {
   bool public noReturnChecked;
   bool public pauseChecked;
   bool public callTypeChecked;
+  bool public delegatedWithdrawChecked;
+  bool public gatewayFotChecked;
 
   constructor() payable {
     swapRouter = new FuzzSwapRouter();
+    delegatedWithdrawer = new SharedDelegatedWithdrawer();
     configManager = _newConfig(new address[](0), new address[](0));
     _whitelistSwapRouter(configManager, address(swapRouter));
 
@@ -497,7 +499,7 @@ contract SharedVaultFuzzer {
     _setupPrecisionGatewayVault();
   }
 
-  receive() external payable {}
+  receive() external payable { }
 
   // -------------------------------------------------------------------------
   // Stateful idle 2-token vault
@@ -549,6 +551,69 @@ contract SharedVaultFuzzer {
     } catch (bytes memory reason) {
       assert(_isAcceptablePreviewedWithdrawRevert(reason));
     }
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  function idle_delegated_withdraw_spends_allowance(uint256 shareSeed, bool infiniteAllowance) external {
+    uint256 bal = idleVault.balanceOf(address(this));
+    if (bal == 0) return;
+
+    uint256 shares = _sharesFromSeed(bal, shareSeed);
+    uint256[4] memory preview = idleVault.previewWithdraw(shares);
+    if (!_hasNonDustOutput(preview)) return;
+
+    uint256 allowanceAmount = infiniteAllowance ? type(uint256).max : shares;
+    idleVault.approve(address(delegatedWithdrawer), allowanceAmount);
+
+    uint256 supplyBefore = idleVault.totalSupply();
+    uint256 aBefore = idleA.balanceOf(address(delegatedWithdrawer));
+    uint256 bBefore = idleB.balanceOf(address(delegatedWithdrawer));
+    uint256[4] memory mins;
+
+    try delegatedWithdrawer.withdrawFor(idleVault, shares, mins, address(this)) returns (uint256[4] memory got) {
+      assert(got[0] == preview[0]);
+      assert(got[1] == preview[1]);
+      assert(idleVault.totalSupply() == supplyBefore - shares);
+      assert(idleA.balanceOf(address(delegatedWithdrawer)) == aBefore + got[0]);
+      assert(idleB.balanceOf(address(delegatedWithdrawer)) == bBefore + got[1]);
+      if (infiniteAllowance) {
+        assert(idleVault.allowance(address(this), address(delegatedWithdrawer)) == type(uint256).max);
+      } else {
+        assert(idleVault.allowance(address(this), address(delegatedWithdrawer)) == 0);
+      }
+      delegatedWithdrawChecked = true;
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+    }
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  function idle_withdraw_allowed_while_paused(uint256 shareSeed, bool globalPause) external {
+    uint256 bal = idleVault.balanceOf(address(this));
+    if (bal == 0) return;
+
+    uint256 shares = _sharesFromSeed(bal, shareSeed);
+    uint256[4] memory preview = idleVault.previewWithdraw(shares);
+    if (!_hasNonDustOutput(preview)) return;
+
+    if (globalPause) configManager.setVaultPaused(true);
+    else idleVault.setPaused(true);
+
+    uint256[4] memory mins;
+    try idleVault.withdraw(shares, mins, false) returns (uint256[4] memory got) {
+      assert(got[0] == preview[0]);
+      assert(got[1] == preview[1]);
+      pauseChecked = true;
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+    }
+
+    if (globalPause) configManager.setVaultPaused(false);
+    else idleVault.setPaused(false);
 
     _assertIdleShareConservation();
     _assertPositiveBacking(idleVault);
@@ -641,7 +706,7 @@ contract SharedVaultFuzzer {
 
     try multiPlayers[0].deposit(amounts, 0) returns (uint256) {
       assert(false);
-    } catch {}
+    } catch { }
   }
 
   // -------------------------------------------------------------------------
@@ -739,12 +804,9 @@ contract SharedVaultFuzzer {
     assert(v.getPositionCount() == 0);
   }
 
-  function lp_generated_fee_distribution(
-    uint256 reward0,
-    uint256 reward1,
-    uint16 rawPlatformBps,
-    uint16 rawOwnerBps
-  ) external {
+  function lp_generated_fee_distribution(uint256 reward0, uint256 reward1, uint16 rawPlatformBps, uint16 rawOwnerBps)
+    external
+  {
     reward0 = _bound(reward0, 0, type(uint256).max / 4);
     reward1 = _bound(reward1, 0, type(uint256).max / 4);
     uint16 platformBps = rawPlatformBps % 10_001;
@@ -791,9 +853,7 @@ contract SharedVaultFuzzer {
     pool.setRewards(address(nfpm), 707, reward0, reward1);
 
     actions[0] = ISharedVault.Action({
-      target: address(strategy),
-      data: abi.encode(uint256(0), uint256(0)),
-      callType: ISharedCommon.CallType.DELEGATECALL
+      target: address(strategy), data: abi.encode(uint256(0), uint256(0)), callType: ISharedCommon.CallType.DELEGATECALL
     });
     v.execute(actions);
 
@@ -825,10 +885,12 @@ contract SharedVaultFuzzer {
     SharedVault partialVault = new SharedVault();
     address[4] memory partialToks = [address(fot), address(standard), address(0), address(0)];
     uint256[4] memory zeroInit;
-    partialVault.initialize("PartialFOT", partialToks, zeroInit, address(this), address(this), address(configManager), address(0), 0);
+    partialVault.initialize(
+      "PartialFOT", partialToks, zeroInit, address(this), address(this), address(configManager), address(0), 0
+    );
 
-    fot.mint(address(this), 1_000e18);
-    standard.mint(address(this), 1_000e18);
+    fot.mint(address(this), 1000e18);
+    standard.mint(address(this), 1000e18);
     fot.approve(address(partialVault), type(uint256).max);
     standard.approve(address(partialVault), type(uint256).max);
     uint256 shares = partialVault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
@@ -837,13 +899,15 @@ contract SharedVaultFuzzer {
 
     SharedVault blocked = new SharedVault();
     address[4] memory blockedToks = [address(fot100), address(standard), address(0), address(0)];
-    blocked.initialize("BlockedFOT", blockedToks, zeroInit, address(this), address(this), address(configManager), address(0), 0);
-    fot100.mint(address(this), 1_000e18);
+    blocked.initialize(
+      "BlockedFOT", blockedToks, zeroInit, address(this), address(this), address(configManager), address(0), 0
+    );
+    fot100.mint(address(this), 1000e18);
     fot100.approve(address(blocked), type(uint256).max);
     standard.approve(address(blocked), type(uint256).max);
     try blocked.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0) returns (uint256) {
       assert(false);
-    } catch {}
+    } catch { }
   }
 
   function token_edges_no_return_erc20() external {
@@ -857,13 +921,61 @@ contract SharedVaultFuzzer {
     uint256[4] memory init;
     v.initialize("NoReturn", toks, init, address(this), address(this), address(configManager), address(0), 0);
 
-    nrt.mint(address(this), 1_000e6);
-    standard.mint(address(this), 1_000e18);
+    nrt.mint(address(this), 1000e6);
+    standard.mint(address(this), 1000e18);
     nrt.approve(address(v), type(uint256).max);
     standard.approve(address(v), type(uint256).max);
     uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
     assert(shares == INITIAL_SHARES);
     assert(nrt.balanceOf(address(v)) == 100e6);
+  }
+
+  function gateway_fee_on_transfer_deposit_credits_actual_receipt() external {
+    if (gatewayFotChecked) return;
+    gatewayFotChecked = true;
+
+    SharedVaultGateway localGateway = new SharedVaultGateway();
+    localGateway.initialize(address(this), address(swapRouter), address(weth));
+
+    FotERC20 fot = new FotERC20(200);
+    FuzzERC20 standard = new FuzzERC20("GatewayFOTPair", "GFP", 18);
+    SharedVault v = new SharedVault();
+
+    fot.mint(address(this), 100e18);
+    standard.mint(address(this), 100e18);
+    fot.transfer(address(v), 100e18);
+    standard.transfer(address(v), 100e18);
+
+    address[4] memory toks = [address(fot), address(standard), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    v.initialize("GatewayFOT", toks, init, address(this), address(this), address(configManager), address(0), 0);
+
+    fot.mint(address(this), 50e18);
+    standard.mint(address(this), 50e18);
+    fot.approve(address(localGateway), type(uint256).max);
+    standard.approve(address(localGateway), type(uint256).max);
+
+    SharedVaultGateway.InputToken[] memory inputs = _gatewayInputs2(address(fot), 50e18, address(standard), 50e18);
+    address[] memory sweepTokens = new address[](2);
+    sweepTokens[0] = address(fot);
+    sweepTokens[1] = address(standard);
+
+    uint256 fotBefore = fot.balanceOf(address(v));
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(v)),
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: sweepTokens
+    });
+
+    uint256 shares = localGateway.swapAndDeposit(params);
+    assert(shares > 0);
+    assert(v.balanceOf(address(this)) > INITIAL_SHARES);
+    assert(fot.balanceOf(address(v)) - fotBefore == (49e18 * 9800) / 10_000);
+    assert(fot.balanceOf(address(localGateway)) == 0);
+    assert(standard.balanceOf(address(localGateway)) == 0);
   }
 
   function execute_call_and_call_with_positions_paths() external {
@@ -877,18 +989,13 @@ contract SharedVaultFuzzer {
     uint256 balABefore = idleA.balanceOf(address(idleVault));
     uint256 balBBefore = idleB.balanceOf(address(idleVault));
 
-    bytes memory swapCalldata = abi.encodeCall(
-      FuzzSwapRouter.swap,
-      (address(idleA), address(idleB), amountIn, amountOut)
-    );
+    bytes memory swapCalldata =
+      abi.encodeCall(FuzzSwapRouter.swap, (address(idleA), address(idleB), amountIn, amountOut));
     bytes memory actionData = abi.encode(address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
 
     ISharedVault.Action[] memory callActions = new ISharedVault.Action[](1);
-    callActions[0] = ISharedVault.Action({
-      target: address(swapRouter),
-      data: actionData,
-      callType: ISharedCommon.CallType.CALL
-    });
+    callActions[0] =
+      ISharedVault.Action({ target: address(swapRouter), data: actionData, callType: ISharedCommon.CallType.CALL });
     idleVault.execute(callActions);
 
     assert(idleA.balanceOf(address(idleVault)) == balABefore - amountIn);
@@ -910,7 +1017,7 @@ contract SharedVaultFuzzer {
     uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     cwpVault.initialize("CwpShared", toks, init, address(this), address(this), address(cm), address(0), 0);
 
-    uint256 tokenId = 7_001;
+    uint256 tokenId = 7001;
     cwpNfpm.mint(address(cwpVault), tokenId);
     ISharedVault.Action[] memory cwpActions = new ISharedVault.Action[](1);
     cwpActions[0] = ISharedVault.Action({
@@ -982,7 +1089,7 @@ contract SharedVaultFuzzer {
     uint256[4] memory amounts = [uint256(1e18), uint256(2e18), uint256(0), uint256(0)];
     try idlePlayers[0].deposit(amounts, 0) returns (uint256) {
       assert(false);
-    } catch {}
+    } catch { }
     idleVault.setPaused(false);
 
     uint256 bal = idleVault.balanceOf(address(idlePlayers[0]));
@@ -993,7 +1100,7 @@ contract SharedVaultFuzzer {
     uint256[4] memory mins = [uint256(type(uint256).max), uint256(0), uint256(0), uint256(0)];
     try idlePlayers[0].withdraw(bal / 2, mins, false) returns (uint256[4] memory) {
       assert(false);
-    } catch {}
+    } catch { }
   }
 
   // -------------------------------------------------------------------------
@@ -1025,7 +1132,7 @@ contract SharedVaultFuzzer {
       uint256[4] memory below = [mins[0], mins[1] - 1, uint256(0), uint256(0)];
       try precisionVault.deposit(below, 0) returns (uint256) {
         assert(false);
-      } catch {}
+      } catch { }
       return;
     }
 
@@ -1090,7 +1197,7 @@ contract SharedVaultFuzzer {
       });
       try gateway.swapAndDeposit(below) returns (uint256) {
         assert(false);
-      } catch {}
+      } catch { }
       return;
     }
 
@@ -1163,7 +1270,7 @@ contract SharedVaultFuzzer {
     if (belowFloor) {
       try gateway.swapAndDeposit(params) returns (uint256) {
         assert(false);
-      } catch {}
+      } catch { }
       return;
     }
 
@@ -1253,10 +1360,10 @@ contract SharedVaultFuzzer {
     idleB = new FuzzERC20("IdleB", "IDB", 18);
     idleVault = new SharedVault();
 
-    idleA.mint(address(idleVault), 1_000e18);
-    idleB.mint(address(idleVault), 2_000e18);
+    idleA.mint(address(idleVault), 1000e18);
+    idleB.mint(address(idleVault), 2000e18);
     address[4] memory toks = [address(idleA), address(idleB), address(0), address(0)];
-    uint256[4] memory init = [uint256(1_000e18), uint256(2_000e18), uint256(0), uint256(0)];
+    uint256[4] memory init = [uint256(1000e18), uint256(2000e18), uint256(0), uint256(0)];
     idleVault.initialize("IdleShared", toks, init, address(this), address(this), address(configManager), address(0), 0);
 
     for (uint256 i; i < 3; i++) {
@@ -1279,7 +1386,9 @@ contract SharedVaultFuzzer {
     multiD.mint(address(multiVault), 2e8);
     address[4] memory toks = [address(multiA), address(multiB), address(multiC), address(multiD)];
     uint256[4] memory init = [uint256(100e18), uint256(200e18), uint256(100e6), uint256(2e8)];
-    multiVault.initialize("MultiShared", toks, init, address(this), address(this), address(configManager), address(0), 0);
+    multiVault.initialize(
+      "MultiShared", toks, init, address(this), address(this), address(configManager), address(0), 0
+    );
 
     for (uint256 i; i < 2; i++) {
       multiPlayers[i] = new SharedFuzzPlayer(multiVault, toks);
@@ -1338,7 +1447,9 @@ contract SharedVaultFuzzer {
 
     address[4] memory toks = [address(wethTokenA), address(weth), address(0), address(0)];
     uint256[4] memory init = [uint256(100e18), uint256(100 ether), uint256(0), uint256(0)];
-    wethVault.initialize("WethShared", toks, init, address(this), address(this), address(configManager), address(weth), 0);
+    wethVault.initialize(
+      "WethShared", toks, init, address(this), address(this), address(configManager), address(weth), 0
+    );
 
     wethPlayer = new SharedFuzzPlayer(wethVault, toks);
     wethTokenA.mint(address(wethPlayer), 1e30);
@@ -1354,18 +1465,11 @@ contract SharedVaultFuzzer {
     gateway.initialize(address(this), address(swapRouter), address(weth));
 
     precisionA.mint(address(precisionVault), 100e18);
-    precisionB.mint(address(precisionVault), 5_521);
+    precisionB.mint(address(precisionVault), 5521);
     address[4] memory toks = [address(precisionA), address(precisionB), address(0), address(0)];
-    uint256[4] memory init = [uint256(100e18), uint256(5_521), uint256(0), uint256(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(5521), uint256(0), uint256(0)];
     precisionVault.initialize(
-      "PrecisionShared",
-      toks,
-      init,
-      address(this),
-      address(this),
-      address(precisionConfigManager),
-      address(0),
-      0
+      "PrecisionShared", toks, init, address(this), address(this), address(precisionConfigManager), address(0), 0
     );
 
     precisionA.approve(address(precisionVault), type(uint256).max);
@@ -1403,13 +1507,17 @@ contract SharedVaultFuzzer {
 
   function _assertIdleShareConservation() internal view {
     uint256 sum = idleVault.balanceOf(address(this));
-    for (uint256 i; i < 3; i++) sum += idleVault.balanceOf(address(idlePlayers[i]));
+    for (uint256 i; i < 3; i++) {
+      sum += idleVault.balanceOf(address(idlePlayers[i]));
+    }
     assert(sum == idleVault.totalSupply());
   }
 
   function _assertMultiShareConservation() internal view {
     uint256 sum = multiVault.balanceOf(address(this));
-    for (uint256 i; i < 2; i++) sum += multiVault.balanceOf(address(multiPlayers[i]));
+    for (uint256 i; i < 2; i++) {
+      sum += multiVault.balanceOf(address(multiPlayers[i]));
+    }
     assert(sum == multiVault.totalSupply());
   }
 
@@ -1467,20 +1575,20 @@ contract SharedVaultFuzzer {
     if (shares >= supply) shares = supply - 1;
   }
 
-  function _gatewayInputs1(
-    address token0,
-    uint256 amount0
-  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+  function _gatewayInputs1(address token0, uint256 amount0)
+    internal
+    pure
+    returns (SharedVaultGateway.InputToken[] memory inputs)
+  {
     inputs = new SharedVaultGateway.InputToken[](1);
     inputs[0] = SharedVaultGateway.InputToken({ token: token0, amount: amount0 });
   }
 
-  function _gatewayInputs2(
-    address token0,
-    uint256 amount0,
-    address token1,
-    uint256 amount1
-  ) internal pure returns (SharedVaultGateway.InputToken[] memory inputs) {
+  function _gatewayInputs2(address token0, uint256 amount0, address token1, uint256 amount1)
+    internal
+    pure
+    returns (SharedVaultGateway.InputToken[] memory inputs)
+  {
     inputs = new SharedVaultGateway.InputToken[](2);
     inputs[0] = SharedVaultGateway.InputToken({ token: token0, amount: amount0 });
     inputs[1] = SharedVaultGateway.InputToken({ token: token1, amount: amount1 });
@@ -1495,9 +1603,7 @@ contract SharedVaultFuzzer {
   ///      future stateful action could trigger between preview and execution.
   function _isAcceptablePreviewedWithdrawRevert(bytes memory reason) internal pure returns (bool) {
     bytes4 selector = _revertSelector(reason);
-    return
-      selector == ISharedCommon.StrategyCallFailed.selector ||
-      selector == ISharedCommon.InvalidNfpm.selector;
+    return selector == ISharedCommon.StrategyCallFailed.selector || selector == ISharedCommon.InvalidNfpm.selector;
   }
 
   function _revertSelector(bytes memory reason) internal pure returns (bytes4 selector) {
