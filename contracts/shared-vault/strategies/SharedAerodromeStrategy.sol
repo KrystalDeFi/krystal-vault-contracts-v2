@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { IV3Utils } from "../../private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { INonfungiblePositionManager } from "../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import { ICLFactory } from "../../common/interfaces/protocols/aerodrome/ICLFactory.sol";
-import { ICLPool } from "../../common/interfaces/protocols/aerodrome/ICLPool.sol";
+import { ICLPool } from "@aerodrome-finance/slipstream/contracts/core/interfaces/ICLPool.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
@@ -82,6 +82,11 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 tokenId;
     {
       (uint256 total0, uint256 total1) = _swapAndPrepareAmounts(params, ethValue);
+      // F3: skim the configurable input gas fee to the authorized executor (uniform with V4/Pancake).
+      if (params.gasFeeX64 > 0) {
+        address pool = _getPool(params.nfpm, params.token0, params.token1, params.tickSpacing);
+        (total0, total1) = _takeInputGasFee(params.token0, params.token1, total0, total1, pool, params.gasFeeX64);
+      }
       (tokenId, , , ) = _mintPosition(params, total0, total1);
     }
 
@@ -102,10 +107,14 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     _validateApprovalList(approveTokens, approveAmounts);
 
-    (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(params.nfpm).positions(
-      params.tokenId
-    );
+    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(params.nfpm)
+      .positions(params.tokenId);
     (uint256 total0, uint256 total1) = _swapAndPrepareIncreaseAmounts(params, token0, token1, ethValue);
+    // F3: skim the configurable input gas fee to the authorized executor (uniform with V4/Pancake).
+    if (params.gasFeeX64 > 0) {
+      address pool = _getPool(params.nfpm, token0, token1, tickSpacing);
+      (total0, total1) = _takeInputGasFee(token0, token1, total0, total1, pool, params.gasFeeX64);
+    }
     _increasePosition(
       params.nfpm,
       params.tokenId,
@@ -636,6 +645,32 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (amount1 > 0) IERC20(token1).safeApprove(lpFeeTaker, 0);
   }
 
+  /// @dev F3: skim a configurable gas fee from the prepared (post-swap) pool amounts to the authorized
+  ///      executor, mirroring SharedV4StrategyLib's swap-and-mint/increase input gas-fee behavior so the
+  ///      fee model is uniform across V3/Aerodrome/V4/Pancake. Routed through the lpFeeTaker (same path
+  ///      as the compound/decrease gas fee) so it is observable via FeeCollected.
+  function _takeInputGasFee(
+    address token0,
+    address token1,
+    uint256 amount0,
+    uint256 amount1,
+    address pool,
+    uint64 gasFeeX64
+  ) private returns (uint256 net0, uint256 net1) {
+    if (gasFeeX64 == 0 || (amount0 == 0 && amount1 == 0)) return (amount0, amount1);
+    ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: gasFeeX64,
+      gasFeeRecipient: msg.sender
+    });
+    (uint256 fee0, uint256 fee1) = _takeFees(token0, amount0, token1, amount1, pool, gasOnly);
+    net0 = amount0 - fee0;
+    net1 = amount1 - fee1;
+  }
+
   function _swapForCompound(
     address token0,
     address token1,
@@ -721,7 +756,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     address _nfpm,
     uint256 tokenId
   ) external view override returns (uint256 amount0, uint256 amount1) {
-    (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) = _positionAmountsSplit(
+    (uint256 principal0, uint256 principal1, uint256 tokensOwed0, uint256 tokensOwed1) = _positionAmountsSplit(
       _nfpm,
       tokenId
     );
@@ -752,7 +787,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   function _positionAmountsSplit(
     address _nfpm,
     uint256 tokenId
-  ) private view returns (uint256 principal0, uint256 principal1, uint128 tokensOwed0, uint128 tokensOwed1) {
+  ) private view returns (uint256 principal0, uint256 principal1, uint256 tokensOwed0, uint256 tokensOwed1) {
     address token0;
     address token1;
     int24 tickSpacing;
@@ -812,10 +847,16 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       tickUpper,
       tick
     );
+    // F7: fee-growth subtraction wraps by design; accumulate pending fees in uint256 (not a
+    // truncating uint128 cast) so this valuation neither silently wraps nor reverts at extreme growth.
+    uint256 delta0;
+    uint256 delta1;
     unchecked {
-      tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0X128 - feeGrowthInside0LastX128, liquidity, Q128));
-      tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1X128 - feeGrowthInside1LastX128, liquidity, Q128));
+      delta0 = feeGrowthInside0X128 - feeGrowthInside0LastX128;
+      delta1 = feeGrowthInside1X128 - feeGrowthInside1LastX128;
     }
+    tokensOwed0 = uint256(owed0) + FullMath.mulDiv(delta0, liquidity, Q128);
+    tokensOwed1 = uint256(owed1) + FullMath.mulDiv(delta1, liquidity, Q128);
   }
 
   /// @dev Computes fee growth inside [tickLower, tickUpper] using the standard Uniswap V3 formula:

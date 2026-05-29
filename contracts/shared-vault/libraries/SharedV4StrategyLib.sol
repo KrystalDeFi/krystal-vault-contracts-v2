@@ -50,6 +50,17 @@ library SharedV4StrategyLib {
     uint256 amount
   );
 
+  /// @dev Slippage model: the previous implementation requested EXACTLY `liquidityToAdd` and then
+  ///      checked `liquidityAdded >= liquidityToAdd * (1 - bps)` — always true, so it provided no
+  ///      protection. This version enforces a real per-token floor on the amounts ACTUALLY consumed
+  ///      (measured via balance deltas) against the amounts quoted for `liquidityToAdd` at the
+  ///      current price, with the `slippageBps` haircut. The floor is computed from
+  ///      `getAmountsForLiquidity` (not the raw supplied `amount0/amount1`) so single-sided /
+  ///      out-of-range positions — where one side is legitimately ~0 — do not spuriously revert.
+  ///      NOTE: adding CL liquidity does not move the pool price, so within one tx `used == expected`;
+  ///      this floor catches a misbehaving/non-canonical position manager but cannot by itself defeat
+  ///      a CROSS-transaction spot-price sandwich. Callers must pass a conservative `slippageBps` and,
+  ///      where MEV is a concern, derive the deposit ratio from an external price reference.
   function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external
   {
@@ -61,33 +72,37 @@ library SharedV4StrategyLib {
     (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     Currency currency0 = poolKey.currency0;
     Currency currency1 = poolKey.currency1;
+    address token0 = Currency.unwrap(currency0);
+    address token1 = Currency.unwrap(currency1);
 
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
     (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
-    uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), amount0, amount1
-    );
+    uint160 sqrtLower = TickMath.getSqrtPriceAtTick(positionInfo.tickLower());
+    uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(positionInfo.tickUpper());
+    uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, amount0, amount1);
     if (liquidityToAdd == 0) return;
 
-    uint128 liquidityBefore;
-    if (slippageBps > 0) liquidityBefore = pm.getPositionLiquidity(tokenId);
+    // Quote the token amounts this liquidity should consume at the current price; the real per-token
+    // floor below is checked against these (never against the raw supplied amounts).
+    (uint256 expected0, uint256 expected1) =
+      LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtLower, sqrtUpper, liquidityToAdd);
+
+    uint256 balance0Before = IERC20(token0).balanceOf(address(this));
+    uint256 balance1Before = IERC20(token1).balanceOf(address(this));
 
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
     if (amount0 > 0) {
-      address token0 = Currency.unwrap(currency0);
       IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
     }
     if (amount1 > 0) {
-      address token1 = Currency.unwrap(currency1);
       IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
     }
 
-    bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x12), uint8(0x12));
+    bytes memory actions =
+      abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY));
     bytes[] memory params = new bytes[](3);
     params[0] = abi.encode(tokenId, uint256(liquidityToAdd), uint128(amount0), uint128(amount1), bytes(""));
     params[1] = abi.encode(currency0);
@@ -96,20 +111,22 @@ library SharedV4StrategyLib {
     pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
 
     if (amount0 > 0) {
-      address token0 = Currency.unwrap(currency0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
       IERC20(token0).safeApprove(permit2Addr, 0);
     }
     if (amount1 > 0) {
-      address token1 = Currency.unwrap(currency1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
       IERC20(token1).safeApprove(permit2Addr, 0);
     }
 
     if (slippageBps > 0) {
-      uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;
-      uint128 minLiquidity = uint128(FullMath.mulDiv(liquidityToAdd, 10_000 - slippageBps, 10_000));
-      require(liquidityAdded >= minLiquidity, ISharedCommon.InsufficientOutput());
+      uint256 used0 = balance0Before - IERC20(token0).balanceOf(address(this));
+      uint256 used1 = balance1Before - IERC20(token1).balanceOf(address(this));
+      require(
+        used0 >= FullMath.mulDiv(expected0, 10_000 - slippageBps, 10_000)
+          && used1 >= FullMath.mulDiv(expected1, 10_000 - slippageBps, 10_000),
+        ISharedCommon.InsufficientOutput()
+      );
     }
   }
 
@@ -215,6 +232,14 @@ library SharedV4StrategyLib {
     _applyFees(token0, collected0, token1, collected1, fc);
   }
 
+  /// @dev Fees are applied SEQUENTIALLY against a running remainder: platform first, then owner, then
+  ///      gas, and each fee is clamped to whatever is left (`if (fee > remaining) fee = remaining`).
+  ///      Because every share is computed from the ORIGINAL `amount0/amount1` (not the running
+  ///      remainder), the clamp only ever caps the LAST fee type(s) if the configured bps sum exceeds
+  ///      100% — the total fee can never exceed the collected amount. On the withdraw `collectFees`
+  ///      path this is inert (`performanceFeeConfig` sets gasFeeX64=0 and guarantees
+  ///      platformBps+ownerBps<=10_000); it matters only when an operator-supplied `gasFeeX64` stacks
+  ///      on top of platform/owner fees in the compound/decrease paths.
   function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc)
     private
     returns (uint256 feeTaken0, uint256 feeTaken1)
@@ -349,8 +374,17 @@ library SharedV4StrategyLib {
       (uint256 amount0, uint256 amount1) =
         _collectV4GeneratedFees(posm, tokenId, poolKey, adjustParams.collectFeesHookData, adjustParams.gasFeeX64);
       uint128 liquidity = pm.getPositionLiquidity(tokenId);
+      // Bound the full-position burn with caller-supplied minimums (F8): mirrors DECREASE_AND_SWAP.
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
-        posm, poolKey, tokenId, liquidity, 0, 0, "", adjustParams.gasFeeX64, adjustParams.mintParams.deadline
+        posm,
+        poolKey,
+        tokenId,
+        liquidity,
+        adjustParams.decreaseAmount0Min,
+        adjustParams.decreaseAmount1Min,
+        "",
+        adjustParams.gasFeeX64,
+        adjustParams.mintParams.deadline
       );
       amount0 += principal0;
       amount1 += principal1;
@@ -532,6 +566,16 @@ library SharedV4StrategyLib {
     total0 = amount0;
     total1 = amount1;
 
+    // Defense-in-depth: re-validate the immutable swap router against the live ConfigManager whitelist
+    // at execution time, so the owner can revoke a compromised/deprecated aggregator as a kill-switch
+    // (the vault-level CALL path performs the same check). Only when the pipeline actually swaps.
+    if (swapParams.length > 0) {
+      require(
+        ISharedVault(address(this)).configManager().isWhitelistedSwapRouter(swapRouter),
+        ISharedCommon.InvalidSwapRouter(swapRouter)
+      );
+    }
+
     // Virtual ledger of non-pool intermediate tokens produced/consumed inside this pipeline.
     // Sized to swapParams.length: each entry can only enter the ledger via a hop's `tokenOut`,
     // and there are at most `swapParams.length` such outputs.
@@ -675,6 +719,9 @@ library SharedV4StrategyLib {
     bytes memory swapData
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) return (0, 0);
+    // Reject a self-swap explicitly rather than relying on the balance-delta subtraction to underflow:
+    // with tokenIn == tokenOut the in/out deltas reference the same balance and netting is meaningless.
+    require(tokenIn != tokenOut, ISharedCommon.InvalidOperation());
 
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));

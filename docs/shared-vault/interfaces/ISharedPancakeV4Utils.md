@@ -1,18 +1,5 @@
 # Solidity API
 
-## PancakeV4PoolKey
-
-```solidity
-struct PancakeV4PoolKey {
-  address currency0;
-  address currency1;
-  address hooks;
-  address poolManager;
-  uint24 fee;
-  bytes32 parameters;
-}
-```
-
 ## ISharedPancakeV4Utils
 
 ### UtilActions
@@ -94,12 +81,10 @@ struct InputTokenParams {
 ```solidity
 struct SwapAndMintParams {
   address posm;
-  struct PancakeV4PoolKey poolKey;
+  struct PoolKey poolKey;
   struct ISharedPancakeV4Utils.MintParams mintParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -113,8 +98,6 @@ struct SwapAndIncreaseParams {
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -125,8 +108,6 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedPancakeV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -138,10 +119,9 @@ struct AdjustRangeParams {
   bytes collectFeesHookData;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.MintParams mintParams;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
   uint64 gasFeeX64;
-  bool compoundFees;
+  uint256 decreaseAmount0Min;
+  uint256 decreaseAmount1Min;
 }
 ```
 
@@ -152,8 +132,6 @@ struct CompoundFeesParams {
   bytes collectFeesHookData;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
-  uint64 protocolFeeX64;
-  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```

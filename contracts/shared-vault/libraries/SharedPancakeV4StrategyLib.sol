@@ -12,7 +12,7 @@ import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 
-import { ISharedPancakeV4Utils, PancakeV4PoolKey } from "../interfaces/ISharedPancakeV4Utils.sol";
+import { ISharedPancakeV4Utils } from "../interfaces/ISharedPancakeV4Utils.sol";
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
@@ -21,14 +21,14 @@ import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { IFeeTaker } from "../../public-vault/interfaces/strategies/IFeeTaker.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 
-import {
-  IPancakeV4CLPoolManager,
-  IPancakeV4PositionManager,
-  PancakeV4PoolKeyLibrary,
-  PancakeV4PositionInfo,
-  PancakeV4PositionInfoLibrary,
-  PancakeV4TickInfo
-} from "../interfaces/IPancakeV4PositionManager.sol";
+import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency } from "infinity-core/src/types/Currency.sol";
+import { PoolId } from "infinity-core/src/types/PoolId.sol";
+import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
+import { Tick } from "infinity-core/src/pool-cl/libraries/Tick.sol";
+import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
+import { CLPositionInfo, CLPositionInfoLibrary } from "infinity-periphery/src/pool-cl/libraries/CLPositionInfoLibrary.sol";
+import { IPositionManagerPermit2 } from "infinity-periphery/src/interfaces/IPositionManagerPermit2.sol";
 
 library PancakeV4Actions {
   uint8 internal constant INCREASE_LIQUIDITY = 0x00;
@@ -42,8 +42,7 @@ library PancakeV4Actions {
 library SharedPancakeV4StrategyLib {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
-  using PancakeV4PoolKeyLibrary for PancakeV4PoolKey;
-  using PancakeV4PositionInfoLibrary for PancakeV4PositionInfo;
+  using CLPositionInfoLibrary for CLPositionInfo;
   using SafeCast for uint256;
 
   uint256 private constant Q64 = 0x10000000000000000;
@@ -56,66 +55,91 @@ library SharedPancakeV4StrategyLib {
     uint256 amount
   );
 
-  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
-    external
-  {
+  /// @dev See SharedV4StrategyLib.depositProportional for the full slippage rationale. The previous
+  ///      liquidity post-check compared the requested liquidity against a fraction of itself and was
+  ///      always satisfied; this enforces a real per-token floor on the amounts ACTUALLY consumed
+  ///      (balance deltas) against the amounts quoted for `liquidityToAdd`, with the `slippageBps`
+  ///      haircut, and tolerates single-sided positions. It cannot by itself defeat a cross-tx spot
+  ///      sandwich (adding CL liquidity does not move price), so callers must pass a conservative bps.
+  function depositProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external {
     if (amount0 == 0 && amount1 == 0) return;
 
     _requireWhitelistedPosm(posm);
 
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (PancakeV4PoolKey memory poolKey, PancakeV4PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
-    address currency0 = poolKey.currency0;
-    address currency1 = poolKey.currency1;
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (PoolKey memory poolKey, CLPositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
 
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
-    (uint160 sqrtPriceX96,,,) = IPancakeV4CLPoolManager(poolKey.poolManager).getSlot0(poolKey.toId());
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
+    (uint160 sqrtPriceX96, , , ) = ICLPoolManager(address(poolKey.poolManager)).getSlot0(poolKey.toId());
+    uint160 sqrtLower = TickMath.getSqrtPriceAtTick(positionInfo.tickLower());
+    uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(positionInfo.tickUpper());
     uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), amount0, amount1
+      sqrtPriceX96,
+      sqrtLower,
+      sqrtUpper,
+      amount0,
+      amount1
     );
     if (liquidityToAdd == 0) return;
 
-    uint128 liquidityBefore;
-    if (slippageBps > 0) liquidityBefore = pm.getPositionLiquidity(tokenId);
+    (uint256 expected0, uint256 expected1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      sqrtLower,
+      sqrtUpper,
+      liquidityToAdd
+    );
 
-    address permit2Addr = pm.permit2();
+    uint256 balance0Before = IERC20(token0).balanceOf(address(this));
+    uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+
+    address permit2Addr = address(IPositionManagerPermit2(posm).permit2());
     if (amount0 > 0) {
-      address token0 = currency0;
       IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
     }
     if (amount1 > 0) {
-      address token1 = currency1;
       IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
     }
 
-    bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x12), uint8(0x12));
+    bytes memory actions = abi.encodePacked(
+      uint8(PancakeV4Actions.INCREASE_LIQUIDITY),
+      uint8(PancakeV4Actions.CLOSE_CURRENCY),
+      uint8(PancakeV4Actions.CLOSE_CURRENCY)
+    );
     bytes[] memory params = new bytes[](3);
     params[0] = abi.encode(tokenId, uint256(liquidityToAdd), uint128(amount0), uint128(amount1), bytes(""));
-    params[1] = abi.encode(currency0);
-    params[2] = abi.encode(currency1);
+    params[1] = abi.encode(token0);
+    params[2] = abi.encode(token1);
 
     pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
 
     if (amount0 > 0) {
-      address token0 = currency0;
       IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
       IERC20(token0).safeApprove(permit2Addr, 0);
     }
     if (amount1 > 0) {
-      address token1 = currency1;
       IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
       IERC20(token1).safeApprove(permit2Addr, 0);
     }
 
     if (slippageBps > 0) {
-      uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;
-      uint128 minLiquidity = uint128(FullMath.mulDiv(liquidityToAdd, 10_000 - slippageBps, 10_000));
-      require(liquidityAdded >= minLiquidity, ISharedCommon.InsufficientOutput());
+      uint256 used0 = balance0Before - IERC20(token0).balanceOf(address(this));
+      uint256 used1 = balance1Before - IERC20(token1).balanceOf(address(this));
+      require(
+        used0 >= FullMath.mulDiv(expected0, 10_000 - slippageBps, 10_000) &&
+          used1 >= FullMath.mulDiv(expected1, 10_000 - slippageBps, 10_000),
+        ISharedCommon.InsufficientOutput()
+      );
     }
   }
 
@@ -128,11 +152,16 @@ library SharedPancakeV4StrategyLib {
     _executeInstruction(swapRouter, posm, tokenId, instructions);
   }
 
-  function executeInstructionBytes(address swapRouter, address posm, uint256 tokenId, bytes memory instruction)
-    external
-  {
-    ISharedPancakeV4Utils.Instructions memory instructions =
-      abi.decode(instruction, (ISharedPancakeV4Utils.Instructions));
+  function executeInstructionBytes(
+    address swapRouter,
+    address posm,
+    uint256 tokenId,
+    bytes memory instruction
+  ) external {
+    ISharedPancakeV4Utils.Instructions memory instructions = abi.decode(
+      instruction,
+      (ISharedPancakeV4Utils.Instructions)
+    );
     _executeInstruction(swapRouter, posm, tokenId, instructions);
   }
 
@@ -142,8 +171,11 @@ library SharedPancakeV4StrategyLib {
   }
 
   function swapAndIncreaseCalldata(address swapRouter, address posm, uint256 tokenId, bytes memory params) external {
-    ISharedPancakeV4Utils.SwapAndIncreaseParams memory increaseParams =
-      _decodeV4SwapAndIncreaseCalldata(params, posm, tokenId);
+    ISharedPancakeV4Utils.SwapAndIncreaseParams memory increaseParams = _decodeV4SwapAndIncreaseCalldata(
+      params,
+      posm,
+      tokenId
+    );
     _executeSwapAndIncrease(swapRouter, posm, tokenId, increaseParams);
   }
 
@@ -157,14 +189,19 @@ library SharedPancakeV4StrategyLib {
   ) external returns (ISharedStrategy.PositionChange[] memory changes) {
     _requireWhitelistedPosm(posm);
 
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
+    ICLPositionManager pm = ICLPositionManager(posm);
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
 
     if (posLiquidity == 0) {
-      (PancakeV4PoolKey memory zeroLiquidityKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory zeroLiquidityKey, ) = pm.getPoolAndPositionInfo(tokenId);
       changes = new ISharedStrategy.PositionChange[](1);
-      changes[0] =
-        ISharedStrategy.PositionChange(false, posm, tokenId, zeroLiquidityKey.currency0, zeroLiquidityKey.currency1);
+      changes[0] = ISharedStrategy.PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(zeroLiquidityKey.currency0),
+        Currency.unwrap(zeroLiquidityKey.currency1)
+      );
       return changes;
     }
 
@@ -173,12 +210,18 @@ library SharedPancakeV4StrategyLib {
 
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
-    (PancakeV4PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
     _decreaseV4Principal(posm, poolKey, tokenId, liquidityToRemove, minAmount0, minAmount1, "", 0, block.timestamp);
 
     if (isFullExit) {
       changes = new ISharedStrategy.PositionChange[](1);
-      changes[0] = ISharedStrategy.PositionChange(false, posm, tokenId, poolKey.currency0, poolKey.currency1);
+      changes[0] = ISharedStrategy.PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(poolKey.currency0),
+        Currency.unwrap(poolKey.currency1)
+      );
     } else {
       changes = new ISharedStrategy.PositionChange[](0);
     }
@@ -190,28 +233,29 @@ library SharedPancakeV4StrategyLib {
     amount1 = principal1 + fees1;
   }
 
-  function getPositionPrincipalAmounts(address posm, uint256 tokenId)
-    external
-    view
-    returns (uint256 amount0, uint256 amount1)
-  {
-    (amount0, amount1,,) = _positionAmountsSplit(posm, tokenId);
+  function getPositionPrincipalAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1, , ) = _positionAmountsSplit(posm, tokenId);
   }
 
   function _collectFees(address posm, uint256 tokenId, ICommon.FeeConfig memory fc) private {
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (PancakeV4PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = poolKey.currency0;
-    address token1 = poolKey.currency1;
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
 
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
 
-    bytes memory actions =
-      abi.encodePacked(uint8(PancakeV4Actions.DECREASE_LIQUIDITY), uint8(PancakeV4Actions.TAKE_PAIR));
+    bytes memory actions = abi.encodePacked(
+      uint8(PancakeV4Actions.DECREASE_LIQUIDITY),
+      uint8(PancakeV4Actions.TAKE_PAIR)
+    );
     bytes[] memory collectParams = new bytes[](2);
     collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), bytes(""));
-    collectParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
+    collectParams[1] = abi.encode(token0, token1, address(this));
     pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
 
     uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
@@ -221,10 +265,17 @@ library SharedPancakeV4StrategyLib {
     _applyFees(token0, collected0, token1, collected1, fc);
   }
 
-  function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc)
-    private
-    returns (uint256 feeTaken0, uint256 feeTaken1)
-  {
+  /// @dev See SharedV4StrategyLib._applyFees: fees are applied SEQUENTIALLY against a running remainder
+  ///      (platform, then owner, then gas), each clamped to what remains. Every share is computed from
+  ///      the original `amount`, so the total fee can never exceed the collected amount; the clamp only
+  ///      caps the last fee type(s) when configured bps sum past 100%. Inert on the withdraw path.
+  function _applyFees(
+    address token0,
+    uint256 amount0,
+    address token1,
+    uint256 amount1,
+    ICommon.FeeConfig memory fc
+  ) private returns (uint256 feeTaken0, uint256 feeTaken1) {
     uint256 remaining0 = amount0;
     uint256 remaining1 = amount1;
 
@@ -269,18 +320,29 @@ library SharedPancakeV4StrategyLib {
     emit FeeCollected(address(this), feeType, recipient, token, amount);
   }
 
-  function _executeSwapAndMint(address swapRouter, address posm, ISharedPancakeV4Utils.SwapAndMintParams memory params)
-    private
-  {
+  function _executeSwapAndMint(
+    address swapRouter,
+    address posm,
+    ISharedPancakeV4Utils.SwapAndMintParams memory params
+  ) private {
     require(params.posm == posm, ISharedCommon.InvalidOperation());
-    address token0 = params.poolKey.currency0;
-    address token1 = params.poolKey.currency1;
+    // F19: pin the caller-supplied pool manager (used as the pricing source for the mint) to the
+    // POSM's own CL pool manager, so price cannot be read from an attacker-chosen manager.
+    require(
+      address(params.poolKey.poolManager) == address(ICLPositionManager(posm).clPoolManager()),
+      ISharedCommon.InvalidOperation()
+    );
+    address token0 = Currency.unwrap(params.poolKey.currency0);
+    address token1 = Currency.unwrap(params.poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
-    _validateV4InputTokens(params.inputTokens, params.poolKey.currency0, params.poolKey.currency1);
+    _validateV4InputTokens(params.inputTokens, token0, token1);
 
     (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
-      params.poolKey.currency0, params.poolKey.currency1, params.inputTokens, params.gasFeeX64
+      token0,
+      token1,
+      params.inputTokens,
+      params.gasFeeX64
     );
     (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
@@ -293,16 +355,20 @@ library SharedPancakeV4StrategyLib {
     ISharedPancakeV4Utils.SwapAndIncreaseParams memory params
   ) private {
     require(params.posm == posm && params.tokenId == tokenId, ISharedCommon.InvalidOperation());
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (PancakeV4PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = poolKey.currency0;
-    address token1 = poolKey.currency1;
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
-    _validateV4InputTokens(params.inputTokens, poolKey.currency0, poolKey.currency1);
+    _validateV4InputTokens(params.inputTokens, token0, token1);
 
-    (uint256 amount0, uint256 amount1) =
-      _takeInputGasFeesAndGetPoolAmounts(poolKey.currency0, poolKey.currency1, params.inputTokens, params.gasFeeX64);
+    (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
+      token0,
+      token1,
+      params.inputTokens,
+      params.gasFeeX64
+    );
     (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
   }
@@ -313,25 +379,39 @@ library SharedPancakeV4StrategyLib {
     uint256 tokenId,
     ISharedPancakeV4Utils.Instructions memory instructions
   ) private {
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (PancakeV4PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = poolKey.currency0;
-    address token1 = poolKey.currency1;
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
     _validateVaultToken(token0);
     _validateVaultToken(token1);
 
     if (instructions.action == ISharedPancakeV4Utils.UtilActions.COMPOUND) {
-      ISharedPancakeV4Utils.CompoundFeesParams memory compoundParams =
-        abi.decode(instructions.params, (ISharedPancakeV4Utils.CompoundFeesParams));
-      (uint256 amount0, uint256 amount1) =
-        _collectV4GeneratedFees(posm, tokenId, poolKey, compoundParams.collectFeesHookData, compoundParams.gasFeeX64);
+      ISharedPancakeV4Utils.CompoundFeesParams memory compoundParams = abi.decode(
+        instructions.params,
+        (ISharedPancakeV4Utils.CompoundFeesParams)
+      );
+      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
+        posm,
+        tokenId,
+        poolKey,
+        compoundParams.collectFeesHookData,
+        compoundParams.gasFeeX64
+      );
       (amount0, amount1) = _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, compoundParams.swapParams);
       _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, compoundParams.increaseParams);
     } else if (instructions.action == ISharedPancakeV4Utils.UtilActions.DECREASE_AND_SWAP) {
-      ISharedPancakeV4Utils.DecreaseAndSwapParams memory decParams =
-        abi.decode(instructions.params, (ISharedPancakeV4Utils.DecreaseAndSwapParams));
-      (uint256 amount0, uint256 amount1) =
-        _collectV4GeneratedFees(posm, tokenId, poolKey, decParams.decreaseParams.hookData, decParams.gasFeeX64);
+      ISharedPancakeV4Utils.DecreaseAndSwapParams memory decParams = abi.decode(
+        instructions.params,
+        (ISharedPancakeV4Utils.DecreaseAndSwapParams)
+      );
+      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
+        posm,
+        tokenId,
+        poolKey,
+        decParams.decreaseParams.hookData,
+        decParams.gasFeeX64
+      );
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
         posm,
         poolKey,
@@ -350,13 +430,29 @@ library SharedPancakeV4StrategyLib {
       // intermediates via the virtual ledger inside `_executeV4Swaps`.
       _executeV4Swaps(swapRouter, token0, token1, amount0, amount1, decParams.swapParams);
     } else if (instructions.action == ISharedPancakeV4Utils.UtilActions.ADJUST_RANGE) {
-      ISharedPancakeV4Utils.AdjustRangeParams memory adjustParams =
-        abi.decode(instructions.params, (ISharedPancakeV4Utils.AdjustRangeParams));
-      (uint256 amount0, uint256 amount1) =
-        _collectV4GeneratedFees(posm, tokenId, poolKey, adjustParams.collectFeesHookData, adjustParams.gasFeeX64);
+      ISharedPancakeV4Utils.AdjustRangeParams memory adjustParams = abi.decode(
+        instructions.params,
+        (ISharedPancakeV4Utils.AdjustRangeParams)
+      );
+      (uint256 amount0, uint256 amount1) = _collectV4GeneratedFees(
+        posm,
+        tokenId,
+        poolKey,
+        adjustParams.collectFeesHookData,
+        adjustParams.gasFeeX64
+      );
       uint128 liquidity = pm.getPositionLiquidity(tokenId);
+      // Bound the full-position burn with caller-supplied minimums (F8): mirrors DECREASE_AND_SWAP.
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
-        posm, poolKey, tokenId, liquidity, 0, 0, "", adjustParams.gasFeeX64, adjustParams.mintParams.deadline
+        posm,
+        poolKey,
+        tokenId,
+        liquidity,
+        adjustParams.decreaseAmount0Min,
+        adjustParams.decreaseAmount1Min,
+        "",
+        adjustParams.gasFeeX64,
+        adjustParams.mintParams.deadline
       );
       amount0 += principal0;
       amount1 += principal1;
@@ -370,21 +466,23 @@ library SharedPancakeV4StrategyLib {
   function _collectV4GeneratedFees(
     address posm,
     uint256 tokenId,
-    PancakeV4PoolKey memory poolKey,
+    PoolKey memory poolKey,
     bytes memory hookData,
     uint64 gasFeeX64
   ) private returns (uint256 net0, uint256 net1) {
-    address token0 = poolKey.currency0;
-    address token1 = poolKey.currency1;
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
 
-    bytes memory actions =
-      abi.encodePacked(uint8(PancakeV4Actions.DECREASE_LIQUIDITY), uint8(PancakeV4Actions.TAKE_PAIR));
+    bytes memory actions = abi.encodePacked(
+      uint8(PancakeV4Actions.DECREASE_LIQUIDITY),
+      uint8(PancakeV4Actions.TAKE_PAIR)
+    );
     bytes[] memory collectParams = new bytes[](2);
     collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), hookData);
-    collectParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
-    IPancakeV4PositionManager(posm).modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
+    collectParams[1] = abi.encode(token0, token1, address(this));
+    ICLPositionManager(posm).modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
 
     uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
     uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
@@ -402,7 +500,7 @@ library SharedPancakeV4StrategyLib {
 
   function _decreaseV4Principal(
     address posm,
-    PancakeV4PoolKey memory poolKey,
+    PoolKey memory poolKey,
     uint256 tokenId,
     uint128 liquidity,
     uint256 amount0Min,
@@ -412,20 +510,22 @@ library SharedPancakeV4StrategyLib {
     uint256 deadline
   ) private returns (uint256 net0, uint256 net1) {
     if (liquidity == 0) return (0, 0);
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
+    ICLPositionManager pm = ICLPositionManager(posm);
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
     if (liquidity > posLiquidity) liquidity = posLiquidity;
 
-    address token0 = poolKey.currency0;
-    address token1 = poolKey.currency1;
+    address token0 = Currency.unwrap(poolKey.currency0);
+    address token1 = Currency.unwrap(poolKey.currency1);
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
 
-    bytes memory actions =
-      abi.encodePacked(uint8(PancakeV4Actions.DECREASE_LIQUIDITY), uint8(PancakeV4Actions.TAKE_PAIR));
+    bytes memory actions = abi.encodePacked(
+      uint8(PancakeV4Actions.DECREASE_LIQUIDITY),
+      uint8(PancakeV4Actions.TAKE_PAIR)
+    );
     bytes[] memory params = new bytes[](2);
     params[0] = abi.encode(tokenId, liquidity, amount0Min, amount1Min, hookData);
-    params[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
+    params[1] = abi.encode(token0, token1, address(this));
     pm.modifyLiquidities(abi.encode(actions, params), deadline == 0 ? block.timestamp : deadline);
 
     uint256 principal0 = IERC20(token0).balanceOf(address(this)) - before0;
@@ -448,16 +548,16 @@ library SharedPancakeV4StrategyLib {
   function _increaseV4WithAmounts(
     address posm,
     uint256 tokenId,
-    PancakeV4PoolKey memory poolKey,
+    PoolKey memory poolKey,
     uint256 amount0,
     uint256 amount1,
     ISharedPancakeV4Utils.IncreaseLiquidityParams memory params
   ) private {
     if (amount0 == 0 && amount1 == 0) return;
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (, PancakeV4PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
-    (uint160 sqrtPriceX96,,,) = IPancakeV4CLPoolManager(poolKey.poolManager).getSlot0(poolKey.toId());
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (, CLPositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
+    (uint160 sqrtPriceX96, , , ) = ICLPoolManager(address(poolKey.poolManager)).getSlot0(poolKey.toId());
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       sqrtPriceX96,
       TickMath.getSqrtPriceAtTick(positionInfo.tickLower()),
@@ -476,23 +576,23 @@ library SharedPancakeV4StrategyLib {
     );
     bytes[] memory callParams = new bytes[](3);
     callParams[0] = abi.encode(tokenId, uint256(liquidity), uint128(amount0), uint128(amount1), params.hookData);
-    callParams[1] = abi.encode(poolKey.currency0);
-    callParams[2] = abi.encode(poolKey.currency1);
+    callParams[1] = abi.encode(Currency.unwrap(poolKey.currency0));
+    callParams[2] = abi.encode(Currency.unwrap(poolKey.currency1));
     pm.modifyLiquidities(abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline);
     _clearV4PositionManagerApprovals(posm, poolKey, amount0, amount1);
   }
 
   function _mintV4WithAmounts(
     address posm,
-    PancakeV4PoolKey memory poolKey,
+    PoolKey memory poolKey,
     uint256 amount0,
     uint256 amount1,
     ISharedPancakeV4Utils.MintParams memory params
   ) private returns (uint256 tokenId) {
     if (amount0 == 0 && amount1 == 0) revert ISharedCommon.InvalidAmount();
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    (uint160 sqrtPriceX96,,,) = IPancakeV4CLPoolManager(poolKey.poolManager).getSlot0(poolKey.toId());
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (uint160 sqrtPriceX96, , , ) = ICLPoolManager(address(poolKey.poolManager)).getSlot0(poolKey.toId());
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       sqrtPriceX96,
       TickMath.getSqrtPriceAtTick(params.tickLower),
@@ -516,7 +616,7 @@ library SharedPancakeV4StrategyLib {
       address(this),
       params.hookData
     );
-    callParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+    callParams[1] = abi.encode(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
     pm.modifyLiquidities(abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline);
     _clearV4PositionManagerApprovals(posm, poolKey, amount0, amount1);
   }
@@ -532,6 +632,15 @@ library SharedPancakeV4StrategyLib {
     total0 = amount0;
     total1 = amount1;
 
+    // Defense-in-depth: re-validate the immutable swap router against the live ConfigManager whitelist
+    // (see SharedV4StrategyLib._executeV4Swaps), so the owner can revoke a bad aggregator at runtime.
+    if (swapParams.length > 0) {
+      require(
+        ISharedVault(address(this)).configManager().isWhitelistedSwapRouter(swapRouter),
+        ISharedCommon.InvalidSwapRouter(swapRouter)
+      );
+    }
+
     // See `SharedV4StrategyLib._executeV4Swaps` for the full rationale of the virtual ledger.
     // Non-pool intermediates are fed only by prior hops' outputs (never by the vault's pre-existing
     // balance) and MUST be fully consumed by the end of the pipeline, so no untracked balance is
@@ -540,11 +649,11 @@ library SharedPancakeV4StrategyLib {
     uint256[] memory intBalances = new uint256[](swapParams.length);
     uint256 intCount;
 
-    for (uint256 i; i < swapParams.length;) {
+    for (uint256 i; i < swapParams.length; ) {
       ISharedPancakeV4Utils.SwapParams memory swapParam = swapParams[i];
       require(
-        _isV4SwapInputAllowed(token0, token1, swapParam.tokenIn, swapParams, i)
-          && _isV4SwapOutputAllowed(token0, token1, swapParam.tokenOut, swapParams, i),
+        _isV4SwapInputAllowed(token0, token1, swapParam.tokenIn, swapParams, i) &&
+          _isV4SwapOutputAllowed(token0, token1, swapParam.tokenOut, swapParams, i),
         ISharedStrategy.InvalidPoolTokens()
       );
 
@@ -574,7 +683,12 @@ library SharedPancakeV4StrategyLib {
       }
 
       (uint256 amountInDelta, uint256 amountOutDelta) = _swapV4(
-        swapRouter, swapParam.tokenIn, swapParam.tokenOut, amountIn, swapParam.amountOutMin, swapParam.swapData
+        swapRouter,
+        swapParam.tokenIn,
+        swapParam.tokenOut,
+        amountIn,
+        swapParam.amountOutMin,
+        swapParam.swapData
       );
 
       if (inIsIntermediate) intBalances[inIdx] -= amountInDelta;
@@ -601,7 +715,7 @@ library SharedPancakeV4StrategyLib {
       }
     }
 
-    for (uint256 j; j < intCount;) {
+    for (uint256 j; j < intCount; ) {
       require(intBalances[j] == 0, ISharedCommon.InvalidAmount());
       unchecked {
         j++;
@@ -609,12 +723,12 @@ library SharedPancakeV4StrategyLib {
     }
   }
 
-  function _findIntermediate(address[] memory intTokens, uint256 intCount, address token)
-    private
-    pure
-    returns (uint256 idx)
-  {
-    for (uint256 i; i < intCount;) {
+  function _findIntermediate(
+    address[] memory intTokens,
+    uint256 intCount,
+    address token
+  ) private pure returns (uint256 idx) {
+    for (uint256 i; i < intCount; ) {
       if (intTokens[i] == token) return i;
       unchecked {
         i++;
@@ -631,7 +745,7 @@ library SharedPancakeV4StrategyLib {
     uint256 index
   ) private pure returns (bool) {
     if (tokenIn == token0 || tokenIn == token1) return true;
-    for (uint256 i; i < index;) {
+    for (uint256 i; i < index; ) {
       if (swapParams[i].tokenOut == tokenIn) return true;
       unchecked {
         i++;
@@ -649,7 +763,7 @@ library SharedPancakeV4StrategyLib {
   ) private pure returns (bool) {
     if (tokenOut == token0 || tokenOut == token1) return true;
     if (tokenOut == address(0)) return false;
-    for (uint256 i = index + 1; i < swapParams.length;) {
+    for (uint256 i = index + 1; i < swapParams.length; ) {
       if (swapParams[i].tokenIn == tokenOut) return true;
       unchecked {
         i++;
@@ -672,11 +786,13 @@ library SharedPancakeV4StrategyLib {
     bytes memory swapData
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) return (0, 0);
+    // Reject a self-swap explicitly rather than relying on the balance-delta subtraction to underflow.
+    require(tokenIn != tokenOut, ISharedCommon.InvalidOperation());
 
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
-    (bool success,) = swapRouter.call(swapData);
+    (bool success, ) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed();
     IERC20(tokenIn).safeApprove(swapRouter, 0);
     uint256 balanceInAfter = IERC20(tokenIn).balanceOf(address(this));
@@ -687,17 +803,20 @@ library SharedPancakeV4StrategyLib {
     require(amountOutDelta >= amountOutMin, ISharedCommon.InsufficientOutput());
   }
 
-  function _approveV4PositionManager(address posm, PancakeV4PoolKey memory poolKey, uint256 amount0, uint256 amount1)
-    private
-  {
-    address permit2Addr = IPancakeV4PositionManager(posm).permit2();
+  function _approveV4PositionManager(
+    address posm,
+    PoolKey memory poolKey,
+    uint256 amount0,
+    uint256 amount1
+  ) private {
+    address permit2Addr = address(IPositionManagerPermit2(posm).permit2());
     if (amount0 > 0) {
-      address token0 = poolKey.currency0;
+      address token0 = Currency.unwrap(poolKey.currency0);
       IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
     }
     if (amount1 > 0) {
-      address token1 = poolKey.currency1;
+      address token1 = Currency.unwrap(poolKey.currency1);
       IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
     }
@@ -705,92 +824,90 @@ library SharedPancakeV4StrategyLib {
 
   function _clearV4PositionManagerApprovals(
     address posm,
-    PancakeV4PoolKey memory poolKey,
+    PoolKey memory poolKey,
     uint256 amount0,
     uint256 amount1
   ) private {
-    address permit2Addr = IPancakeV4PositionManager(posm).permit2();
+    address permit2Addr = address(IPositionManagerPermit2(posm).permit2());
     if (amount0 > 0) {
-      address token0 = poolKey.currency0;
+      address token0 = Currency.unwrap(poolKey.currency0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
       IERC20(token0).safeApprove(permit2Addr, 0);
     }
     if (amount1 > 0) {
-      address token1 = poolKey.currency1;
+      address token1 = Currency.unwrap(poolKey.currency1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
       IERC20(token1).safeApprove(permit2Addr, 0);
     }
   }
 
-  function _positionAmountsSplit(address posm, uint256 tokenId)
-    private
-    view
-    returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1)
-  {
-    IPancakeV4PositionManager pm = IPancakeV4PositionManager(posm);
-    PancakeV4PoolKey memory poolKey;
-    PancakeV4PositionInfo positionInfo;
-    try pm.getPoolAndPositionInfo(tokenId) returns (PancakeV4PoolKey memory key, PancakeV4PositionInfo info) {
+  function _positionAmountsSplit(
+    address posm,
+    uint256 tokenId
+  ) private view returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) {
+    ICLPositionManager pm = ICLPositionManager(posm);
+    PoolKey memory poolKey;
+    CLPositionInfo positionInfo;
+    try pm.getPoolAndPositionInfo(tokenId) returns (PoolKey memory key, CLPositionInfo info) {
       poolKey = key;
       positionInfo = info;
     } catch {
       return (0, 0, 0, 0);
     }
-    uint128 liquidity = pm.getPositionLiquidity(tokenId);
+
+    // F6: read liquidity + last-fee-growth ONCE from positions() and use the same liquidity snapshot
+    // for both principal and fee valuation. Previously principal used getPositionLiquidity() while the
+    // fee path independently re-read liquidity from positions(), which could disagree.
+    (, , , uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, ) = pm.positions(
+      tokenId
+    );
+    if (liquidity == 0) return (0, 0, 0, 0);
+
     int24 tickLower = positionInfo.tickLower();
     int24 tickUpper = positionInfo.tickUpper();
 
-    IPancakeV4CLPoolManager manager = IPancakeV4CLPoolManager(poolKey.poolManager);
-    bytes32 poolId = poolKey.toId();
-    (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolId);
+    ICLPoolManager manager = ICLPoolManager(address(poolKey.poolManager));
+    PoolId poolId = poolKey.toId();
+    (uint160 sqrtPriceX96, int24 tickCurrent, , ) = manager.getSlot0(poolId);
 
-    if (liquidity > 0) {
-      (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
-      );
-    }
+    (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
+      sqrtPriceX96,
+      TickMath.getSqrtPriceAtTick(tickLower),
+      TickMath.getSqrtPriceAtTick(tickUpper),
+      liquidity
+    );
 
-    (fees0, fees1) = _uncollectedFees(pm, manager, poolId, tickLower, tickUpper, tokenId);
+    // PancakeSwap Infinity's CL PoolManager does NOT expose a `getFeeGrowthInside` getter (unlike
+    // Uniswap V4's StateLibrary), so reconstruct fee-growth-inside [tickLower, tickUpper] from the
+    // canonical `[global - below - above]` decomposition using each boundary tick's
+    // `feeGrowthOutside` snapshot. All arithmetic wraps (mod 2^256) to mirror the pool's accounting.
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      manager,
+      poolId,
+      tickLower,
+      tickUpper,
+      tickCurrent
+    );
+    fees0 = uint256(_feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity));
+    fees1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
   }
 
-  function _uncollectedFees(
-    IPancakeV4PositionManager posm,
-    IPancakeV4CLPoolManager manager,
-    bytes32 poolId,
+  /// @dev Reconstructs fee-growth-inside [tickLower, tickUpper] from the pool's global fee growth and
+  ///      each boundary tick's `feeGrowthOutside` snapshot. Mirrors Uniswap V3 / PancakeSwap CL
+  ///      `Tick.getFeeGrowthInside`. All subtraction is intentionally unchecked so it wraps mod 2^256,
+  ///      matching the pool's own (overflow-tolerant) fee accounting.
+  function _getFeeGrowthInside(
+    ICLPoolManager manager,
+    PoolId poolId,
     int24 tickLower,
     int24 tickUpper,
-    uint256 tokenId
-  ) private view returns (uint256 fee0, uint256 fee1) {
-    (,,, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128,) =
-      posm.positions(tokenId);
-    if (liquidity == 0) return (0, 0);
-
-    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-      _pancakeFeeGrowthInside(manager, poolId, tickLower, tickUpper);
-
-    fee0 = uint256(_feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity));
-    fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
-  }
-
-  /// @dev Computes fee-growth inside the position's tick range using the canonical V4-core
-  ///      unchecked arithmetic (wrap-around is intentional for initialized ticks).
-  ///      Assumes both `tickLower` and `tickUpper` are INITIALIZED. The only caller,
-  ///      `_uncollectedFees`, short-circuits when the position's `liquidity == 0`, and any tracked
-  ///      vault position has had liquidity added at these ticks (which initializes them via the
-  ///      PoolManager). Reading `feeGrowthOutside` of an uninitialized tick would return zero and
-  ///      cause an underflow-wrap to a garbage value, so do NOT call this for arbitrary tick
-  ///      pairs without first verifying tick initialization.
-  function _pancakeFeeGrowthInside(IPancakeV4CLPoolManager manager, bytes32 poolId, int24 tickLower, int24 tickUpper)
-    private
-    view
-    returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128)
-  {
-    (, int24 tickCurrent,,) = manager.getSlot0(poolId);
-    (uint256 feeGrowthGlobal0X128, uint256 feeGrowthGlobal1X128) = manager.getFeeGrowthGlobals(poolId);
-    PancakeV4TickInfo memory lower = manager.getPoolTickInfo(poolId, tickLower);
-    PancakeV4TickInfo memory upper = manager.getPoolTickInfo(poolId, tickUpper);
-
+    int24 tickCurrent
+  ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
     unchecked {
+      Tick.Info memory lower = manager.getPoolTickInfo(poolId, tickLower);
+      Tick.Info memory upper = manager.getPoolTickInfo(poolId, tickUpper);
+      (uint256 feeGrowthGlobal0X128, uint256 feeGrowthGlobal1X128) = manager.getFeeGrowthGlobals(poolId);
+
       uint256 feeGrowthBelow0X128;
       uint256 feeGrowthBelow1X128;
       if (tickCurrent >= tickLower) {
@@ -816,11 +933,11 @@ library SharedPancakeV4StrategyLib {
     }
   }
 
-  function _feeOwed(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
-    private
-    pure
-    returns (uint128)
-  {
+  function _feeOwed(
+    uint256 feeGrowthInsideX128,
+    uint256 feeGrowthInsideLastX128,
+    uint256 liquidity
+  ) private pure returns (uint128) {
     if (liquidity == 0) return 0;
     unchecked {
       return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
@@ -846,7 +963,7 @@ library SharedPancakeV4StrategyLib {
     address currency0,
     address currency1
   ) private view {
-    for (uint256 i; i < inputTokens.length;) {
+    for (uint256 i; i < inputTokens.length; ) {
       if (inputTokens[i].amount > 0) {
         address token = inputTokens[i].token;
         _validateVaultToken(token);
@@ -864,7 +981,7 @@ library SharedPancakeV4StrategyLib {
     ISharedPancakeV4Utils.InputTokenParams[] memory inputTokens,
     uint64 gasFeeX64
   ) private returns (uint256 amount0, uint256 amount1) {
-    for (uint256 i; i < inputTokens.length;) {
+    for (uint256 i; i < inputTokens.length; ) {
       uint256 amount = inputTokens[i].amount;
       address token = inputTokens[i].token;
       if (amount > 0 && gasFeeX64 > 0) {
@@ -891,7 +1008,7 @@ library SharedPancakeV4StrategyLib {
   function _v4ParamsBody(bytes memory params) private pure returns (bytes memory body) {
     require(params.length >= 4, ISharedCommon.InvalidOperation());
     body = new bytes(params.length - 4);
-    for (uint256 j; j < body.length;) {
+    for (uint256 j; j < body.length; ) {
       body[j] = params[j + 4];
       unchecked {
         ++j;
@@ -899,36 +1016,38 @@ library SharedPancakeV4StrategyLib {
     }
   }
 
-  function _decodeV4ExecuteCalldata(bytes memory params, address posm, uint256 tokenId)
-    private
-    pure
-    returns (ISharedPancakeV4Utils.Instructions memory instructions)
-  {
+  function _decodeV4ExecuteCalldata(
+    bytes memory params,
+    address posm,
+    uint256 tokenId
+  ) private pure returns (ISharedPancakeV4Utils.Instructions memory instructions) {
     require(_v4ParamsSelector(params) == ISharedPancakeV4Utils.execute.selector, ISharedCommon.InvalidOperation());
     bytes memory body = _v4ParamsBody(params);
-    (address p, uint256 tid, ISharedPancakeV4Utils.Instructions memory decodedInstructions) =
-      abi.decode(body, (address, uint256, ISharedPancakeV4Utils.Instructions));
+    (address p, uint256 tid, ISharedPancakeV4Utils.Instructions memory decodedInstructions) = abi.decode(
+      body,
+      (address, uint256, ISharedPancakeV4Utils.Instructions)
+    );
     require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
     instructions = decodedInstructions;
   }
 
-  function _decodeV4SwapAndMintCalldata(bytes memory params, address posm)
-    private
-    pure
-    returns (ISharedPancakeV4Utils.SwapAndMintParams memory decodedParams)
-  {
+  function _decodeV4SwapAndMintCalldata(
+    bytes memory params,
+    address posm
+  ) private pure returns (ISharedPancakeV4Utils.SwapAndMintParams memory decodedParams) {
     require(_v4ParamsSelector(params) == ISharedPancakeV4Utils.swapAndMint.selector, ISharedCommon.InvalidOperation());
     decodedParams = abi.decode(_v4ParamsBody(params), (ISharedPancakeV4Utils.SwapAndMintParams));
     require(decodedParams.posm == posm, ISharedCommon.InvalidOperation());
   }
 
-  function _decodeV4SwapAndIncreaseCalldata(bytes memory params, address posm, uint256 tokenId)
-    private
-    pure
-    returns (ISharedPancakeV4Utils.SwapAndIncreaseParams memory decodedParams)
-  {
+  function _decodeV4SwapAndIncreaseCalldata(
+    bytes memory params,
+    address posm,
+    uint256 tokenId
+  ) private pure returns (ISharedPancakeV4Utils.SwapAndIncreaseParams memory decodedParams) {
     require(
-      _v4ParamsSelector(params) == ISharedPancakeV4Utils.swapAndIncrease.selector, ISharedCommon.InvalidOperation()
+      _v4ParamsSelector(params) == ISharedPancakeV4Utils.swapAndIncrease.selector,
+      ISharedCommon.InvalidOperation()
     );
     decodedParams = abi.decode(_v4ParamsBody(params), (ISharedPancakeV4Utils.SwapAndIncreaseParams));
     require(decodedParams.posm == posm && decodedParams.tokenId == tokenId, ISharedCommon.InvalidOperation());

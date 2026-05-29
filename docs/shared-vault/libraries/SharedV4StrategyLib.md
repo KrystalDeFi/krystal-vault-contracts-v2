@@ -14,6 +14,18 @@ event FeeCollected(address vaultAddress, enum IFeeTaker.FeeType feeType, address
 function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
+_Slippage model: the previous implementation requested EXACTLY `liquidityToAdd` and then
+     checked `liquidityAdded >= liquidityToAdd * (1 - bps)` — always true, so it provided no
+     protection. This version enforces a real per-token floor on the amounts ACTUALLY consumed
+     (measured via balance deltas) against the amounts quoted for `liquidityToAdd` at the
+     current price, with the `slippageBps` haircut. The floor is computed from
+     `getAmountsForLiquidity` (not the raw supplied `amount0/amount1`) so single-sided /
+     out-of-range positions — where one side is legitimately ~0 — do not spuriously revert.
+     NOTE: adding CL liquidity does not move the pool price, so within one tx `used == expected`;
+     this floor catches a misbehaving/non-canonical position manager but cannot by itself defeat
+     a CROSS-transaction spot-price sandwich. Callers must pass a conservative `slippageBps` and,
+     where MEV is a concern, derive the deposit ratio from an external price reference._
+
 ### collectFees
 
 ```solidity

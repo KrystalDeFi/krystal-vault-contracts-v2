@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-struct PancakeV4PoolKey {
-  address currency0;
-  address currency1;
-  address hooks;
-  address poolManager;
-  uint24 fee;
-  bytes32 parameters;
-}
+import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
 
 interface ISharedPancakeV4Utils {
   enum UtilActions {
@@ -57,14 +50,17 @@ interface ISharedPancakeV4Utils {
     uint256 amount;
   }
 
+  // Fee model: platform/owner (performance) fees are always sourced from
+  // `SharedStrategyFeeConfig.performanceFeeConfig()`. Only `gasFeeX64` is honored on these structs
+  // (skimmed to `msg.sender`/the authorized executor). The legacy `protocolFeeX64`/`performanceFeeX64`
+  // fields were never read by SharedPancakeV4StrategyLib and have been removed.
+
   struct SwapAndMintParams {
     address posm;
-    PancakeV4PoolKey poolKey;
+    PoolKey poolKey;
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
@@ -74,16 +70,12 @@ interface ISharedPancakeV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
@@ -91,18 +83,18 @@ interface ISharedPancakeV4Utils {
     bytes collectFeesHookData;
     SwapParams[] swapParams;
     MintParams mintParams;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
     uint64 gasFeeX64;
-    bool compoundFees;
+    // Minimum token amounts to receive from burning the OLD position's full liquidity. Set to an
+    // off-chain-fair value (not 0) to bound the decrease against sandwich/price manipulation; mirrors
+    // DECREASE_AND_SWAP's amount0Min/amount1Min. 0 disables the floor on the burn.
+    uint256 decreaseAmount0Min;
+    uint256 decreaseAmount1Min;
   }
 
   struct CompoundFeesParams {
     bytes collectFeesHookData;
     SwapParams[] swapParams;
     IncreaseLiquidityParams increaseParams;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 

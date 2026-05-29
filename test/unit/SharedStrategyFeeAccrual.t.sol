@@ -357,6 +357,28 @@ contract SharedStrategyFeeAccrualTest is Test {
     assertEq(amount1, principal1 + STORED_OWED1, "out-of-range: only stored owed1, no new pending");
   }
 
+  /// @dev F7: pending fees that exceed uint128 must NOT be silently truncated by getPositionAmounts.
+  ///      With liquidity = type(uint128).max and feeGrowthInside = 2*Q128, pending = 2 * uint128.max,
+  ///      which overflows uint128. The previous `uint128(mulDiv(...))` inside `unchecked` wrapped this
+  ///      to a small number (under-valuing the position); the uint256 accumulation must report it in full.
+  function test_v3_getPositionAmounts_pending_above_uint128_not_truncated() public {
+    uint128 hugeLiquidity = type(uint128).max;
+    MockV3Pool pool = new MockV3Pool(SQRT_PRICE_TICK0, CURRENT_TICK, 2 * Q128, 2 * Q128);
+    MockV3Factory factory = new MockV3Factory(address(pool));
+    address nfpm = address(
+      new MockV3NfpmWithFees(address(factory), address(0x1111), address(0x2222), hugeLiquidity, TICK_LOWER, TICK_UPPER, 0, 0, 0, 0)
+    );
+
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    uint256 expectedPending = 2 * uint256(type(uint128).max); // mulDiv(2*Q128, uint128.max, Q128)
+    assertGt(expectedPending, uint256(type(uint128).max), "sanity: pending exceeds uint128 range");
+    assertEq(amount0 - principal0, expectedPending, "token0 pending reported in full (no uint128 wrap)");
+    assertEq(amount1 - principal1, expectedPending, "token1 pending reported in full (no uint128 wrap)");
+  }
+
   // ---------------------------------------------------------------------------
   // SharedAerodromeStrategy
   // ---------------------------------------------------------------------------

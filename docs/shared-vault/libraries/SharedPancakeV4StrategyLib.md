@@ -52,6 +52,13 @@ event FeeCollected(address vaultAddress, enum IFeeTaker.FeeType feeType, address
 function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
 ```
 
+_See SharedV4StrategyLib.depositProportional for the full slippage rationale. The previous
+     liquidity post-check compared the requested liquidity against a fraction of itself and was
+     always satisfied; this enforces a real per-token floor on the amounts ACTUALLY consumed
+     (balance deltas) against the amounts quoted for `liquidityToAdd`, with the `slippageBps`
+     haircut, and tolerates single-sided positions. It cannot by itself defeat a cross-tx spot
+     sandwich (adding CL liquidity does not move price), so callers must pass a conservative bps._
+
 ### collectFees
 
 ```solidity

@@ -51,14 +51,13 @@ import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPosition
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
-import {
-  IPancakeV4CLPoolManager,
-  IPancakeV4PositionManager
-} from "../../contracts/shared-vault/interfaces/IPancakeV4PositionManager.sol";
-import {
-  ISharedPancakeV4Utils as IPancakeV4Utils,
-  PancakeV4PoolKey
-} from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
+import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
+import { ISharedPancakeV4Utils as IPancakeV4Utils } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { PoolKey as PancakeV4PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency as PancakeCurrency } from "infinity-core/src/types/Currency.sol";
+import { IHooks as IPancakeHooks } from "infinity-core/src/interfaces/IHooks.sol";
+import { IPoolManager as IPancakePoolManager } from "infinity-core/src/interfaces/IPoolManager.sol";
 
 interface IBaseV3Nfpm {
   function positions(uint256 tokenId)
@@ -961,8 +960,6 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -1005,21 +1002,21 @@ contract SharedVaultForkFuzzer {
     _ensurePancakeV4Harness();
 
     (ForkV4MockERC20 token0, ForkV4MockERC20 token1) = _deploySortedForkV4TokenPair();
-    address poolManager = IPancakeV4PositionManager(BASE_PANCAKE_V4_POSM).clPoolManager();
+    address poolManager = address(ICLPositionManager(BASE_PANCAKE_V4_POSM).clPoolManager());
     PancakeV4PoolKey memory key = PancakeV4PoolKey({
-      currency0: address(token0),
-      currency1: address(token1),
-      hooks: address(0),
-      poolManager: poolManager,
+      currency0: PancakeCurrency.wrap(address(token0)),
+      currency1: PancakeCurrency.wrap(address(token1)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(poolManager),
       fee: V4_LP_FEE,
       parameters: _pancakeClParameters(V4_TICK_SPACING)
     });
-    IPancakeV4CLPoolManager(poolManager).initialize(key, SQRT_PRICE_1_1);
+    ICLPoolManager(poolManager).initialize(key, SQRT_PRICE_1_1);
 
     SharedVault successVault =
       _newLocalV4Vault(address(token0), address(token1), address(localPancakeV4Strategy), BASE_PANCAKE_V4_POSM);
 
-    uint256 nextIdBefore = IPancakeV4PositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
+    uint256 nextIdBefore = ICLPositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
 
     IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
     inputs[0] = IPancakeV4Utils.InputTokenParams({ token: address(token0), amount: 0.25 ether });
@@ -1037,8 +1034,6 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -1050,7 +1045,7 @@ contract SharedVaultForkFuzzer {
 
     assert(successVault.getPositionCount() == 1);
     assert(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore) == address(successVault));
-    assert(IPancakeV4PositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
+    assert(ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
   }
 
   function _ensureV4Harness() internal {
@@ -1229,8 +1224,6 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: gasFeeX64
     });
 
@@ -1251,10 +1244,10 @@ contract SharedVaultForkFuzzer {
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
       posm: BASE_PANCAKE_V4_POSM,
       poolKey: PancakeV4PoolKey({
-        currency0: c0,
-        currency1: c1,
-        hooks: address(0),
-        poolManager: IPancakeV4PositionManager(BASE_PANCAKE_V4_POSM).clPoolManager(),
+        currency0: PancakeCurrency.wrap(c0),
+        currency1: PancakeCurrency.wrap(c1),
+        hooks: IPancakeHooks(address(0)),
+        poolManager: IPancakePoolManager(address(ICLPositionManager(BASE_PANCAKE_V4_POSM).clPoolManager())),
         fee: 3000,
         parameters: bytes32(uint256(uint24(60)) << 16)
       }),
@@ -1263,8 +1256,6 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: gasFeeX64
     });
 

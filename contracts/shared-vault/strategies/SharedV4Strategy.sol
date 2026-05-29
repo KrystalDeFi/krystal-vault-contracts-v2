@@ -107,6 +107,10 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies too (symmetry with the tokenId==0 mint branch);
+      // defense-in-depth on top of the vault's own _applyPositionChanges checks.
+      _validateVaultToken(Currency.unwrap(newKey.currency0));
+      _validateVaultToken(Currency.unwrap(newKey.currency1));
       changes = new PositionChange[](2);
       changes[0] = PositionChange(
         false,
@@ -160,6 +164,9 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     ) {
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies (symmetry / defense-in-depth).
+      _validateVaultToken(Currency.unwrap(newKey.currency0));
+      _validateVaultToken(Currency.unwrap(newKey.currency1));
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
       changes[1] = PositionChange(

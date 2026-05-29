@@ -41,6 +41,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "InvalidVaultOwnerFeeBasisPoint",
     "type": "error"

@@ -121,16 +121,6 @@
           },
           {
             "internalType": "uint64",
-            "name": "protocolFeeX64",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "performanceFeeX64",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
             "name": "gasFeeX64",
             "type": "uint64"
           }
@@ -157,22 +147,22 @@
           {
             "components": [
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "currency0",
                 "type": "address"
               },
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "currency1",
                 "type": "address"
               },
               {
-                "internalType": "address",
+                "internalType": "contract IHooks",
                 "name": "hooks",
                 "type": "address"
               },
               {
-                "internalType": "address",
+                "internalType": "contract IPoolManager",
                 "name": "poolManager",
                 "type": "address"
               },
@@ -187,7 +177,7 @@
                 "type": "bytes32"
               }
             ],
-            "internalType": "struct PancakeV4PoolKey",
+            "internalType": "struct PoolKey",
             "name": "poolKey",
             "type": "tuple"
           },
@@ -271,16 +261,6 @@
             "internalType": "struct ISharedPancakeV4Utils.InputTokenParams[]",
             "name": "inputTokens",
             "type": "tuple[]"
-          },
-          {
-            "internalType": "uint64",
-            "name": "protocolFeeX64",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "performanceFeeX64",
-            "type": "uint64"
           },
           {
             "internalType": "uint64",

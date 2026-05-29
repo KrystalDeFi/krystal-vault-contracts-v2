@@ -12,14 +12,14 @@ import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
-import {
-  IPancakeV4CLPoolManager,
-  IPancakeV4PositionManager
-} from "../../contracts/shared-vault/interfaces/IPancakeV4PositionManager.sol";
-import {
-  ISharedPancakeV4Utils as IPancakeV4Utils,
-  PancakeV4PoolKey
-} from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
+import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
+import { IPositionManagerPermit2 } from "infinity-periphery/src/interfaces/IPositionManagerPermit2.sol";
+import { ISharedPancakeV4Utils as IPancakeV4Utils } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency } from "infinity-core/src/types/Currency.sol";
+import { IHooks } from "infinity-core/src/interfaces/IHooks.sol";
+import { IPoolManager } from "infinity-core/src/interfaces/IPoolManager.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
 
 contract PancakeV4ForkMockERC20 {
@@ -88,13 +88,13 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   uint128 internal constant MAX_TOKEN_IN = 10 ether;
   uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
-  IPancakeV4PositionManager internal posm;
-  IPancakeV4CLPoolManager internal poolManager;
+  ICLPositionManager internal posm;
+  ICLPoolManager internal poolManager;
   IAllowanceTransfer internal permit2;
   PancakeV4ForkMockERC20 internal token0;
   PancakeV4ForkMockERC20 internal token1;
   PancakeV4ForkMockERC20 internal hopToken;
-  PancakeV4PoolKey internal poolKey;
+  PoolKey internal poolKey;
   SharedConfigManager internal configManager;
   SharedVault internal vault;
   SharedPancakeV4Strategy internal strategy;
@@ -105,7 +105,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   address internal depositor;
   address internal feeRecipient;
 
-  receive() external payable { }
+  receive() external payable {}
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), BASE_FORK_BLOCK);
@@ -115,17 +115,17 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     depositor = makeAddr("depositor");
     feeRecipient = makeAddr("feeRecipient");
 
-    posm = IPancakeV4PositionManager(BASE_PANCAKE_V4_POSM);
-    poolManager = IPancakeV4CLPoolManager(posm.clPoolManager());
-    permit2 = IAllowanceTransfer(posm.permit2());
+    posm = ICLPositionManager(BASE_PANCAKE_V4_POSM);
+    poolManager = posm.clPoolManager();
+    permit2 = IPositionManagerPermit2(BASE_PANCAKE_V4_POSM).permit2();
 
     (token0, token1) = _deploySortedTokenPair();
     hopToken = new PancakeV4ForkMockERC20("Hop", "HOP");
-    poolKey = PancakeV4PoolKey({
-      currency0: address(token0),
-      currency1: address(token1),
-      hooks: address(0),
-      poolManager: address(poolManager),
+    poolKey = PoolKey({
+      currency0: Currency.wrap(address(token0)),
+      currency1: Currency.wrap(address(token1)),
+      hooks: IHooks(address(0)),
+      poolManager: IPoolManager(address(poolManager)),
       fee: LP_FEE,
       parameters: _clParameters(TICK_SPACING)
     });
@@ -138,8 +138,10 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     targets[0] = address(strategy);
     address[] memory nfpms = new address[](1);
     nfpms[0] = BASE_PANCAKE_V4_POSM;
+    address[] memory swapRouters = new address[](1);
+    swapRouters[0] = address(swapRouter);
     configManager = new SharedConfigManager();
-    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters);
 
     vault = new SharedVault();
     token0.mint(address(vault), 10 ether);
@@ -182,8 +184,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertEq(token0.allowance(address(vault), address(permit2)), 0, "token0 ERC20 Permit2 approval cleared");
     assertEq(token1.allowance(address(vault), address(permit2)), 0, "token1 ERC20 Permit2 approval cleared");
 
-    (uint160 permitAmount0,,) = permit2.allowance(address(vault), address(token0), BASE_PANCAKE_V4_POSM);
-    (uint160 permitAmount1,,) = permit2.allowance(address(vault), address(token1), BASE_PANCAKE_V4_POSM);
+    (uint160 permitAmount0, , ) = permit2.allowance(address(vault), address(token0), BASE_PANCAKE_V4_POSM);
+    (uint160 permitAmount1, , ) = permit2.allowance(address(vault), address(token1), BASE_PANCAKE_V4_POSM);
     assertEq(permitAmount0, 0, "token0 Permit2 POSM allowance cleared");
     assertEq(permitAmount1, 0, "token1 Permit2 POSM allowance cleared");
   }
@@ -200,12 +202,14 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       poolKey: poolKey,
       mintParams: IPancakeV4Utils.MintParams({
-        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -240,12 +244,12 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       tokenId: tokenId,
       increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -275,10 +279,10 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
       }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -304,21 +308,21 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
         hookData: "",
         deadline: block.timestamp + 300
       }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0,
-      compoundFees: false
+      decreaseAmount0Min: 0,
+      decreaseAmount1Min: 0
     });
 
     _executePancakeV4Instructions(
       tokenId,
       IPancakeV4Utils.Instructions({
-        action: IPancakeV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(adjustParams)
+        action: IPancakeV4Utils.UtilActions.ADJUST_RANGE,
+        params: abi.encode(adjustParams)
       })
     );
 
     assertEq(vault.getPositionCount(), 1, "range adjust replaces one tracked position");
-    (,, uint256 trackedTokenId,,) = vault.getPosition(0);
+    (, , uint256 trackedTokenId, , ) = vault.getPosition(0);
     assertEq(trackedTokenId, nextIdBefore, "new Pancake V4 tokenId tracked");
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "replacement Pancake V4 position has liquidity");
   }
@@ -356,19 +360,28 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
 
     IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
       decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
-        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+        liquidity: 0.5 ether,
+        deadline: block.timestamp,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
       }),
       swapParams: swaps,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
-      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams)
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
     });
     bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, tokenId, instructions));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory innerData = abi.encode(
+      BASE_PANCAKE_V4_POSM,
+      tokenId,
+      params,
+      uint256(0),
+      new address[](0),
+      new uint256[](0)
+    );
     bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -409,19 +422,28 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
 
     IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
       decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
-        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+        liquidity: 0.5 ether,
+        deadline: block.timestamp,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
       }),
       swapParams: swaps,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
-      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams)
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
     });
     bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, tokenId, instructions));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory innerData = abi.encode(
+      BASE_PANCAKE_V4_POSM,
+      tokenId,
+      params,
+      uint256(0),
+      new address[](0),
+      new uint256[](0)
+    );
     bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -457,18 +479,26 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       poolKey: poolKey,
       mintParams: IPancakeV4Utils.MintParams({
-        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 
     bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory innerData = abi.encode(
+      BASE_PANCAKE_V4_POSM,
+      uint256(0),
+      paramsBytes,
+      uint256(0),
+      new address[](0),
+      new uint256[](0)
+    );
     bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -491,7 +521,11 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     uint256 idForIncrease = _mintPositionToOperator(poolKey);
     IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForIncrease);
     threeTokenVault.recoverPosition(
-      BASE_PANCAKE_V4_POSM, idForIncrease, address(strategy), address(token0), address(token1)
+      BASE_PANCAKE_V4_POSM,
+      idForIncrease,
+      address(strategy),
+      address(token0),
+      address(token1)
     );
 
     hopToken.mint(address(threeTokenVault), 1 ether);
@@ -505,18 +539,24 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       tokenId: idForIncrease,
       increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 
     bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndIncrease, (incParams));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory innerData = abi.encode(
+      BASE_PANCAKE_V4_POSM,
+      idForIncrease,
+      paramsBytes,
+      uint256(0),
+      new address[](0),
+      new uint256[](0)
+    );
     bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -566,16 +606,23 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     return (b, a);
   }
 
-  function _mintPositionToOperator(PancakeV4PoolKey memory key) internal returns (uint256 mintedTokenId) {
-    _approveCurrencyForPosm(key.currency0);
-    _approveCurrencyForPosm(key.currency1);
+  function _mintPositionToOperator(PoolKey memory key) internal returns (uint256 mintedTokenId) {
+    _approveCurrencyForPosm(Currency.unwrap(key.currency0));
+    _approveCurrencyForPosm(Currency.unwrap(key.currency1));
 
     bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d)); // CL_MINT_POSITION, SETTLE_PAIR
     bytes[] memory params = new bytes[](2);
     params[0] = abi.encode(
-      key, TICK_LOWER, TICK_UPPER, INITIAL_LIQUIDITY, MAX_TOKEN_IN, MAX_TOKEN_IN, address(this), bytes("")
+      key,
+      TICK_LOWER,
+      TICK_UPPER,
+      INITIAL_LIQUIDITY,
+      MAX_TOKEN_IN,
+      MAX_TOKEN_IN,
+      address(this),
+      bytes("")
     );
-    params[1] = abi.encode(key.currency0, key.currency1);
+    params[1] = abi.encode(Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
 
     mintedTokenId = posm.nextTokenId();
     posm.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1);

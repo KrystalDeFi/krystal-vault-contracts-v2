@@ -16,11 +16,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
-import {
-  ISharedPancakeV4Utils as IPancakeV4Utils,
-  PancakeV4PoolKey
-} from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
-import { PancakeV4PositionInfo } from "../../contracts/shared-vault/interfaces/IPancakeV4PositionManager.sol";
+import { ISharedPancakeV4Utils as IPancakeV4Utils } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { PoolKey as PancakeV4PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency as PancakeCurrency } from "infinity-core/src/types/Currency.sol";
+import { IHooks as IPancakeHooks } from "infinity-core/src/interfaces/IHooks.sol";
+import { IPoolManager as IPancakePoolManager } from "infinity-core/src/interfaces/IPoolManager.sol";
+import { CLPositionInfo as PancakeV4PositionInfo } from "infinity-periphery/src/pool-cl/libraries/CLPositionInfoLibrary.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
@@ -838,6 +839,12 @@ contract MockPancakeV4PoolManager {
   function getPoolTickInfo(bytes32, int24) external pure returns (uint128, int128, uint256, uint256) {
     return (0, 0, 0, 0);
   }
+
+  /// @dev Canonical fee-growth-inside getter now used by SharedPancakeV4StrategyLib (F1). Returns 0
+  ///      for this mock so happy-path tests see zero pending fees, matching the prior behavior.
+  function getFeeGrowthInside(bytes32, int24, int24) external pure returns (uint256, uint256) {
+    return (0, 0);
+  }
 }
 
 contract MockPancakeV4PositionManager {
@@ -875,10 +882,10 @@ contract MockPancakeV4PositionManager {
 
   function setPoolInfo(uint256 tokenId, address c0, address c1) external {
     _poolKey[tokenId] = PancakeV4PoolKey({
-      currency0: c0,
-      currency1: c1,
-      hooks: address(0),
-      poolManager: address(poolManager),
+      currency0: PancakeCurrency.wrap(c0),
+      currency1: PancakeCurrency.wrap(c1),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(poolManager)),
       fee: 3000,
       parameters: bytes32(uint256(uint24(60)) << 16)
     });
@@ -946,13 +953,15 @@ contract MockPancakeV4PositionManager {
     _collectAmount0[tokenId] = 0;
     _collectAmount1[tokenId] = 0;
     if (amount0 > 0) {
-      (bool ok,) =
-        _poolKey[tokenId].currency0.call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0));
+      (bool ok,) = PancakeCurrency.unwrap(_poolKey[tokenId].currency0).call(
+        abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount0)
+      );
       require(ok, "mint0");
     }
     if (amount1 > 0) {
-      (bool ok,) =
-        _poolKey[tokenId].currency1.call(abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1));
+      (bool ok,) = PancakeCurrency.unwrap(_poolKey[tokenId].currency1).call(
+        abi.encodeWithSignature("mint(address,uint256)", msg.sender, amount1)
+      );
       require(ok, "mint1");
     }
   }
@@ -3795,8 +3804,6 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: uint64(1 << 62)
     });
     IV4Utils.Instructions memory instructions =
@@ -3926,8 +3933,6 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: type(uint64).max
     });
     IV4Utils.Instructions memory instructions =
@@ -4018,10 +4023,10 @@ contract SharedVaultTest is TestCommon {
     v.initialize("PancakeV4Mint", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
 
     PancakeV4PoolKey memory key = PancakeV4PoolKey({
-      currency0: address(tokenA),
-      currency1: address(tokenB),
-      hooks: address(0),
-      poolManager: address(posm.poolManager()),
+      currency0: PancakeCurrency.wrap(address(tokenA)),
+      currency1: PancakeCurrency.wrap(address(tokenB)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(posm.poolManager())),
       fee: 3000,
       parameters: bytes32(uint256(uint24(60)) << 16)
     });
@@ -4038,8 +4043,6 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: uint64(1 << 63)
     });
 
@@ -6269,8 +6272,6 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instr =
@@ -6358,8 +6359,6 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instr =
@@ -6411,8 +6410,6 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     bytes memory instruction = abi.encode(
