@@ -4,10 +4,10 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import { INonfungiblePositionManager } from "../../contracts/common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
-import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
@@ -15,16 +15,19 @@ import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IFeeTaker } from "../../contracts/public-vault/interfaces/strategies/IFeeTaker.sol";
 import { ILpFeeTaker } from "../../contracts/public-vault/interfaces/strategies/ILpFeeTaker.sol";
 
-contract NativeStrategyToken {
-  string public name;
+// ---------------------------------------------------------------------------
+// Minimal mocks (Aerodrome-shaped) used to drive SharedAerodromeStrategy.execute
+// through the COMPOUND_FEES path that stacks an executor-supplied gas fee on top
+// of the platform + owner performance fees.
+// ---------------------------------------------------------------------------
+
+contract AeroFeeCapToken {
   string public symbol;
   uint8 public decimals = 18;
-
   mapping(address => uint256) public balanceOf;
   mapping(address => mapping(address => uint256)) public allowance;
 
   constructor(string memory _symbol) {
-    name = _symbol;
     symbol = _symbol;
   }
 
@@ -53,21 +56,22 @@ contract NativeStrategyToken {
   }
 }
 
-contract NativeStrategyPool {}
+contract AeroFeeCapPool {}
 
-contract NativeStrategyFactory {
+contract AeroFeeCapFactory {
   address public immutable pool;
 
   constructor(address _pool) {
     pool = _pool;
   }
 
-  function getPool(address, address, uint24) external view returns (address) {
+  // Aerodrome CL factory: tickSpacing-based pool lookup.
+  function getPool(address, address, int24) external view returns (address) {
     return pool;
   }
 }
 
-contract NativeStrategyNfpm {
+contract AeroFeeCapNfpm {
   address public immutable factory;
   address public immutable token0;
   address public immutable token1;
@@ -75,11 +79,8 @@ contract NativeStrategyNfpm {
   uint128 public liquidity = 1_000_000;
   uint256 public collectAmount0;
   uint256 public collectAmount1;
-  uint256 public collectCalls;
   uint256 public increased0;
   uint256 public increased1;
-
-  mapping(uint256 => address) public ownerOf;
 
   constructor(address _factory, address _token0, address _token1) {
     factory = _factory;
@@ -87,34 +88,27 @@ contract NativeStrategyNfpm {
     token1 = _token1;
   }
 
-  function setOwner(uint256 tokenId, address owner) external {
-    ownerOf[tokenId] = owner;
-  }
-
   function setCollectFees(uint256 amount0, uint256 amount1) external {
     collectAmount0 = amount0;
     collectAmount1 = amount1;
   }
 
-  function balanceOf(address owner) external view returns (uint256) {
-    return ownerOf[1] == owner ? 1 : 0;
-  }
-
+  // Aerodrome positions(): note int24 tickSpacing at index 4 (vs V3's uint24 fee).
   function positions(
     uint256
   )
     external
     view
-    returns (uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128)
+    returns (uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128)
   {
     return (
       0,
       address(0),
       token0,
       token1,
-      500,
-      -60,
-      60,
+      int24(60),
+      int24(-60),
+      int24(60),
       liquidity,
       0,
       0,
@@ -123,18 +117,19 @@ contract NativeStrategyNfpm {
     );
   }
 
-  function collect(INFPM.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
-    collectCalls++;
+  function collect(
+    INonfungiblePositionManager.CollectParams calldata params
+  ) external returns (uint256 amount0, uint256 amount1) {
     amount0 = collectAmount0;
     amount1 = collectAmount1;
     collectAmount0 = 0;
     collectAmount1 = 0;
-    if (amount0 > 0) NativeStrategyToken(token0).mint(params.recipient, amount0);
-    if (amount1 > 0) NativeStrategyToken(token1).mint(params.recipient, amount1);
+    if (amount0 > 0) AeroFeeCapToken(token0).mint(params.recipient, amount0);
+    if (amount1 > 0) AeroFeeCapToken(token1).mint(params.recipient, amount1);
   }
 
   function increaseLiquidity(
-    INFPM.IncreaseLiquidityParams calldata params
+    INonfungiblePositionManager.IncreaseLiquidityParams calldata params
   ) external returns (uint128 addedLiquidity, uint256 amount0, uint256 amount1) {
     amount0 = params.amount0Desired;
     amount1 = params.amount1Desired;
@@ -145,19 +140,10 @@ contract NativeStrategyNfpm {
     addedLiquidity = uint128(amount0 + amount1);
     liquidity += addedLiquidity;
   }
-
-  function safeTransferFrom(address, address, uint256, bytes calldata) external {}
 }
 
-contract NativeStrategyNoopV3Utils {
-  function swapAndIncreaseLiquidity(
-    IV3Utils.SwapAndIncreaseLiquidityParams calldata
-  ) external payable returns (IV3Utils.SwapAndIncreaseLiquidityResult memory result) {
-    return result;
-  }
-}
-
-contract NativeStrategyLpFeeTaker is ILpFeeTaker {
+/// @dev Mirrors the real LpFeeTaker fee arithmetic: platform + owner + gas summed WITHOUT a clamp.
+contract AeroFeeCapLpFeeTaker is ILpFeeTaker {
   uint256 internal constant Q64 = 2 ** 64;
 
   function takeFees(
@@ -202,7 +188,7 @@ contract NativeStrategyLpFeeTaker is ILpFeeTaker {
   }
 }
 
-contract NativeStrategyVaultHarness {
+contract AeroFeeCapVaultHarness {
   SharedConfigManager public configManager;
   address public vaultOwner;
   uint16 public vaultOwnerFeeBasisPoint;
@@ -232,155 +218,53 @@ contract NativeStrategyVaultHarness {
   }
 }
 
-contract SharedStrategyNativeExecutionTest is Test {
-  uint64 internal constant GAS_FEE_X64_25_PERCENT = uint64(1 << 62);
+contract SharedAerodromeStrategyFeeCapTest is Test {
   uint64 internal constant GAS_FEE_X64_75_PERCENT = uint64(3 << 62);
   // ~90% of the collected amount expressed as a Q64 fraction (0.9 * 2^64).
   uint64 internal constant GAS_FEE_X64_90_PERCENT = uint64((9 * (uint256(1) << 64)) / 10);
 
-  NativeStrategyToken internal token0;
-  NativeStrategyToken internal token1;
-  NativeStrategyNfpm internal nfpm;
-  NativeStrategyVaultHarness internal vault;
-  NativeStrategyLpFeeTaker internal feeTaker;
-  SharedV3Strategy internal strategy;
-  address internal platformRecipient = address(0xAA01);
-  address internal vaultOwner = address(0xAA02);
-  address internal automator = address(0xAA03);
+  AeroFeeCapToken internal token0;
+  AeroFeeCapToken internal token1;
+  AeroFeeCapNfpm internal nfpm;
+  AeroFeeCapVaultHarness internal vault;
+  AeroFeeCapLpFeeTaker internal feeTaker;
+  SharedAerodromeStrategy internal strategy;
+  address internal platformRecipient = address(0xBB01);
+  address internal vaultOwner = address(0xBB02);
+  address internal automator = address(0xBB03);
 
   function setUp() public {
-    token0 = new NativeStrategyToken("NST0");
-    token1 = new NativeStrategyToken("NST1");
-    NativeStrategyPool pool = new NativeStrategyPool();
-    NativeStrategyFactory factory = new NativeStrategyFactory(address(pool));
-    nfpm = new NativeStrategyNfpm(address(factory), address(token0), address(token1));
-    feeTaker = new NativeStrategyLpFeeTaker();
+    token0 = new AeroFeeCapToken("AT0");
+    token1 = new AeroFeeCapToken("AT1");
+    AeroFeeCapPool pool = new AeroFeeCapPool();
+    AeroFeeCapFactory factory = new AeroFeeCapFactory(address(pool));
+    nfpm = new AeroFeeCapNfpm(address(factory), address(token0), address(token1));
+    feeTaker = new AeroFeeCapLpFeeTaker();
 
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
     cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1_000, nfpms, new address[](0));
 
-    vault = new NativeStrategyVaultHarness(cm, vaultOwner, 500);
+    vault = new AeroFeeCapVaultHarness(cm, vaultOwner, 500);
     vault.addVaultToken(address(token0));
     vault.addVaultToken(address(token1));
-    nfpm.setOwner(1, address(vault));
     token0.mint(address(vault), 10_000);
     token1.mint(address(vault), 20_000);
 
-    strategy = new SharedV3Strategy(address(new NativeStrategyNoopV3Utils()), address(feeTaker));
+    strategy = new SharedAerodromeStrategy(address(0xCAFE), address(feeTaker));
   }
 
-  function test_v3_swapAndIncrease_does_not_collect_generated_fees() public {
+  /// @dev Same regression as the V3 strategy: stacking a gas fee on top of platform + owner fees
+  ///      such that the three combined exceed 100% of the collected amount would make the
+  ///      LpFeeTaker return more than was collected and underflow the `collected - fee` accounting.
+  ///      The strategy must reject the config up front. Here platform=10% + owner=5% + gas≈90% > 100%.
+  function test_aerodrome_compound_reverts_when_platform_owner_gas_exceed_100pct() public {
     nfpm.setCollectFees(1_000, 2_000);
 
-    IV3Utils.SwapAndIncreaseLiquidityParams memory params = IV3Utils.SwapAndIncreaseLiquidityParams({
-      protocol: 0,
-      nfpm: address(nfpm),
-      tokenId: 1,
-      amount0: 100,
-      amount1: 200,
-      amount2: 0,
-      recipient: address(0),
-      deadline: block.timestamp + 1,
-      swapSourceToken: address(0),
-      amountIn0: 0,
-      amountOut0Min: 0,
-      swapData0: "",
-      amountIn1: 0,
-      amountOut1Min: 0,
-      swapData1: "",
-      amountAddMin0: 0,
-      amountAddMin1: 0,
-      protocolFeeX64: 0,
-      gasFeeX64: 0
-    });
-
-    address[] memory approveTokens = new address[](2);
-    approveTokens[0] = address(token0);
-    approveTokens[1] = address(token1);
-    uint256[] memory approveAmounts = new uint256[](2);
-    approveAmounts[0] = 100;
-    approveAmounts[1] = 200;
-
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
-      abi.encode(params, approveTokens, approveAmounts, uint256(0))
-    );
-
-    vault.executeStrategy(address(strategy), data);
-
-    assertEq(nfpm.collectCalls(), 0, "increase must leave generated fees on the position");
-    assertEq(nfpm.increased0(), 100, "token0 principal increased");
-    assertEq(nfpm.increased1(), 200, "token1 principal increased");
-  }
-
-  function test_v3_compound_collects_generated_fees_and_distributes_platform_owner_gas() public {
-    nfpm.setCollectFees(1_000, 2_000);
-
-    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
-      whatToDo: IV3Utils.WhatToDo.COMPOUND_FEES,
-      protocol: 0,
-      targetToken: address(0),
-      amountRemoveMin0: 0,
-      amountRemoveMin1: 0,
-      amountIn0: 0,
-      amountOut0Min: 0,
-      swapData0: "",
-      amountIn1: 0,
-      amountOut1Min: 0,
-      swapData1: "",
-      tickLower: 0,
-      tickUpper: 0,
-      compoundFees: true,
-      liquidity: 0,
-      amountAddMin0: 0,
-      amountAddMin1: 0,
-      deadline: block.timestamp + 1,
-      recipient: address(vault),
-      unwrap: false,
-      liquidityFeeX64: 0,
-      performanceFeeX64: 0,
-      gasFeeX64: GAS_FEE_X64_25_PERCENT
-    });
-
-    bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
-      abi.encode(address(nfpm), uint256(1), instructions)
-    );
-
-    vm.expectEmit(true, true, true, true, address(feeTaker));
-    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, automator, address(token0), 250);
-    vm.expectEmit(true, true, true, true, address(feeTaker));
-    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, automator, address(token1), 500);
-
-    vm.prank(automator);
-    vault.executeStrategy(address(strategy), data);
-
-    assertEq(token0.balanceOf(platformRecipient), 100, "token0 platform fee");
-    assertEq(token1.balanceOf(platformRecipient), 200, "token1 platform fee");
-    assertEq(token0.balanceOf(vaultOwner), 50, "token0 vault owner fee");
-    assertEq(token1.balanceOf(vaultOwner), 100, "token1 vault owner fee");
-    assertEq(token0.balanceOf(automator), 250, "token0 gas fee");
-    assertEq(token1.balanceOf(automator), 500, "token1 gas fee");
-    assertEq(nfpm.increased0(), 600, "net token0 generated fees compounded");
-    assertEq(nfpm.increased1(), 1_200, "net token1 generated fees compounded");
-  }
-
-  /// @dev Regression: an authorized executor must NOT be able to stack a gas fee on top of the
-  ///      platform + owner performance fees such that the three combined exceed 100% of the
-  ///      collected amount. The V3 LpFeeTaker sums the three fees without clamping, so an
-  ///      unbounded gasFeeX64 would make fee > collected and underflow the `collected - fee`
-  ///      accounting. The strategy must reject the config up front instead of reverting on
-  ///      underflow. Here platform=10% + owner=5% + gas≈90% = ~105% > 100%.
-  function test_v3_compound_reverts_when_platform_owner_gas_exceed_100pct() public {
-    nfpm.setCollectFees(1_000, 2_000);
-
-    IV3Utils.Instructions memory instructions = _compoundInstructions(GAS_FEE_X64_90_PERCENT);
-
-    bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
-      abi.encode(address(nfpm), uint256(1), instructions)
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), _compoundInstructions(GAS_FEE_X64_90_PERCENT))
     );
 
     vm.prank(automator);
@@ -388,17 +272,14 @@ contract SharedStrategyNativeExecutionTest is Test {
     vault.executeStrategy(address(strategy), data);
   }
 
-  /// @dev A large-but-valid stacked gas fee (platform=10% + owner=5% + gas=75% = 90% <= 100%) must
-  ///      still succeed and settle each fee exactly, proving the cap rejects only configs that would
-  ///      over-draw the collected amount — it does not over-reject legitimate stacked fees.
-  function test_v3_compound_allows_large_but_valid_stacked_gas_fee() public {
+  /// @dev A large-but-valid stacked gas fee (10% + 5% + 75% = 90% <= 100%) still succeeds and
+  ///      settles each fee exactly, proving the cap does not over-reject legitimate configs.
+  function test_aerodrome_compound_allows_large_but_valid_stacked_gas_fee() public {
     nfpm.setCollectFees(1_000, 2_000);
 
-    IV3Utils.Instructions memory instructions = _compoundInstructions(GAS_FEE_X64_75_PERCENT);
-
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
-      abi.encode(address(nfpm), uint256(1), instructions)
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), _compoundInstructions(GAS_FEE_X64_75_PERCENT))
     );
 
     vm.prank(automator);

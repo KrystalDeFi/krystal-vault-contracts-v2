@@ -34,6 +34,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   address public immutable swapRouter;
   address public immutable lpFeeTaker;
 
+  uint256 private constant Q64 = 0x10000000000000000;
   uint256 private constant Q128 = 0x100000000000000000000000000000000;
 
   enum OperationType {
@@ -637,6 +638,18 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       (amount0 == 0 && amount1 == 0) ||
       (fc.platformFeeBasisPoint == 0 && fc.vaultOwnerFeeBasisPoint == 0 && fc.gasFeeX64 == 0)
     ) return (0, 0);
+
+    // Reject configs where platform + owner + gas fees can exceed 100% of the collected amount.
+    // Unlike the V4 libraries (which clamp each fee to the running remainder), this path routes through
+    // LpFeeTaker, whose `_takeFee` sums the three fees WITHOUT clamping to `amount`. An executor-supplied
+    // `gasFeeX64` stacked on platform/owner fees (or alone exceeding Q64) would make fee > collected and
+    // underflow the `collected - fee` accounting downstream. `gasFeeX64` is a Q64 fraction; convert to bps
+    // rounding up so the combined ceiling is never undercounted.
+    uint256 gasFeeBps = (uint256(fc.gasFeeX64) * 10_000 + Q64 - 1) / Q64;
+    require(
+      uint256(fc.platformFeeBasisPoint) + fc.vaultOwnerFeeBasisPoint + gasFeeBps <= 10_000,
+      ISharedCommon.InvalidFeeBasisPoint()
+    );
 
     if (amount0 > 0) IERC20(token0).safeResetAndApprove(lpFeeTaker, amount0);
     if (amount1 > 0) IERC20(token1).safeResetAndApprove(lpFeeTaker, amount1);
