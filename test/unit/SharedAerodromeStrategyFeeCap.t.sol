@@ -252,14 +252,15 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     token0.mint(address(vault), 10_000);
     token1.mint(address(vault), 20_000);
 
-    strategy = new SharedAerodromeStrategy(address(0xCAFE), address(feeTaker));
+    strategy = new SharedAerodromeStrategy(address(0xCAFE));
   }
 
-  /// @dev Same regression as the V3 strategy: stacking a gas fee on top of platform + owner fees
-  ///      such that the three combined exceed 100% of the collected amount would make the
-  ///      LpFeeTaker return more than was collected and underflow the `collected - fee` accounting.
-  ///      The strategy must reject the config up front. Here platform=10% + owner=5% + gas≈90% > 100%.
-  function test_aerodrome_compound_reverts_when_platform_owner_gas_exceed_100pct() public {
+  /// @dev Unified clamp model (parity with the V4/Pancake libs): stacking a gas fee on top of platform +
+  ///      owner fees such that the three combined exceed 100% no longer reverts — each fee is clamped to the
+  ///      running remainder (platform → owner → gas), so the total fee can never exceed the collected amount
+  ///      and the gas fee simply absorbs whatever is left. Here platform=10% + owner=5% + gas≈90% would be
+  ///      105%, so gas is clamped to the remaining 85% and nothing is compounded.
+  function test_aerodrome_compound_clamps_when_platform_owner_gas_exceed_100pct() public {
     nfpm.setCollectFees(1_000, 2_000);
 
     bytes memory data = bytes.concat(
@@ -268,8 +269,18 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     );
 
     vm.prank(automator);
-    vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
-    vault.executeStrategy(address(strategy), data);
+    vault.executeStrategy(address(strategy), data); // no revert
+
+    // token0 collected 1_000: platform 100 + owner 50 + gas clamped to 850 (req 900) = 1_000 total, 0 compounded.
+    // token1 collected 2_000: platform 200 + owner 100 + gas clamped to 1_700 (req 1_800) = 2_000 total, 0 compounded.
+    assertEq(token0.balanceOf(platformRecipient), 100, "token0 platform fee");
+    assertEq(token1.balanceOf(platformRecipient), 200, "token1 platform fee");
+    assertEq(token0.balanceOf(vaultOwner), 50, "token0 owner fee");
+    assertEq(token1.balanceOf(vaultOwner), 100, "token1 owner fee");
+    assertEq(token0.balanceOf(automator), 850, "token0 gas fee clamped to remainder");
+    assertEq(token1.balanceOf(automator), 1_700, "token1 gas fee clamped to remainder");
+    assertEq(nfpm.increased0(), 0, "nothing compounded (fees consumed 100%)");
+    assertEq(nfpm.increased1(), 0, "nothing compounded (fees consumed 100%)");
   }
 
   /// @dev A large-but-valid stacked gas fee (10% + 5% + 75% = 90% <= 100%) still succeeds and

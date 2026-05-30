@@ -12,12 +12,6 @@ Aerodrome CL LP operations for SharedVault with token validation and position tr
 address swapRouter
 ```
 
-### lpFeeTaker
-
-```solidity
-address lpFeeTaker
-```
-
 ### OperationType
 
 ```solidity
@@ -31,7 +25,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _swapRouter, address _lpFeeTaker) public
+constructor(address _swapRouter) public
 ```
 
 ### execute
@@ -108,7 +102,7 @@ function _collectFees(address _nfpm, uint256 tokenId, struct ICommon.FeeConfig p
 ### _decreaseVaultPosition
 
 ```solidity
-function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, int24 tickSpacing) internal
+function _decreaseVaultPosition(address _nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1) internal
 ```
 
 ### exitProportional

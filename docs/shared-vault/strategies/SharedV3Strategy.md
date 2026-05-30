@@ -10,12 +10,6 @@ Uniswap V3 LP operations for SharedVault with token validation and position trac
 address swapRouter
 ```
 
-### lpFeeTaker
-
-```solidity
-address lpFeeTaker
-```
-
 ### OperationType
 
 ```solidity
@@ -29,7 +23,7 @@ enum OperationType {
 ### constructor
 
 ```solidity
-constructor(address _swapRouter, address _lpFeeTaker) public
+constructor(address _swapRouter) public
 ```
 
 ### execute
@@ -109,7 +103,7 @@ function _collectFees(address nfpm, uint256 tokenId, struct ICommon.FeeConfig pe
 ### _decreaseVaultPosition
 
 ```solidity
-function _decreaseVaultPosition(address nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1, uint24 fee) internal
+function _decreaseVaultPosition(address nfpm, uint256 tokenId, uint128 liquidityToRemove, uint256 minAmount0, uint256 minAmount1, address token0, address token1) internal
 ```
 
 ### exitProportional
@@ -120,8 +114,8 @@ function exitProportional(address nfpm, uint256 tokenId, uint256 shares, uint256
 
 Exit a proportional share of an LP position during vault withdrawal.
 
-_Same fee model as public `LpStrategy._decreaseLiquidity`: collect fees → `LpFeeTaker.takeFees`
-     (platform + vault owner) → decrease proportional liquidity → collect principal. No V3Utils fee fields._
+_Fee model: collect fees → take platform + vault-owner fees (direct transfer via
+     `SharedStrategyFees`) → decrease proportional liquidity → collect principal. No V3Utils fee fields._
 
 #### Parameters
 

@@ -2870,6 +2870,10 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  /// @dev If a tracked position's strategy.collectFees() reverts, the whole withdrawal must revert: a silent
+  ///      failure followed by exitProportional would let the current withdrawer sweep all accumulated fees.
+  ///      (Real strategies short-circuit collectFees when a position has no uncollected fees, so this only
+  ///      fires for a strategy whose collect genuinely cannot succeed — see SharedV4StrategyLib._collectFees.)
   function test_withdraw_revertsWhenCollectFeesFails() public {
     MockLPPool pool = new MockLPPool();
     MockCollectFailingStrategy failingCollectStrat = new MockCollectFailingStrategy(address(pool));
@@ -6029,7 +6033,7 @@ contract SharedVaultTest is TestCommon {
   ///         diff to locate the new token. This is insertion-order-agnostic: inverted ordering (old NFT
   ///         returned before new one minted) is now handled correctly instead of reverting.
   function test_security_issue3_v3ChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
-    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
+    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA));
 
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
@@ -6072,7 +6076,7 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_security_issue3_v3ChangeRange_partialRemovalKeepsOldPositionTracked() public {
-    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
+    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA));
     MockInvertedOrderingNfpm partialNfpm = new MockInvertedOrderingNfpm(address(tokenA), address(tokenB), 999);
 
     SharedConfigManager v3cm = new SharedConfigManager();
@@ -6114,7 +6118,7 @@ contract SharedVaultTest is TestCommon {
   /// @notice Issue 3 (supplemental): native CHANGE_RANGE reverts if the replacement NFT returned
   ///         by mint is not owned by the vault.
   function test_security_issue3_v3ChangeRange_revertsWhenReplacementNftNotOwnedByVault() public {
-    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA), address(0xBBBB));
+    SharedV3Strategy v3strat = new SharedV3Strategy(address(0xAAAA));
 
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
@@ -6154,7 +6158,7 @@ contract SharedVaultTest is TestCommon {
   /// @notice Aerodrome CHANGE_RANGE: pre/post diff correctly identifies the new token regardless of
   ///         NFPM owner-array insertion order (mirrors the V3 strategy test above).
   function test_security_aerodromeChangeRange_invertedOrderingSucceedsWithCorrectTracking() public {
-    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA), address(0xBBBB));
+    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA));
 
     SharedConfigManager aerocm = new SharedConfigManager();
     address[] memory targets = new address[](1);
@@ -6196,7 +6200,7 @@ contract SharedVaultTest is TestCommon {
   }
 
   function test_security_aerodromeChangeRange_partialRemovalKeepsOldPositionTracked() public {
-    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA), address(0xBBBB));
+    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA));
     MockAerodromeInvertedOrderingNfpm aeroNfpm =
       new MockAerodromeInvertedOrderingNfpm(address(tokenA), address(tokenB), 777);
 

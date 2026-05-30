@@ -180,7 +180,7 @@ contract SharedStrategyApprovalsTest is Test {
     cm = _setupConfigManager(address(nfpm));
 
     // V3Strategy with dummy swap router (not called in depositProportional)
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
 
     StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));
     vault.addVaultToken(address(tA));
@@ -202,7 +202,7 @@ contract SharedStrategyApprovalsTest is Test {
     MockV3Nfpm nfpm = new MockV3Nfpm(address(tA), address(tB));
 
     cm = _setupConfigManager(address(nfpm));
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
 
     StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));
     vault.addVaultToken(address(tA));
@@ -228,7 +228,7 @@ contract SharedStrategyApprovalsTest is Test {
 
     cm = _setupConfigManager(address(nfpm));
 
-    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1), address(1));
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
 
     StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));
     vault.addVaultToken(address(tA));

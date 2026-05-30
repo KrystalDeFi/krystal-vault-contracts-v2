@@ -11,7 +11,7 @@ import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 ///         SharedVault settles all tracked positions before withdraws; strategy execute paths settle only the
 ///         existing position they mutate. Utility-call fee fields remain API-controlled.
 library SharedStrategyFeeConfig {
-  /// @notice `FeeConfig` for proportional LP exit (`LpFeeTaker`). Platform bps from config; withdraw exits never charge gas on principal.
+  /// @notice `FeeConfig` for proportional LP exit (settled by `SharedStrategyFees`). Platform bps from config; withdraw exits never charge gas on principal.
   /// @dev If `platformBps + vault.vaultOwnerFeeBasisPoint() > 10_000`, the vault owner's share is silently clamped to
   ///      `10_000 - platformBps` so the combined fee never exceeds 100%. This means a platform-fee increase after
   ///      vault creation will reduce the vault owner's effective share without reverting. This is intentional

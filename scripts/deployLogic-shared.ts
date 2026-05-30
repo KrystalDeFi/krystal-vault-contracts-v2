@@ -121,8 +121,6 @@ async function deployContracts(
 
   const contracts: SharedContracts = {};
 
-  const lpFeeTakerAddress: string | undefined = existingContract?.["lpFeeTaker"];
-
   // 1. Deploy SharedConfigManager
   if (networkConfig.sharedConfigManager?.enabled) {
     contracts.sharedConfigManager = (await deployContract(
@@ -187,8 +185,8 @@ async function deployContracts(
       existingContract?.["sharedV3Strategy"],
       "contracts/shared-vault/strategies/SharedV3Strategy.sol:SharedV3Strategy",
       undefined,
-      ["address", "address"],
-      [getSharedStrategySwapRouter(), lpFeeTakerAddress],
+      ["address"],
+      [getSharedStrategySwapRouter()],
     )) as SharedV3Strategy;
 
     const implAddr = existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target;
@@ -326,8 +324,8 @@ async function deployContracts(
       existingContract?.["sharedAerodromeStrategy"],
       "contracts/shared-vault/strategies/SharedAerodromeStrategy.sol:SharedAerodromeStrategy",
       undefined,
-      ["address", "address"],
-      [getSharedStrategySwapRouter(), lpFeeTakerAddress],
+      ["address"],
+      [getSharedStrategySwapRouter()],
     )) as SharedAerodromeStrategy;
 
     const implAddr = existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target;

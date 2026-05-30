@@ -85,7 +85,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker));
+    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS);
     aeroBeacon = new SharedStrategyBeacon(address(aeroStrategy), vaultOwner);
     aeroProxy = new SharedStrategyProxy(address(aeroBeacon));
 
@@ -276,7 +276,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
 
     // Upgrade: deploy a new impl and point the beacon at it
-    SharedAerodromeStrategy newImpl = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker));
+    SharedAerodromeStrategy newImpl = new SharedAerodromeStrategy(V3_UTILS);
     aeroBeacon.setImplementation(address(newImpl));
     assertEq(aeroBeacon.implementation(), address(newImpl), "beacon updated to new impl");
 

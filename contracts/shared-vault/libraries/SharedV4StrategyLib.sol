@@ -11,7 +11,6 @@ import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { SafeCast } from "@uniswap/v4-core/src/libraries/SafeCast.sol";
 import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
@@ -37,7 +36,6 @@ library SharedV4StrategyLib {
   using SafeERC20 for IERC20;
   using PoolIdLibrary for PoolKey;
   using PositionInfoLibrary for PositionInfo;
-  using SafeCast for uint256;
   using StateLibrary for IPoolManager;
 
   uint256 private constant Q64 = 0x10000000000000000;
@@ -223,13 +221,25 @@ library SharedV4StrategyLib {
     bytes[] memory collectParams = new bytes[](2);
     collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), bytes(""));
     collectParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
-    pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
 
-    uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
-    uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
-    if (collected0 == 0 && collected1 == 0) return;
-
-    _applyFees(token0, collected0, token1, collected1, fc);
+    // The fee-sync collect (DECREASE_LIQUIDITY(0)+TAKE_PAIR) routes through the pool's remove-liquidity
+    // hooks. If a fragile/hostile hook reverts, tolerate it ONLY when the position has no uncollected fees:
+    // there is then nothing to distribute, so skipping cannot let a withdrawer over-sweep, and one such
+    // position cannot brick SharedVault.withdraw (which requires collectFees to succeed for every position).
+    // If fees ARE present, propagate the original revert so the fee-fairness guarantee is preserved.
+    try pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp) {
+      uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
+      uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
+      if (collected0 == 0 && collected1 == 0) return;
+      _applyFees(token0, collected0, token1, collected1, fc);
+    } catch (bytes memory reason) {
+      (,, uint256 pendingFee0, uint256 pendingFee1) = _positionAmountsSplit(posm, tokenId);
+      if (pendingFee0 != 0 || pendingFee1 != 0) {
+        assembly ("memory-safe") {
+          revert(add(reason, 0x20), mload(reason))
+        }
+      }
+    }
   }
 
   /// @dev Fees are applied SEQUENTIALLY against a running remainder: platform first, then owner, then
@@ -813,18 +823,23 @@ library SharedV4StrategyLib {
     (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
       manager.getFeeGrowthInside(poolId, tickLower, tickUpper);
 
-    fee0 = uint256(_feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity));
-    fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
+    fee0 = _feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity);
+    fee1 = _feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
   }
 
+  /// @dev F7-parity with SharedV3Strategy: the fee-growth subtraction wraps by design (matches Uniswap V4),
+  ///      but the pending fee is accumulated in uint256 and NOT cast to uint128. A reverting SafeCast here
+  ///      would make `getPositionAmounts` / `getPositionPrincipalAmounts` — reached on `deposit()` and
+  ///      preview via `_positionAmountsSplit` — revert under extreme/wrapped fee-growth, which could brick
+  ///      deposits/valuation for the whole vault. Valuing in uint256 cannot revert.
   function _feeOwed(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
     private
     pure
-    returns (uint128)
+    returns (uint256)
   {
     if (liquidity == 0) return 0;
     unchecked {
-      return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
+      return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128);
     }
   }
 

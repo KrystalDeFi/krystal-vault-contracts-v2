@@ -68,7 +68,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     // Deploy automator — owner + operator can execute
     address[] memory operators = new address[](1);

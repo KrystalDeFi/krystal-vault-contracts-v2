@@ -84,7 +84,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
     beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
     proxy = new SharedStrategyProxy(address(beacon));
 
@@ -270,7 +270,7 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
 
     // Upgrade: deploy new impl and update beacon
-    SharedV3Strategy newImpl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    SharedV3Strategy newImpl = new SharedV3Strategy(V3_UTILS);
     beacon.setImplementation(address(newImpl));
     assertEq(beacon.implementation(), address(newImpl), "beacon updated to new impl");
 

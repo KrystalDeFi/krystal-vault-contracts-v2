@@ -138,7 +138,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     address[] memory targets = new address[](1);
     targets[0] = address(v3Strategy);

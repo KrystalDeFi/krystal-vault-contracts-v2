@@ -262,7 +262,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    strategy = new SharedV3Strategy(address(1), address(1));
+    strategy = new SharedV3Strategy(address(1));
   }
 
   function test_v3_getPositionAmounts_includes_pending_fees() public {
@@ -310,7 +310,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -348,7 +348,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -369,7 +369,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       new MockV3NfpmWithFees(address(factory), address(0x1111), address(0x2222), hugeLiquidity, TICK_LOWER, TICK_UPPER, 0, 0, 0, 0)
     );
 
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -400,7 +400,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    strategy = new SharedAerodromeStrategy(address(1), address(1));
+    strategy = new SharedAerodromeStrategy(address(1));
   }
 
   function test_aerodrome_getPositionAmounts_includes_pending_fees() public {
@@ -440,7 +440,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1), address(1));
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -533,21 +533,17 @@ contract MockNfpmFeeSync {
 contract CollectFeeWrapper {
   function callCollect(address nfpm, address _token0, address _token1) external {
     ICommon.FeeConfig memory noFee;
-    SharedNfpmProportionalExit.collectAccumulatedFees(
-      nfpm, 1, _token0, _token1, address(0), address(1), noFee
-    );
+    SharedNfpmProportionalExit.collectAccumulatedFees(nfpm, 1, _token0, _token1, noFee);
   }
 
   function callCollectWithFee(
     address nfpm,
     address _token0,
     address _token1,
-    address lpFeeTaker,
+    address /* lpFeeTaker */,
     ICommon.FeeConfig memory feeConfig
   ) external {
-    SharedNfpmProportionalExit.collectAccumulatedFees(
-      nfpm, 1, _token0, _token1, address(0), lpFeeTaker, feeConfig
-    );
+    SharedNfpmProportionalExit.collectAccumulatedFees(nfpm, 1, _token0, _token1, feeConfig);
   }
 }
 
@@ -668,13 +664,16 @@ contract CollectAccumulatedFeesTest is Test {
       gasFeeRecipient: address(0)
     });
 
-    vm.expectEmit(true, true, true, true, address(feeTaker));
+    // Fees are now settled by SharedStrategyFees (direct transfer, inlined into the wrapper), so
+    // FeeCollected is emitted from the wrapper address, in order platform → owner with BOTH tokens per
+    // fee type (token0 then token1), and each token's slice is transferred directly (no consolidation).
+    vm.expectEmit(true, true, true, true, address(wrapper));
     emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t0), 0.6e18);
-    vm.expectEmit(true, true, true, true, address(feeTaker));
-    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t0), 0.3e18);
-    vm.expectEmit(true, true, true, true, address(feeTaker));
+    vm.expectEmit(true, true, true, true, address(wrapper));
     emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t1), 0.5e18);
-    vm.expectEmit(true, true, true, true, address(feeTaker));
+    vm.expectEmit(true, true, true, true, address(wrapper));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t0), 0.3e18);
+    vm.expectEmit(true, true, true, true, address(wrapper));
     emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t1), 0.25e18);
 
     wrapper.callCollectWithFee(address(nfpm), address(t0), address(t1), address(feeTaker), feeConfig);

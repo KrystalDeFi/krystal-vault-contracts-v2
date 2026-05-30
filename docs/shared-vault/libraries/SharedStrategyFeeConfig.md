@@ -12,7 +12,7 @@
 function performanceFeeConfig() internal view returns (struct ICommon.FeeConfig fc)
 ```
 
-`FeeConfig` for proportional LP exit (`LpFeeTaker`). Platform bps from config; withdraw exits never charge gas on principal.
+`FeeConfig` for proportional LP exit (settled by `SharedStrategyFees`). Platform bps from config; withdraw exits never charge gas on principal.
 
 _If `platformBps + vault.vaultOwnerFeeBasisPoint() > 10_000`, the vault owner's share is silently clamped to
      `10_000 - platformBps` so the combined fee never exceeds 100%. This means a platform-fee increase after

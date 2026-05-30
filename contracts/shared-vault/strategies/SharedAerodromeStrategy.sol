@@ -18,9 +18,9 @@ import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
-import { ILpFeeTaker } from "../../public-vault/interfaces/strategies/ILpFeeTaker.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyFees } from "../libraries/SharedStrategyFees.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 
 /// @title SharedAerodromeStrategy
@@ -32,9 +32,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   using SafeERC20 for IERC20;
 
   address public immutable swapRouter;
-  address public immutable lpFeeTaker;
 
-  uint256 private constant Q64 = 0x10000000000000000;
   uint256 private constant Q128 = 0x100000000000000000000000000000000;
 
   enum OperationType {
@@ -45,10 +43,9 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     EXECUTE_INSTRUCTIONS
   }
 
-  constructor(address _swapRouter, address _lpFeeTaker) {
-    require(_swapRouter != address(0) && _lpFeeTaker != address(0), ISharedCommon.ZeroAddress());
+  constructor(address _swapRouter) {
+    require(_swapRouter != address(0), ISharedCommon.ZeroAddress());
     swapRouter = _swapRouter;
-    lpFeeTaker = _lpFeeTaker;
   }
 
   /// @inheritdoc ISharedStrategy
@@ -85,8 +82,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       (uint256 total0, uint256 total1) = _swapAndPrepareAmounts(params, ethValue);
       // F3: skim the configurable input gas fee to the authorized executor (uniform with V4/Pancake).
       if (params.gasFeeX64 > 0) {
-        address pool = _getPool(params.nfpm, params.token0, params.token1, params.tickSpacing);
-        (total0, total1) = _takeInputGasFee(params.token0, params.token1, total0, total1, pool, params.gasFeeX64);
+        (total0, total1) = _takeInputGasFee(params.token0, params.token1, total0, total1, params.gasFeeX64);
       }
       (tokenId, , , ) = _mintPosition(params, total0, total1);
     }
@@ -108,13 +104,12 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     _validateApprovalList(approveTokens, approveAmounts);
 
-    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(params.nfpm)
+    (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(params.nfpm)
       .positions(params.tokenId);
     (uint256 total0, uint256 total1) = _swapAndPrepareIncreaseAmounts(params, token0, token1, ethValue);
     // F3: skim the configurable input gas fee to the authorized executor (uniform with V4/Pancake).
     if (params.gasFeeX64 > 0) {
-      address pool = _getPool(params.nfpm, token0, token1, tickSpacing);
-      (total0, total1) = _takeInputGasFee(token0, token1, total0, total1, pool, params.gasFeeX64);
+      (total0, total1) = _takeInputGasFee(token0, token1, total0, total1, params.gasFeeX64);
     }
     _increasePosition(
       params.nfpm,
@@ -156,15 +151,12 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
 
-    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
-
     if (instructions.whatToDo == IV3Utils.WhatToDo.COMPOUND_FEES) {
       (uint256 fees0, uint256 fees1) = _collectGeneratedFees(
         _nfpm,
         tokenId,
         token0,
         token1,
-        pool,
         instructions.gasFeeX64
       );
       (fees0, fees1) = _swapForCompound(token0, token1, fees0, fees1, instructions);
@@ -191,7 +183,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         tokenId,
         token0,
         token1,
-        pool,
         instructions.gasFeeX64
       );
       (uint256 principal0, uint256 principal1) = _decreasePrincipal(
@@ -202,7 +193,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         instructions.amountRemoveMin1,
         token0,
         token1,
-        pool,
         instructions.gasFeeX64,
         instructions.deadline
       );
@@ -257,7 +247,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         tokenId,
         token0,
         token1,
-        pool,
         instructions.gasFeeX64
       );
       // Cap requested liquidity at the position's current liquidity to match V4's
@@ -273,7 +262,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         instructions.amountRemoveMin1,
         token0,
         token1,
-        pool,
         instructions.gasFeeX64,
         instructions.deadline
       );
@@ -300,10 +288,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   function _collectFees(address _nfpm, uint256 tokenId, ICommon.FeeConfig memory perfFee) internal {
-    (, , address token0, address token1, int24 tickSpacing, , , , , , , ) = INonfungiblePositionManager(_nfpm)
-      .positions(tokenId);
-    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
-    SharedNfpmProportionalExit.collectAccumulatedFees(_nfpm, tokenId, token0, token1, pool, lpFeeTaker, perfFee);
+    (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    SharedNfpmProportionalExit.collectAccumulatedFees(_nfpm, tokenId, token0, token1, perfFee);
   }
 
   function _decreaseVaultPosition(
@@ -313,10 +299,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 minAmount0,
     uint256 minAmount1,
     address token0,
-    address token1,
-    int24 tickSpacing
+    address token1
   ) internal {
-    address pool = _getPool(_nfpm, token0, token1, tickSpacing);
     ICommon.FeeConfig memory perfFee = SharedStrategyFeeConfig.performanceFeeConfig();
     SharedNfpmProportionalExit.decreaseLiquidityProportional(
       _nfpm,
@@ -326,8 +310,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       minAmount1,
       token0,
       token1,
-      pool,
-      lpFeeTaker,
       perfFee
     );
   }
@@ -344,20 +326,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   ) external override returns (PositionChange[] memory changes) {
     _requireAerodromeNfpm(_nfpm);
 
-    (
-      ,
-      ,
-      address token0,
-      address token1,
-      int24 tickSpacing,
-      ,
-      ,
-      uint128 posLiquidity,
-      ,
-      ,
-      ,
-
-    ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
+    (, , address token0, address token1, , , , uint128 posLiquidity, , , , ) = INonfungiblePositionManager(_nfpm)
+      .positions(tokenId);
 
     if (posLiquidity == 0) {
       changes = new PositionChange[](1);
@@ -372,7 +342,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     bool isFullExit = liquidityToRemove >= posLiquidity;
 
-    _decreaseVaultPosition(_nfpm, tokenId, liquidityToRemove, minAmount0, minAmount1, token0, token1, tickSpacing);
+    _decreaseVaultPosition(_nfpm, tokenId, liquidityToRemove, minAmount0, minAmount1, token0, token1);
 
     if (isFullExit) {
       changes = new PositionChange[](1);
@@ -555,7 +525,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 tokenId,
     address token0,
     address token1,
-    address pool,
     uint64 gasFeeX64
   ) private returns (uint256 net0, uint256 net1) {
     (uint256 collected0, uint256 collected1) = INonfungiblePositionManager(_nfpm).collect(
@@ -573,7 +542,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       fc.gasFeeX64 = gasFeeX64;
       fc.gasFeeRecipient = msg.sender;
     }
-    (uint256 fee0, uint256 fee1) = _takeFees(token0, collected0, token1, collected1, pool, fc);
+    (uint256 fee0, uint256 fee1) = _takeFees(token0, collected0, token1, collected1, fc);
     net0 = collected0 - fee0;
     net1 = collected1 - fee1;
   }
@@ -586,7 +555,6 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 amount1Min,
     address token0,
     address token1,
-    address pool,
     uint64 gasFeeX64,
     uint256 deadline
   ) private returns (uint256 net0, uint256 net1) {
@@ -621,17 +589,21 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       gasFeeX64: gasFeeX64,
       gasFeeRecipient: msg.sender
     });
-    (uint256 fee0, uint256 fee1) = _takeFees(token0, principal0, token1, principal1, pool, gasOnly);
+    (uint256 fee0, uint256 fee1) = _takeFees(token0, principal0, token1, principal1, gasOnly);
     net0 = principal0 - fee0;
     net1 = principal1 - fee1;
   }
 
+  /// @dev Direct proportional fee transfer (no `LpFeeTaker` swap/consolidation). Platform + vault owner +
+  ///      gas slices of token0/token1 are sent straight to their recipients via `SharedStrategyFees`, which
+  ///      clamps each fee to the running remainder so the total can never exceed the collected amount — this
+  ///      makes the `collected - fee` accounting in the callers underflow-safe WITHOUT a separate
+  ///      `<= 100%` revert guard, and matches the V4/Pancake fee model exactly (uniform across all four).
   function _takeFees(
     address token0,
     uint256 amount0,
     address token1,
     uint256 amount1,
-    address pool,
     ICommon.FeeConfig memory fc
   ) private returns (uint256 fee0, uint256 fee1) {
     if (
@@ -639,35 +611,18 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       (fc.platformFeeBasisPoint == 0 && fc.vaultOwnerFeeBasisPoint == 0 && fc.gasFeeX64 == 0)
     ) return (0, 0);
 
-    // Reject configs where platform + owner + gas fees can exceed 100% of the collected amount.
-    // Unlike the V4 libraries (which clamp each fee to the running remainder), this path routes through
-    // LpFeeTaker, whose `_takeFee` sums the three fees WITHOUT clamping to `amount`. An executor-supplied
-    // `gasFeeX64` stacked on platform/owner fees (or alone exceeding Q64) would make fee > collected and
-    // underflow the `collected - fee` accounting downstream. `gasFeeX64` is a Q64 fraction; convert to bps
-    // rounding up so the combined ceiling is never undercounted.
-    uint256 gasFeeBps = (uint256(fc.gasFeeX64) * 10_000 + Q64 - 1) / Q64;
-    require(
-      uint256(fc.platformFeeBasisPoint) + fc.vaultOwnerFeeBasisPoint + gasFeeBps <= 10_000,
-      ISharedCommon.InvalidFeeBasisPoint()
-    );
-
-    if (amount0 > 0) IERC20(token0).safeResetAndApprove(lpFeeTaker, amount0);
-    if (amount1 > 0) IERC20(token1).safeResetAndApprove(lpFeeTaker, amount1);
-    (fee0, fee1) = ILpFeeTaker(lpFeeTaker).takeFees(token0, amount0, token1, amount1, fc, token0, pool, address(0));
-    if (amount0 > 0) IERC20(token0).safeApprove(lpFeeTaker, 0);
-    if (amount1 > 0) IERC20(token1).safeApprove(lpFeeTaker, 0);
+    (fee0, fee1) = SharedStrategyFees.applyFees(token0, amount0, token1, amount1, fc);
   }
 
   /// @dev F3: skim a configurable gas fee from the prepared (post-swap) pool amounts to the authorized
   ///      executor, mirroring SharedV4StrategyLib's swap-and-mint/increase input gas-fee behavior so the
-  ///      fee model is uniform across V3/Aerodrome/V4/Pancake. Routed through the lpFeeTaker (same path
-  ///      as the compound/decrease gas fee) so it is observable via FeeCollected.
+  ///      fee model is uniform across V3/Aerodrome/V4/Pancake. Settled via `SharedStrategyFees` so it is
+  ///      observable via FeeCollected.
   function _takeInputGasFee(
     address token0,
     address token1,
     uint256 amount0,
     uint256 amount1,
-    address pool,
     uint64 gasFeeX64
   ) private returns (uint256 net0, uint256 net1) {
     if (gasFeeX64 == 0 || (amount0 == 0 && amount1 == 0)) return (amount0, amount1);
@@ -679,7 +634,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
       gasFeeX64: gasFeeX64,
       gasFeeRecipient: msg.sender
     });
-    (uint256 fee0, uint256 fee1) = _takeFees(token0, amount0, token1, amount1, pool, gasOnly);
+    (uint256 fee0, uint256 fee1) = _takeFees(token0, amount0, token1, amount1, gasOnly);
     net0 = amount0 - fee0;
     net1 = amount1 - fee1;
   }
@@ -745,6 +700,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) return (0, 0);
     _validateVaultToken(tokenIn);
     _validateVaultToken(tokenOut);
+    // Defense-in-depth kill-switch: re-validate the immutable swapRouter against the live ConfigManager
+    // whitelist at execution time (parity with SharedV4StrategyLib._executeV4Swaps), so the owner can
+    // revoke a compromised/deprecated aggregator without redeploying the strategy.
+    require(
+      ISharedVault(address(this)).configManager().isWhitelistedSwapRouter(swapRouter),
+      ISharedCommon.InvalidSwapRouter(swapRouter)
+    );
 
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));

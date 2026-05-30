@@ -70,7 +70,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     // Deploy config manager with strategy whitelisted
     address[] memory targets = new address[](1);

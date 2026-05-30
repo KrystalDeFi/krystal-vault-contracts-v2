@@ -4,7 +4,9 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
+import { SharedPancakeV4StrategyLib } from "../../contracts/shared-vault/libraries/SharedPancakeV4StrategyLib.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
+import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
 import { Currency } from "infinity-core/src/types/Currency.sol";
 import { IHooks } from "infinity-core/src/interfaces/IHooks.sol";
@@ -120,6 +122,21 @@ contract MockPancakeNfpmFees {
   ) external view returns (PoolKey memory, int24, int24, uint128, uint256, uint256, address) {
     return (_poolKey(), tickLower, tickUpper, liquidity, fgInside0Last, fgInside1Last, address(0));
   }
+
+  /// @dev Simulates a fragile/hostile pool whose remove-liquidity hook reverts on the zero-liquidity
+  ///      fee-sync `collectFees` performs. The strategy must NOT reach this when the position has no
+  ///      uncollected fees (it short-circuits first).
+  function modifyLiquidities(bytes calldata, uint256) external pure {
+    revert("hostile hook on fee-sync");
+  }
+}
+
+/// @dev Drives the lib's external `collectFees(posm, tokenId, fc)` (a delegatecall into the lib, so
+///      `address(this)` is this harness — mirroring a strategy delegatecalled by the vault).
+contract PancakeCollectHarness {
+  function collect(address posm, uint256 tokenId, ICommon.FeeConfig memory fc) external {
+    SharedPancakeV4StrategyLib.collectFees(posm, tokenId, fc);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -197,4 +214,58 @@ contract SharedStrategyFeeAccrualPancakeTest is Test {
     assertEq(amount0 - principal0, 1e18, "wrapped fee-growth yields the expected pending fees (token0)");
     assertEq(amount1 - principal1, 1e18, "wrapped fee-growth yields the expected pending fees (token1)");
   }
+
+  function _emptyFeeConfig() internal pure returns (ICommon.FeeConfig memory fc) {
+    fc = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+  }
+
+  /// @dev Sets up a NFPM whose fee-sync collect (modifyLiquidities) reverts (hostile hook), with real
+  ///      balanceOf-capable tokens so the pre-collect balance snapshot works. fg0Last/fg1Last control the
+  ///      view-reported uncollected fees that collectFees() consults in the catch branch.
+  function _setupCollect(
+    uint256 fg0,
+    uint256 fg1,
+    uint256 fg0Last,
+    uint256 fg1Last
+  ) internal returns (address nfpm, PancakeCollectHarness harness) {
+    MockBalanceToken token0 = new MockBalanceToken();
+    MockBalanceToken token1 = new MockBalanceToken();
+    MockPancakeCLPoolManagerFees manager = new MockPancakeCLPoolManagerFees(SQRT_PRICE_TICK0, CURRENT_TICK, fg0, fg1);
+    nfpm = address(
+      new MockPancakeNfpmFees(
+        address(manager), address(token0), address(token1), LIQUIDITY, TICK_LOWER, TICK_UPPER, fg0Last, fg1Last
+      )
+    );
+    harness = new PancakeCollectHarness();
+  }
+
+  /// @dev M3 (strategy-level): when the position has NO uncollected fees, a failing fee-sync collect (a pool
+  ///      hook reverting on the zero-liquidity DECREASE+TAKE) is TOLERATED — collectFees does not revert, so
+  ///      such a position cannot brick SharedVault.withdraw. fgInsideLast == current inside growth => zero fees.
+  function test_pancake_collectFees_toleratesHookRevert_whenNoUncollectedFees() public {
+    (address nfpm, PancakeCollectHarness harness) = _setupCollect(FG_INSIDE0, FG_INSIDE1, FG_INSIDE0, FG_INSIDE1);
+    harness.collect(nfpm, 1, _emptyFeeConfig()); // must NOT revert (zero pending fees -> swallow the hook revert)
+  }
+
+  /// @dev Conversely, when the position HAS uncollected fees, a failing fee-sync collect is re-reverted with
+  ///      the original reason — proving the tolerate path is conditional on zero fees and the fee-fairness
+  ///      guarantee is preserved (withdraw still reverts when collectable fees can't be settled).
+  function test_pancake_collectFees_reRevertsHookRevert_whenFeesPresent() public {
+    (address nfpm, PancakeCollectHarness harness) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0); // delta > 0
+    vm.expectRevert(bytes("hostile hook on fee-sync"));
+    harness.collect(nfpm, 1, _emptyFeeConfig());
+  }
+}
+
+/// @dev Minimal balanceOf-capable token for the collectFees pre-collect snapshot (no transfers occur in the
+///      tests because the fee-sync collect reverts before any settlement).
+contract MockBalanceToken {
+  mapping(address => uint256) public balanceOf;
 }

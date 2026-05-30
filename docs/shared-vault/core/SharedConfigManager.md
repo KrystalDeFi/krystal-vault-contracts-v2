@@ -44,7 +44,7 @@ address feeRecipient
 uint16 platformFeeBasisPoint
 ```
 
-Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are settled.
 
 ### maxPositions
 

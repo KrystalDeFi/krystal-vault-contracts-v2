@@ -268,7 +268,7 @@ contract SharedStrategyNativeExecutionTest is Test {
     token0.mint(address(vault), 10_000);
     token1.mint(address(vault), 20_000);
 
-    strategy = new SharedV3Strategy(address(new NativeStrategyNoopV3Utils()), address(feeTaker));
+    strategy = new SharedV3Strategy(address(new NativeStrategyNoopV3Utils()));
   }
 
   function test_v3_swapAndIncrease_does_not_collect_generated_fees() public {
@@ -349,9 +349,20 @@ contract SharedStrategyNativeExecutionTest is Test {
       abi.encode(address(nfpm), uint256(1), instructions)
     );
 
-    vm.expectEmit(true, true, true, true, address(feeTaker));
+    // Fees are now settled by SharedStrategyFees (direct transfer, inlined into the strategy running in the
+    // vault's delegatecall context), so FeeCollected is emitted from the vault address, in order
+    // platform → owner → gas, with each token's slice transferred directly (no LpFeeTaker consolidation).
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token0), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token1), 200);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token0), 50);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token1), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
     emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, automator, address(token0), 250);
-    vm.expectEmit(true, true, true, true, address(feeTaker));
+    vm.expectEmit(true, true, true, true, address(vault));
     emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, automator, address(token1), 500);
 
     vm.prank(automator);
@@ -367,13 +378,12 @@ contract SharedStrategyNativeExecutionTest is Test {
     assertEq(nfpm.increased1(), 1_200, "net token1 generated fees compounded");
   }
 
-  /// @dev Regression: an authorized executor must NOT be able to stack a gas fee on top of the
-  ///      platform + owner performance fees such that the three combined exceed 100% of the
-  ///      collected amount. The V3 LpFeeTaker sums the three fees without clamping, so an
-  ///      unbounded gasFeeX64 would make fee > collected and underflow the `collected - fee`
-  ///      accounting. The strategy must reject the config up front instead of reverting on
-  ///      underflow. Here platform=10% + owner=5% + gas≈90% = ~105% > 100%.
-  function test_v3_compound_reverts_when_platform_owner_gas_exceed_100pct() public {
+  /// @dev Unified clamp model (parity with V4/Pancake and Aerodrome): stacking a gas fee such that
+  ///      platform + owner + gas exceeds 100% no longer reverts — each fee is clamped to the running
+  ///      remainder (platform → owner → gas) via SharedStrategyFees, so total fee can never exceed the
+  ///      collected amount and the gas fee absorbs whatever is left. Here 10% + 5% + ~90% would be 105%,
+  ///      so gas is clamped to the remaining 85% and nothing is compounded.
+  function test_v3_compound_clamps_when_platform_owner_gas_exceed_100pct() public {
     nfpm.setCollectFees(1_000, 2_000);
 
     IV3Utils.Instructions memory instructions = _compoundInstructions(GAS_FEE_X64_90_PERCENT);
@@ -384,8 +394,18 @@ contract SharedStrategyNativeExecutionTest is Test {
     );
 
     vm.prank(automator);
-    vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
-    vault.executeStrategy(address(strategy), data);
+    vault.executeStrategy(address(strategy), data); // no revert
+
+    // token0 collected 1_000: platform 100 + owner 50 + gas clamped to 850 (req 900) = 1_000, 0 compounded.
+    // token1 collected 2_000: platform 200 + owner 100 + gas clamped to 1_700 (req 1_800) = 2_000, 0 compounded.
+    assertEq(token0.balanceOf(platformRecipient), 100, "token0 platform fee");
+    assertEq(token1.balanceOf(platformRecipient), 200, "token1 platform fee");
+    assertEq(token0.balanceOf(vaultOwner), 50, "token0 owner fee");
+    assertEq(token1.balanceOf(vaultOwner), 100, "token1 owner fee");
+    assertEq(token0.balanceOf(automator), 850, "token0 gas fee clamped to remainder");
+    assertEq(token1.balanceOf(automator), 1_700, "token1 gas fee clamped to remainder");
+    assertEq(nfpm.increased0(), 0, "nothing compounded (fees consumed 100%)");
+    assertEq(nfpm.increased1(), 0, "nothing compounded (fees consumed 100%)");
   }
 
   /// @dev A large-but-valid stacked gas fee (platform=10% + owner=5% + gas=75% = 90% <= 100%) must
