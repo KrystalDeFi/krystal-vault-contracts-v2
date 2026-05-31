@@ -227,6 +227,16 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         amountAddMin1: instructions.amountAddMin1,
         poolDeployer: address(0)
       });
+      // L1: a genuinely empty source position (no liquidity) with nothing collected has nothing to
+      // re-mint, and `INonfungiblePositionManager.mint` reverts on `(0,0)` desired amounts. Untrack the
+      // empty position instead of reverting the operator's tx. Gated on `posLiquidity == 0` so a normal
+      // rebalance (which always yields >0 on at least one side) still mints and re-tracks exactly as before.
+      if (posLiquidity == 0 && total0 == 0 && total1 == 0) {
+        changes = new PositionChange[](1);
+        changes[0] = PositionChange(false, _nfpm, tokenId, token0, token1);
+        return changes;
+      }
+
       (uint256 newTokenId, , , ) = _mintPosition(mintParams, total0, total1);
 
       (, , , , , , , uint128 liqAfter, , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);

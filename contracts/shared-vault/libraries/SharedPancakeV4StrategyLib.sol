@@ -865,6 +865,15 @@ library SharedPancakeV4StrategyLib {
       return (0, 0, 0, 0);
     }
 
+    // An empty / burned tokenId carries a zero `CLPositionInfo`. `getPoolAndPositionInfo` above returns
+    // zeros for such a tokenId WITHOUT reverting, but the `pm.positions(tokenId)` read below reverts with
+    // `InvalidTokenID()` (CLPositionManager checks `CLPositionInfo.unwrap(info) == 0`). Since this view is
+    // reached from `getPositionAmounts`/`getPositionPrincipalAmounts` during `deposit()`/`withdraw()`/preview,
+    // an unguarded revert here would brick valuation for the whole vault. Short-circuit to zeros instead —
+    // parity with the never-reverting Uniswap-V4 sibling (`SharedV4StrategyLib._positionAmountsSplit`,
+    // which sources liquidity via the revert-safe `getPositionLiquidity`).
+    if (CLPositionInfo.unwrap(positionInfo) == 0) return (0, 0, 0, 0);
+
     // F6: read liquidity + last-fee-growth ONCE from positions() and use the same liquidity snapshot
     // for both principal and fee valuation. Previously principal used getPositionLiquidity() while the
     // fee path independently re-read liquidity from positions(), which could disagree.
