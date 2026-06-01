@@ -209,6 +209,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -249,6 +251,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -282,6 +286,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
         hookData: "",
         deadline: block.timestamp + 300
       }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -307,9 +313,10 @@ contract SharedVaultV4IntegrationTest is TestCommon {
         hookData: "",
         deadline: block.timestamp + 300
       }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0,
-      decreaseAmount0Min: 0,
-      decreaseAmount1Min: 0
+      compoundFees: false
     });
 
     _executeV4Instructions(
@@ -379,6 +386,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
         hookData: ""
       }),
       swapParams: swaps,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
@@ -445,6 +454,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
         hookData: ""
       }),
       swapParams: swaps,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
@@ -507,6 +518,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       // `Q64 / 2` ≈ 50% gas fee — well above any honest rate and large enough to make the
       // pre-fix siphon trivially observable: 0.5 ether of hopToken would have moved to the
       // executor before this test reached any LP step.
@@ -567,6 +580,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 

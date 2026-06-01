@@ -121,6 +121,16 @@
           },
           {
             "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "performanceFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
             "name": "gasFeeX64",
             "type": "uint64"
           }
@@ -261,6 +271,16 @@
             "internalType": "struct ISharedPancakeV4Utils.InputTokenParams[]",
             "name": "inputTokens",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "performanceFeeX64",
+            "type": "uint64"
           },
           {
             "internalType": "uint64",

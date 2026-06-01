@@ -210,6 +210,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -250,6 +252,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -283,6 +287,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
         hookData: "",
         deadline: block.timestamp + 300
       }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -308,9 +314,10 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
         hookData: "",
         deadline: block.timestamp + 300
       }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0,
-      decreaseAmount0Min: 0,
-      decreaseAmount1Min: 0
+      compoundFees: false
     });
 
     _executePancakeV4Instructions(
@@ -367,6 +374,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
         hookData: ""
       }),
       swapParams: swaps,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
@@ -429,6 +438,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
         hookData: ""
       }),
       swapParams: swaps,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
@@ -487,6 +498,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 
@@ -545,6 +558,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 

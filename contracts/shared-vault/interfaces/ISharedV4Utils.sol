@@ -54,7 +54,9 @@ interface ISharedV4Utils {
   // Fee model: platform/owner (performance) fees are always sourced from
   // `SharedStrategyFeeConfig.performanceFeeConfig()`. Only `gasFeeX64` is honored on these structs
   // (skimmed to `msg.sender`/the authorized executor). The legacy `protocolFeeX64`/`performanceFeeX64`
-  // V4Utils fields were never read by SharedV4StrategyLib and have been removed.
+  // fields (and `AdjustRangeParams.compoundFees`) are retained ONLY for backward-compatible ABI
+  // encoding with existing off-chain callers — SharedV4StrategyLib never reads them; performance
+  // fees come exclusively from `performanceFeeConfig()` and only `gasFeeX64` is honored.
 
   struct SwapAndMintParams {
     address posm;
@@ -62,6 +64,8 @@ interface ISharedV4Utils {
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
@@ -71,12 +75,16 @@ interface ISharedV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 
@@ -84,18 +92,21 @@ interface ISharedV4Utils {
     bytes collectFeesHookData;
     SwapParams[] swapParams;
     MintParams mintParams;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
     uint64 gasFeeX64;
-    // Minimum token amounts to receive from burning the OLD position's full liquidity. Set these to
-    // an off-chain-fair value (not 0) to bound the decrease against sandwich/price manipulation;
-    // they mirror DECREASE_AND_SWAP's amount0Min/amount1Min. 0 disables the floor on the burn.
-    uint256 decreaseAmount0Min;
-    uint256 decreaseAmount1Min;
+    // Unread (see fee-model note above); retained for backward-compatible ABI encoding. The
+    // old position's full-liquidity burn is no longer bounded by a separate decrease floor —
+    // the rebalance round-trip is validated by `mintParams.minLiquidity` on the re-mint.
+    bool compoundFees;
   }
 
   struct CompoundFeesParams {
     bytes collectFeesHookData;
     SwapParams[] swapParams;
     IncreaseLiquidityParams increaseParams;
+    uint64 protocolFeeX64;
+    uint64 performanceFeeX64;
     uint64 gasFeeX64;
   }
 

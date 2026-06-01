@@ -3808,6 +3808,8 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: uint64(1 << 62)
     });
     IV4Utils.Instructions memory instructions =
@@ -3937,6 +3939,8 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: type(uint64).max
     });
     IV4Utils.Instructions memory instructions =
@@ -4047,6 +4051,8 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: uint64(1 << 63)
     });
 
@@ -6276,6 +6282,8 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instr =
@@ -6363,6 +6371,8 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     IV4Utils.Instructions memory instr =
@@ -6414,6 +6424,8 @@ contract SharedVaultTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
     bytes memory instruction = abi.encode(

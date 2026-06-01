@@ -85,6 +85,8 @@ struct SwapAndMintParams {
   struct ISharedPancakeV4Utils.MintParams mintParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -98,6 +100,8 @@ struct SwapAndIncreaseParams {
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -108,6 +112,8 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedPancakeV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```
@@ -119,9 +125,10 @@ struct AdjustRangeParams {
   bytes collectFeesHookData;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.MintParams mintParams;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
   uint64 gasFeeX64;
-  uint256 decreaseAmount0Min;
-  uint256 decreaseAmount1Min;
+  bool compoundFees;
 }
 ```
 
@@ -132,6 +139,8 @@ struct CompoundFeesParams {
   bytes collectFeesHookData;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
+  uint64 protocolFeeX64;
+  uint64 performanceFeeX64;
   uint64 gasFeeX64;
 }
 ```

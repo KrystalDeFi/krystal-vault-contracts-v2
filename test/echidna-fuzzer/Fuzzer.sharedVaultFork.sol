@@ -960,6 +960,8 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -1034,6 +1036,8 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
@@ -1224,6 +1228,8 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: gasFeeX64
     });
 
@@ -1256,6 +1262,8 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
       gasFeeX64: gasFeeX64
     });
 

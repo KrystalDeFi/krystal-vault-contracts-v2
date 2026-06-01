@@ -452,14 +452,18 @@ library SharedPancakeV4StrategyLib {
         adjustParams.gasFeeX64
       );
       uint128 liquidity = pm.getPositionLiquidity(tokenId);
-      // Bound the full-position burn with caller-supplied minimums (F8): mirrors DECREASE_AND_SWAP.
+      // F8: the old position's full-liquidity burn passes 0/0 minimums here because the rebalance
+      // round-trip is bounded by `mintParams.minLiquidity` on the re-mint below — if a sandwich
+      // drains value during the burn/swap, the post-swap proceeds cannot reach `minLiquidity` and
+      // the whole operation reverts in `_mintV4WithAmounts`. A separate decrease-side floor would
+      // be redundant, so `decreaseAmount0Min/1Min` were removed from `AdjustRangeParams`.
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
         posm,
         poolKey,
         tokenId,
         liquidity,
-        adjustParams.decreaseAmount0Min,
-        adjustParams.decreaseAmount1Min,
+        0,
+        0,
         "",
         adjustParams.gasFeeX64,
         adjustParams.mintParams.deadline
