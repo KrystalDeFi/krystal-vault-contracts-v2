@@ -668,7 +668,12 @@ contract SharedV3Strategy is ISharedStrategy {
   ) private returns (uint256 total0, uint256 total1) {
     total0 = amount0;
     total1 = amount1;
+    if (instructions.targetToken == address(0)) return (total0, total1);
+    require(
+      instructions.targetToken == token0 || instructions.targetToken == token1, ISharedCommon.InvalidOperation()
+    );
     if (instructions.targetToken == token0) {
+      require(instructions.amountOut0Min == 0, ISharedCommon.InsufficientOutput());
       require(total1 >= instructions.amountIn1, ISharedCommon.InvalidAmount());
       (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
         token1,
@@ -680,6 +685,7 @@ contract SharedV3Strategy is ISharedStrategy {
       total1 -= amountInDelta;
       total0 += amountOutDelta;
     } else if (instructions.targetToken == token1) {
+      require(instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput());
       require(total0 >= instructions.amountIn0, ISharedCommon.InvalidAmount());
       (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
         token0,
@@ -700,12 +706,21 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 amount1,
     IV3Utils.Instructions memory instructions
   ) private {
-    if (instructions.targetToken == address(0)) return;
+    if (instructions.targetToken == address(0)) {
+      require(
+        instructions.amountOut0Min == 0 && instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput()
+      );
+      return;
+    }
     _validateVaultToken(instructions.targetToken);
-    if (token0 != instructions.targetToken) {
+    if (token0 == instructions.targetToken) {
+      require(instructions.amountOut0Min == 0, ISharedCommon.InsufficientOutput());
+    } else {
       _swap(token0, instructions.targetToken, amount0, instructions.amountOut0Min, instructions.swapData0);
     }
-    if (token1 != instructions.targetToken) {
+    if (token1 == instructions.targetToken) {
+      require(instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput());
+    } else {
       _swap(token1, instructions.targetToken, amount1, instructions.amountOut1Min, instructions.swapData1);
     }
   }

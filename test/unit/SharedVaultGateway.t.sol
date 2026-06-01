@@ -817,7 +817,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     uint256[4] memory expectedAmounts = vault.previewWithdraw(shares);
 
-    vm.expectEmit(true, true, false, true, address(vault));
+    vm.expectEmit(true, true, true, true, address(vault));
     emit ISharedVault.VaultWithdraw(VAULT_OWNER, ALICE, expectedAmounts, shares);
 
     vm.prank(ALICE);
@@ -825,6 +825,86 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertEq(vault.balanceOf(ALICE), 0, "Alice shares burned");
     assertEq(vault.balanceOf(address(gateway)), 0, "Gateway never holds burned shares");
+  }
+
+  function test_withdrawAndSwap_doesNotSweepPreExistingNativeBalance() public {
+    uint256 shares = _depositForAlice();
+    vm.deal(address(gateway), 1 ether);
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    uint256 aliceEthBefore = ALICE.balance;
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    assertEq(ALICE.balance, aliceEthBefore, "pre-existing ETH not sent to caller");
+    assertEq(address(gateway).balance, 1 ether, "pre-existing ETH remains recoverable by owner");
+  }
+
+  function test_withdrawAndSwap_doesNotSweepPreExistingErc20Balance() public {
+    uint256 shares = _depositForAlice();
+    uint256[4] memory expectedAmounts = vault.previewWithdraw(shares);
+    uint256 preExistingTokenA = 5e18;
+    tokenA.mint(address(gateway), preExistingTokenA);
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    uint256 aliceTokenABefore = tokenA.balanceOf(ALICE);
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    assertEq(tokenA.balanceOf(ALICE), aliceTokenABefore + expectedAmounts[0], "caller receives only call delta");
+    assertEq(tokenA.balanceOf(address(gateway)), preExistingTokenA, "pre-existing token remains recoverable by owner");
+  }
+
+  function test_withdrawAndSwap_fullBalanceSwapDoesNotConsumePreExistingInputBalance() public {
+    uint256 shares = _depositForAlice();
+    uint256[4] memory expectedAmounts = vault.previewWithdraw(shares);
+    uint256 preExistingTokenB = 5e18;
+    tokenB.mint(address(gateway), preExistingTokenB);
+    tokenA.mint(address(router), 1000e18);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenB), 0, address(tokenA), 0, _buildSwapAllCalldata(address(tokenB), address(tokenA))
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    uint256 aliceTokenABefore = tokenA.balanceOf(ALICE);
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
+
+    assertEq(
+      tokenA.balanceOf(ALICE),
+      aliceTokenABefore + expectedAmounts[0] + expectedAmounts[1],
+      "caller receives direct tokenA and swapped per-call tokenB only"
+    );
+    assertEq(tokenB.balanceOf(address(gateway)), preExistingTokenB, "pre-existing input token remains untouched");
   }
 
   // ==================== WithdrawAndSwap: Swap vault tokens to single output ====================

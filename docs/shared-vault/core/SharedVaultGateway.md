@@ -131,6 +131,17 @@ struct WithdrawAndSwapParams {
 }
 ```
 
+### BalanceSnapshot
+
+```solidity
+struct BalanceSnapshot {
+  address[] tokens;
+  uint256[] balances;
+  uint256 count;
+  uint256 nativeBalance;
+}
+```
+
 ### swapRouter
 
 ```solidity
@@ -194,6 +205,66 @@ Burn shares, receive vault tokens, execute swaps to desired output, return lefto
 _Swap entries with empty `swapData` are skipped only when `amountOutMin == 0`. A nonzero
      `amountOutMin` is enforced even when the resolved full-balance `amountIn` is zero._
 
+### _snapshotSwapAndDeposit
+
+```solidity
+function _snapshotSwapAndDeposit(struct SharedVaultGateway.SwapAndDepositParams params, address[4] vaultTokens) internal view returns (struct SharedVaultGateway.BalanceSnapshot snapshot)
+```
+
+### _snapshotWithdrawAndSwap
+
+```solidity
+function _snapshotWithdrawAndSwap(struct SharedVaultGateway.WithdrawAndSwapParams params, address[4] vaultTokens) internal view returns (struct SharedVaultGateway.BalanceSnapshot snapshot)
+```
+
+### _initBalanceSnapshot
+
+```solidity
+function _initBalanceSnapshot(uint256 maxTokens, uint256 nativeOffset) internal view returns (struct SharedVaultGateway.BalanceSnapshot snapshot)
+```
+
+### _addSnapshotSwapTokens
+
+```solidity
+function _addSnapshotSwapTokens(struct SharedVaultGateway.BalanceSnapshot snapshot, struct SharedVaultGateway.SwapParams[] swaps) internal view
+```
+
+### _addSnapshotVaultTokens
+
+```solidity
+function _addSnapshotVaultTokens(struct SharedVaultGateway.BalanceSnapshot snapshot, address[4] vaultTokens) internal view
+```
+
+### _addSnapshotSweepTokens
+
+```solidity
+function _addSnapshotSweepTokens(struct SharedVaultGateway.BalanceSnapshot snapshot, address[] sweepTokens) internal view
+```
+
+### _addSnapshotToken
+
+```solidity
+function _addSnapshotToken(struct SharedVaultGateway.BalanceSnapshot snapshot, address token) internal view
+```
+
+### _snapshotBalance
+
+```solidity
+function _snapshotBalance(struct SharedVaultGateway.BalanceSnapshot snapshot, address token) internal view returns (uint256)
+```
+
+### _balanceDelta
+
+```solidity
+function _balanceDelta(struct SharedVaultGateway.BalanceSnapshot snapshot, address token) internal view returns (uint256)
+```
+
+### _nativeDelta
+
+```solidity
+function _nativeDelta(struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256)
+```
+
 ### _pullInputTokens
 
 ```solidity
@@ -220,7 +291,7 @@ _Wrap any native ETH to WETH first, then pull each declared input token in full 
 ### _executeSwaps
 
 ```solidity
-function _executeSwaps(struct SharedVaultGateway.SwapParams[] swaps) internal
+function _executeSwaps(struct SharedVaultGateway.SwapParams[] swaps, struct SharedVaultGateway.BalanceSnapshot snapshot) internal
 ```
 
 _Execute each swap via the configured swapRouter with opaque calldata.
@@ -229,17 +300,17 @@ _Execute each swap via the configured swapRouter with opaque calldata.
 ### _executeSingleSwap
 
 ```solidity
-function _executeSingleSwap(struct SharedVaultGateway.SwapParams swap, uint256 index) internal
+function _executeSingleSwap(struct SharedVaultGateway.SwapParams swap, uint256 index, struct SharedVaultGateway.BalanceSnapshot snapshot) internal
 ```
 
 ### _buildDepositAmounts
 
 ```solidity
-function _buildDepositAmounts(address[4] vaultTokens, uint256[4] minDepositAmounts) internal view returns (uint256[4] amounts)
+function _buildDepositAmounts(address[4] vaultTokens, uint256[4] minDepositAmounts, struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256[4] amounts)
 ```
 
-_Use actual gateway balances as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
-     post-swap slippage floor: revert if balance is below the minimum for that vault token slot._
+_Use per-call gateway balance deltas as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
+     post-swap slippage floor: revert if the call delta is below the minimum for that vault token slot._
 
 ### _approveVaultTokens
 
@@ -256,7 +327,7 @@ function _revokeVaultTokenApprovals(address[4] vaultTokens, address vault) inter
 ### _sweepAll
 
 ```solidity
-function _sweepAll(address[] sweepTokens, address[4] vaultTokens, address recipient, bool unwrapWeth) internal
+function _sweepAll(address[] sweepTokens, address[4] vaultTokens, address recipient, bool unwrapWeth, struct SharedVaultGateway.BalanceSnapshot snapshot) internal
 ```
 
 _Return all remaining balances of sweep tokens + vault tokens to the recipient.
@@ -267,13 +338,13 @@ _Return all remaining balances of sweep tokens + vault tokens to the recipient.
 ### _sweepToken
 
 ```solidity
-function _sweepToken(address token, address to) internal
+function _sweepToken(address token, address to, struct SharedVaultGateway.BalanceSnapshot snapshot) internal
 ```
 
 ### _sweepNative
 
 ```solidity
-function _sweepNative(address to) internal
+function _sweepNative(address to, struct SharedVaultGateway.BalanceSnapshot snapshot) internal
 ```
 
 ### _checkWithdrawPermission

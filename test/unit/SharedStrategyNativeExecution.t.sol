@@ -75,6 +75,8 @@ contract NativeStrategyNfpm {
   uint128 public liquidity = 1_000_000;
   uint256 public collectAmount0;
   uint256 public collectAmount1;
+  uint256 public principalOut0;
+  uint256 public principalOut1;
   uint256 public collectCalls;
   uint256 public increased0;
   uint256 public increased1;
@@ -94,6 +96,11 @@ contract NativeStrategyNfpm {
   function setCollectFees(uint256 amount0, uint256 amount1) external {
     collectAmount0 = amount0;
     collectAmount1 = amount1;
+  }
+
+  function setPrincipalOut(uint256 amount0, uint256 amount1) external {
+    principalOut0 = amount0;
+    principalOut1 = amount1;
   }
 
   function balanceOf(address owner) external view returns (uint256) {
@@ -144,6 +151,17 @@ contract NativeStrategyNfpm {
     increased1 += amount1;
     addedLiquidity = uint128(amount0 + amount1);
     liquidity += addedLiquidity;
+  }
+
+  function decreaseLiquidity(
+    INFPM.DecreaseLiquidityParams calldata params
+  ) external returns (uint256 amount0, uint256 amount1) {
+    require(params.liquidity <= liquidity, "decrease exceeds liquidity");
+    liquidity -= params.liquidity;
+    amount0 = principalOut0;
+    amount1 = principalOut1;
+    collectAmount0 = principalOut0;
+    collectAmount1 = principalOut1;
   }
 
   function safeTransferFrom(address, address, uint256, bytes calldata) external {}
@@ -386,6 +404,41 @@ contract SharedStrategyNativeExecutionTest is Test {
     instructions.amountIn0 = 1;
     instructions.amountOut0Min = 1;
     instructions.swapData0 = "";
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_v3_compound_revertsWhenTargetTokenIsNotPoolToken() public {
+    nfpm.setCollectFees(1_000, 2_000);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(0xDEAD);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_v3_withdraw_revertsWhenTargetSideHasMinOut() public {
+    nfpm.setPrincipalOut(1_000, 0);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.targetToken = address(token0);
+    instructions.liquidity = type(uint128).max;
+    instructions.amountOut0Min = 1;
 
     bytes memory data = bytes.concat(
       abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),

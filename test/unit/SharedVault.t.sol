@@ -2805,7 +2805,7 @@ contract SharedVaultTest is TestCommon {
     uint256 callerTokenABefore = tokenA.balanceOf(NON_AUTHORIZED);
     uint256 callerTokenBBefore = tokenB.balanceOf(NON_AUTHORIZED);
 
-    vm.expectEmit(true, true, false, true, address(vault));
+    vm.expectEmit(true, true, true, true, address(vault));
     emit ISharedVault.VaultWithdraw(
       VAULT_OWNER, VAULT_OWNER, [uint256(50e18), uint256(100e18), uint256(0), uint256(0)], burnShares
     );

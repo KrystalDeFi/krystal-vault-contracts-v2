@@ -76,8 +76,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     SwapParams[] swaps;
     /// @notice Per vault-token slot: minimum balance the gateway must hold after swaps (slippage floor).
     ///         If actual balance is below this for a configured vault token, the call reverts before `deposit`.
-    ///         Pass 0 to skip the check for that slot. Actual amounts sent to the vault are always the
-    ///         gateway's current ERC20 balances (never inflated above balance).
+    ///         Pass 0 to skip the check for that slot. Actual amounts sent to the vault are the
+    ///         per-call balance deltas, so pre-existing gateway balances remain owner-recoverable.
     uint256[4] minDepositAmounts;
     uint16 slippageBps;
     address[] sweepTokens; // tokens to return leftovers for (vault tokens + any intermediaries)
@@ -90,6 +90,13 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     bool unwrapOnWithdraw; // unwrap WETH to ETH during vault.withdraw()
     SwapParams[] swaps;
     address[] sweepTokens; // tokens to return leftovers for
+  }
+
+  struct BalanceSnapshot {
+    address[] tokens;
+    uint256[] balances;
+    uint256 count;
+    uint256 nativeBalance;
   }
 
   // ==================== State ====================
@@ -144,12 +151,14 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function swapAndDeposit(
     SwapAndDepositParams calldata params
   ) external payable nonReentrant whenNotPaused returns (uint256 shares) {
+    address[4] memory vaultTokens = params.vault.getTokens();
+    BalanceSnapshot memory snapshot = _snapshotSwapAndDeposit(params, vaultTokens);
+
     bool nativeWrapped = _pullInputTokens(params.inputs);
 
-    _executeSwaps(params.swaps);
+    _executeSwaps(params.swaps, snapshot);
 
-    address[4] memory vaultTokens = params.vault.getTokens();
-    uint256[4] memory depositAmounts = _buildDepositAmounts(vaultTokens, params.minDepositAmounts);
+    uint256[4] memory depositAmounts = _buildDepositAmounts(vaultTokens, params.minDepositAmounts, snapshot);
 
     _approveVaultTokens(vaultTokens, depositAmounts, address(params.vault));
 
@@ -158,13 +167,13 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _revokeVaultTokenApprovals(vaultTokens, address(params.vault));
 
-    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), nativeWrapped);
+    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), nativeWrapped, snapshot);
 
     // Sweep any non-vault input token leftovers not already caught above.
     // This handles partial-fill swaps on intermediate tokens not listed in sweepTokens.
     // _sweepToken is idempotent (no-op on zero balance), so double-sweeping is safe.
     for (uint256 i; i < params.inputs.length; ) {
-      _sweepToken(params.inputs[i].token, _msgSender());
+      _sweepToken(params.inputs[i].token, _msgSender(), snapshot);
       unchecked {
         i++;
       }
@@ -181,18 +190,120 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function withdrawAndSwap(
     WithdrawAndSwapParams calldata params
   ) external nonReentrant whenNotPaused returns (uint256[4] memory vaultAmounts) {
+    address[4] memory vaultTokens = params.vault.getTokens();
+    BalanceSnapshot memory snapshot = _snapshotWithdrawAndSwap(params, vaultTokens);
+
     // Always withdraw as WETH (unwrap=false); the gateway handles unwrapping below if requested.
     vaultAmounts = params.vault.withdraw(params.shares, params.minWithdrawAmounts, false, _msgSender());
 
-    _executeSwaps(params.swaps);
+    _executeSwaps(params.swaps, snapshot);
 
-    address[4] memory vaultTokens = params.vault.getTokens();
-    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), params.unwrapOnWithdraw);
+    _sweepAll(params.sweepTokens, vaultTokens, _msgSender(), params.unwrapOnWithdraw, snapshot);
 
     emit WithdrawAndSwap(address(params.vault), _msgSender(), params.shares);
   }
 
   // ==================== Internal: Token Handling ====================
+
+  function _snapshotSwapAndDeposit(
+    SwapAndDepositParams calldata params,
+    address[4] memory vaultTokens
+  ) internal view returns (BalanceSnapshot memory snapshot) {
+    snapshot =
+      _initBalanceSnapshot(params.inputs.length + (params.swaps.length * 2) + params.sweepTokens.length + 5, msg.value);
+    for (uint256 i; i < params.inputs.length; ) {
+      _addSnapshotToken(snapshot, params.inputs[i].token);
+      unchecked {
+        i++;
+      }
+    }
+    _addSnapshotSwapTokens(snapshot, params.swaps);
+    _addSnapshotVaultTokens(snapshot, vaultTokens);
+    _addSnapshotSweepTokens(snapshot, params.sweepTokens);
+    _addSnapshotToken(snapshot, weth);
+  }
+
+  function _snapshotWithdrawAndSwap(
+    WithdrawAndSwapParams calldata params,
+    address[4] memory vaultTokens
+  ) internal view returns (BalanceSnapshot memory snapshot) {
+    snapshot = _initBalanceSnapshot((params.swaps.length * 2) + params.sweepTokens.length + 5, 0);
+    _addSnapshotSwapTokens(snapshot, params.swaps);
+    _addSnapshotVaultTokens(snapshot, vaultTokens);
+    _addSnapshotSweepTokens(snapshot, params.sweepTokens);
+    _addSnapshotToken(snapshot, weth);
+  }
+
+  function _initBalanceSnapshot(
+    uint256 maxTokens,
+    uint256 nativeOffset
+  ) internal view returns (BalanceSnapshot memory snapshot) {
+    snapshot.tokens = new address[](maxTokens);
+    snapshot.balances = new uint256[](maxTokens);
+    snapshot.nativeBalance = address(this).balance - nativeOffset;
+  }
+
+  function _addSnapshotSwapTokens(BalanceSnapshot memory snapshot, SwapParams[] calldata swaps) internal view {
+    for (uint256 i; i < swaps.length; ) {
+      _addSnapshotToken(snapshot, swaps[i].tokenIn);
+      _addSnapshotToken(snapshot, swaps[i].tokenOut);
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _addSnapshotVaultTokens(BalanceSnapshot memory snapshot, address[4] memory vaultTokens) internal view {
+    for (uint256 i; i < 4; ) {
+      _addSnapshotToken(snapshot, vaultTokens[i]);
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _addSnapshotSweepTokens(BalanceSnapshot memory snapshot, address[] calldata sweepTokens) internal view {
+    for (uint256 i; i < sweepTokens.length; ) {
+      _addSnapshotToken(snapshot, sweepTokens[i]);
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _addSnapshotToken(BalanceSnapshot memory snapshot, address token) internal view {
+    if (token == address(0)) return;
+    for (uint256 i; i < snapshot.count; ) {
+      if (snapshot.tokens[i] == token) return;
+      unchecked {
+        i++;
+      }
+    }
+    snapshot.tokens[snapshot.count] = token;
+    snapshot.balances[snapshot.count] = IERC20(token).balanceOf(address(this));
+    snapshot.count++;
+  }
+
+  function _snapshotBalance(BalanceSnapshot memory snapshot, address token) internal view returns (uint256) {
+    for (uint256 i; i < snapshot.count; ) {
+      if (snapshot.tokens[i] == token) return snapshot.balances[i];
+      unchecked {
+        i++;
+      }
+    }
+    return IERC20(token).balanceOf(address(this));
+  }
+
+  function _balanceDelta(BalanceSnapshot memory snapshot, address token) internal view returns (uint256) {
+    uint256 bal = IERC20(token).balanceOf(address(this));
+    uint256 baseline = _snapshotBalance(snapshot, token);
+    return bal > baseline ? bal - baseline : 0;
+  }
+
+  function _nativeDelta(BalanceSnapshot memory snapshot) internal view returns (uint256) {
+    uint256 bal = address(this).balance;
+    return bal > snapshot.nativeBalance ? bal - snapshot.nativeBalance : 0;
+  }
 
   /// @dev Wrap any native ETH to WETH first, then pull each declared input token in full from the caller.
   ///      `token` must always be a real ERC20 address — `address(0)` is never valid here.
@@ -227,12 +338,12 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   /// @dev Execute each swap via the configured swapRouter with opaque calldata.
   ///      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
-  function _executeSwaps(SwapParams[] calldata swaps) internal {
+  function _executeSwaps(SwapParams[] calldata swaps, BalanceSnapshot memory snapshot) internal {
     for (uint256 i; i < swaps.length; ) {
       if (swaps[i].swapData.length == 0) {
         if (swaps[i].amountOutMin != 0) revert SlippageExceeded(i);
       } else {
-        _executeSingleSwap(swaps[i], i);
+        _executeSingleSwap(swaps[i], i, snapshot);
       }
       unchecked {
         i++;
@@ -240,13 +351,14 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     }
   }
 
-  function _executeSingleSwap(SwapParams calldata swap, uint256 index) internal {
+  function _executeSingleSwap(SwapParams calldata swap, uint256 index, BalanceSnapshot memory snapshot) internal {
     address tokenIn = swap.tokenIn;
     address tokenOut = swap.tokenOut;
+    uint256 availableIn = _balanceDelta(snapshot, tokenIn);
 
     uint256 amountIn = swap.amountIn;
     if (amountIn == 0) {
-      amountIn = IERC20(tokenIn).balanceOf(address(this));
+      amountIn = availableIn;
     }
     if (amountIn == 0) {
       if (swap.amountOutMin != 0) revert SlippageExceeded(index);
@@ -255,7 +367,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     // Per-swap balance check: runs just before execution so that tokens produced by
     // earlier swaps in the same batch are already available (multi-hop chains).
-    if (swap.amountIn > 0 && IERC20(tokenIn).balanceOf(address(this)) < amountIn) {
+    if (swap.amountIn > 0 && availableIn < amountIn) {
       revert InsufficientWithdrawBalance(index);
     }
 
@@ -274,15 +386,16 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   // ==================== Internal: Deposit Helpers ====================
 
-  /// @dev Use actual gateway balances as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
-  ///      post-swap slippage floor: revert if balance is below the minimum for that vault token slot.
+  /// @dev Use per-call gateway balance deltas as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
+  ///      post-swap slippage floor: revert if the call delta is below the minimum for that vault token slot.
   function _buildDepositAmounts(
     address[4] memory vaultTokens,
-    uint256[4] calldata minDepositAmounts
+    uint256[4] calldata minDepositAmounts,
+    BalanceSnapshot memory snapshot
   ) internal view returns (uint256[4] memory amounts) {
     for (uint256 i; i < 4; ) {
       if (vaultTokens[i] != address(0)) {
-        uint256 bal = IERC20(vaultTokens[i]).balanceOf(address(this));
+        uint256 bal = _balanceDelta(snapshot, vaultTokens[i]);
         if (bal < minDepositAmounts[i]) revert InsufficientPostSwapBalance(i);
         amounts[i] = bal;
       }
@@ -324,12 +437,13 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     address[] calldata sweepTokens,
     address[4] memory vaultTokens,
     address recipient,
-    bool unwrapWeth
+    bool unwrapWeth,
+    BalanceSnapshot memory snapshot
   ) internal {
     for (uint256 i; i < sweepTokens.length; ) {
       // Skip WETH here when unwrapping — it will be handled as native ETH below.
       if (!(unwrapWeth && sweepTokens[i] == weth)) {
-        _sweepToken(sweepTokens[i], recipient);
+        _sweepToken(sweepTokens[i], recipient, snapshot);
       }
       unchecked {
         i++;
@@ -338,28 +452,28 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     for (uint256 i; i < 4; ) {
       // Skip WETH here when unwrapping — it will be handled as native ETH below.
       if (vaultTokens[i] != address(0) && !(unwrapWeth && vaultTokens[i] == weth)) {
-        _sweepToken(vaultTokens[i], recipient);
+        _sweepToken(vaultTokens[i], recipient, snapshot);
       }
       unchecked {
         i++;
       }
     }
     if (unwrapWeth) {
-      uint256 wethBal = IERC20(weth).balanceOf(address(this));
+      uint256 wethBal = _balanceDelta(snapshot, weth);
       if (wethBal > 0) IWETH9(weth).withdraw(wethBal);
     }
-    _sweepNative(recipient);
+    _sweepNative(recipient, snapshot);
   }
 
-  function _sweepToken(address token, address to) internal {
-    uint256 bal = IERC20(token).balanceOf(address(this));
+  function _sweepToken(address token, address to, BalanceSnapshot memory snapshot) internal {
+    uint256 bal = _balanceDelta(snapshot, token);
     if (bal > 0) {
       IERC20(token).safeTransfer(to, bal);
     }
   }
 
-  function _sweepNative(address to) internal {
-    uint256 bal = address(this).balance;
+  function _sweepNative(address to, BalanceSnapshot memory snapshot) internal {
+    uint256 bal = _nativeDelta(snapshot);
     if (bal > 0) {
       (bool ok, ) = to.call{ value: bal }("");
       if (!ok) revert EthTransferFailed();

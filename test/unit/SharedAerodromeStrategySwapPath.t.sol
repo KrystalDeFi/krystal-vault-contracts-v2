@@ -322,6 +322,49 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     vault.executeStrategy(address(strategy), data);
   }
 
+  function test_withdrawAndCollectAndSwap_revertsWhenTargetSideHasMinOut() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1_000, 0);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token0);
+    instructions.amountOut0Min = 1;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_changeRange_revertsWhenTargetTokenIsNotPoolToken() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1_000, 2_000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(0xDEAD);
+    instructions.tickLower = -120;
+    instructions.tickUpper = 120;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
   /// @dev The runtime kill-switch: even though the strategy's immutable swapRouter is fixed at deploy, a
   ///      swap-bearing instruction reverts with InvalidSwapRouter once the owner removes that router from the
   ///      ConfigManager whitelist. Proves the defense-in-depth re-check in `_swap` is wired and effective.
