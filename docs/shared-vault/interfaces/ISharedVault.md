@@ -74,7 +74,10 @@ Emitted when the operator recovers a previously dropped position back into track
 
 ### Position
 
-_Tracked LP position_
+_Tracked LP position
+     Vault token slots are ERC20 addresses; `address(0)` means an unused slot. Native-currency
+     V4/Pancake pools that use `address(0)` as a currency are unsupported. Use wrapped-native
+     ERC20 pools instead._
 
 ```solidity
 struct Position {
@@ -170,7 +173,9 @@ function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address ac
 
 Burn `account` shares and withdraw proportional tokens to the caller.
 
-_If caller is not `account`, the caller must have sufficient share allowance._
+_If caller is not `account`, the caller must have sufficient share allowance.
+     `account` only selects whose shares are burned; proceeds are sent to `msg.sender`, not
+     to `account`._
 
 ### execute
 

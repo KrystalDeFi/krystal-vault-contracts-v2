@@ -1977,6 +1977,34 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tokenD.balanceOf(ALICE), 0);
   }
 
+  /// @notice amountIn=0 resolves to the gateway's full tokenIn balance. If that balance is zero,
+  ///         a nonzero amountOutMin must still be enforced rather than treating the swap as a no-op.
+  function test_withdrawAndSwap_fail_full_balance_swap_with_zero_balance_and_min_out() public {
+    uint256 shares = _depositForAlice();
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenX),
+      0,
+      address(tokenA),
+      1,
+      _buildSwapAllCalldata(address(tokenX), address(tokenA))
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.SlippageExceeded.selector, 0));
+    gateway.withdrawAndSwap(params);
+  }
+
   /// @notice Swap entries without swapData are skipped by _executeSwaps and never reach the per-swap balance check.
   function test_withdrawAndSwap_no_swapdata_skips_balance_check() public {
     uint256 shares = _depositForAlice();
@@ -2003,6 +2031,27 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.withdrawAndSwap(params); // must not revert; tokenA swept to Alice
 
     assertGt(tokenA.balanceOf(ALICE), 0, "tokenA swept to Alice");
+  }
+
+  /// @notice Empty swapData is only a skip instruction when no per-swap minimum output was requested.
+  function test_withdrawAndSwap_fail_empty_swapdata_with_min_out() public {
+    uint256 shares = _depositForAlice();
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(address(tokenA), 0, address(tokenX), 1, "");
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.SlippageExceeded.selector, 0));
+    gateway.withdrawAndSwap(params);
   }
 
   // ==================== WithdrawAndSwap: WETH unwrap in gateway ====================

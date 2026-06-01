@@ -17,8 +17,8 @@ import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
-import { IFeeTaker } from "../../public-vault/interfaces/strategies/IFeeTaker.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedStrategyFees } from "../libraries/SharedStrategyFees.sol";
 
 import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
 import { Currency } from "infinity-core/src/types/Currency.sol";
@@ -42,16 +42,6 @@ library SharedPancakeV4StrategyLib {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
   using CLPositionInfoLibrary for CLPositionInfo;
-
-  uint256 private constant Q64 = 0x10000000000000000;
-
-  event FeeCollected(
-    address indexed vaultAddress,
-    IFeeTaker.FeeType indexed feeType,
-    address indexed recipient,
-    address token,
-    uint256 amount
-  );
 
   /// @dev See SharedV4StrategyLib.depositProportional for the full slippage rationale. The previous
   ///      liquidity post-check compared the requested liquidity against a fraction of itself and was
@@ -264,7 +254,7 @@ library SharedPancakeV4StrategyLib {
       uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
       uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
       if (collected0 == 0 && collected1 == 0) return;
-      _applyFees(token0, collected0, token1, collected1, fc);
+      SharedStrategyFees.applyFees(token0, collected0, token1, collected1, fc);
     } catch (bytes memory reason) {
       (, , uint256 pendingFee0, uint256 pendingFee1) = _positionAmountsSplit(posm, tokenId);
       if (pendingFee0 != 0 || pendingFee1 != 0) {
@@ -273,61 +263,6 @@ library SharedPancakeV4StrategyLib {
         }
       }
     }
-  }
-
-  /// @dev See SharedV4StrategyLib._applyFees: fees are applied SEQUENTIALLY against a running remainder
-  ///      (platform, then owner, then gas), each clamped to what remains. Every share is computed from
-  ///      the original `amount`, so the total fee can never exceed the collected amount; the clamp only
-  ///      caps the last fee type(s) when configured bps sum past 100%. Inert on the withdraw path.
-  function _applyFees(
-    address token0,
-    uint256 amount0,
-    address token1,
-    uint256 amount1,
-    ICommon.FeeConfig memory fc
-  ) private returns (uint256 feeTaken0, uint256 feeTaken1) {
-    uint256 remaining0 = amount0;
-    uint256 remaining1 = amount1;
-
-    if (fc.platformFeeBasisPoint > 0 && fc.platformFeeRecipient != address(0)) {
-      uint256 fee0 = FullMath.mulDiv(amount0, fc.platformFeeBasisPoint, 10_000);
-      uint256 fee1 = FullMath.mulDiv(amount1, fc.platformFeeBasisPoint, 10_000);
-      if (fee0 > remaining0) fee0 = remaining0;
-      if (fee1 > remaining1) fee1 = remaining1;
-      if (fee0 > 0) _transferV4Fee(IFeeTaker.FeeType.PLATFORM, fc.platformFeeRecipient, token0, fee0);
-      if (fee1 > 0) _transferV4Fee(IFeeTaker.FeeType.PLATFORM, fc.platformFeeRecipient, token1, fee1);
-      feeTaken0 += fee0;
-      feeTaken1 += fee1;
-      remaining0 -= fee0;
-      remaining1 -= fee1;
-    }
-    if (fc.vaultOwnerFeeBasisPoint > 0 && fc.vaultOwner != address(0)) {
-      uint256 fee0 = FullMath.mulDiv(amount0, fc.vaultOwnerFeeBasisPoint, 10_000);
-      uint256 fee1 = FullMath.mulDiv(amount1, fc.vaultOwnerFeeBasisPoint, 10_000);
-      if (fee0 > remaining0) fee0 = remaining0;
-      if (fee1 > remaining1) fee1 = remaining1;
-      if (fee0 > 0) _transferV4Fee(IFeeTaker.FeeType.OWNER, fc.vaultOwner, token0, fee0);
-      if (fee1 > 0) _transferV4Fee(IFeeTaker.FeeType.OWNER, fc.vaultOwner, token1, fee1);
-      feeTaken0 += fee0;
-      feeTaken1 += fee1;
-      remaining0 -= fee0;
-      remaining1 -= fee1;
-    }
-    if (fc.gasFeeX64 > 0 && fc.gasFeeRecipient != address(0)) {
-      uint256 fee0 = FullMath.mulDiv(amount0, fc.gasFeeX64, Q64);
-      uint256 fee1 = FullMath.mulDiv(amount1, fc.gasFeeX64, Q64);
-      if (fee0 > remaining0) fee0 = remaining0;
-      if (fee1 > remaining1) fee1 = remaining1;
-      if (fee0 > 0) _transferV4Fee(IFeeTaker.FeeType.GAS, fc.gasFeeRecipient, token0, fee0);
-      if (fee1 > 0) _transferV4Fee(IFeeTaker.FeeType.GAS, fc.gasFeeRecipient, token1, fee1);
-      feeTaken0 += fee0;
-      feeTaken1 += fee1;
-    }
-  }
-
-  function _transferV4Fee(IFeeTaker.FeeType feeType, address recipient, address token, uint256 amount) private {
-    IERC20(token).safeTransfer(recipient, amount);
-    emit FeeCollected(address(this), feeType, recipient, token, amount);
   }
 
   function _executeSwapAndMint(
@@ -507,7 +442,7 @@ library SharedPancakeV4StrategyLib {
       fc.gasFeeX64 = gasFeeX64;
       fc.gasFeeRecipient = msg.sender;
     }
-    (uint256 fee0, uint256 fee1) = _applyFees(token0, collected0, token1, collected1, fc);
+    (uint256 fee0, uint256 fee1) = SharedStrategyFees.applyFees(token0, collected0, token1, collected1, fc);
     net0 = collected0 - fee0;
     net1 = collected1 - fee1;
   }
@@ -554,7 +489,7 @@ library SharedPancakeV4StrategyLib {
       gasFeeX64: gasFeeX64,
       gasFeeRecipient: msg.sender
     });
-    (uint256 fee0, uint256 fee1) = _applyFees(token0, principal0, token1, principal1, gasOnly);
+    (uint256 fee0, uint256 fee1) = SharedStrategyFees.applyFees(token0, principal0, token1, principal1, gasOnly);
     net0 = principal0 - fee0;
     net1 = principal1 - fee1;
   }
@@ -1013,12 +948,7 @@ library SharedPancakeV4StrategyLib {
       uint256 amount = inputTokens[i].amount;
       address token = inputTokens[i].token;
       if (amount > 0 && gasFeeX64 > 0) {
-        uint256 gasFee = FullMath.mulDiv(amount, gasFeeX64, Q64);
-        if (gasFee > amount) gasFee = amount;
-        if (gasFee > 0) {
-          _transferV4Fee(IFeeTaker.FeeType.GAS, msg.sender, token, gasFee);
-          amount -= gasFee;
-        }
+        amount -= _applySingleTokenGasFee(token, amount, gasFeeX64);
       }
       if (inputTokens[i].token == currency0) amount0 += amount;
       else if (inputTokens[i].token == currency1) amount1 += amount;
@@ -1026,6 +956,21 @@ library SharedPancakeV4StrategyLib {
         i++;
       }
     }
+  }
+
+  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64)
+    private
+    returns (uint256 gasFee)
+  {
+    ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 0,
+      vaultOwner: address(0),
+      platformFeeBasisPoint: 0,
+      platformFeeRecipient: address(0),
+      gasFeeX64: gasFeeX64,
+      gasFeeRecipient: msg.sender
+    });
+    (gasFee,) = SharedStrategyFees.applyFees(token, amount, address(0), 0, gasOnly);
   }
 
   function _v4ParamsSelector(bytes memory params) private pure returns (bytes4 selector) {

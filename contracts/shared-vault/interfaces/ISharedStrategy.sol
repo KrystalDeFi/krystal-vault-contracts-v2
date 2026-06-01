@@ -4,6 +4,9 @@ pragma solidity ^0.8.28;
 interface ISharedStrategy {
   error InvalidPoolTokens();
 
+  /// @dev Shared strategies validate pool currencies against SharedVault's ERC20 token set.
+  ///      Because vault token slots use `address(0)` as "unused", native-currency V4/Pancake pools
+  ///      where a currency unwraps to `address(0)` are unsupported. Use wrapped-native ERC20 pools.
   struct PositionChange {
     bool isAdd; // true = new position, false = position removed
     address nfpm; // NFT Position Manager address

@@ -326,6 +326,9 @@ function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address ac
 
 Burn `account` shares and withdraw proportional tokens to the caller.
 
+_`account` only selects whose shares are burned. When called via allowance, output tokens
+     and any unwrapped native ETH are sent to `_msgSender()`, not to `account`._
+
 ### _withdraw
 
 ```solidity

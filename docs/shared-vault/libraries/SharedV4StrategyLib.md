@@ -2,12 +2,6 @@
 
 ## SharedV4StrategyLib
 
-### FeeCollected
-
-```solidity
-event FeeCollected(address vaultAddress, enum IFeeTaker.FeeType feeType, address recipient, address token, uint256 amount)
-```
-
 ### depositProportional
 
 ```solidity

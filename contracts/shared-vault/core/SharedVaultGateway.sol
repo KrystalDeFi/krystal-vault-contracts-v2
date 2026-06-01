@@ -54,7 +54,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     uint256 amountIn; // 0 = swap full balance of tokenIn held by gateway
     address tokenOut;
     uint256 amountOutMin;
-    bytes swapData; // calldata for swapRouter; empty = skip
+    bytes swapData; // calldata for swapRouter; empty = skip only when amountOutMin == 0
   }
 
   /// @notice A total token amount to pull from the caller upfront. The gateway holds the
@@ -225,7 +225,9 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   ///      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
   function _executeSwaps(SwapParams[] calldata swaps) internal {
     for (uint256 i; i < swaps.length; ) {
-      if (swaps[i].swapData.length > 0) {
+      if (swaps[i].swapData.length == 0) {
+        if (swaps[i].amountOutMin != 0) revert SlippageExceeded(i);
+      } else {
         _executeSingleSwap(swaps[i], i);
       }
       unchecked {
@@ -242,7 +244,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     if (amountIn == 0) {
       amountIn = IERC20(tokenIn).balanceOf(address(this));
     }
-    if (amountIn == 0) return;
+    if (amountIn == 0) {
+      if (swap.amountOutMin != 0) revert SlippageExceeded(index);
+      return;
+    }
 
     // Per-swap balance check: runs just before execution so that tokens produced by
     // earlier swaps in the same batch are already available (multi-hop chains).

@@ -528,6 +528,8 @@ contract SharedVault is
   }
 
   /// @notice Burn `account` shares and withdraw proportional tokens to the caller.
+  /// @dev `account` only selects whose shares are burned. When called via allowance, output tokens
+  ///      and any unwrapped native ETH are sent to `_msgSender()`, not to `account`.
   function withdraw(
     uint256 shares,
     uint256[4] calldata minAmounts,
