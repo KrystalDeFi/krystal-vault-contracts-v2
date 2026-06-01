@@ -1,12 +1,7 @@
 # Config wiki: https://secure-contracts.com/program-analysis/echidna/configuration.html
 
-# testMode: mode to use while testing
-# Available modes:
-# - property: check properties, in this mode, the test function's name must start with 'echidna'
-# - assertion: check assertions
-# - exploration: explore the contract
-# - optimization: optimize a property
 testMode: "assertion"
+allContracts: false
 
 # allContracts: if true, all contracts in the codebase will be considered main contracts for testing
 # Default: false
@@ -31,3 +26,5 @@ balanceContract: 1000000000000000000000000
 testLimit: 999999999999999999  # unlimited
 
 deployer: "0x10000"
+
+corpusDir: "corpus"
