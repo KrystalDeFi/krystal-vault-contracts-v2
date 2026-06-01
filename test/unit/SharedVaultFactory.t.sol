@@ -50,10 +50,11 @@ contract MockFactoryStrategy is ISharedStrategy {
     address[4] memory t = ISharedVault(address(this)).getTokens();
     address t0;
     address t1;
-    for (uint256 i; i < 4; ) {
+    for (uint256 i; i < 4;) {
       if (t[i] != address(0)) {
-        if (t0 == address(0)) t0 = t[i];
-        else {
+        if (t0 == address(0)) {
+          t0 = t[i];
+        } else {
           t1 = t[i];
           break;
         }
@@ -69,15 +70,12 @@ contract MockFactoryStrategy is ISharedStrategy {
     changes[0] = PositionChange(true, MOCK_NFPM, tokenId, t0, t1);
   }
 
-  function exitProportional(
-    address,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint256,
-    uint16
-  ) external pure override returns (PositionChange[] memory changes) {
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
     changes = new PositionChange[](0);
   }
 
@@ -93,9 +91,9 @@ contract MockFactoryStrategy is ISharedStrategy {
     return MockNFPM(nfpm).getTokens(tokenId);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override {}
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
 
-  function collectFees(address, uint256, uint16) external override {}
+  function collectFees(address, uint256, uint16) external override { }
 }
 
 // Mock WETH9 for testing native ETH wrapping/unwrapping
@@ -118,7 +116,7 @@ contract MockWETH9 {
   function withdraw(uint256 wad) external {
     require(balanceOf[msg.sender] >= wad, "Insufficient WETH");
     balanceOf[msg.sender] -= wad;
-    (bool ok, ) = msg.sender.call{ value: wad }("");
+    (bool ok,) = msg.sender.call{ value: wad }("");
     require(ok, "ETH transfer failed");
   }
 
@@ -268,6 +266,42 @@ contract SharedVaultFactoryTest is TestCommon {
     vaultImplementation = new SharedVault();
 
     factory = new SharedVaultFactory();
+    factory.initialize(FACTORY_OWNER, address(configManager), address(vaultImplementation), address(mockWeth));
+  }
+
+  function test_initialize_sets_state() public view {
+    assertEq(factory.owner(), FACTORY_OWNER);
+    assertEq(address(factory.configManager()), address(configManager));
+    assertEq(factory.vaultImplementation(), address(vaultImplementation));
+    assertEq(factory.weth(), address(mockWeth));
+  }
+
+  function test_initialize_reverts_zero_owner() public {
+    SharedVaultFactory fresh = new SharedVaultFactory();
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    fresh.initialize(address(0), address(configManager), address(vaultImplementation), address(mockWeth));
+  }
+
+  function test_initialize_reverts_zero_config_manager() public {
+    SharedVaultFactory fresh = new SharedVaultFactory();
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    fresh.initialize(FACTORY_OWNER, address(0), address(vaultImplementation), address(mockWeth));
+  }
+
+  function test_initialize_reverts_zero_vault_implementation() public {
+    SharedVaultFactory fresh = new SharedVaultFactory();
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    fresh.initialize(FACTORY_OWNER, address(configManager), address(0), address(mockWeth));
+  }
+
+  function test_initialize_reverts_zero_weth() public {
+    SharedVaultFactory fresh = new SharedVaultFactory();
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    fresh.initialize(FACTORY_OWNER, address(configManager), address(vaultImplementation), address(0));
+  }
+
+  function test_initialize_reverts_if_called_twice() public {
+    vm.expectRevert();
     factory.initialize(FACTORY_OWNER, address(configManager), address(vaultImplementation), address(mockWeth));
   }
 
@@ -442,11 +476,8 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(42)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] =
+      ISharedVault.Action(address(mockStrategy), abi.encode(uint256(42)), ISharedCommon.CallType.DELEGATECALL);
 
     address vaultAddr = factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
@@ -466,21 +497,9 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](3);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(1)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    actions[1] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(2)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
-    actions[2] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(3)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(1)), ISharedCommon.CallType.DELEGATECALL);
+    actions[1] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(2)), ISharedCommon.CallType.DELEGATECALL);
+    actions[2] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(3)), ISharedCommon.CallType.DELEGATECALL);
 
     address vaultAddr = factory.createVault("Test", tokens, amounts, 0, actions);
     vm.stopPrank();
@@ -570,7 +589,8 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.stopPrank();
   }
 
-  /// @notice Batch createVault: msg.value is only used for WETH initial wrap in _createVault, not auto-split to strategy calls
+  /// @notice Batch createVault: msg.value is only used for WETH initial wrap in _createVault, not auto-split to
+  /// strategy calls
   function test_createVault_strategies_eth_not_for_deposit() public {
     tokenA.mint(VAULT_CREATOR, 100e18);
     tokenB.mint(VAULT_CREATOR, 100e18);
@@ -584,11 +604,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(0)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
 
     address vaultAddr = factory.createVault{ value: 0 }("No-ETH Vault", tokens, amounts, 0, actions);
     vm.stopPrank();
@@ -604,7 +620,8 @@ contract SharedVaultFactoryTest is TestCommon {
     assertEq(IERC20(vaultAddr).balanceOf(address(factory)), 0);
   }
 
-  /// @notice Batch createVault: native ETH msg.value must match WETH initial amount; strategies run with callValues from factory balance (zero here)
+  /// @notice Batch createVault: native ETH msg.value must match WETH initial amount; strategies run with callValues
+  /// from factory balance (zero here)
   function test_createVault_strategies_with_weth_deposit_from_eth() public {
     tokenA.mint(VAULT_CREATOR, 100e18);
     vm.deal(VAULT_CREATOR, 1 ether);
@@ -616,19 +633,9 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(0)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
 
-    address vaultAddr = factory.createVault{ value: 1 ether }(
-      "ETH-Deposit+Strategy Vault",
-      tokens,
-      amounts,
-      0,
-      actions
-    );
+    address vaultAddr = factory.createVault{ value: 1 ether }("ETH-Deposit+Strategy Vault", tokens, amounts, 0, actions);
     vm.stopPrank();
 
     assertTrue(factory.isVault(vaultAddr));
@@ -653,11 +660,7 @@ contract SharedVaultFactoryTest is TestCommon {
     uint256[4] memory amounts = [uint256(100e18), uint256(1 ether), uint256(0), uint256(0)];
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(
-      address(mockStrategy),
-      abi.encode(uint256(0)),
-      ISharedCommon.CallType.DELEGATECALL
-    );
+    actions[0] = ISharedVault.Action(address(mockStrategy), abi.encode(uint256(0)), ISharedCommon.CallType.DELEGATECALL);
 
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     factory.createVault{ value: 3 ether }("Bad-Total Vault", tokens, amounts, 0, actions);
@@ -849,7 +852,7 @@ contract SharedVaultFactoryTest is TestCommon {
 
     // Selector for `setVaultOwnerFeeBasisPoint(uint16)` — attempting to call it must revert.
     bytes4 legacySelector = bytes4(keccak256("setVaultOwnerFeeBasisPoint(uint16)"));
-    (bool ok, ) = vaultAddr.call(abi.encodeWithSelector(legacySelector, uint16(500)));
+    (bool ok,) = vaultAddr.call(abi.encodeWithSelector(legacySelector, uint16(500)));
     assertFalse(ok, "legacy setter must not be callable on vault");
     assertEq(ISharedVault(vaultAddr).vaultOwnerFeeBasisPoint(), 123, "fee unchanged by stray call");
   }
@@ -902,7 +905,8 @@ contract SharedVaultFactoryTest is TestCommon {
   }
 }
 
-// ─── Minimal token mocks for sweep tests ──────────────────────────────────
+// ─── Minimal token mocks for sweep tests
+// ──────────────────────────────────
 
 contract MockFactoryERC721 {
   mapping(uint256 => address) private _owners;
@@ -934,7 +938,7 @@ contract MockFactoryERC1155 {
     balanceOf[to][tokenId] += amount;
   }
 
-  function setApprovalForAll(address, bool) external {}
+  function setApprovalForAll(address, bool) external { }
 
   function isApprovedForAll(address, address) external pure returns (bool) {
     return false;

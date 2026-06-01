@@ -16,7 +16,7 @@ interface ISharedConfigManager {
 
   function feeRecipient() external view returns (address);
 
-  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are settled.
   function platformFeeBasisPoint() external view returns (uint16);
 
   function setPlatformFeeBasisPoint(uint16 basisPoints) external;

@@ -74,7 +74,7 @@ function feeRecipient() external view returns (address)
 function platformFeeBasisPoint() external view returns (uint16)
 ```
 
-Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are settled.
 
 ### setPlatformFeeBasisPoint
 

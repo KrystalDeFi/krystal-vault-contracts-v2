@@ -241,14 +241,14 @@ contract IntegrationTest is TestCommon {
     vaultInstance.allocate(assets, lpStrategy, 0, abi.encode(instruction));
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 0.3 ether, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
+    (AssetLib.Asset memory principalAsset, AssetLib.Asset memory lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 0.3 ether, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
 
     // Deposit to a vault with both principal and LPs
     IERC20(WHYPE).approve(address(vaultInstance), 1 ether);
@@ -256,17 +256,17 @@ contract IntegrationTest is TestCommon {
 
     // Ratio between the assets remain unchanged
     vaultAssets = vaultInstance.getInventory();
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
     assertApproxEqRel(IERC20(vaultInstance).balanceOf(USER), 20_000 ether, TOLERANCE);
     assertApproxEqRel(IERC20(WHYPE).balanceOf(address(vaultInstance)), 0.6 ether, TOLERANCE);
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 0.6 ether, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    assertApproxEqRel(principalAsset.amount, 0.6 ether, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    uint256 valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1.4 ether, TOLERANCE);
 
     // Manage Private Vault (ALLOW_DEPOSIT = false, UNSET RANGE, TVL, LIST_POOL)
@@ -276,7 +276,7 @@ contract IntegrationTest is TestCommon {
       // User can add liquidity from principal to an existing LP position
       AssetLib.Asset[] memory incAssets = new AssetLib.Asset[](2);
       incAssets[0] = AssetLib.Asset(AssetLib.AssetType.ERC20, address(0), WHYPE, 0, 0.3 ether);
-      incAssets[1] = vaultAssets[1];
+      incAssets[1] = lpAsset;
       ILpStrategy.SwapAndIncreaseLiquidityParams memory incParams =
         ILpStrategy.SwapAndIncreaseLiquidityParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
       ICommon.Instruction memory incInstruction = ICommon.Instruction({
@@ -288,22 +288,22 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 300_031_328_579_983_889, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 300_031_328_579_983_889, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_699_973_374_782_247_590, TOLERANCE);
 
     {
       // User can remove liquidity from LP position to principal
-      (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      (,,,,,,, uint128 liquidity,,,,) = INFPM(NFPM).positions(lpAsset.tokenId);
       AssetLib.Asset[] memory decAssets = new AssetLib.Asset[](1);
-      decAssets[0] = vaultAssets[1];
+      decAssets[0] = lpAsset;
       ILpStrategy.DecreaseLiquidityAndSwapParams memory decParams = ILpStrategy.DecreaseLiquidityAndSwapParams({
         liquidity: (liquidity * 3) / 17,
         amount0Min: 0,
@@ -320,21 +320,21 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 599_938_178_992_504_384, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 599_938_178_992_504_384, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_399_852_103_034_761_773, TOLERANCE);
 
     {
       // User can rebalance 1 specific LP
       AssetLib.Asset[] memory rebalanceAssets = new AssetLib.Asset[](1);
-      rebalanceAssets[0] = vaultAssets[1];
+      rebalanceAssets[0] = lpAsset;
       ILpStrategy.SwapAndRebalancePositionParams memory rebalanceParams = ILpStrategy.SwapAndRebalancePositionParams({
         tickLower: -443_580,
         tickUpper: 443_580,
@@ -355,21 +355,21 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 599_938_178_992_524_679, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 599_938_178_992_524_679, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_399_852_099_737_301_014, TOLERANCE);
 
     {
       // User can compound 1 specific LP
       AssetLib.Asset[] memory compoundAssets = new AssetLib.Asset[](1);
-      compoundAssets[0] = vaultAssets[1];
+      compoundAssets[0] = lpAsset;
       ILpStrategy.SwapAndCompoundParams memory compoundParams =
         ILpStrategy.SwapAndCompoundParams({ amount0Min: 0, amount1Min: 0, swapData: "" });
       ICommon.Instruction memory compoundInstruction = ICommon.Instruction({
@@ -381,15 +381,15 @@ contract IntegrationTest is TestCommon {
     }
 
     vaultAssets = vaultInstance.getInventory();
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 599_938_178_992_524_679, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 599_938_178_992_524_679, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1_399_852_099_737_301_014, TOLERANCE);
 
     console.log("==== test_allowDepositVaultRevert ====");
@@ -414,7 +414,7 @@ contract IntegrationTest is TestCommon {
     {
       // User can Allow Deposit with proper Vault Config
       // Existing assets should follow the vault config
-      (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(vaultAssets[1].tokenId);
+      (,, address token0, address token1, uint24 fee,,,,,,,) = INFPM(NFPM).positions(lpAsset.tokenId);
       address pool = IUniswapV3Factory(INFPM(NFPM).factory()).getPool(token0, token1, fee);
       address[] memory supportedAddresses = new address[](1);
       supportedAddresses[0] = pool;
@@ -436,6 +436,7 @@ contract IntegrationTest is TestCommon {
     console.log("==== Received principal tokens should match the diff of the Vault Value ====");
 
     vaultAssets = vaultInstance.getInventory();
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
 
     // Burn 0 share
     vm.expectRevert(IVault.InvalidShares.selector);
@@ -449,15 +450,15 @@ contract IntegrationTest is TestCommon {
       userVaultSharesBefore - IERC20(vaultInstance).balanceOf(USER), 0.5 ether * vaultInstance.SHARES_PRECISION()
     );
     assertApproxEqRel(IERC20(WHYPE).balanceOf(address(vaultInstance)), 0.45 ether, TOLERANCE);
-    assertEq(vaultAssets.length, 2);
-    assertApproxEqRel(vaultAssets[0].amount, 0.45 ether, TOLERANCE);
-    assertEq(vaultAssets[0].token, WHYPE);
-    assertEq(vaultAssets[0].tokenId, 0);
-    assertEq(vaultAssets[0].strategy, address(0));
-    assertEq(vaultAssets[1].amount, 1);
-    assertEq(vaultAssets[1].token, NFPM);
-    assertEq(vaultAssets[1].strategy, address(lpStrategy));
-    valueOfPositionInPrincipal = lpStrategy.valueOf(vaultAssets[1], WHYPE);
+    (principalAsset, lpAsset) = _primaryInventoryAssets(vaultAssets);
+    assertApproxEqRel(principalAsset.amount, 0.45 ether, TOLERANCE);
+    assertEq(principalAsset.token, WHYPE);
+    assertEq(principalAsset.tokenId, 0);
+    assertEq(principalAsset.strategy, address(0));
+    assertEq(lpAsset.amount, 1);
+    assertEq(lpAsset.token, NFPM);
+    assertEq(lpAsset.strategy, address(lpStrategy));
+    valueOfPositionInPrincipal = lpStrategy.valueOf(lpAsset, WHYPE);
     assertApproxEqRel(valueOfPositionInPrincipal, 1.05 ether, TOLERANCE);
 
     // Burn all shares
@@ -581,5 +582,38 @@ contract IntegrationTest is TestCommon {
       vm.expectRevert(ILpValidator.InvalidPool.selector);
       vaultInstance.allocate(anotherAssets3, lpStrategy, 0, abi.encode(anotherInstruction3));
     }
+  }
+
+  function _primaryInventoryAssets(
+    AssetLib.Asset[] memory vaultAssets
+  ) internal view returns (AssetLib.Asset memory principalAsset, AssetLib.Asset memory lpAsset) {
+    bool foundPrincipal;
+    bool foundLp;
+
+    for (uint256 i; i < vaultAssets.length; i++) {
+      AssetLib.Asset memory asset = vaultAssets[i];
+      if (
+        asset.assetType == AssetLib.AssetType.ERC20 && asset.strategy == address(0) && asset.token == WHYPE &&
+        asset.tokenId == 0
+      ) {
+        principalAsset = asset;
+        foundPrincipal = true;
+      } else if (
+        asset.assetType == AssetLib.AssetType.ERC721 && asset.strategy == address(lpStrategy) && asset.token == NFPM &&
+        asset.amount == 1
+      ) {
+        lpAsset = asset;
+        foundLp = true;
+      } else {
+        assertEq(uint256(asset.assetType), uint256(AssetLib.AssetType.ERC20), "unexpected asset type");
+        assertEq(asset.strategy, address(0), "unexpected dust strategy");
+        assertEq(asset.token, USDT, "unexpected dust token");
+        assertEq(asset.tokenId, 0, "unexpected dust tokenId");
+        assertLe(asset.amount, 10, "unexpected non-primary dust");
+      }
+    }
+
+    assertTrue(foundPrincipal, "missing principal asset");
+    assertTrue(foundLp, "missing LP asset");
   }
 }

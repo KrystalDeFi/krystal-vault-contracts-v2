@@ -1,0 +1,294 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity ^0.8.28;
+
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
+import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
+import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
+import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
+import { IFeeTaker } from "../../public-vault/interfaces/strategies/IFeeTaker.sol";
+import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
+import { SharedPancakeV4StrategyLib } from "../libraries/SharedPancakeV4StrategyLib.sol";
+import { ISharedPancakeV4Utils } from "../interfaces/ISharedPancakeV4Utils.sol";
+import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
+import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency } from "infinity-core/src/types/Currency.sol";
+
+/// @title SharedPancakeV4Strategy
+/// @notice PancakeSwap V4 LP operations for SharedVault with token validation and position tracking
+contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
+  address public immutable swapRouter;
+
+  enum OperationType {
+    EXECUTE,
+    /// @dev Historically named `SAFE_TRANSFER_NFT`; the NFT no longer moves — the strategy
+    ///      executes the encoded instruction bytes inline via the lib. Renamed for clarity.
+    EXECUTE_INSTRUCTIONS
+  }
+
+  constructor(address _swapRouter) {
+    require(_swapRouter != address(0), ISharedCommon.ZeroAddress());
+    swapRouter = _swapRouter;
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    OperationType opType = abi.decode(data[:32], (OperationType));
+
+    if (opType == OperationType.EXECUTE) return _execute(data[32:]);
+    else if (opType == OperationType.EXECUTE_INSTRUCTIONS) return _executeInstructions(data[32:]);
+    else revert ISharedCommon.InvalidOperation();
+  }
+
+  /// @dev `approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
+  ///      used for ERC20 approvals. Approvals are issued per-hop inside `_swapV4` against the
+  ///      immutable `swapRouter`. These arrays are still walked by `_validateApprovalList` to
+  ///      enforce that any positive-amount entry references a vault-tracked token, which prevents
+  ///      operators from silently sneaking unrelated tokens through this entry point.
+  function _execute(bytes calldata data) internal returns (PositionChange[] memory changes) {
+    (
+      address posm,
+      uint256 tokenId,
+      bytes memory params,
+      uint256 ethValue,
+      address[] memory approveTokens,
+      uint256[] memory approveAmounts
+    ) = abi.decode(data, (address, uint256, bytes, uint256, address[], uint256[]));
+
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    SharedStrategyGuards.requireWhitelistedNfpm(cm, posm);
+    require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
+    bytes4 selector = _v4ParamsSelector(params);
+    _validateApprovalList(approveTokens, approveAmounts);
+    require(ethValue == 0, ISharedCommon.InvalidAmount());
+    bool isExecute = selector == ISharedPancakeV4Utils.execute.selector;
+    bool isSwapAndMint = selector == ISharedPancakeV4Utils.swapAndMint.selector;
+    bool isSwapAndIncrease = selector == ISharedPancakeV4Utils.swapAndIncrease.selector;
+    if (!isExecute && !isSwapAndMint && !isSwapAndIncrease) revert ISharedCommon.InvalidOperation();
+
+    ICLPositionManager pm = ICLPositionManager(posm);
+
+    // Snapshot next tokenId before the call to detect newly minted positions
+    uint256 nextIdBefore = pm.nextTokenId();
+
+    if (isExecute) {
+      require(tokenId != 0, ISharedCommon.InvalidOperation());
+      SharedPancakeV4StrategyLib.executeCalldata(swapRouter, posm, tokenId, params);
+    } else if (isSwapAndMint) {
+      require(tokenId == 0, ISharedCommon.InvalidOperation());
+      SharedPancakeV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
+    } else {
+      require(tokenId != 0, ISharedCommon.InvalidOperation());
+      SharedPancakeV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
+    }
+
+    // Compute position changes from on-chain state — never trust caller-supplied values
+    if (tokenId == 0) {
+      // New mint: require exactly one position was minted to avoid untracked vault positions.
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
+      uint256 newId = nextIdBefore;
+      require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(newId);
+      address c0 = Currency.unwrap(key.currency0);
+      address c1 = Currency.unwrap(key.currency1);
+      _validateVaultToken(c0);
+      _validateVaultToken(c1);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(true, posm, newId, c0, c1);
+    } else if (
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
+    ) {
+      // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
+      (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies too (symmetry with the tokenId==0 mint branch).
+      _validateVaultToken(Currency.unwrap(newKey.currency0));
+      _validateVaultToken(Currency.unwrap(newKey.currency1));
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(oldKey.currency0),
+        Currency.unwrap(oldKey.currency1)
+      );
+      changes[1] = PositionChange(
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
+      );
+    } else if (pm.getPositionLiquidity(tokenId) == 0) {
+      // Full exit: liquidity drained to zero
+      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(tokenId);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(
+        false,
+        posm,
+        tokenId,
+        Currency.unwrap(key.currency0),
+        Currency.unwrap(key.currency1)
+      );
+    } else {
+      // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
+      changes = new PositionChange[](0);
+    }
+  }
+
+  /// @dev Executes the encoded instruction bytes inline against the position; despite the
+  ///      historical name `SAFE_TRANSFER_NFT`, the NFT itself is never transferred — the strategy
+  ///      operates on the position in-place via the shared lib.
+  function _executeInstructions(bytes calldata data) internal returns (PositionChange[] memory changes) {
+    (address posm, uint256 tokenId, bytes memory instruction) = abi.decode(data, (address, uint256, bytes));
+
+    _requireWhitelistedPosm(posm);
+
+    ICLPositionManager pm = ICLPositionManager(posm);
+
+    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
+    address c0 = Currency.unwrap(poolKey.currency0);
+    address c1 = Currency.unwrap(poolKey.currency1);
+    _validateVaultToken(c0);
+    _validateVaultToken(c1);
+    uint256 nextIdBefore = pm.nextTokenId();
+
+    SharedPancakeV4StrategyLib.executeInstructionBytes(swapRouter, posm, tokenId, instruction);
+
+    if (
+      pm.nextTokenId() > nextIdBefore &&
+      _posmNftOwnedByVault(posm, nextIdBefore) &&
+      pm.getPositionLiquidity(tokenId) == 0
+    ) {
+      require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
+      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies (symmetry / defense-in-depth).
+      _validateVaultToken(Currency.unwrap(newKey.currency0));
+      _validateVaultToken(Currency.unwrap(newKey.currency1));
+      changes = new PositionChange[](2);
+      changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+      changes[1] = PositionChange(
+        true,
+        posm,
+        nextIdBefore,
+        Currency.unwrap(newKey.currency0),
+        Currency.unwrap(newKey.currency1)
+      );
+    } else if (!_posmNftOwnedByVault(posm, tokenId) || pm.getPositionLiquidity(tokenId) == 0) {
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+    } else {
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
+      changes = new PositionChange[](0);
+    }
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
+  ///      amounts required for the computed liquidity through Permit2. Any amount not needed for
+  ///      the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
+  ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
+  ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
+  ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
+  function depositProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external override {
+    SharedPancakeV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Collects accumulated fees via CL_DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
+  ///      decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
+  ///      to the vault (address(this) in delegatecall context). Performance and platform fees are
+  ///      then applied inline since V4Strategy has no dedicated lpFeeTaker.
+  ///      Native ETH positions (currency address(0)) are rejected at position-add time by
+  ///      _validateVaultToken, so this function is never called for native-currency pools.
+  function collectFees(address posm, uint256 tokenId, uint16 /* vaultOwnerFeeBasisPoint */) external override {
+    SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Withdraw exits collect generated LP fees through collectFees() before the vault's idle snapshot.
+  ///      This function only decreases principal natively and never charges platform/owner fees on principal.
+  function exitProportional(
+    address posm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256 minAmount0,
+    uint256 minAmount1,
+    uint16 /* vaultOwnerFeeBasisPoint */
+  ) external override returns (PositionChange[] memory changes) {
+    changes = SharedPancakeV4StrategyLib.exitProportional(posm, tokenId, shares, totalShares, minAmount0, minAmount1);
+  }
+
+  /// @inheritdoc ISharedStrategy
+  /// @dev Values principal liquidity via `LiquidityAmounts` and current `sqrtPrice` from the v4 PoolManager,
+  ///      and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
+  ///      Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
+  ///      no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions.
+  function getPositionAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1) = SharedPancakeV4StrategyLib.getPositionAmounts(posm, tokenId);
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionTokens(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (address token0, address token1) {
+    (PoolKey memory poolKey, ) = ICLPositionManager(posm).getPoolAndPositionInfo(tokenId);
+    token0 = Currency.unwrap(poolKey.currency0);
+    token1 = Currency.unwrap(poolKey.currency1);
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionPrincipalAmounts(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 amount0, uint256 amount1) {
+    (amount0, amount1) = SharedPancakeV4StrategyLib.getPositionPrincipalAmounts(posm, tokenId);
+  }
+
+  function _posmNftOwnedByVault(address posm, uint256 id) private view returns (bool) {
+    try IERC721(posm).ownerOf(id) returns (address owner) {
+      return owner == address(this);
+    } catch {
+      return false;
+    }
+  }
+
+  function _validateVaultToken(address token) internal view {
+    require(ISharedVault(address(this)).isVaultToken(token), InvalidPoolTokens());
+  }
+
+  function _requireWhitelistedPosm(address posm) private view {
+    SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
+  }
+
+  function _validateApprovalList(address[] memory approveTokens, uint256[] memory approveAmounts) private view {
+    for (uint256 i; i < approveTokens.length; ) {
+      if (approveAmounts[i] > 0) _validateVaultToken(approveTokens[i]);
+      unchecked {
+        i++;
+      }
+    }
+  }
+
+  function _v4ParamsSelector(bytes memory params) private pure returns (bytes4 selector) {
+    require(params.length >= 4, ISharedCommon.InvalidOperation());
+    selector = bytes4(params);
+  }
+}
