@@ -73,7 +73,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     lpFeeTaker = new LpFeeTaker();
     // Single implementation shared by both protocol proxies
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     v3Beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
     v3Proxy = new SharedStrategyProxy(address(v3Beacon));
@@ -383,7 +383,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 2, "two positions before upgrade");
 
     // Upgrade only the V3 beacon — pancakeProxy's beacon is unaffected
-    SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS);
     v3Beacon.setImplementation(address(newV3Impl));
     assertEq(v3Beacon.implementation(), address(newV3Impl), "v3 beacon updated");
 

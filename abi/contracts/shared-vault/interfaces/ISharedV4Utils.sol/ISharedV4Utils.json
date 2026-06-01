@@ -1,0 +1,296 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "posm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum ISharedV4Utils.UtilActions",
+            "name": "action",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes",
+            "name": "params",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ISharedV4Utils.Instructions",
+        "name": "instructions",
+        "type": "tuple"
+      }
+    ],
+    "name": "execute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "posm",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "minLiquidity",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "hookData",
+                "type": "bytes"
+              },
+              {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.IncreaseLiquidityParams",
+            "name": "increaseParams",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "tokenIn",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amountIn",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenOut",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amountOutMin",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "swapData",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.SwapParams[]",
+            "name": "swapParams",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Currency",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.InputTokenParams[]",
+            "name": "inputTokens",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "performanceFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ISharedV4Utils.SwapAndIncreaseParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
+    "name": "swapAndIncrease",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "posm",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Currency",
+                "name": "currency0",
+                "type": "address"
+              },
+              {
+                "internalType": "Currency",
+                "name": "currency1",
+                "type": "address"
+              },
+              {
+                "internalType": "uint24",
+                "name": "fee",
+                "type": "uint24"
+              },
+              {
+                "internalType": "int24",
+                "name": "tickSpacing",
+                "type": "int24"
+              },
+              {
+                "internalType": "contract IHooks",
+                "name": "hooks",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct PoolKey",
+            "name": "poolKey",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "int24",
+                "name": "tickLower",
+                "type": "int24"
+              },
+              {
+                "internalType": "int24",
+                "name": "tickUpper",
+                "type": "int24"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minLiquidity",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "hookData",
+                "type": "bytes"
+              },
+              {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.MintParams",
+            "name": "mintParams",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "tokenIn",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amountIn",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "tokenOut",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amountOutMin",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "swapData",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.SwapParams[]",
+            "name": "swapParams",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Currency",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ISharedV4Utils.InputTokenParams[]",
+            "name": "inputTokens",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "uint64",
+            "name": "protocolFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "performanceFeeX64",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasFeeX64",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ISharedV4Utils.SwapAndMintParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
+    "name": "swapAndMint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

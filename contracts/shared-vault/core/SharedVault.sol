@@ -556,6 +556,10 @@ contract SharedVault is
     // distributed proportionally by share ratio (not entirely to the current withdrawer).
     // A failure here must revert the whole withdrawal: a silent failure followed by exitProportional
     // would let the current withdrawer sweep all accumulated fees via collect(type(uint128).max).
+    // NOTE: the V4/Pancake strategies internally tolerate a failing fee-sync collect when the position has
+    // NO uncollected fees (a fragile/hostile pool hook reverting on the zero-liquidity collect), so such a
+    // zero-fee position cannot brick withdraw here — see SharedV4StrategyLib._collectFees. When fees ARE
+    // present the strategy re-reverts, so this require still fires and the guarantee above is preserved.
     uint256 posLenForCollect = positions.length;
     for (uint256 pc; pc < posLenForCollect; ) {
       Position memory posForCollect = positions[pc];

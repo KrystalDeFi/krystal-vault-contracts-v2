@@ -3,12 +3,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_v3utils",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_lpFeeTaker",
+        "name": "_swapRouter",
         "type": "address"
       }
     ],
@@ -22,7 +17,12 @@
   },
   {
     "inputs": [],
-    "name": "ApproveFailed",
+    "name": "InsufficientOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAmount",
     "type": "error"
   },
   {
@@ -52,18 +52,45 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVaultOwnerFeeBasisPoint",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "LengthMismatch",
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "NfpmEnumerableRequired",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "StrategyCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapFailed",
     "type": "error"
   },
   {
@@ -75,6 +102,43 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultAddress",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum IFeeTaker.FeeType",
+        "name": "feeType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeCollected",
+    "type": "event"
   },
   {
     "inputs": [
@@ -90,7 +154,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "vaultOwnerFeeBasisPoint",
+        "name": "",
         "type": "uint16"
       }
     ],
@@ -212,7 +276,7 @@
       },
       {
         "internalType": "uint16",
-        "name": "vaultOwnerFeeBasisPoint",
+        "name": "",
         "type": "uint16"
       }
     ],
@@ -343,20 +407,7 @@
   },
   {
     "inputs": [],
-    "name": "lpFeeTaker",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "v3utils",
+    "name": "swapRouter",
     "outputs": [
       {
         "internalType": "address",

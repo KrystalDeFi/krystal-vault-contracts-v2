@@ -105,7 +105,19 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  sharedV4StrategyLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   sharedV4Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedPancakeV4StrategyLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedPancakeV4Strategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
@@ -114,6 +126,7 @@ export interface IConfigShared {
     autoVerifyContract?: boolean;
   };
   v4NfpmAddresses?: AddressLike[];
+  pancakeV4NfpmAddresses?: AddressLike[];
 }
 
 export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {

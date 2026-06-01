@@ -102,7 +102,34 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_initialize_revertsIfCalledTwice() public {
     vm.expectRevert();
-    configManager.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0));
+    configManager.initialize(
+      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0)
+    );
+  }
+
+  function test_initialize_revertsWithZeroOwner() public {
+    SharedConfigManager fresh = new SharedConfigManager();
+
+    vm.expectRevert();
+    fresh.initialize(
+      address(0), new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0)
+    );
+  }
+
+  function test_initialize_revertsWithZeroFeeRecipient() public {
+    SharedConfigManager fresh = new SharedConfigManager();
+
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    fresh.initialize(OWNER, new address[](0), new address[](0), address(0), 0, new address[](0), new address[](0));
+  }
+
+  function test_initialize_revertsWithPlatformFeeAboveMax() public {
+    SharedConfigManager fresh = new SharedConfigManager();
+
+    vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
+    fresh.initialize(
+      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 10_001, new address[](0), new address[](0)
+    );
   }
 
   // ========== setWhitelistTargets ==========

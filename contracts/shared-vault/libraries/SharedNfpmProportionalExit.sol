@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { INonfungiblePositionManager as INFPM } from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
-import { ILpFeeTaker } from "../../public-vault/interfaces/strategies/ILpFeeTaker.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
+import { SharedStrategyFees } from "./SharedStrategyFees.sol";
 
 /// @title SharedNfpmProportionalExit
-/// @notice Mirrors public `LpStrategy._decreaseLiquidity`: collect accrued fees → `LpFeeTaker.takeFees` (perf/platform) →
-///         decrease proportional liquidity → collect principal → optional gas fee on principal via `LpFeeTaker`.
+/// @notice Pre-collect accrued fees → take perf/platform fees → decrease proportional liquidity → collect
+///         principal. Fees are settled via `SharedStrategyFees` (direct proportional transfer of each token's
+///         fee slice to platform / vault owner), NOT the public-vault `LpFeeTaker` swap-and-consolidate path.
 library SharedNfpmProportionalExit {
   /// @notice Pre-collect accrued fees into vault idle balance and take perf/platform fees.
   /// @dev Called from strategy.collectFees() which is delegatecalled by SharedVault.withdraw() BEFORE
@@ -30,8 +30,6 @@ library SharedNfpmProportionalExit {
     uint256 tokenId,
     address token0,
     address token1,
-    address pool,
-    address lpFeeTaker,
     ICommon.FeeConfig memory perfFeeConfig
   ) internal {
     (uint256 collected0, uint256 collected1) = INFPM(nfpm).collect(
@@ -42,28 +40,22 @@ library SharedNfpmProportionalExit {
         amount1Max: type(uint128).max
       })
     );
+    if (collected0 == 0 && collected1 == 0) return;
 
+    // Perf-only (platform + vault owner); no gas fee on the withdraw fee-sync.
     ICommon.FeeConfig memory perfOnly = perfFeeConfig;
     perfOnly.gasFeeX64 = 0;
     perfOnly.gasFeeRecipient = address(0);
-
-    if (
-      (collected0 > 0 || collected1 > 0) && (perfOnly.vaultOwnerFeeBasisPoint > 0 || perfOnly.platformFeeBasisPoint > 0)
-    ) {
-      // Approve the FULL collected amounts (matches public `LpStrategy._takeFees` pattern).
-      // Approving only the bare fee bps is unsafe: depending on the LpFeeTaker implementation,
-      // the swap-to-principal path may need to pull more than the headline fee, causing withdrawals
-      // to revert whenever a non-principal fee is collected. The vault is then bricked because
-      // collectFees runs unconditionally on every withdraw and a revert here blocks every share holder.
-      _safeResetAndApprove(IERC20(token0), lpFeeTaker, collected0);
-      _safeResetAndApprove(IERC20(token1), lpFeeTaker, collected1);
-      ILpFeeTaker(lpFeeTaker).takeFees(token0, collected0, token1, collected1, perfOnly, token0, pool, address(0));
-    }
+    // Direct proportional transfer of each token's fee slice to platform / vault owner — no swap, no
+    // pool interaction. The clamp in `applyFees` guarantees total fee <= collected, so a withdraw can
+    // never revert from over-drawn fees (which previously could brick the vault for all share holders).
+    SharedStrategyFees.applyFees(token0, collected0, token1, collected1, perfOnly);
   }
 
-  /// @dev Pulls performance/platform/owner fees from collected fee amounts; gas fee is taken from principal after decrease (public pattern).
-  ///      Fees are pre-collected by `collectAccumulatedFees` before the idle snapshot in SharedVault.withdraw(),
-  ///      so this function only decreases liquidity and collects the resulting principal.
+  /// @dev Fees are pre-collected by `collectAccumulatedFees` before the idle snapshot in SharedVault.withdraw(),
+  ///      so this function only decreases liquidity, collects the resulting principal, and (when configured)
+  ///      takes a gas fee on the principal. On the withdraw/exit path `performanceFeeConfig()` sets
+  ///      `gasFeeX64 = 0`, so the gas branch is inert there; it remains for callers that pass a gas fee.
   function decreaseLiquidityProportional(
     address nfpm,
     uint256 tokenId,
@@ -72,8 +64,6 @@ library SharedNfpmProportionalExit {
     uint256 amount1Min,
     address token0,
     address token1,
-    address pool,
-    address lpFeeTaker,
     ICommon.FeeConfig memory perfFeeConfig
   ) internal {
     INFPM(nfpm).decreaseLiquidity(
@@ -106,16 +96,7 @@ library SharedNfpmProportionalExit {
         gasFeeX64: perfFeeConfig.gasFeeX64,
         gasFeeRecipient: perfFeeConfig.gasFeeRecipient
       });
-      _safeResetAndApprove(IERC20(token0), lpFeeTaker, principal0);
-      _safeResetAndApprove(IERC20(token1), lpFeeTaker, principal1);
-      ILpFeeTaker(lpFeeTaker).takeFees(token0, principal0, token1, principal1, gasOnly, token0, pool, address(0));
+      SharedStrategyFees.applyFees(token0, principal0, token1, principal1, gasOnly);
     }
-  }
-
-  function _safeResetAndApprove(IERC20 token, address spender, uint256 value) private {
-    if (value == 0) return;
-    address(token).call(abi.encodeWithSelector(token.approve.selector, spender, 0));
-    (bool ok, bytes memory ret) = address(token).call(abi.encodeWithSelector(token.approve.selector, spender, value));
-    require(ok && (ret.length == 0 || abi.decode(ret, (bool))), ICommon.ApproveFailed());
   }
 }

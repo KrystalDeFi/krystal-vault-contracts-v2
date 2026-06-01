@@ -8,6 +8,8 @@ import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { SharedNfpmProportionalExit } from "../../contracts/shared-vault/libraries/SharedNfpmProportionalExit.sol";
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { IFeeTaker } from "../../contracts/public-vault/interfaces/strategies/IFeeTaker.sol";
+import { ILpFeeTaker } from "../../contracts/public-vault/interfaces/strategies/ILpFeeTaker.sol";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -260,7 +262,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    strategy = new SharedV3Strategy(address(1), address(1));
+    strategy = new SharedV3Strategy(address(1));
   }
 
   function test_v3_getPositionAmounts_includes_pending_fees() public {
@@ -308,7 +310,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -346,13 +348,35 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedV3Strategy strategy = new SharedV3Strategy(address(1), address(1));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
     // Out of range: principal for the in-range token is non-zero, but no NEW pending fees
     assertEq(amount0, principal0 + STORED_OWED0, "out-of-range: only stored owed0, no new pending");
     assertEq(amount1, principal1 + STORED_OWED1, "out-of-range: only stored owed1, no new pending");
+  }
+
+  /// @dev F7: pending fees that exceed uint128 must NOT be silently truncated by getPositionAmounts.
+  ///      With liquidity = type(uint128).max and feeGrowthInside = 2*Q128, pending = 2 * uint128.max,
+  ///      which overflows uint128. The previous `uint128(mulDiv(...))` inside `unchecked` wrapped this
+  ///      to a small number (under-valuing the position); the uint256 accumulation must report it in full.
+  function test_v3_getPositionAmounts_pending_above_uint128_not_truncated() public {
+    uint128 hugeLiquidity = type(uint128).max;
+    MockV3Pool pool = new MockV3Pool(SQRT_PRICE_TICK0, CURRENT_TICK, 2 * Q128, 2 * Q128);
+    MockV3Factory factory = new MockV3Factory(address(pool));
+    address nfpm = address(
+      new MockV3NfpmWithFees(address(factory), address(0x1111), address(0x2222), hugeLiquidity, TICK_LOWER, TICK_UPPER, 0, 0, 0, 0)
+    );
+
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    uint256 expectedPending = 2 * uint256(type(uint128).max); // mulDiv(2*Q128, uint128.max, Q128)
+    assertGt(expectedPending, uint256(type(uint128).max), "sanity: pending exceeds uint128 range");
+    assertEq(amount0 - principal0, expectedPending, "token0 pending reported in full (no uint128 wrap)");
+    assertEq(amount1 - principal1, expectedPending, "token1 pending reported in full (no uint128 wrap)");
   }
 
   // ---------------------------------------------------------------------------
@@ -376,7 +400,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    strategy = new SharedAerodromeStrategy(address(1), address(1));
+    strategy = new SharedAerodromeStrategy(address(1));
   }
 
   function test_aerodrome_getPositionAmounts_includes_pending_fees() public {
@@ -416,7 +440,7 @@ contract SharedStrategyFeeAccrualTest is Test {
       STORED_OWED1
     ));
 
-    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1), address(1));
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
     (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
     (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
 
@@ -509,9 +533,53 @@ contract MockNfpmFeeSync {
 contract CollectFeeWrapper {
   function callCollect(address nfpm, address _token0, address _token1) external {
     ICommon.FeeConfig memory noFee;
-    SharedNfpmProportionalExit.collectAccumulatedFees(
-      nfpm, 1, _token0, _token1, address(0), address(1), noFee
-    );
+    SharedNfpmProportionalExit.collectAccumulatedFees(nfpm, 1, _token0, _token1, noFee);
+  }
+
+  function callCollectWithFee(
+    address nfpm,
+    address _token0,
+    address _token1,
+    address /* lpFeeTaker */,
+    ICommon.FeeConfig memory feeConfig
+  ) external {
+    SharedNfpmProportionalExit.collectAccumulatedFees(nfpm, 1, _token0, _token1, feeConfig);
+  }
+}
+
+contract MockCollectLpFeeTaker is ILpFeeTaker {
+  function takeFees(
+    address token0,
+    uint256 amount0,
+    address token1,
+    uint256 amount1,
+    FeeConfig memory feeConfig,
+    address,
+    address,
+    address
+  ) external override returns (uint256 fee0, uint256 fee1) {
+    fee0 = _takeTokenFees(token0, amount0, feeConfig);
+    fee1 = _takeTokenFees(token1, amount1, feeConfig);
+  }
+
+  function _takeTokenFees(
+    address token,
+    uint256 amount,
+    FeeConfig memory feeConfig
+  ) private returns (uint256 totalFee) {
+    uint256 platformFee = (amount * feeConfig.platformFeeBasisPoint) / 10_000;
+    if (platformFee > 0) {
+      MockFeeToken(token).transferFrom(msg.sender, feeConfig.platformFeeRecipient, platformFee);
+      emit FeeCollected(msg.sender, IFeeTaker.FeeType.PLATFORM, feeConfig.platformFeeRecipient, token, platformFee);
+      totalFee += platformFee;
+    }
+
+    uint256 ownerFee = (amount * feeConfig.vaultOwnerFeeBasisPoint) / 10_000;
+    if (ownerFee > 0) {
+      MockFeeToken(token).transferFrom(msg.sender, feeConfig.vaultOwner, ownerFee);
+      emit FeeCollected(msg.sender, IFeeTaker.FeeType.OWNER, feeConfig.vaultOwner, token, ownerFee);
+      totalFee += ownerFee;
+    }
   }
 }
 
@@ -579,5 +647,44 @@ contract CollectAccumulatedFeesTest is Test {
 
     assertEq(t0.balanceOf(address(wrapper)), 0, "no token0 transferred");
     assertEq(t1.balanceOf(address(wrapper)), 0, "no token1 transferred");
+  }
+
+  function test_collectAccumulatedFees_distributes_generated_fees_to_platform_and_owner() public {
+    (CollectFeeWrapper wrapper, MockNfpmFeeSync nfpm, MockFeeToken t0, MockFeeToken t1) = _setup();
+    MockCollectLpFeeTaker feeTaker = new MockCollectLpFeeTaker();
+    address platformRecipient = address(0x1234);
+    address vaultOwner = address(0x5678);
+
+    ICommon.FeeConfig memory feeConfig = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 500,
+      vaultOwner: vaultOwner,
+      platformFeeBasisPoint: 1000,
+      platformFeeRecipient: platformRecipient,
+      gasFeeX64: 0,
+      gasFeeRecipient: address(0)
+    });
+
+    // Fees are now settled by SharedStrategyFees (direct transfer, inlined into the wrapper), so
+    // FeeCollected is emitted from the wrapper address, in order platform → owner with BOTH tokens per
+    // fee type (token0 then token1), and each token's slice is transferred directly (no consolidation).
+    vm.expectEmit(true, true, true, true, address(wrapper));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t0), 0.6e18);
+    vm.expectEmit(true, true, true, true, address(wrapper));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(t1), 0.5e18);
+    vm.expectEmit(true, true, true, true, address(wrapper));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t0), 0.3e18);
+    vm.expectEmit(true, true, true, true, address(wrapper));
+    emit IFeeTaker.FeeCollected(address(wrapper), IFeeTaker.FeeType.OWNER, vaultOwner, address(t1), 0.25e18);
+
+    wrapper.callCollectWithFee(address(nfpm), address(t0), address(t1), address(feeTaker), feeConfig);
+
+    assertEq(t0.balanceOf(platformRecipient), 0.6e18, "token0 platform fee");
+    assertEq(t1.balanceOf(platformRecipient), 0.5e18, "token1 platform fee");
+    assertEq(t0.balanceOf(vaultOwner), 0.3e18, "token0 owner fee");
+    assertEq(t1.balanceOf(vaultOwner), 0.25e18, "token1 owner fee");
+    assertEq(t0.balanceOf(address(wrapper)), 5.1e18, "token0 net generated fees stay idle");
+    assertEq(t1.balanceOf(address(wrapper)), 4.25e18, "token1 net generated fees stay idle");
+    assertEq(t0.balanceOf(address(nfpm)), 0, "token0: nfpm fully drained");
+    assertEq(t1.balanceOf(address(nfpm)), 0, "token1: nfpm fully drained");
   }
 }
