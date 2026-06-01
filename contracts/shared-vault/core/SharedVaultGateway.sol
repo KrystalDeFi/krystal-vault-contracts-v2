@@ -33,6 +33,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error InsufficientPostSwapBalance(uint256 tokenIndex);
   error EthTransferFailed();
   error InsufficientWithdrawBalance(uint256 swapIndex);
+  error IdenticalSwapTokens(uint256 index);
 
   // ==================== Events ====================
 
@@ -354,6 +355,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function _executeSingleSwap(SwapParams calldata swap, uint256 index, BalanceSnapshot memory snapshot) internal {
     address tokenIn = swap.tokenIn;
     address tokenOut = swap.tokenOut;
+    // Reject a no-op self-swap explicitly. With tokenIn == tokenOut the output-delta check
+    // (balanceOf(tokenOut) - balOutBefore) would otherwise misread a balance DECREASE as an
+    // arithmetic underflow revert — fail fast with a clear error instead.
+    if (tokenIn == tokenOut) revert IdenticalSwapTokens(index);
     uint256 availableIn = _balanceDelta(snapshot, tokenIn);
 
     uint256 amountIn = swap.amountIn;

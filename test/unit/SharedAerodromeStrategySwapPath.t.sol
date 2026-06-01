@@ -430,6 +430,46 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].tokenId, TOKEN_ID, "untracked tokenId");
   }
 
+  // -------------------------------------------------------------------------
+  // Review fix: COMPOUND_FEES with targetToken == address(0) performs NO swap,
+  // so a caller-supplied amountOut*Min would otherwise be silently ignored.
+  // _swapForCompound must now reject it, mirroring _swapForWithdraw.
+  // -------------------------------------------------------------------------
+
+  function test_compound_revertsWhenNoSwapTargetButAmountOut0MinSet() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions(); // COMPOUND_FEES, targetToken == address(0)
+    instructions.amountOut0Min = 1; // stale slippage bound that no swap will honor
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_compound_revertsWhenNoSwapTargetButAmountOut1MinSet() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.amountOut1Min = 1;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
   function _baseInstructions() internal view returns (IV3Utils.Instructions memory) {
     return
       IV3Utils.Instructions({

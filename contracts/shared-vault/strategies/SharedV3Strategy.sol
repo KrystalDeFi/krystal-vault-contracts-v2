@@ -668,7 +668,14 @@ contract SharedV3Strategy is ISharedStrategy {
   ) private returns (uint256 total0, uint256 total1) {
     total0 = amount0;
     total1 = amount1;
-    if (instructions.targetToken == address(0)) return (total0, total1);
+    if (instructions.targetToken == address(0)) {
+      // No swap on this path: reject stale slippage bounds so a COMPOUND_FEES caller's
+      // amountOut*Min cannot be silently ignored (mirrors the _swapForWithdraw targetToken==0 guard).
+      require(
+        instructions.amountOut0Min == 0 && instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput()
+      );
+      return (total0, total1);
+    }
     require(
       instructions.targetToken == token0 || instructions.targetToken == token1, ISharedCommon.InvalidOperation()
     );

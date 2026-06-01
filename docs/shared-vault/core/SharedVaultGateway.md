@@ -57,6 +57,12 @@ error EthTransferFailed()
 error InsufficientWithdrawBalance(uint256 swapIndex)
 ```
 
+### IdenticalSwapTokens
+
+```solidity
+error IdenticalSwapTokens(uint256 index)
+```
+
 ### SwapAndDeposit
 
 ```solidity

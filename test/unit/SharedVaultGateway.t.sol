@@ -339,6 +339,35 @@ contract SharedVaultGatewayTest is TestCommon {
     return new SharedVaultGateway.InputToken[](0);
   }
 
+  // Review fix: a swap whose tokenIn == tokenOut is a no-op self-swap. The gateway must reject it
+  // explicitly rather than letting it surface as an opaque balance-delta underflow.
+  function test_swapAndDeposit_revertsOnIdenticalSwapTokens() public {
+    GatewayMockERC20(address(tokenA)).mint(ALICE, 10e18);
+    _approveGateway(address(tokenA), ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 1e18,
+      tokenOut: address(tokenA), // identical in/out
+      amountOutMin: 0,
+      swapData: _buildSwapCalldata(address(tokenA), address(tokenA), 1e18)
+    });
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs1(address(tokenA), 1e18),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: _sweepTokensArray(address(tokenA))
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.IdenticalSwapTokens.selector, 0));
+    gateway.swapAndDeposit(params);
+  }
+
   function _setupEightDecimalGatewayVault() internal returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB) {
     v = new SharedVault();
     tA = new GatewayMockERC20("Gateway Eight A", "GEA", 18);

@@ -23,11 +23,11 @@ library SharedVaultPreviewLib {
 
     uint16 platformBps = configManager.platformFeeBasisPoint();
     uint16 ownerBps = vaultOwnerFeeBasisPoint;
+    // Clamp the owner bps so platform + owner never exceeds 100%, matching
+    // SharedStrategyFeeConfig.performanceFeeConfig (the FeeConfig the real collect path uses).
     if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
       ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
     }
-    uint256 combinedFeeBps = uint256(platformBps) + uint256(ownerBps);
-    uint256 keepFeeBps = combinedFeeBps >= 10_000 ? 0 : 10_000 - combinedFeeBps;
 
     uint256 posLen = positions.length;
     for (uint256 p; p < posLen; ) {
@@ -39,8 +39,8 @@ library SharedVaultPreviewLib {
       );
       uint256 owed0 = total0 > principal0 ? total0 - principal0 : 0;
       uint256 owed1 = total1 > principal1 ? total1 - principal1 : 0;
-      uint256 netOwed0 = keepFeeBps == 10_000 ? owed0 : FullMath.mulDiv(owed0, keepFeeBps, 10_000);
-      uint256 netOwed1 = keepFeeBps == 10_000 ? owed1 : FullMath.mulDiv(owed1, keepFeeBps, 10_000);
+      uint256 netOwed0 = _netAfterPerformanceFees(owed0, platformBps, ownerBps);
+      uint256 netOwed1 = _netAfterPerformanceFees(owed1, platformBps, ownerBps);
       for (uint256 i; i < 4; ) {
         if (tokens[i] == pos.token0) idleBalances[i] += principal0 + netOwed0;
         else if (tokens[i] == pos.token1) idleBalances[i] += principal1 + netOwed1;
@@ -173,6 +173,25 @@ library SharedVaultPreviewLib {
       }
     }
     valid = true;
+  }
+
+  /// @dev Net LP-fee amount retained by shareholders after platform + owner performance fees.
+  ///      Mirrors `SharedStrategyFees.applyFees` EXACTLY so `previewWithdraw` ties out with the
+  ///      on-chain collected amount to the wei: each fee is computed from the ORIGINAL `owed`
+  ///      amount with floor division (NOT from a running remainder) and applied SEQUENTIALLY
+  ///      (platform first, then owner), each clamped to the remaining balance. Withdraw exits never
+  ///      charge the gas fee, so it is omitted. A single combined-bps division
+  ///      (`owed * (10000 - platform - owner) / 10000`) rounds differently and under-reports the
+  ///      net by up to 1 wei per token per position, which previously made `previewWithdraw`
+  ///      a slightly low slippage floor versus the actual withdrawal.
+  function _netAfterPerformanceFees(uint256 owed, uint16 platformBps, uint16 ownerBps) private pure returns (uint256) {
+    if (owed == 0) return 0;
+    uint256 platformFee = FullMath.mulDiv(owed, platformBps, 10_000);
+    // platformBps <= 10_000 (config-enforced) => platformFee <= owed, so this cannot underflow.
+    uint256 remaining = owed - platformFee;
+    uint256 ownerFee = FullMath.mulDiv(owed, ownerBps, 10_000);
+    if (ownerFee > remaining) ownerFee = remaining;
+    return owed - platformFee - ownerFee;
   }
 
   function _minTokenAmt(address token, uint8 prec) private view returns (uint256) {
