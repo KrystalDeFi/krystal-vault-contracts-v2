@@ -378,6 +378,25 @@ contract SharedStrategyNativeExecutionTest is Test {
     assertEq(nfpm.increased1(), 1_200, "net token1 generated fees compounded");
   }
 
+  function test_v3_compound_revertsWhenEmptySwapDataHasMinOut() public {
+    nfpm.setCollectFees(1_000, 0);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1;
+    instructions.amountOut0Min = 1;
+    instructions.swapData0 = "";
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
   /// @dev Unified clamp model (parity with V4/Pancake and Aerodrome): stacking a gas fee such that
   ///      platform + owner + gas exceeds 100% no longer reverts — each fee is clamped to the running
   ///      remainder (platform → owner → gas) via SharedStrategyFees, so total fee can never exceed the

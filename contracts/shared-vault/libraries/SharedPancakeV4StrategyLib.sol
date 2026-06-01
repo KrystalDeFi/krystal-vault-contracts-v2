@@ -734,7 +734,10 @@ library SharedPancakeV4StrategyLib {
     uint256 amountOutMin,
     bytes memory swapData
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
-    if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) return (0, 0);
+    if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) {
+      require(amountOutMin == 0, ISharedCommon.InsufficientOutput());
+      return (0, 0);
+    }
     // Reject a self-swap explicitly rather than relying on the balance-delta subtraction to underflow.
     require(tokenIn != tokenOut, ISharedCommon.InvalidOperation());
 

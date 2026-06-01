@@ -707,7 +707,10 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 amountOutMin,
     bytes memory swapData
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
-    if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) return (0, 0);
+    if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) {
+      require(amountOutMin == 0, ISharedCommon.InsufficientOutput());
+      return (0, 0);
+    }
     _validateVaultToken(tokenIn);
     _validateVaultToken(tokenOut);
     // Defense-in-depth kill-switch: re-validate the immutable swapRouter against the live ConfigManager

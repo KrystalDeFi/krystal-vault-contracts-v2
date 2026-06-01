@@ -179,7 +179,9 @@ _Swap calldata is built off-chain by the Krystal API swap aggregator.
      **Native ETH**: if `msg.value > 0` it is wrapped to WETH before any swap runs, so the swap
      router only ever sees WETH. Swap entries that consume this WETH use `tokenIn == weth` with
      `amountIn == 0` (full balance) or a specific sub-amount. Any WETH that remains after swaps
-     and deposit is unwrapped back to ETH and returned to the caller._
+     and deposit is unwrapped back to ETH and returned to the caller.
+     **Swap skips**: `swapData.length == 0` means "skip this entry" only when `amountOutMin == 0`.
+     A nonzero `amountOutMin` is treated as a hard per-swap slippage floor and reverts if no swap runs._
 
 ### withdrawAndSwap
 
@@ -188,6 +190,9 @@ function withdrawAndSwap(struct SharedVaultGateway.WithdrawAndSwapParams params)
 ```
 
 Burn shares, receive vault tokens, execute swaps to desired output, return leftovers.
+
+_Swap entries with empty `swapData` are skipped only when `amountOutMin == 0`. A nonzero
+     `amountOutMin` is enforced even when the resolved full-balance `amountIn` is zero._
 
 ### _pullInputTokens
 
