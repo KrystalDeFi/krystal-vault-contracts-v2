@@ -12,10 +12,12 @@ import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
+import { IVault as IInfinityVault } from "infinity-core/src/interfaces/IVault.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
 import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
 import { IPositionManagerPermit2 } from "infinity-periphery/src/interfaces/IPositionManagerPermit2.sol";
 import { ISharedPancakeV4Utils as IPancakeV4Utils } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import { CLPoolManagerRouter } from "infinity-core/test/pool-cl/helpers/CLPoolManagerRouter.sol";
 import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
 import { Currency } from "infinity-core/src/types/Currency.sol";
 import { IHooks } from "infinity-core/src/interfaces/IHooks.sol";
@@ -299,6 +301,54 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
 
     assertEq(vault.getPositionCount(), countBefore, "compound does not change tracking without range change");
     assertEq(posm.getPositionLiquidity(tokenId), liquidityBefore, "no-fee compound leaves liquidity unchanged");
+  }
+
+  function test_getPositionAmounts_includesRealDonatedPancakeV4Fees() public {
+    (uint256 principal0Before, uint256 principal1Before) =
+      strategy.getPositionPrincipalAmounts(BASE_PANCAKE_V4_POSM, tokenId);
+    (uint256 amount0Before, uint256 amount1Before) = strategy.getPositionAmounts(BASE_PANCAKE_V4_POSM, tokenId);
+
+    assertEq(amount0Before, principal0Before, "token0 starts with no pending fees");
+    assertEq(amount1Before, principal1Before, "token1 starts with no pending fees");
+
+    _donatePancakeV4Fees(1 ether, 2 ether);
+
+    (uint256 principal0After, uint256 principal1After) =
+      strategy.getPositionPrincipalAmounts(BASE_PANCAKE_V4_POSM, tokenId);
+    (uint256 amount0After, uint256 amount1After) = strategy.getPositionAmounts(BASE_PANCAKE_V4_POSM, tokenId);
+
+    assertEq(principal0After, principal0Before, "donation does not change token0 principal");
+    assertEq(principal1After, principal1Before, "donation does not change token1 principal");
+    assertGt(amount0After, principal0After, "token0 real donated fees are valued");
+    assertGt(amount1After, principal1After, "token1 real donated fees are valued");
+  }
+
+  function test_execute_compoundWithRealDonatedPancakeV4Fees_increasesLiquidity() public {
+    _donatePancakeV4Fees(1 ether, 1 ether);
+
+    uint256 countBefore = vault.getPositionCount();
+    uint128 liquidityBefore = posm.getPositionLiquidity(tokenId);
+
+    IPancakeV4Utils.CompoundFeesParams memory compoundParams = IPancakeV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _executePancakeV4Instructions(
+      tokenId,
+      IPancakeV4Utils.Instructions({ action: IPancakeV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+    );
+
+    assertEq(vault.getPositionCount(), countBefore, "compound keeps the tracked Pancake V4 position");
+    assertGt(posm.getPositionLiquidity(tokenId), liquidityBefore, "real fees compound into more Pancake V4 liquidity");
   }
 
   function test_execute_adjustRange_replacesTrackedPositionWithRealPancakeV4PositionManager() public {
@@ -593,6 +643,13 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   function _executePancakeV4Instructions(uint256 id, IPancakeV4Utils.Instructions memory instructions) internal {
     bytes memory innerData = abi.encode(BASE_PANCAKE_V4_POSM, id, abi.encode(instructions));
     _executePancakeV4(bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE_INSTRUCTIONS), innerData));
+  }
+
+  function _donatePancakeV4Fees(uint256 amount0, uint256 amount1) internal {
+    CLPoolManagerRouter donateRouter = new CLPoolManagerRouter(IInfinityVault(address(poolManager.vault())), poolManager);
+    token0.approve(address(donateRouter), amount0);
+    token1.approve(address(donateRouter), amount1);
+    donateRouter.donate(poolKey, amount0, amount1, "");
   }
 
   function _deployThreeTokenPancakeV4Vault() internal returns (SharedVault threeTokenVault) {

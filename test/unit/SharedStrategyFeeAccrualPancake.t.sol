@@ -254,6 +254,21 @@ contract SharedStrategyFeeAccrualPancakeTest is Test {
     harness.collect(nfpm, 1, _emptyFeeConfig()); // must NOT revert (zero pending fees -> swallow the hook revert)
   }
 
+  /// @dev The failed-collect fallback must not interpret a fee-growth-inside value below the stored
+  ///      last value as a huge unchecked wrapped delta. Such a read is not reliable evidence that fees
+  ///      are collectable, so a hostile hook should still be tolerated in the zero-positive-fee path.
+  function test_pancake_collectFees_toleratesHookRevert_whenFeeGrowthInsideBelowLast() public {
+    (address nfpm, PancakeCollectHarness harness) =
+      _setupCollect(FG_INSIDE0, FG_INSIDE1, FG_INSIDE0 + 1, FG_INSIDE1);
+    harness.collect(nfpm, 1, _emptyFeeConfig());
+  }
+
+  function test_pancake_collectFees_toleratesHookRevert_whenPositiveFeeGrowthRoundsToZero() public {
+    (address nfpm, PancakeCollectHarness harness) =
+      _setupCollect(FG_INSIDE0 + 1, FG_INSIDE1, FG_INSIDE0, FG_INSIDE1);
+    harness.collect(nfpm, 1, _emptyFeeConfig());
+  }
+
   /// @dev Conversely, when the position HAS uncollected fees, a failing fee-sync collect is re-reverted with
   ///      the original reason — proving the tolerate path is conditional on zero fees and the fee-fairness
   ///      guarantee is preserved (withdraw still reverts when collectable fees can't be settled).

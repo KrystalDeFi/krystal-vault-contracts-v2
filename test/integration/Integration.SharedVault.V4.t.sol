@@ -11,6 +11,7 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import { PoolDonateTest } from "@uniswap/v4-core/src/test/PoolDonateTest.sol";
 
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
@@ -298,6 +299,54 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     assertEq(vault.getPositionCount(), countBefore, "compound does not change tracking without range change");
     assertEq(posm.getPositionLiquidity(tokenId), liquidityBefore, "no-fee compound leaves liquidity unchanged");
+  }
+
+  function test_getPositionAmounts_includesRealDonatedV4Fees() public {
+    (uint256 principal0Before, uint256 principal1Before) =
+      strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
+    (uint256 amount0Before, uint256 amount1Before) = strategy.getPositionAmounts(BASE_V4_POSM, tokenId);
+
+    assertEq(amount0Before, principal0Before, "token0 starts with no pending fees");
+    assertEq(amount1Before, principal1Before, "token1 starts with no pending fees");
+
+    _donateV4Fees(1 ether, 2 ether);
+
+    (uint256 principal0After, uint256 principal1After) =
+      strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
+    (uint256 amount0After, uint256 amount1After) = strategy.getPositionAmounts(BASE_V4_POSM, tokenId);
+
+    assertEq(principal0After, principal0Before, "donation does not change token0 principal");
+    assertEq(principal1After, principal1Before, "donation does not change token1 principal");
+    assertGt(amount0After, principal0After, "token0 real donated fees are valued");
+    assertGt(amount1After, principal1After, "token1 real donated fees are valued");
+  }
+
+  function test_execute_compoundWithRealDonatedV4Fees_increasesLiquidity() public {
+    _donateV4Fees(1 ether, 1 ether);
+
+    uint256 countBefore = vault.getPositionCount();
+    uint128 liquidityBefore = posm.getPositionLiquidity(tokenId);
+
+    IV4Utils.CompoundFeesParams memory compoundParams = IV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IV4Utils.SwapParams[](0),
+      increaseParams: IV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _executeV4Instructions(
+      tokenId,
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+    );
+
+    assertEq(vault.getPositionCount(), countBefore, "compound keeps the tracked V4 position");
+    assertGt(posm.getPositionLiquidity(tokenId), liquidityBefore, "real fees compound into more V4 liquidity");
   }
 
   function test_execute_adjustRange_replacesTrackedPositionWithRealV4PositionManager() public {
@@ -615,6 +664,13 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   function _executeV4Instructions(uint256 id, IV4Utils.Instructions memory instructions) internal {
     bytes memory innerData = abi.encode(BASE_V4_POSM, id, abi.encode(instructions));
     _executeV4(bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE_INSTRUCTIONS), innerData));
+  }
+
+  function _donateV4Fees(uint256 amount0, uint256 amount1) internal {
+    PoolDonateTest donateRouter = new PoolDonateTest(posm.poolManager());
+    token0.approve(address(donateRouter), amount0);
+    token1.approve(address(donateRouter), amount1);
+    donateRouter.donate(poolKey, amount0, amount1, "");
   }
 
   /// @dev Builds a fresh `SharedVault` whose `vaultTokens` list contains `hopToken` in

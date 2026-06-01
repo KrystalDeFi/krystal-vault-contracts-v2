@@ -223,8 +223,7 @@ library SharedV4StrategyLib {
       if (collected0 == 0 && collected1 == 0) return;
       SharedStrategyFees.applyFees(token0, collected0, token1, collected1, fc);
     } catch (bytes memory reason) {
-      (,, uint256 pendingFee0, uint256 pendingFee1) = _positionAmountsSplit(posm, tokenId);
-      if (pendingFee0 != 0 || pendingFee1 != 0) {
+      if (_hasCollectableFeesForFailedCollect(posm, tokenId)) {
         assembly ("memory-safe") {
           revert(add(reason, 0x20), mload(reason))
         }
@@ -766,6 +765,38 @@ library SharedV4StrategyLib {
 
     fee0 = _feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity);
     fee1 = _feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
+  }
+
+  /// @dev The failed-collect fallback is only a gate for whether to re-revert a hook failure. Use a
+  ///      non-wrapping positive-delta check here so feeGrowthInside < feeGrowthInsideLast does not
+  ///      look like near-uint256.max pending fees and brick an otherwise zero-fee position. Normal
+  ///      valuation still uses `_feeOwed`'s modulo arithmetic to mirror V4 fee accounting.
+  function _hasCollectableFeesForFailedCollect(address posm, uint256 tokenId) private view returns (bool) {
+    IPositionManager pm = IPositionManager(posm);
+    (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
+    int24 tickLower = positionInfo.tickLower();
+    int24 tickUpper = positionInfo.tickUpper();
+
+    IPoolManager manager = pm.poolManager();
+    PoolId poolId = poolKey.toId();
+    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) =
+      manager.getPositionInfo(poolId, address(posm), tickLower, tickUpper, bytes32(tokenId));
+    if (liquidity == 0) return false;
+
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
+      manager.getFeeGrowthInside(poolId, tickLower, tickUpper);
+
+    return _hasPositiveCollectFeeDelta(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity)
+      || _hasPositiveCollectFeeDelta(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
+  }
+
+  function _hasPositiveCollectFeeDelta(
+    uint256 feeGrowthInsideX128,
+    uint256 feeGrowthInsideLastX128,
+    uint256 liquidity
+  ) private pure returns (bool) {
+    if (liquidity == 0 || feeGrowthInsideX128 <= feeGrowthInsideLastX128) return false;
+    return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128) != 0;
   }
 
   /// @dev F7-parity with SharedV3Strategy: the fee-growth subtraction wraps by design (matches Uniswap V4),

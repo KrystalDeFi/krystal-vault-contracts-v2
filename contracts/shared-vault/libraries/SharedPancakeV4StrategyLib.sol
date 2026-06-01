@@ -256,8 +256,7 @@ library SharedPancakeV4StrategyLib {
       if (collected0 == 0 && collected1 == 0) return;
       SharedStrategyFees.applyFees(token0, collected0, token1, collected1, fc);
     } catch (bytes memory reason) {
-      (, , uint256 pendingFee0, uint256 pendingFee1) = _positionAmountsSplit(posm, tokenId);
-      if (pendingFee0 != 0 || pendingFee1 != 0) {
+      if (_hasCollectableFeesForFailedCollect(posm, tokenId)) {
         assembly ("memory-safe") {
           revert(add(reason, 0x20), mload(reason))
         }
@@ -851,6 +850,46 @@ library SharedPancakeV4StrategyLib {
     );
     fees0 = _feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity);
     fees1 = _feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
+  }
+
+  /// @dev The failed-collect fallback is only a gate for whether to re-revert a hook failure. Use a
+  ///      non-wrapping positive-delta check here so feeGrowthInside < feeGrowthInsideLast does not
+  ///      look like near-uint256.max pending fees and brick an otherwise zero-fee position. Normal
+  ///      valuation still uses `_feeOwed`'s modulo arithmetic to mirror Pancake CL fee accounting.
+  function _hasCollectableFeesForFailedCollect(address posm, uint256 tokenId) private view returns (bool) {
+    ICLPositionManager pm = ICLPositionManager(posm);
+    (PoolKey memory poolKey, CLPositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
+    if (CLPositionInfo.unwrap(positionInfo) == 0) return false;
+
+    (, , , uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, ) = pm.positions(
+      tokenId
+    );
+    if (liquidity == 0) return false;
+
+    int24 tickLower = positionInfo.tickLower();
+    int24 tickUpper = positionInfo.tickUpper();
+    ICLPoolManager manager = ICLPoolManager(address(poolKey.poolManager));
+    PoolId poolId = poolKey.toId();
+    (, int24 tickCurrent, , ) = manager.getSlot0(poolId);
+    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+      manager,
+      poolId,
+      tickLower,
+      tickUpper,
+      tickCurrent
+    );
+
+    return _hasPositiveCollectFeeDelta(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity)
+      || _hasPositiveCollectFeeDelta(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
+  }
+
+  function _hasPositiveCollectFeeDelta(
+    uint256 feeGrowthInsideX128,
+    uint256 feeGrowthInsideLastX128,
+    uint256 liquidity
+  ) private pure returns (bool) {
+    if (liquidity == 0 || feeGrowthInsideX128 <= feeGrowthInsideLastX128) return false;
+    return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128) != 0;
   }
 
   /// @dev Reconstructs fee-growth-inside [tickLower, tickUpper] from the pool's global fee growth and
