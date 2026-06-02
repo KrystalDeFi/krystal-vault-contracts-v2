@@ -141,12 +141,6 @@ _Withdraw exits collect generated LP fees through collectFees() before the vault
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
 |  | uint16 |  |
 
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
-
 ### getPositionAmounts
 
 ```solidity
@@ -216,9 +210,9 @@ _Returns the token amounts computed purely from the position's in-range liquidit
      (a) consume far less on the "off-ratio" side, leaving dust idle, or
      (b) revert the slippage check when `amount*Min > 0` because the actually consumed amount on the
          binding side falls below the `amount*Min` derived from the desired value.
-     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups,
-     treating uncollected fees as idle vault balance for share-pricing purposes (they are still counted
-     in `getPositionAmounts`, which remains the total-value view).
+     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups.
+     Uncollected fees are treated as idle-like value for share pricing, but only net of platform and
+     vault-owner performance fees; `getPositionAmounts` remains the gross position-value view.
 
      Strategies that cannot meaningfully increase liquidity (e.g. staked / locked positions whose
      `depositProportional` returns silently) MAY return (0, 0); the caller skips the LP top-up and

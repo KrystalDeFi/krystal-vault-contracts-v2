@@ -32,3 +32,19 @@ function minDepositAmounts(uint256 currentTotalSupply, uint256[4] totalBalances,
 
 Returns the minimum deposit amounts required by the current vault ratio.
 
+### netAfterPerformanceFees
+
+```solidity
+function netAfterPerformanceFees(uint256 owed, uint16 platformBps, uint16 ownerBps) internal pure returns (uint256)
+```
+
+_Net LP-fee amount retained by shareholders after platform + owner performance fees.
+     Mirrors `SharedStrategyFees.applyFees` EXACTLY so `previewWithdraw` ties out with the
+     on-chain collected amount to the wei: each fee is computed from the ORIGINAL `owed`
+     amount with floor division (NOT from a running remainder) and applied SEQUENTIALLY
+     (platform first, then owner), each clamped to the remaining balance. Withdraw exits never
+     charge the gas fee, so it is omitted. A single combined-bps division
+     (`owed * (10000 - platform - owner) / 10000`) rounds differently and under-reports the
+     net by up to 1 wei per token per position, which previously made `previewWithdraw`
+     a slightly low slippage floor versus the actual withdrawal._
+

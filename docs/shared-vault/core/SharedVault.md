@@ -171,7 +171,7 @@ function deposit(uint256[4] amounts, uint16 slippageBps) external payable return
 
 Deposit tokens proportionally and receive shares.
 
-_Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
+_Share ratio is based on TOTAL shareholder-owned balances (idle + LP principal + net LP fees).
      Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
      Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
      minting shares so a malicious depositor cannot receive a refund callback between balance
@@ -280,10 +280,11 @@ _Push proportional slices into tracked LP positions; no-op on first deposit or e
      by the current tick, so mixing fee balances (whose ratio is set by historical swap flow, not
      the range) into the desired amounts would either leak into idle silently (slippageBps == 0)
      or revert via `amount*Min` (slippageBps > 0). Uncollected fees are therefore effectively
-     treated as idle: they still count toward `_getTotalBalances` for share pricing, but they do
-     not participate in the LP top-up. The depositor's proportional share of those fees remains
-     in the vault as a slightly higher idle reserve (or gets collected and proportionally returned
-     on the next `exitProportional`).
+     treated as idle: their shareholder-owned value still counts toward `_getTotalBalances` for
+     share pricing, net of platform/vault-owner performance fees, but they do not participate in
+     the LP top-up. The depositor's proportional share of those net fees remains in the vault as
+     a slightly higher idle reserve (or gets collected and proportionally returned on the next
+     `exitProportional`).
 
      **Single binding share**: minimum-precision floors can intentionally make one token's pulled
      amount larger than its proportional share. For in-range positions, clamp the LP top-up to the
@@ -386,6 +387,8 @@ function getIdleBalances() external view returns (uint256[4])
 ```solidity
 function getTotalBalances() external view returns (uint256[4])
 ```
+
+Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
 
 ### getPositionCount
 
@@ -608,7 +611,19 @@ function _getIdleBalances() internal view returns (uint256[4] balances)
 function _getTotalBalances() internal view returns (uint256[4] balances)
 ```
 
-Total balances including idle tokens + LP position amounts valued by strategies
+Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
+
+### _performanceFeeBps
+
+```solidity
+function _performanceFeeBps() internal view returns (uint16 platformBps, uint16 ownerBps)
+```
+
+### _netPositionAmount
+
+```solidity
+function _netPositionAmount(uint256 total, uint256 principal, uint16 platformBps, uint16 ownerBps) internal pure returns (uint256)
+```
 
 ### receive
 

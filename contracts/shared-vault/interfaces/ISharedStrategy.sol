@@ -37,8 +37,8 @@ interface ISharedStrategy {
   /// @param totalShares Total vault share supply (snapshot before burn)
   /// @param minAmount0 Minimum token0 to receive (slippage guard)
   /// @param minAmount1 Minimum token1 to receive (slippage guard)
-  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from the vault.
-  /// @return changes Empty if partial exit; single removal entry if fully exited
+  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from
+  /// the vault. @return changes Empty if partial exit; single removal entry if fully exited
   function exitProportional(
     address nfpm,
     uint256 tokenId,
@@ -61,13 +61,8 @@ interface ISharedStrategy {
   /// @param amount1 Max amount of token1 to add
   /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%). Applied as
   ///        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor.
-  function depositProportional(
-    address nfpm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16 slippageBps
-  ) external;
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
+    external;
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
   /// @dev Called via regular CALL (not staticcall) from non-view vault functions such as deposit().
@@ -96,7 +91,8 @@ interface ISharedStrategy {
   ///      fee mechanism.
   /// @param nfpm NFT Position Manager (or V4 PositionManager) address
   /// @param tokenId Position NFT ID
-  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from the vault.
+  /// @param vaultOwnerFeeBasisPoint Deprecated compatibility argument. Implementations must read vault-owner bps from
+  /// the vault.
   function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external;
 
   /// @notice Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.
@@ -108,9 +104,9 @@ interface ISharedStrategy {
   ///      (a) consume far less on the "off-ratio" side, leaving dust idle, or
   ///      (b) revert the slippage check when `amount*Min > 0` because the actually consumed amount on the
   ///          binding side falls below the `amount*Min` derived from the desired value.
-  ///      SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups,
-  ///      treating uncollected fees as idle vault balance for share-pricing purposes (they are still counted
-  ///      in `getPositionAmounts`, which remains the total-value view).
+  ///      SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups.
+  ///      Uncollected fees are treated as idle-like value for share pricing, but only net of platform and
+  ///      vault-owner performance fees; `getPositionAmounts` remains the gross position-value view.
   ///
   ///      Strategies that cannot meaningfully increase liquidity (e.g. staked / locked positions whose
   ///      `depositProportional` returns silently) MAY return (0, 0); the caller skips the LP top-up and
@@ -119,8 +115,8 @@ interface ISharedStrategy {
   /// @param tokenId Position NFT ID
   /// @return amount0 Principal-only amount of token0 (excludes uncollected fees/rewards)
   /// @return amount1 Principal-only amount of token1 (excludes uncollected fees/rewards)
-  function getPositionPrincipalAmounts(
-    address nfpm,
-    uint256 tokenId
-  ) external view returns (uint256 amount0, uint256 amount1);
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    returns (uint256 amount0, uint256 amount1);
 }

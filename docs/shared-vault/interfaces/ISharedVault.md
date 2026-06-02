@@ -206,6 +206,8 @@ function getIdleBalances() external view returns (uint256[4])
 function getTotalBalances() external view returns (uint256[4])
 ```
 
+Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
+
 ### getPositionCount
 
 ```solidity

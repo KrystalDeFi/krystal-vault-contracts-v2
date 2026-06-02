@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -68,7 +69,8 @@ library SharedV4StrategyLib {
     (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
     uint160 sqrtLower = TickMath.getSqrtPriceAtTick(positionInfo.tickLower());
     uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(positionInfo.tickUpper());
-    uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, amount0, amount1);
+    uint128 liquidityToAdd =
+      LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLower, sqrtUpper, amount0, amount1);
     if (liquidityToAdd == 0) return;
 
     // Quote the token amounts this liquidity should consume at the current price; the real per-token
@@ -255,6 +257,7 @@ library SharedV4StrategyLib {
     ISharedV4Utils.SwapAndIncreaseParams memory params
   ) private {
     require(params.posm == posm && params.tokenId == tokenId, ISharedCommon.InvalidOperation());
+    require(IERC721(posm).ownerOf(tokenId) == address(this), ISharedStrategy.InvalidPoolTokens());
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     address token0 = Currency.unwrap(poolKey.currency0);
@@ -323,15 +326,7 @@ library SharedV4StrategyLib {
       // the whole operation reverts in `_mintV4WithAmounts`. A separate decrease-side floor would
       // be redundant, so `decreaseAmount0Min/1Min` were removed from `AdjustRangeParams`.
       (uint256 principal0, uint256 principal1) = _decreaseV4Principal(
-        posm,
-        poolKey,
-        tokenId,
-        liquidity,
-        0,
-        0,
-        "",
-        adjustParams.gasFeeX64,
-        adjustParams.mintParams.deadline
+        posm, poolKey, tokenId, liquidity, 0, 0, "", adjustParams.gasFeeX64, adjustParams.mintParams.deadline
       );
       amount0 += principal0;
       amount1 += principal1;
@@ -793,11 +788,11 @@ library SharedV4StrategyLib {
       || _hasPositiveCollectFeeDelta(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
   }
 
-  function _hasPositiveCollectFeeDelta(
-    uint256 feeGrowthInsideX128,
-    uint256 feeGrowthInsideLastX128,
-    uint256 liquidity
-  ) private pure returns (bool) {
+  function _hasPositiveCollectFeeDelta(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
+    private
+    pure
+    returns (bool)
+  {
     if (liquidity == 0 || feeGrowthInsideX128 <= feeGrowthInsideLastX128) return false;
     return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128) != 0;
   }
@@ -858,9 +853,7 @@ library SharedV4StrategyLib {
     for (uint256 i; i < inputTokens.length;) {
       uint256 amount = inputTokens[i].amount;
       address token = Currency.unwrap(inputTokens[i].token);
-      if (amount > 0 && gasFeeX64 > 0) {
-        amount -= _applySingleTokenGasFee(token, amount, gasFeeX64);
-      }
+      if (amount > 0 && gasFeeX64 > 0) amount -= _applySingleTokenGasFee(token, amount, gasFeeX64);
       if (inputTokens[i].token == currency0) amount0 += amount;
       else if (inputTokens[i].token == currency1) amount1 += amount;
       unchecked {
@@ -869,10 +862,7 @@ library SharedV4StrategyLib {
     }
   }
 
-  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64)
-    private
-    returns (uint256 gasFee)
-  {
+  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64) private returns (uint256 gasFee) {
     ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 0,
       vaultOwner: address(0),

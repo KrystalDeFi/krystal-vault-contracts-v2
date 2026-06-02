@@ -67,11 +67,10 @@ interface ISharedVault is ISharedCommon {
 
   /// @notice Deposit tokens from the caller and mint shares to `receiver`.
   /// @dev Preserves gateway/account attribution while the caller supplies the tokens.
-  function deposit(
-    uint256[4] calldata amounts,
-    uint16 slippageBps,
-    address receiver
-  ) external payable returns (uint256 shares);
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps, address receiver)
+    external
+    payable
+    returns (uint256 shares);
 
   /// @notice Burn shares and withdraw proportional tokens.
   ///         If the vault has active LP positions, each strategy exits its proportional share
@@ -83,22 +82,17 @@ interface ISharedVault is ISharedCommon {
   ///        the aggregate `amounts[i]` and is caught here. Derive values from
   ///        `previewWithdraw()` minus acceptable slippage.
   /// @param unwrap If true, any WETH amount is unwrapped to native ETH before sending.
-  function withdraw(
-    uint256 shares,
-    uint256[4] calldata minAmounts,
-    bool unwrap
-  ) external returns (uint256[4] memory amounts);
+  function withdraw(uint256 shares, uint256[4] calldata minAmounts, bool unwrap)
+    external
+    returns (uint256[4] memory amounts);
 
   /// @notice Burn `account` shares and withdraw proportional tokens to the caller.
   /// @dev If caller is not `account`, the caller must have sufficient share allowance.
   ///      `account` only selects whose shares are burned; proceeds are sent to `msg.sender`, not
   ///      to `account`.
-  function withdraw(
-    uint256 shares,
-    uint256[4] calldata minAmounts,
-    bool unwrap,
-    address account
-  ) external returns (uint256[4] memory amounts);
+  function withdraw(uint256 shares, uint256[4] calldata minAmounts, bool unwrap, address account)
+    external
+    returns (uint256[4] memory amounts);
 
   // --- Execute (LP operations + swaps, onlyAuthorized) ---
 
@@ -113,13 +107,15 @@ interface ISharedVault is ISharedCommon {
 
   function getIdleBalances() external view returns (uint256[4] memory);
 
+  /// @notice Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
   function getTotalBalances() external view returns (uint256[4] memory);
 
   function getPositionCount() external view returns (uint256);
 
-  function getPosition(
-    uint256 index
-  ) external view returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1);
+  function getPosition(uint256 index)
+    external
+    view
+    returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1);
 
   function previewDeposit(uint256[4] calldata amounts) external view returns (uint256 shares);
 
