@@ -34,6 +34,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error EthTransferFailed();
   error InsufficientWithdrawBalance(uint256 swapIndex);
   error IdenticalSwapTokens(uint256 index);
+  error TooManySwaps(uint256 count);
 
   // ==================== Events ====================
 
@@ -74,6 +75,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     ///         For native ETH input, send `msg.value`; the gateway wraps it to WETH and any
     ///         inputs[] entry for WETH is skipped (the wrapped balance is the WETH supply).
     InputToken[] inputs;
+    /// @notice Optional swap pipeline. Limited to `MAX_SWAPS` entries.
     SwapParams[] swaps;
     /// @notice Per vault-token slot: minimum balance the gateway must hold after swaps (slippage floor).
     ///         If actual balance is below this for a configured vault token, the call reverts before `deposit`.
@@ -89,6 +91,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     uint256 shares;
     uint256[4] minWithdrawAmounts; // slippage guard for vault.withdraw()
     bool unwrapOnWithdraw; // unwrap WETH to ETH during vault.withdraw()
+    /// @notice Optional swap pipeline. Limited to `MAX_SWAPS` entries.
     SwapParams[] swaps;
     address[] sweepTokens; // tokens to return leftovers for
   }
@@ -101,6 +104,9 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   }
 
   // ==================== State ====================
+
+  /// @notice Practical cap for one gateway swap pipeline. Bounds snapshot allocation and dedup loop cost.
+  uint256 public constant MAX_SWAPS = 100;
 
   address public swapRouter;
   address public weth;
@@ -152,6 +158,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function swapAndDeposit(
     SwapAndDepositParams calldata params
   ) external payable nonReentrant whenNotPaused returns (uint256 shares) {
+    _requireSwapBatchWithinLimit(params.swaps.length);
     address[4] memory vaultTokens = params.vault.getTokens();
     BalanceSnapshot memory snapshot = _snapshotSwapAndDeposit(params, vaultTokens);
 
@@ -192,6 +199,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   function withdrawAndSwap(
     WithdrawAndSwapParams calldata params
   ) external nonReentrant whenNotPaused returns (uint256[4] memory vaultAmounts) {
+    _requireSwapBatchWithinLimit(params.swaps.length);
     address[4] memory vaultTokens = params.vault.getTokens();
     BalanceSnapshot memory snapshot = _snapshotWithdrawAndSwap(params, vaultTokens);
 
@@ -206,6 +214,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   }
 
   // ==================== Internal: Token Handling ====================
+
+  function _requireSwapBatchWithinLimit(uint256 swapCount) internal pure {
+    if (swapCount > MAX_SWAPS) revert TooManySwaps(swapCount);
+  }
 
   function _snapshotSwapAndDeposit(
     SwapAndDepositParams calldata params,

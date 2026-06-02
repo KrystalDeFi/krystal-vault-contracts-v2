@@ -234,6 +234,55 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "new V4 liquidity");
   }
 
+  function test_swapAndMint_rejectsPoolKeyNotInitializedInPositionManagerPoolManager() public {
+    PoolKey memory uninitializedKey = PoolKey({
+      currency0: poolKey.currency0,
+      currency1: poolKey.currency1,
+      fee: LP_FEE + 1,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: uninitializedKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData = abi.encode(
+      BASE_V4_POSM,
+      uint256(0),
+      paramsBytes,
+      uint256(0),
+      new address[](0),
+      new uint256[](0)
+    );
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+  }
+
   function test_swapAndIncrease_addsLiquidityToTrackedPositionWithRealV4PositionManager() public {
     uint128 liquidityBefore = posm.getPositionLiquidity(tokenId);
     uint256 countBefore = vault.getPositionCount();

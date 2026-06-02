@@ -63,6 +63,12 @@ error InsufficientWithdrawBalance(uint256 swapIndex)
 error IdenticalSwapTokens(uint256 index)
 ```
 
+### TooManySwaps
+
+```solidity
+error TooManySwaps(uint256 count)
+```
+
 ### SwapAndDeposit
 
 ```solidity
@@ -148,6 +154,14 @@ struct BalanceSnapshot {
 }
 ```
 
+### MAX_SWAPS
+
+```solidity
+uint256 MAX_SWAPS
+```
+
+Practical cap for one gateway swap pipeline. Bounds snapshot allocation and dedup loop cost.
+
 ### swapRouter
 
 ```solidity
@@ -210,6 +224,12 @@ Burn shares, receive vault tokens, execute swaps to desired output, return lefto
 
 _Swap entries with empty `swapData` are skipped only when `amountOutMin == 0`. A nonzero
      `amountOutMin` is enforced even when the resolved full-balance `amountIn` is zero._
+
+### _requireSwapBatchWithinLimit
+
+```solidity
+function _requireSwapBatchWithinLimit(uint256 swapCount) internal pure
+```
 
 ### _snapshotSwapAndDeposit
 
@@ -312,7 +332,7 @@ function _executeSingleSwap(struct SharedVaultGateway.SwapParams swap, uint256 i
 ### _buildDepositAmounts
 
 ```solidity
-function _buildDepositAmounts(address[4] vaultTokens, uint256[4] minDepositAmounts, struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256[4] amounts)
+function _buildDepositAmounts(address[4] vaultTokens, uint256[4] vaultTotalBalances, uint256[4] minDepositAmounts, struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256[4] amounts)
 ```
 
 _Use per-call gateway balance deltas as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a

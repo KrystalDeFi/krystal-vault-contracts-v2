@@ -464,6 +464,8 @@ library SharedV4StrategyLib {
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     IPositionManager pm = IPositionManager(posm);
     (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
+    // Uniswap V4 PoolKey has no manager field; the POSM's immutable manager is authoritative here.
+    require(sqrtPriceX96 != 0, ISharedCommon.InvalidOperation());
     uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
       sqrtPriceX96,
       TickMath.getSqrtPriceAtTick(params.tickLower),

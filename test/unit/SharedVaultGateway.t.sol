@@ -368,6 +368,40 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.swapAndDeposit(params);
   }
 
+  function test_swapAndDeposit_revertsWhenSwapBatchExceedsPracticalBound() public {
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](gateway.MAX_SWAPS() + 1);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: new SharedVaultGateway.InputToken[](0),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.TooManySwaps.selector, swaps.length));
+    gateway.swapAndDeposit(params);
+  }
+
+  function test_withdrawAndSwap_revertsWhenSwapBatchExceedsPracticalBound() public {
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](gateway.MAX_SWAPS() + 1);
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: 0,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.TooManySwaps.selector, swaps.length));
+    gateway.withdrawAndSwap(params);
+  }
+
   function _setupEightDecimalGatewayVault() internal returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB) {
     v = new SharedVault();
     tA = new GatewayMockERC20("Gateway Eight A", "GEA", 18);
