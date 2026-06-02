@@ -69,6 +69,10 @@ contract SharedConfigManagerTest is TestCommon {
     assertEq(configManager.platformFeeBasisPoint(), 0);
   }
 
+  function test_initialize_defaultMaxGasFeeX64IsThirtyPercent() public view {
+    assertEq(configManager.maxGasFeeX64(), uint64((uint256(3) << 64) / 10));
+  }
+
   function test_initialize_defaultVaultPausedIsFalse() public view {
     assertFalse(configManager.isVaultPaused());
   }
@@ -410,6 +414,35 @@ contract SharedConfigManagerTest is TestCommon {
     vm.prank(NON_OWNER);
     vm.expectRevert();
     configManager.setPlatformFeeBasisPoint(500);
+  }
+
+  // ========== setMaxGasFeeX64 ==========
+
+  function test_setMaxGasFeeX64_setsValue() public {
+    vm.prank(OWNER);
+    configManager.setMaxGasFeeX64(uint64(1 << 62));
+
+    assertEq(configManager.maxGasFeeX64(), uint64(1 << 62));
+  }
+
+  function test_setMaxGasFeeX64_allowsMaxValue() public {
+    vm.prank(OWNER);
+    configManager.setMaxGasFeeX64(type(uint64).max);
+
+    assertEq(configManager.maxGasFeeX64(), type(uint64).max);
+  }
+
+  function test_setMaxGasFeeX64_emitsEvent() public {
+    vm.prank(OWNER);
+    vm.expectEmit(false, false, false, true, address(configManager));
+    emit ISharedConfigManager.MaxGasFeeX64Updated(uint64(1 << 61));
+    configManager.setMaxGasFeeX64(uint64(1 << 61));
+  }
+
+  function test_setMaxGasFeeX64_revertsForNonOwner() public {
+    vm.prank(NON_OWNER);
+    vm.expectRevert();
+    configManager.setMaxGasFeeX64(1);
   }
 
   // ========== setMaxPositions ==========

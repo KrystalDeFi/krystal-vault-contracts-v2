@@ -521,8 +521,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   // Mirrors the Uniswap V4 regression in Integration.SharedVault.V4.t.sol. Before the fix in
   // `SharedPancakeV4StrategyLib._validateV4InputTokens`, an authorized executor could attach a
   // non-pool vault token inside `SwapAndMintParams.inputTokens` with a nonzero `gasFeeX64` and
-  // have `_takeInputGasFeesAndGetPoolAmounts` send `amount * gasFeeX64 / Q64` of that token to
-  // `msg.sender` before the per-entry currency check — the remainder then dropped silently from
+  // have `_takeInputGasFeesAndGetPoolAmounts` skim `amount * gasFeeX64 / Q64` of that token before
+  // the per-entry currency check — the remainder then dropped silently from
   // the LP accounting. After the fix, every positive-amount input must match `currency0` or
   // `currency1`, so the path reverts with `InvalidPoolTokens()` before any fee transfer.
   // ===========================================================================

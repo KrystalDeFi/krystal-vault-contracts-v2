@@ -11,6 +11,7 @@ interface ISharedConfigManager {
   event VaultPausedUpdated(bool isVaultPaused);
   event MaxPositionsUpdated(uint16 maxPositions);
   event MinTokenPrecisionUpdated(uint8 precision);
+  event MaxGasFeeX64Updated(uint64 maxGasFeeX64);
 
   function isVaultPaused() external view returns (bool);
 
@@ -20,6 +21,13 @@ interface ISharedConfigManager {
   function platformFeeBasisPoint() external view returns (uint16);
 
   function setPlatformFeeBasisPoint(uint16 basisPoints) external;
+
+  /// @notice Maximum executor gas-fee fraction accepted from shared strategy calldata.
+  /// @dev Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just below 100%.
+  ///      Default is 30%; the config owner can lower it to 0 to disable discretionary strategy gas fees.
+  function maxGasFeeX64() external view returns (uint64);
+
+  function setMaxGasFeeX64(uint64 maxGasFeeX64) external;
 
   // Target whitelist (for strategy delegatecalls and swap aggregator calls)
   function isWhitelistedTarget(address target) external view returns (bool);

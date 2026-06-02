@@ -42,6 +42,10 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    sharedV4SwapPipeline: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedVault: {
       enabled: true,
       autoVerifyContract: true,

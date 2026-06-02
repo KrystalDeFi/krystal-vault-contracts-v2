@@ -31,6 +31,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidGasFeeX64",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

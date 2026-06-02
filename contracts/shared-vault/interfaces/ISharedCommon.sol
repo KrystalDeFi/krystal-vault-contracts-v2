@@ -45,6 +45,7 @@ interface ISharedCommon {
   error LengthMismatch();
   error InvalidVaultOwnerFeeBasisPoint();
   error InvalidFeeBasisPoint();
+  error InvalidGasFeeX64();
   /// @notice NFPM must implement `IERC721Enumerable` (`tokenOfOwnerByIndex`) to locate the new token after `CHANGE_RANGE`.
   error NfpmEnumerableRequired();
   error InvalidNfpm(address nfpm);

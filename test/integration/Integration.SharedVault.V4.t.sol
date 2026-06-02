@@ -578,11 +578,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   //
   // Before the fix in `_validateV4InputTokens`, an authorized executor could attach a
   // non-pool vault token (e.g. DAI on a WETH/USDC mint) inside `SwapAndMintParams.inputTokens`
-  // with a nonzero `gasFeeX64`. `_takeInputGasFeesAndGetPoolAmounts` transferred
-  // `amount * gasFeeX64 / Q64` of that token to `msg.sender` BEFORE checking whether it
-  // matched `currency0` or `currency1`; the unmatched amount was then silently dropped from
-  // the LP accounting. The net effect: msg.sender pocketed up to ~100% of any specified
-  // non-pool vault token as a "gas fee" without that token being used by the LP action.
+  // with a nonzero `gasFeeX64`. `_takeInputGasFeesAndGetPoolAmounts` skimmed
+  // `amount * gasFeeX64 / Q64` of that token BEFORE checking whether it matched `currency0`
+  // or `currency1`; the unmatched amount was then silently dropped from the LP accounting.
   //
   // After the fix, every positive-amount `inputTokens[i]` must equal `currency0` or
   // `currency1`, so the path reverts with `InvalidPoolTokens()` long before the fee
@@ -594,7 +592,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     SharedVault threeTokenVault = _deployThreeTokenV4Vault();
 
     // Pre-seed the bogus non-pool vault token in the new vault. This is the token the pre-fix
-    // exploit would have siphoned out via the fake "gas fee" route. The amount is intentionally
+    // exploit would have skimmed via the fake "gas fee" route. The amount is intentionally
     // large so that the siphoned share (at `gasFeeX64 ≈ Q64`) would be obviously material.
     hopToken.mint(address(threeTokenVault), 1 ether);
 

@@ -7,6 +7,8 @@ import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedCommon.sol";
 
 contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
+  uint64 internal constant DEFAULT_MAX_GAS_FEE_X64 = uint64((uint256(3) << 64) / 10);
+
   mapping(address => bool) public whitelistedTargets;
   mapping(address => bool) public whitelistedCallers;
   mapping(address => bool) public whitelistedNfpms;
@@ -19,6 +21,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   /// @inheritdoc ISharedConfigManager
   uint8 public override minTokenPrecision;
+  uint64 public override maxGasFeeX64;
 
   /// @notice One-time initializer. Argument order is intentional; pass-by-position callers must
   ///         match this exact sequence to avoid silently misrouting values:
@@ -43,6 +46,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     __Ownable_init(_owner);
     maxPositions = 20;
     minTokenPrecision = 5;
+    maxGasFeeX64 = DEFAULT_MAX_GAS_FEE_X64;
     platformFeeBasisPoint = _platformFeeBasisPoint;
 
     uint256 length = _whitelistTargets.length;
@@ -162,6 +166,11 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     require(basisPoints <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     platformFeeBasisPoint = basisPoints;
     emit PlatformFeeBasisPointUpdated(basisPoints);
+  }
+
+  function setMaxGasFeeX64(uint64 _maxGasFeeX64) external override onlyOwner {
+    maxGasFeeX64 = _maxGasFeeX64;
+    emit MaxGasFeeX64Updated(_maxGasFeeX64);
   }
 
   function setMaxPositions(uint16 _maxPositions) external override onlyOwner {

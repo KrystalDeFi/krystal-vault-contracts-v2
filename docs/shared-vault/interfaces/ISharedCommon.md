@@ -155,6 +155,12 @@ error InvalidVaultOwnerFeeBasisPoint()
 error InvalidFeeBasisPoint()
 ```
 
+### InvalidGasFeeX64
+
+```solidity
+error InvalidGasFeeX64()
+```
+
 ### NfpmEnumerableRequired
 
 ```solidity

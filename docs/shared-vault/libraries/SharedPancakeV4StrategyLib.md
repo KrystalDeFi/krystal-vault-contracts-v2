@@ -1,43 +1,5 @@
 # Solidity API
 
-## PancakeV4Actions
-
-### INCREASE_LIQUIDITY
-
-```solidity
-uint8 INCREASE_LIQUIDITY
-```
-
-### DECREASE_LIQUIDITY
-
-```solidity
-uint8 DECREASE_LIQUIDITY
-```
-
-### MINT_POSITION
-
-```solidity
-uint8 MINT_POSITION
-```
-
-### SETTLE_PAIR
-
-```solidity
-uint8 SETTLE_PAIR
-```
-
-### TAKE_PAIR
-
-```solidity
-uint8 TAKE_PAIR
-```
-
-### CLOSE_CURRENCY
-
-```solidity
-uint8 CLOSE_CURRENCY
-```
-
 ## SharedPancakeV4StrategyLib
 
 ### depositProportional

@@ -613,18 +613,6 @@ function _getTotalBalances() internal view returns (uint256[4] balances)
 
 Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
 
-### _performanceFeeBps
-
-```solidity
-function _performanceFeeBps() internal view returns (uint16 platformBps, uint16 ownerBps)
-```
-
-### _netPositionAmount
-
-```solidity
-function _netPositionAmount(uint256 total, uint256 principal, uint16 platformBps, uint16 ownerBps) internal pure returns (uint256)
-```
-
 ### receive
 
 ```solidity

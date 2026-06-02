@@ -79,6 +79,10 @@ export interface IConfigShared {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  sharedV4SwapPipeline?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   sharedVault?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;

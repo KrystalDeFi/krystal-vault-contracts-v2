@@ -3809,7 +3809,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenB.balanceOf(address(v)), 1900, "vault keeps tokenB net fees");
   }
 
-  function test_v4_execute_compound_collects_generated_fees_and_distributes_platform_owner_gas() public {
+  function test_v4_execute_compound_collects_generated_fees_and_routes_gas_to_fee_collector() public {
     MockV4PositionManager posm = new MockV4PositionManager(2);
     uint256 tokenId = 1;
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
@@ -3824,6 +3824,7 @@ contract SharedVaultTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
     cm.initialize(address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0));
+    cm.setMaxGasFeeX64(uint64(1 << 62));
 
     SharedVaultCollectHarness v = new SharedVaultCollectHarness();
     address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
@@ -3862,17 +3863,17 @@ contract SharedVaultTest is TestCommon {
     vm.expectEmit(true, true, true, true, address(v));
     emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenB), 100);
     vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenA), 250);
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenA), 250);
     vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenB), 500);
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenB), 500);
 
     vm.prank(VAULT_OWNER);
     v.executeWithStrategy(address(v4strat), stratData);
 
-    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 100, "platform tokenA fee");
-    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 200, "platform tokenB fee");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 300, "owner tokenA fee plus gas");
-    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 600, "owner tokenB fee plus gas");
+    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 350, "platform tokenA fee plus gas");
+    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 700, "platform tokenB fee plus gas");
+    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 50, "owner tokenA fee");
+    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 100, "owner tokenB fee");
     assertEq(tokenA.balanceOf(address(v)) - vaultABefore, 600, "vault keeps tokenA net generated fees");
     assertEq(tokenB.balanceOf(address(v)) - vaultBBefore, 1200, "vault keeps tokenB net generated fees");
   }
@@ -4078,7 +4079,7 @@ contract SharedVaultTest is TestCommon {
     v.execute(actions);
   }
 
-  function test_v4_execute_capsGasFeeToCollectedAmountAfterPlatformAndOwnerFees() public {
+  function test_v4_execute_revertsWhenGasFeeExceedsDefaultConfigCap() public {
     SharedConfigManager cm = new SharedConfigManager();
     MockV4PositionManager posm = new MockV4PositionManager(2);
     uint256 tokenId = 1;
@@ -4114,24 +4115,9 @@ contract SharedVaultTest is TestCommon {
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
-    uint256 platformBefore = tokenA.balanceOf(address(this));
-    uint256 ownerBefore = tokenA.balanceOf(VAULT_OWNER);
-    uint256 operatorBefore = tokenA.balanceOf(OPERATOR);
-
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.PLATFORM, address(this), address(tokenA), 100);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenA), 50);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, OPERATOR, address(tokenA), 850);
-
     vm.prank(OPERATOR);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
     v.executeWithStrategy(address(v4strat), stratData);
-
-    assertEq(tokenA.balanceOf(address(this)) - platformBefore, 100, "platform fee");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerBefore, 50, "owner fee");
-    assertEq(tokenA.balanceOf(OPERATOR) - operatorBefore, 850, "gas fee capped to remaining collected amount");
-    assertEq(tokenA.balanceOf(address(v)), 0, "all collected fees paid without over-transfer");
   }
 
   function test_pancake_v4_collectFees_emitsFeeCollected_for_platform_and_vault_owner() public {
@@ -4218,7 +4204,7 @@ contract SharedVaultTest is TestCommon {
       inputTokens: inputTokens,
       protocolFeeX64: 0,
       performanceFeeX64: 0,
-      gasFeeX64: uint64(1 << 63)
+      gasFeeX64: 0
     });
 
     bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
@@ -4228,14 +4214,6 @@ contract SharedVaultTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
-
-    uint256 ownerABefore = tokenA.balanceOf(VAULT_OWNER);
-    uint256 ownerBBefore = tokenB.balanceOf(VAULT_OWNER);
-
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenA), 0.5e18);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenB), 0.5e18);
 
     vm.prank(VAULT_OWNER);
     v.execute(actions);
@@ -4247,8 +4225,6 @@ contract SharedVaultTest is TestCommon {
     assertEq(tracked0, address(tokenA), "tracked token0");
     assertEq(tracked1, address(tokenB), "tracked token1");
     assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 0.5e18, "gas fee tokenA");
-    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 0.5e18, "gas fee tokenB");
   }
 
   function test_pancake_v4_execute_revertsWhenEmptySwapDataHasMinOut() public {

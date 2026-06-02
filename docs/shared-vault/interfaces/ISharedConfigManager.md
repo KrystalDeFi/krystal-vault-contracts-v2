@@ -56,6 +56,12 @@ event MaxPositionsUpdated(uint16 maxPositions)
 event MinTokenPrecisionUpdated(uint8 precision)
 ```
 
+### MaxGasFeeX64Updated
+
+```solidity
+event MaxGasFeeX64Updated(uint64 maxGasFeeX64)
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -80,6 +86,23 @@ Platform fee on LP performance collections (basis points), sent to `feeRecipient
 
 ```solidity
 function setPlatformFeeBasisPoint(uint16 basisPoints) external
+```
+
+### maxGasFeeX64
+
+```solidity
+function maxGasFeeX64() external view returns (uint64)
+```
+
+Maximum executor gas-fee fraction accepted from shared strategy calldata.
+
+_Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just below 100%.
+     Default is 30%; the config owner can lower it to 0 to disable discretionary strategy gas fees._
+
+### setMaxGasFeeX64
+
+```solidity
+function setMaxGasFeeX64(uint64 maxGasFeeX64) external
 ```
 
 ### isWhitelistedTarget
