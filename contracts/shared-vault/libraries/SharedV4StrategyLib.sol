@@ -200,6 +200,18 @@ library SharedV4StrategyLib {
     (amount0, amount1,,) = _positionAmountsSplit(posm, tokenId);
   }
 
+  function getPositionAmountsSplit(address posm, uint256 tokenId)
+    external
+    view
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    uint256 fees0;
+    uint256 fees1;
+    (principal0, principal1, fees0, fees1) = _positionAmountsSplit(posm, tokenId);
+    total0 = principal0 + fees0;
+    total1 = principal1 + fees1;
+  }
+
   function _collectFees(address posm, uint256 tokenId, ICommon.FeeConfig memory fc) private {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);

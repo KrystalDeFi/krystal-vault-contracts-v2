@@ -262,6 +262,14 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
     (amount0, amount1) = SharedPancakeV4StrategyLib.getPositionPrincipalAmounts(posm, tokenId);
   }
 
+  /// @inheritdoc ISharedStrategy
+  function getPositionAmountsSplit(
+    address posm,
+    uint256 tokenId
+  ) external view override returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) {
+    (total0, total1, principal0, principal1) = SharedPancakeV4StrategyLib.getPositionAmountsSplit(posm, tokenId);
+  }
+
   function _posmNftOwnedByVault(address posm, uint256 id) private view returns (bool) {
     try IERC721(posm).ownerOf(id) returns (address owner) {
       return owner == address(this);

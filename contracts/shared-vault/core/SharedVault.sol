@@ -1014,13 +1014,16 @@ contract SharedVault is
     for (uint256 p; p < posLen;) {
       Position memory pos = positions[p];
 
-      // Delegate valuation to the strategy that created the position
-      (uint256 amount0, uint256 amount1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+      uint256 amount0;
+      uint256 amount1;
       if (netFees) {
-        (uint256 principal0, uint256 principal1) =
-          ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(pos.nfpm, pos.tokenId);
-        amount0 = _netPositionAmount(amount0, principal0, platformBps, ownerBps);
-        amount1 = _netPositionAmount(amount1, principal1, platformBps, ownerBps);
+        (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+          ISharedStrategy(pos.strategy).getPositionAmountsSplit(pos.nfpm, pos.tokenId);
+        amount0 = _netPositionAmount(total0, principal0, platformBps, ownerBps);
+        amount1 = _netPositionAmount(total1, principal1, platformBps, ownerBps);
+      } else {
+        // Delegate valuation to the strategy that created the position.
+        (amount0, amount1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
       }
 
       // Map amounts back to vault token indices
@@ -1041,7 +1044,7 @@ contract SharedVault is
     platformBps = configManager.platformFeeBasisPoint();
     ownerBps = vaultOwnerFeeBasisPoint;
     if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
-      ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
+      ownerBps = uint16(10_000 - platformBps);
     }
   }
 

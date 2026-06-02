@@ -856,6 +856,18 @@ contract SharedV3Strategy is ISharedStrategy {
     (amount0, amount1, , ) = _positionAmountsSplit(nfpm, tokenId);
   }
 
+  /// @inheritdoc ISharedStrategy
+  function getPositionAmountsSplit(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) {
+    uint256 tokensOwed0;
+    uint256 tokensOwed1;
+    (principal0, principal1, tokensOwed0, tokensOwed1) = _positionAmountsSplit(nfpm, tokenId);
+    total0 = principal0 + tokensOwed0;
+    total1 = principal1 + tokensOwed1;
+  }
+
   /// @dev Splits a position's on-chain amounts into principal (from in-range liquidity at current price)
   ///      and uncollected fees (`tokensOwed*`). Returns (0, 0, 0, 0) for fully-zeroed positions to match
   ///      the short-circuit in `getPositionAmounts` and avoid an unnecessary pool `slot0` staticcall.

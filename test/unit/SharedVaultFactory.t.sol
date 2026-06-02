@@ -87,6 +87,15 @@ contract MockFactoryStrategy is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionAmountsSplit(address, uint256)
+    external
+    pure
+    override
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    return (0, 0, 0, 0);
+  }
+
   function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
     return MockNFPM(nfpm).getTokens(tokenId);
   }

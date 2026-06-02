@@ -223,6 +223,15 @@ contract ForkCwpTarget is ISharedStrategy {
     return (0, 0);
   }
 
+  function getPositionAmountsSplit(address, uint256)
+    external
+    pure
+    override
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    return (0, 0, 0, 0);
+  }
+
   function getPositionTokens(address, uint256) external view override returns (address, address) {
     return (token0, token1);
   }

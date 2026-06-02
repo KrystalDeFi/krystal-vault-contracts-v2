@@ -68,3 +68,9 @@ function getPositionAmounts(address posm, uint256 tokenId) external view returns
 function getPositionPrincipalAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
 ```
 
+### getPositionAmountsSplit
+
+```solidity
+function getPositionAmountsSplit(address posm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+```
+

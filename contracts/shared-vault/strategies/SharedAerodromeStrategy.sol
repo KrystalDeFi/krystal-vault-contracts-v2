@@ -801,6 +801,18 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     (amount0, amount1, , ) = _positionAmountsSplit(_nfpm, tokenId);
   }
 
+  /// @inheritdoc ISharedStrategy
+  function getPositionAmountsSplit(
+    address _nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) {
+    uint256 tokensOwed0;
+    uint256 tokensOwed1;
+    (principal0, principal1, tokensOwed0, tokensOwed1) = _positionAmountsSplit(_nfpm, tokenId);
+    total0 = principal0 + tokensOwed0;
+    total1 = principal1 + tokensOwed1;
+  }
+
   /// @dev See note on `SharedV3Strategy._positionAmountsSplit`. Identical semantics, adapted for the
   ///      Aerodrome tickSpacing-based pool lookup. Uses try/catch for positions() for the same reason:
   ///      burned or nonexistent NFTs must return (0,0,0,0) rather than reverting getPositionAmounts,

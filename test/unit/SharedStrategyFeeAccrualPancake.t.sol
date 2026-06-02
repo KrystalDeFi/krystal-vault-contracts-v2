@@ -190,6 +190,20 @@ contract SharedStrategyFeeAccrualPancakeTest is Test {
     assertGt(total1, principal1, "total exceeds principal because of pending fees");
   }
 
+  function test_pancake_getPositionAmountsSplit_matches_separate_valuations() public {
+    (SharedPancakeV4Strategy strategy, address nfpm) = _setup(FG_INSIDE0, FG_INSIDE1, 0, 0);
+
+    (uint256 splitTotal0, uint256 splitTotal1, uint256 splitPrincipal0, uint256 splitPrincipal1) =
+      strategy.getPositionAmountsSplit(nfpm, 1);
+    (uint256 total0, uint256 total1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(splitTotal0, total0, "split total0 matches gross valuation");
+    assertEq(splitTotal1, total1, "split total1 matches gross valuation");
+    assertEq(splitPrincipal0, principal0, "split principal0 matches principal valuation");
+    assertEq(splitPrincipal1, principal1, "split principal1 matches principal valuation");
+  }
+
   function test_pancake_getPositionAmounts_zero_pending_when_fgInsideLast_equals_current() public {
     // When the position's stored feeGrowthInsideLast equals the current inside growth, delta = 0.
     (SharedPancakeV4Strategy strategy, address nfpm) = _setup(FG_INSIDE0, FG_INSIDE1, FG_INSIDE0, FG_INSIDE1);
