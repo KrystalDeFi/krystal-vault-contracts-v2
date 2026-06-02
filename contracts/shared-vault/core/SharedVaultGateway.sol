@@ -159,7 +159,8 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _executeSwaps(params.swaps, snapshot);
 
-    uint256[4] memory depositAmounts = _buildDepositAmounts(vaultTokens, params.minDepositAmounts, snapshot);
+    uint256[4] memory depositAmounts =
+      _buildDepositAmounts(vaultTokens, params.vault.getTotalBalances(), params.minDepositAmounts, snapshot);
 
     _approveVaultTokens(vaultTokens, depositAmounts, address(params.vault));
 
@@ -395,11 +396,32 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   ///      post-swap slippage floor: revert if the call delta is below the minimum for that vault token slot.
   function _buildDepositAmounts(
     address[4] memory vaultTokens,
+    uint256[4] memory vaultTotalBalances,
     uint256[4] calldata minDepositAmounts,
     BalanceSnapshot memory snapshot
   ) internal view returns (uint256[4] memory amounts) {
+    bool hasExistingBalance;
+    for (uint256 i; i < 4; ) {
+      if (vaultTotalBalances[i] > 0) {
+        hasExistingBalance = true;
+        break;
+      }
+      unchecked {
+        i++;
+      }
+    }
+
     for (uint256 i; i < 4; ) {
       if (vaultTokens[i] != address(0)) {
+        // A live vault cannot accept deposits into a configured slot whose current ratio is zero.
+        // Leave that delta in the gateway so the normal sweep path returns it to the caller.
+        if (hasExistingBalance && vaultTotalBalances[i] == 0) {
+          if (minDepositAmounts[i] != 0) revert InsufficientPostSwapBalance(i);
+          unchecked {
+            i++;
+          }
+          continue;
+        }
         uint256 bal = _balanceDelta(snapshot, vaultTokens[i]);
         if (bal < minDepositAmounts[i]) revert InsufficientPostSwapBalance(i);
         amounts[i] = bal;

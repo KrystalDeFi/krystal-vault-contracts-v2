@@ -391,6 +391,33 @@ contract SharedVaultGatewayTest is TestCommon {
     );
   }
 
+  function _setupZeroBalanceSlotGatewayVault()
+    internal
+    returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB, GatewayMockERC20 tC)
+  {
+    v = new SharedVault();
+    tA = new GatewayMockERC20("Gateway Zero A", "GZA", 18);
+    tB = new GatewayMockERC20("Gateway Zero B", "GZB", 6);
+    tC = new GatewayMockERC20("Gateway Zero C", "GZC", 18);
+
+    tA.mint(address(v), 1e15);
+    tB.mint(address(v), 840_707);
+
+    address[4] memory vtokens = [address(tA), address(tB), address(tC), address(0)];
+    uint256[4] memory initAmounts = [uint256(1e15), uint256(840_707), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize(
+      "Gateway Zero Slot Vault",
+      vtokens,
+      initAmounts,
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      0
+    );
+  }
+
   // ==================== Initialization Tests ====================
 
   function test_initialize_success() public view {
@@ -1459,6 +1486,51 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(dustVault.balanceOf(ALICE), shares, "shares minted to Alice");
     assertEq(tB.balanceOf(address(dustVault)), 6521, "vault received 1_000 swapped units");
     assertEq(tokenX.balanceOf(address(gateway)), 0, "gateway has no tokenX residue");
+  }
+
+  function test_swapAndDeposit_returnsDustForConfiguredZeroBalanceSlot() public {
+    (SharedVault zeroVault, GatewayMockERC20 tA, GatewayMockERC20 tB, GatewayMockERC20 tC) =
+      _setupZeroBalanceSlotGatewayVault();
+
+    tA.mint(address(router), 1e15);
+    tB.mint(address(router), 840_707);
+    router.setRate(address(tC), address(tA), 1, 1);
+    router.setRate(address(tC), address(tB), 1, 1e9);
+
+    uint256 inputAmount = 1_840_707_000_000_001;
+    uint256 swapToA = 1e15;
+    uint256 swapToB = 840_707_000_000_000;
+    tC.mint(ALICE, inputAmount);
+    vm.prank(ALICE);
+    tC.approve(address(gateway), type(uint256).max);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](2);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tC), swapToA, address(tA), 1e15, _buildSwapCalldata(address(tC), address(tA), swapToA)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tC), swapToB, address(tB), 840_707, _buildSwapCalldata(address(tC), address(tB), swapToB)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(zeroVault)),
+      inputs: _inputs1(address(tC), inputAmount),
+      swaps: swaps,
+      minDepositAmounts: [uint256(1e15), uint256(840_707), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    assertGt(shares, 0, "shares minted");
+    assertEq(zeroVault.balanceOf(ALICE), shares, "shares minted to Alice");
+    assertEq(tA.balanceOf(address(zeroVault)), 2e15, "tokenA deposited");
+    assertEq(tB.balanceOf(address(zeroVault)), 1_681_414, "tokenB deposited");
+    assertEq(tC.balanceOf(address(zeroVault)), 0, "zero-balance slot remains empty");
+    assertEq(tC.balanceOf(ALICE), 1, "zero-ratio dust returned");
+    assertEq(tC.balanceOf(address(gateway)), 0, "gateway has no tokenC residue");
   }
 
   function test_withdrawAndSwap_forwardsBelowPrecisionFloorVaultDust() public {
