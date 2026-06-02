@@ -19,20 +19,11 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    privateAerodromeFarmingStrategy: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
     privateV3UtilsStrategy: {
       enabled: true,
       autoVerifyContract: true,
     },
-    privateV4UtilsStrategy: {
-      enabled: true,
-      autoVerifyContract: true,
-    },
-    v3UtilsAddress: "0x3A7e46212Ac7d61E44bb9bA926E3737Af5A65EC6",
-    v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+    v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
   },
 };
 
