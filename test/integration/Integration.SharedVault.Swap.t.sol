@@ -296,7 +296,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     actions[0] = ISharedVault.Action(address(swapRouter), actionData, ISharedCommon.CallType.CALL);
 
     vm.prank(vaultOwner);
-    vm.expectRevert(ISharedCommon.SwapFailed.selector);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.SwapFailed.selector, uint256(0)));
     vault.execute(actions);
   }
 

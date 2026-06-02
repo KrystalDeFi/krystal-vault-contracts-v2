@@ -34,7 +34,7 @@ interface ISharedCommon {
   error InvalidStrategy(address strategy);
   error StrategyCallFailed();
   error TransferFailed();
-  error SwapFailed();
+  error SwapFailed(uint256 index);
   error InsufficientShares();
   error InsufficientOutput();
   error NoTokensConfigured();

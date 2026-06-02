@@ -3136,7 +3136,7 @@ contract SharedVaultTest is TestCommon {
     vm.deal(address(vault), 1 ether);
 
     vm.prank(VAULT_OWNER);
-    vm.expectRevert(ISharedCommon.SwapFailed.selector);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.SwapFailed.selector, uint256(0)));
     vault.sweepNativeToken(1 ether, address(receiver));
   }
 
@@ -3982,6 +3982,82 @@ contract SharedVaultTest is TestCommon {
     v.execute(actions);
   }
 
+  function test_v4_execute_revertsWhenSecondSwapRouterCallFailsWithIndex() public {
+    MockV4PositionManager posm = new MockV4PositionManager(100);
+    MockV4UtilsRouter swapRouter = new MockV4UtilsRouter();
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(swapRouter));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    address[] memory swapRouters = new address[](1);
+    swapRouters[0] = address(swapRouter);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4SwapFailureIndex", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(tokenA)),
+      currency1: Currency.wrap(address(tokenB)),
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: IHooks(address(0))
+    });
+
+    V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
+    inputTokens[0] = V4TestInputTokenParams({ token: address(tokenA), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: address(tokenB), amount: 1e18 });
+
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 0,
+      tokenOut: address(tokenB),
+      amountOutMin: 0,
+      swapData: ""
+    });
+    swaps[1] = IV4Utils.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 0.1e18,
+      tokenOut: address(tokenB),
+      amountOutMin: 0,
+      swapData: abi.encodeWithSignature("missingSwapFunction()")
+    });
+
+    V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: swaps,
+      inputTokens: inputTokens,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.SwapFailed.selector, uint256(1)));
+    v.execute(actions);
+  }
+
   function test_v4_execute_capsGasFeeToCollectedAmountAfterPlatformAndOwnerFees() public {
     SharedConfigManager cm = new SharedConfigManager();
     MockV4PositionManager posm = new MockV4PositionManager(2);
@@ -4222,6 +4298,83 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    v.execute(actions);
+  }
+
+  function test_pancake_v4_execute_revertsWhenSecondSwapRouterCallFailsWithIndex() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+    MockV4UtilsRouter swapRouter = new MockV4UtilsRouter();
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(swapRouter));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    address[] memory swapRouters = new address[](1);
+    swapRouters[0] = address(swapRouter);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4SwapFailureIndex", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(tokenA)),
+      currency1: PancakeCurrency.wrap(address(tokenB)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(posm.poolManager())),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: address(tokenA), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: address(tokenB), amount: 1e18 });
+
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 0,
+      tokenOut: address(tokenB),
+      amountOutMin: 0,
+      swapData: ""
+    });
+    swaps[1] = IPancakeV4Utils.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 0.1e18,
+      tokenOut: address(tokenB),
+      amountOutMin: 0,
+      swapData: abi.encodeWithSignature("missingSwapFunction()")
+    });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: swaps,
+      inputTokens: inputTokens,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.SwapFailed.selector, uint256(1)));
     v.execute(actions);
   }
 

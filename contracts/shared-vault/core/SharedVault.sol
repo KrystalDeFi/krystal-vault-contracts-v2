@@ -644,7 +644,7 @@ contract SharedVault is
           if (unwrap && tokens[i] == weth) {
             IWETH9(weth).withdraw(amounts[i]);
             (bool sent, ) = _msgSender().call{ value: amounts[i] }("");
-            require(sent, SwapFailed());
+            require(sent, SwapFailed(i));
           } else {
             IERC20(tokens[i]).safeTransfer(_msgSender(), amounts[i]);
           }
@@ -711,7 +711,7 @@ contract SharedVault is
         IERC20(tokenIn).safeResetAndApprove(action.target, amountIn);
 
         (bool success, ) = action.target.call(swapCalldata);
-        require(success, SwapFailed());
+        require(success, SwapFailed(i));
         IERC20(tokenIn).safeApprove(action.target, 0);
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
@@ -866,7 +866,7 @@ contract SharedVault is
     uint256 balance = address(this).balance;
     if (amount > balance) amount = balance;
     (bool success, ) = to.call{ value: amount }("");
-    require(success, SwapFailed());
+    require(success, SwapFailed(0));
   }
 
   function sweepERC721(address token, uint256 tokenId, address to) external override onlyOperator {

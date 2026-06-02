@@ -385,7 +385,8 @@ contract SharedV3Strategy is ISharedStrategy {
         params.token1,
         params.amountIn1,
         params.amountOut1Min,
-        params.swapData1
+        params.swapData1,
+        1
       );
       total0 = params.amount0 - amountInDelta;
       total1 = params.amount1 + amountOutDelta;
@@ -396,7 +397,8 @@ contract SharedV3Strategy is ISharedStrategy {
         params.token0,
         params.amountIn0,
         params.amountOut0Min,
-        params.swapData0
+        params.swapData0,
+        0
       );
       total1 = params.amount1 - amountInDelta;
       total0 = params.amount0 + amountOutDelta;
@@ -408,14 +410,16 @@ contract SharedV3Strategy is ISharedStrategy {
         params.token0,
         params.amountIn0,
         params.amountOut0Min,
-        params.swapData0
+        params.swapData0,
+        0
       );
       (, uint256 amountOutDelta1) = _swap(
         params.swapSourceToken,
         params.token1,
         params.amountIn1,
         params.amountOut1Min,
-        params.swapData1
+        params.swapData1,
+        1
       );
       total0 = params.amount0 + amountOutDelta0;
       total1 = params.amount1 + amountOutDelta1;
@@ -440,7 +444,8 @@ contract SharedV3Strategy is ISharedStrategy {
         token1,
         params.amountIn1,
         params.amountOut1Min,
-        params.swapData1
+        params.swapData1,
+        1
       );
       total0 = params.amount0 - amountInDelta;
       total1 = params.amount1 + amountOutDelta;
@@ -451,7 +456,8 @@ contract SharedV3Strategy is ISharedStrategy {
         token0,
         params.amountIn0,
         params.amountOut0Min,
-        params.swapData0
+        params.swapData0,
+        0
       );
       total1 = params.amount1 - amountInDelta;
       total0 = params.amount0 + amountOutDelta;
@@ -463,14 +469,16 @@ contract SharedV3Strategy is ISharedStrategy {
         token0,
         params.amountIn0,
         params.amountOut0Min,
-        params.swapData0
+        params.swapData0,
+        0
       );
       (, uint256 amountOutDelta1) = _swap(
         params.swapSourceToken,
         token1,
         params.amountIn1,
         params.amountOut1Min,
-        params.swapData1
+        params.swapData1,
+        1
       );
       total0 = params.amount0 + amountOutDelta0;
       total1 = params.amount1 + amountOutDelta1;
@@ -687,7 +695,8 @@ contract SharedV3Strategy is ISharedStrategy {
         token0,
         instructions.amountIn1,
         instructions.amountOut1Min,
-        instructions.swapData1
+        instructions.swapData1,
+        1
       );
       total1 -= amountInDelta;
       total0 += amountOutDelta;
@@ -699,7 +708,8 @@ contract SharedV3Strategy is ISharedStrategy {
         token1,
         instructions.amountIn0,
         instructions.amountOut0Min,
-        instructions.swapData0
+        instructions.swapData0,
+        0
       );
       total0 -= amountInDelta;
       total1 += amountOutDelta;
@@ -723,12 +733,12 @@ contract SharedV3Strategy is ISharedStrategy {
     if (token0 == instructions.targetToken) {
       require(instructions.amountOut0Min == 0, ISharedCommon.InsufficientOutput());
     } else {
-      _swap(token0, instructions.targetToken, amount0, instructions.amountOut0Min, instructions.swapData0);
+      _swap(token0, instructions.targetToken, amount0, instructions.amountOut0Min, instructions.swapData0, 0);
     }
     if (token1 == instructions.targetToken) {
       require(instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput());
     } else {
-      _swap(token1, instructions.targetToken, amount1, instructions.amountOut1Min, instructions.swapData1);
+      _swap(token1, instructions.targetToken, amount1, instructions.amountOut1Min, instructions.swapData1, 1);
     }
   }
 
@@ -737,7 +747,8 @@ contract SharedV3Strategy is ISharedStrategy {
     address tokenOut,
     uint256 amountIn,
     uint256 amountOutMin,
-    bytes memory swapData
+    bytes memory swapData,
+    uint256 swapIndex
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) {
       require(amountOutMin == 0, ISharedCommon.InsufficientOutput());
@@ -758,7 +769,7 @@ contract SharedV3Strategy is ISharedStrategy {
 
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success, ) = swapRouter.call(swapData);
-    if (!success) revert ISharedCommon.SwapFailed();
+    if (!success) revert ISharedCommon.SwapFailed(swapIndex);
     IERC20(tokenIn).safeApprove(swapRouter, 0);
 
     uint256 balanceInAfter = IERC20(tokenIn).balanceOf(address(this));

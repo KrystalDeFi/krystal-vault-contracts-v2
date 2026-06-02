@@ -636,7 +636,8 @@ library SharedPancakeV4StrategyLib {
         swapParam.tokenOut,
         amountIn,
         swapParam.amountOutMin,
-        swapParam.swapData
+        swapParam.swapData,
+        i
       );
 
       if (inIsIntermediate) intBalances[inIdx] -= amountInDelta;
@@ -731,7 +732,8 @@ library SharedPancakeV4StrategyLib {
     address tokenOut,
     uint256 amountIn,
     uint256 amountOutMin,
-    bytes memory swapData
+    bytes memory swapData,
+    uint256 swapIndex
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) {
       require(amountOutMin == 0, ISharedCommon.InsufficientOutput());
@@ -744,7 +746,7 @@ library SharedPancakeV4StrategyLib {
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success, ) = swapRouter.call(swapData);
-    if (!success) revert ISharedCommon.SwapFailed();
+    if (!success) revert ISharedCommon.SwapFailed(swapIndex);
     IERC20(tokenIn).safeApprove(swapRouter, 0);
     uint256 balanceInAfter = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutAfter = IERC20(tokenOut).balanceOf(address(this));

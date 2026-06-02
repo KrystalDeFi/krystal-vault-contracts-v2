@@ -92,7 +92,7 @@ error TransferFailed()
 ### SwapFailed
 
 ```solidity
-error SwapFailed()
+error SwapFailed(uint256 index)
 ```
 
 ### InsufficientShares
