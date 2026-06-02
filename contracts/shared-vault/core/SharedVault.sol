@@ -789,6 +789,7 @@ contract SharedVault is
     return _getIdleBalances();
   }
 
+  /// @inheritdoc ISharedVault
   function getTotalBalances() external view override returns (uint256[4] memory) {
     return _getTotalBalances();
   }
@@ -1005,6 +1006,9 @@ contract SharedVault is
   }
 
   /// @notice Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
+  /// @dev Net of platform and vault-owner performance fees on the uncollected-fee portion (live read of
+  ///      `configManager.platformFeeBasisPoint()`, so it reprices instantly when the platform fee changes).
+  ///      See `ISharedVault.getTotalBalances` for the full integrator-facing semantics.
   function _getTotalBalances() internal view returns (uint256[4] memory balances) {
     return SharedVaultPreviewLib.computeTotalBalances(
       _getIdleBalances(), positions, tokens, configManager, vaultOwnerFeeBasisPoint

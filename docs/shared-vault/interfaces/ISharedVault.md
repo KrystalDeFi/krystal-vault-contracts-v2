@@ -208,6 +208,18 @@ function getTotalBalances() external view returns (uint256[4])
 
 Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
 
+_Reports the NET value owned by shareholders, not gross LP value. For each tracked position the
+     uncollected-fee portion is reduced by the platform fee and then the vault-owner fee (mirroring
+     `SharedStrategyFeeConfig.performanceFeeConfig`; the combined rate is clamped to 10000 bps).
+     LP principal and idle balances are never fee-charged. This matches the realized `withdraw()`
+     flow, which collects fees first so the proportional idle distribution is already net-of-fee.
+     Integrator notes:
+     - Share price is `totalSupply() / getTotalBalances()`. Because `configManager.platformFeeBasisPoint()`
+       is read live (never cached), changing the platform fee instantly reprices every vault's shares:
+       existing depositors' per-share value moves the moment the fee changes.
+     - This same net figure feeds `previewDeposit`, `getMinDepositAmounts`, and the gateway's deposit
+       ratio math, so dashboards and valuation tooling should expect the net (lower) number, not gross._
+
 ### getPositionCount
 
 ```solidity

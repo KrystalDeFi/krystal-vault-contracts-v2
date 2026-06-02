@@ -74,3 +74,21 @@ function getPositionPrincipalAmounts(address posm, uint256 tokenId) external vie
 function getPositionAmountsSplit(address posm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
 ```
 
+### _v4ParamsSelector
+
+```solidity
+function _v4ParamsSelector(bytes params) internal pure returns (bytes4 selector)
+```
+
+### _v4ParamsBody
+
+```solidity
+function _v4ParamsBody(bytes params) internal pure returns (bytes body)
+```
+
+_Returns `params` with its leading 4-byte selector stripped, as a FRESH buffer.
+     Non-destructive: the caller's `params` is left byte-for-byte intact. (The previous
+     in-place variant aliased `params + 4` and rewrote its length word + selector, which was
+     a latent footgun for any future caller that read `params` afterward.) Costs one
+     allocation plus an `mcopy` of the tail — negligible against the V4 operation it precedes._
+

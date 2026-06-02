@@ -706,16 +706,24 @@ library SharedV4StrategyLib {
     (gasFee,) = SharedStrategyFees.applyFees(token, amount, address(0), 0, gasOnly);
   }
 
-  function _v4ParamsSelector(bytes memory params) private pure returns (bytes4 selector) {
+  function _v4ParamsSelector(bytes memory params) internal pure returns (bytes4 selector) {
     require(params.length >= 4, ISharedCommon.InvalidOperation());
     selector = bytes4(params);
   }
 
-  function _v4ParamsBody(bytes memory params) private pure returns (bytes memory body) {
-    require(params.length >= 4, ISharedCommon.InvalidOperation());
+  /// @dev Returns `params` with its leading 4-byte selector stripped, as a FRESH buffer.
+  ///      Non-destructive: the caller's `params` is left byte-for-byte intact. (The previous
+  ///      in-place variant aliased `params + 4` and rewrote its length word + selector, which was
+  ///      a latent footgun for any future caller that read `params` afterward.) Costs one
+  ///      allocation plus an `mcopy` of the tail — negligible against the V4 operation it precedes.
+  function _v4ParamsBody(bytes memory params) internal pure returns (bytes memory body) {
+    uint256 len = params.length;
+    require(len >= 4, ISharedCommon.InvalidOperation());
+    uint256 bodyLen = len - 4;
+    body = new bytes(bodyLen);
     assembly ("memory-safe") {
-      body := add(params, 4)
-      mstore(body, sub(mload(params), 4))
+      // Source skips params' length word (0x20) and the 4-byte selector (0x04).
+      mcopy(add(body, 0x20), add(params, 0x24), bodyLen)
     }
   }
 
