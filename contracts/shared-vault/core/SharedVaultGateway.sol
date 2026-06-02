@@ -35,6 +35,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   error InsufficientWithdrawBalance(uint256 swapIndex);
   error IdenticalSwapTokens(uint256 index);
   error TooManySwaps(uint256 count);
+  error ConflictingWethInput();
 
   // ==================== Events ====================
 
@@ -323,8 +324,10 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
   ///      `token` must always be a real ERC20 address — `address(0)` is never valid here.
   ///
   ///      There is exactly **one** WETH source per call:
-  ///      - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH.
-  ///        Any inputs[] entry with `token == weth` is skipped (the wrapped balance is the WETH input).
+  ///      - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH and is the sole
+  ///        WETH supply. A `token == weth` entry is only permitted with `amount == 0` (a no-op); a
+  ///        positive-amount WETH entry conflicts with the wrap and reverts with `ConflictingWethInput`
+  ///        rather than being silently dropped (which would under-deposit vs the caller's intent).
   ///      - ERC20 WETH path (`msg.value == 0`): WETH is pulled from the caller's wallet via
   ///        `transferFrom` for entries where `token == weth && amount > 0`.
   ///
@@ -338,8 +341,11 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     }
     for (uint256 i; i < inputs.length; ) {
       require(inputs[i].token != address(0), ZeroAddress());
-      // Skip transferFrom for WETH when native ETH was provided — the wrap already covers it.
-      if (inputs[i].amount > 0 && !(nativeWrapped && inputs[i].token == weth)) {
+      if (nativeWrapped && inputs[i].token == weth) {
+        // Native ETH already supplies the WETH. Reject a redundant positive-amount WETH input loudly
+        // instead of silently skipping it — there is exactly one WETH source per call.
+        require(inputs[i].amount == 0, ConflictingWethInput());
+      } else if (inputs[i].amount > 0) {
         IERC20(inputs[i].token).safeTransferFrom(_msgSender(), address(this), inputs[i].amount);
       }
       unchecked {

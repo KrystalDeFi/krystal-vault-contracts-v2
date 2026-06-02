@@ -69,6 +69,12 @@ error IdenticalSwapTokens(uint256 index)
 error TooManySwaps(uint256 count)
 ```
 
+### ConflictingWethInput
+
+```solidity
+error ConflictingWethInput()
+```
+
 ### SwapAndDeposit
 
 ```solidity
@@ -301,8 +307,10 @@ _Wrap any native ETH to WETH first, then pull each declared input token in full 
      `token` must always be a real ERC20 address — `address(0)` is never valid here.
 
      There is exactly **one** WETH source per call:
-     - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH.
-       Any inputs[] entry with `token == weth` is skipped (the wrapped balance is the WETH input).
+     - Native ETH path  (`msg.value > 0`): the full `msg.value` is wrapped to WETH and is the sole
+       WETH supply. A `token == weth` entry is only permitted with `amount == 0` (a no-op); a
+       positive-amount WETH entry conflicts with the wrap and reverts with `ConflictingWethInput`
+       rather than being silently dropped (which would under-deposit vs the caller's intent).
      - ERC20 WETH path (`msg.value == 0`): WETH is pulled from the caller's wallet via
        `transferFrom` for entries where `token == weth && amount > 0`.
 

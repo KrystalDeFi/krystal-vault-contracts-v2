@@ -15,9 +15,9 @@ contract V4ParamsHarness {
   function bodyAndProbe(bytes memory params)
     external
     pure
-    returns (bytes memory body, uint256 lenAfter, bytes4 selectorAfter)
+    returns (bytes memory strippedBody, uint256 lenAfter, bytes4 selectorAfter)
   {
-    body = SharedV4StrategyLib._v4ParamsBody(params);
+    strippedBody = SharedV4StrategyLib._v4ParamsBody(params);
     lenAfter = params.length;
     selectorAfter = bytes4(params);
   }
@@ -35,9 +35,9 @@ contract PancakeV4ParamsHarness {
   function bodyAndProbe(bytes memory params)
     external
     pure
-    returns (bytes memory body, uint256 lenAfter, bytes4 selectorAfter)
+    returns (bytes memory strippedBody, uint256 lenAfter, bytes4 selectorAfter)
   {
-    body = SharedPancakeV4StrategyLib._v4ParamsBody(params);
+    strippedBody = SharedPancakeV4StrategyLib._v4ParamsBody(params);
     lenAfter = params.length;
     selectorAfter = bytes4(params);
   }
