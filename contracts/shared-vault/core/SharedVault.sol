@@ -206,7 +206,7 @@ contract SharedVault is
   ///      Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
   ///      minting shares so a malicious depositor cannot receive a refund callback between balance
   ///      snapshots and share finalization (AMM / LP valuation manipulation).
-  function deposit(uint256[4] calldata amounts, uint16 slippageBps)
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps, uint256 minShares)
     external
     payable
     override
@@ -214,11 +214,11 @@ contract SharedVault is
     whenVaultNotPaused
     returns (uint256 shares)
   {
-    shares = _deposit(amounts, slippageBps, _msgSender());
+    shares = _deposit(amounts, slippageBps, minShares, _msgSender());
   }
 
   /// @notice Deposit tokens proportionally and mint shares to `receiver`.
-  function deposit(uint256[4] calldata amounts, uint16 slippageBps, address receiver)
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps, uint256 minShares, address receiver)
     external
     payable
     override
@@ -226,10 +226,10 @@ contract SharedVault is
     whenVaultNotPaused
     returns (uint256 shares)
   {
-    shares = _deposit(amounts, slippageBps, receiver);
+    shares = _deposit(amounts, slippageBps, minShares, receiver);
   }
 
-  function _deposit(uint256[4] calldata amounts, uint16 slippageBps, address receiver)
+  function _deposit(uint256[4] calldata amounts, uint16 slippageBps, uint256 minShares, address receiver)
     internal
     returns (uint256 shares)
   {
@@ -289,6 +289,12 @@ contract SharedVault is
       shares = _computeSharesFromDelta(currentTotalSupply, totalBalancesBefore, totalBalancesAfter, transferAmounts);
       require(shares > 0, InsufficientShares());
     }
+
+    // Share-price slippage guard. `slippageBps` above only bounds each position's LP-add ratio; it does
+    // NOT bound shares-per-value, which is derived from the vault's spot-priced total balances and is
+    // therefore manipulable within a block (deposit sandwich). Applied to both the first-deposit
+    // (fixed INITIAL_SHARES) and subsequent (delta-derived) paths.
+    require(shares >= minShares, InsufficientShares());
 
     _mint(receiver, shares);
 

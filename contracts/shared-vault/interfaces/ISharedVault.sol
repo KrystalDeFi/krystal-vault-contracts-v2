@@ -63,11 +63,20 @@ interface ISharedVault is ISharedCommon {
   /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP
   ///        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).
   ///        Must be ≤ 10000. Pass 0 to skip the amountMin floor.
-  function deposit(uint256[4] calldata amounts, uint16 slippageBps) external payable returns (uint256 shares);
+  /// @param minShares Minimum shares the deposit must mint, else the call reverts with `InsufficientShares`.
+  ///        This is the share-price slippage guard: `slippageBps` only bounds the per-position LP-add ratio,
+  ///        NOT the shares-per-value rate. Shares are computed against the vault's total balances, whose LP
+  ///        portion is valued at the pools' spot price and is therefore manipulable within a block (deposit
+  ///        sandwich). Derive `minShares` from `previewDeposit` minus an acceptable tolerance. Pass 0 to skip.
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps, uint256 minShares)
+    external
+    payable
+    returns (uint256 shares);
 
   /// @notice Deposit tokens from the caller and mint shares to `receiver`.
-  /// @dev Preserves gateway/account attribution while the caller supplies the tokens.
-  function deposit(uint256[4] calldata amounts, uint16 slippageBps, address receiver)
+  /// @dev Preserves gateway/account attribution while the caller supplies the tokens. `minShares` is the
+  ///      share-price slippage guard — see the other `deposit` overload.
+  function deposit(uint256[4] calldata amounts, uint16 slippageBps, uint256 minShares, address receiver)
     external
     payable
     returns (uint256 shares);

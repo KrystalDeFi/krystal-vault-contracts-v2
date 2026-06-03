@@ -173,7 +173,7 @@ contract SharedFuzzPlayer {
   receive() external payable { }
 
   function deposit(uint256[4] memory amounts, uint16 slippageBps) external payable returns (uint256 shares) {
-    return vault.deposit{ value: msg.value }(amounts, slippageBps);
+    return vault.deposit{ value: msg.value }(amounts, slippageBps, 0);
   }
 
   function withdraw(uint256 shares, uint256[4] memory mins, bool unwrap) external returns (uint256[4] memory amounts) {
@@ -912,7 +912,7 @@ contract SharedVaultFuzzer {
     standard.mint(address(this), 1000e18);
     fot.approve(address(partialVault), type(uint256).max);
     standard.approve(address(partialVault), type(uint256).max);
-    uint256 shares = partialVault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0);
+    uint256 shares = partialVault.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0, 0);
     assert(shares == INITIAL_SHARES);
     assert(fot.balanceOf(address(partialVault)) == 98e18);
 
@@ -924,7 +924,7 @@ contract SharedVaultFuzzer {
     fot100.mint(address(this), 1000e18);
     fot100.approve(address(blocked), type(uint256).max);
     standard.approve(address(blocked), type(uint256).max);
-    try blocked.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0) returns (uint256) {
+    try blocked.deposit([uint256(100e18), uint256(100e18), uint256(0), uint256(0)], 0, 0) returns (uint256) {
       assert(false);
     } catch { }
   }
@@ -944,7 +944,7 @@ contract SharedVaultFuzzer {
     standard.mint(address(this), 1000e18);
     nrt.approve(address(v), type(uint256).max);
     standard.approve(address(v), type(uint256).max);
-    uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0);
+    uint256 shares = v.deposit([uint256(100e6), uint256(100e18), uint256(0), uint256(0)], 0, 0);
     assert(shares == INITIAL_SHARES);
     assert(nrt.balanceOf(address(v)) == 100e6);
   }
@@ -986,6 +986,7 @@ contract SharedVaultFuzzer {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -1149,7 +1150,7 @@ contract SharedVaultFuzzer {
       precisionA.mint(address(this), mins[0]);
       precisionB.mint(address(this), mins[1] - 1);
       uint256[4] memory below = [mins[0], mins[1] - 1, uint256(0), uint256(0)];
-      try precisionVault.deposit(below, 0) returns (uint256) {
+      try precisionVault.deposit(below, 0, 0) returns (uint256) {
         assert(false);
       } catch { }
       return;
@@ -1161,7 +1162,7 @@ contract SharedVaultFuzzer {
     uint256 sharesBefore = precisionVault.balanceOf(address(this));
     uint256[4] memory exact = [mins[0], mins[1], uint256(0), uint256(0)];
 
-    try precisionVault.deposit(exact, 0) returns (uint256 shares) {
+    try precisionVault.deposit(exact, 0, 0) returns (uint256 shares) {
       assert(shares > 0);
       assert(precisionVault.balanceOf(address(this)) == sharesBefore + shares);
       assert(precisionB.balanceOf(address(precisionVault)) == vaultBBefore + mins[1]);
@@ -1212,6 +1213,7 @@ contract SharedVaultFuzzer {
         swaps: new SharedVaultGateway.SwapParams[](0),
         minDepositAmounts: [mins[0], mins[1] - 1, uint256(0), uint256(0)],
         slippageBps: 0,
+        minShares: 0,
         sweepTokens: new address[](0)
       });
       try gateway.swapAndDeposit(below) returns (uint256) {
@@ -1230,6 +1232,7 @@ contract SharedVaultFuzzer {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: mins,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1283,6 +1286,7 @@ contract SharedVaultFuzzer {
       swaps: swaps,
       minDepositAmounts: mins,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 

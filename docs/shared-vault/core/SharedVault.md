@@ -166,7 +166,7 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares.
@@ -180,7 +180,7 @@ _Share ratio is based on TOTAL shareholder-owned balances (idle + LP principal +
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and mint shares to `receiver`.
@@ -188,7 +188,7 @@ Deposit tokens proportionally and mint shares to `receiver`.
 ### _deposit
 
 ```solidity
-function _deposit(uint256[4] amounts, uint16 slippageBps, address receiver) internal returns (uint256 shares)
+function _deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) internal returns (uint256 shares)
 ```
 
 ### _measureActualPulled

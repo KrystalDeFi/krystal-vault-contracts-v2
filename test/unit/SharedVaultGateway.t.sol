@@ -360,6 +360,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: _sweepTokensArray(address(tokenA))
     });
 
@@ -377,6 +378,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -518,6 +520,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -571,6 +574,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -603,6 +607,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -663,6 +668,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -695,6 +701,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -736,6 +743,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -770,6 +778,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -796,6 +805,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -815,6 +825,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -841,6 +852,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1141,6 +1153,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -1218,6 +1231,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1278,6 +1292,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1312,6 +1327,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1371,6 +1387,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -1402,6 +1419,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(999), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1429,6 +1447,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: vaultMins,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1469,6 +1488,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: vaultMins,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1503,6 +1523,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: dustVault.getMinDepositAmounts(),
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1545,6 +1566,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(1e15), uint256(840_707), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1639,6 +1661,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: depositSwaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -1744,6 +1767,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1816,6 +1840,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1845,6 +1870,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1904,6 +1930,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1950,6 +1977,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -1991,6 +2019,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2041,6 +2070,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2379,6 +2409,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2451,6 +2482,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(type(uint256).max), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2496,6 +2528,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2546,6 +2579,7 @@ contract SharedVaultGatewayTest is TestCommon {
       // Slot 2 corresponds to tokenC (vault token order: A, B, C, D). Require ≥ 8 tokenC after swap.
       minDepositAmounts: [uint256(0), uint256(0), uint256(8e6), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2583,6 +2617,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -2616,6 +2651,7 @@ contract SharedVaultGatewayTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 

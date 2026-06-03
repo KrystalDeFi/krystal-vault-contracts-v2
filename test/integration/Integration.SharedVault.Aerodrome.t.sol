@@ -225,7 +225,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
 
-    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
+    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor should receive shares");

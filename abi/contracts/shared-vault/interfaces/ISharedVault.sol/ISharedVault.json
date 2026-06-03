@@ -435,9 +435,9 @@
         "type": "uint16"
       },
       {
-        "internalType": "address",
-        "name": "receiver",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "minShares",
+        "type": "uint256"
       }
     ],
     "name": "deposit",
@@ -462,6 +462,16 @@
         "internalType": "uint16",
         "name": "slippageBps",
         "type": "uint16"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minShares",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
       }
     ],
     "name": "deposit",

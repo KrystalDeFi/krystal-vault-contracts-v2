@@ -84,6 +84,12 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
     ///         per-call balance deltas, so pre-existing gateway balances remain owner-recoverable.
     uint256[4] minDepositAmounts;
     uint16 slippageBps;
+    /// @notice Share-price slippage guard forwarded to `vault.deposit`: the deposit must mint at least
+    ///         this many shares or the whole call reverts. `minDepositAmounts` above only floors the
+    ///         post-swap vault-token amounts (the aggregator swap leg); it does NOT protect the
+    ///         shares-per-value rate, which the vault derives from spot-priced LP valuation and is
+    ///         sandwichable. Derive from `vault.previewDeposit` minus tolerance; pass 0 to skip.
+    uint256 minShares;
     address[] sweepTokens; // tokens to return leftovers for (vault tokens + any intermediaries)
   }
 
@@ -172,7 +178,7 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
     _approveVaultTokens(vaultTokens, depositAmounts, address(params.vault));
 
-    shares = params.vault.deposit(depositAmounts, params.slippageBps, _msgSender());
+    shares = params.vault.deposit(depositAmounts, params.slippageBps, params.minShares, _msgSender());
     require(shares > 0, InsufficientShares());
 
     _revokeVaultTokenApprovals(vaultTokens, address(params.vault));

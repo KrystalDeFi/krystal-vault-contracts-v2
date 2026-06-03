@@ -199,6 +199,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -249,6 +250,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -294,6 +296,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -318,7 +321,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
 
     // Approve gateway for shares
     IERC20(address(vault)).approve(address(gateway), shares);
@@ -371,7 +374,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     vm.stopPrank();
 
     // Preview how much USDC the player will receive on withdraw
@@ -435,7 +438,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     IERC20(address(vault)).approve(address(gateway), shares);
 
     // Bad calldata that will cause the router to revert
@@ -483,6 +486,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), 0, 0, 0],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -517,6 +521,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -581,6 +586,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 

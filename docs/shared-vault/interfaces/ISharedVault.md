@@ -123,7 +123,7 @@ function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
@@ -136,16 +136,18 @@ Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
 | ---- | ---- | ----------- |
 | amounts | uint256[4] |  |
 | slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).        Must be ≤ 10000. Pass 0 to skip the amountMin floor. |
+| minShares | uint256 | Minimum shares the deposit must mint, else the call reverts with `InsufficientShares`.        This is the share-price slippage guard: `slippageBps` only bounds the per-position LP-add ratio,        NOT the shares-per-value rate. Shares are computed against the vault's total balances, whose LP        portion is valued at the pools' spot price and is therefore manipulable within a block (deposit        sandwich). Derive `minShares` from `previewDeposit` minus an acceptable tolerance. Pass 0 to skip. |
 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) external payable returns (uint256 shares)
 ```
 
 Deposit tokens from the caller and mint shares to `receiver`.
 
-_Preserves gateway/account attribution while the caller supplies the tokens._
+_Preserves gateway/account attribution while the caller supplies the tokens. `minShares` is the
+     share-price slippage guard — see the other `deposit` overload._
 
 ### withdraw
 

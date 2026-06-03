@@ -110,7 +110,7 @@ contract SharedVaultForkPlayer {
   }
 
   function deposit(uint256[4] memory amounts, uint16 slippageBps) external returns (uint256 shares) {
-    return vault.deposit(amounts, slippageBps);
+    return vault.deposit(amounts, slippageBps, 0);
   }
 
   function withdraw(uint256 shares, uint256[4] memory minAmounts) external returns (uint256[4] memory amounts) {

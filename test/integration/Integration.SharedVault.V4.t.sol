@@ -178,7 +178,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     token0.approve(address(vault), type(uint256).max);
     token1.approve(address(vault), type(uint256).max);
     uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
-    uint256 shares = vault.deposit(amounts, 1);
+    uint256 shares = vault.deposit(amounts, 1, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "deposit mints shares");
