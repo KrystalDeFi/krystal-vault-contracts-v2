@@ -2,7 +2,7 @@
 
 > **Type:** Internal audit  
 > **Date:** 2026-06-03  
-> **Commit:** `ddda055957294c6819d7250669fc6de447b47b0a` (Merge branch 'main' into feat/shared-vault)  
+> **Commit:** `49e82e1efd430ab117bc6698bc0ef76fe3c5b316` (Merge branch 'feat/shared-vault' into add-docs)  
 > **Scope:** `contracts/shared-vault/` — all core, strategy, library, and interface contracts  
 > **Related docs:** [README.md](README.md) · [TrustModel.md](TrustModel.md)
 
@@ -42,6 +42,7 @@
 | M-01 | Vault owner effective fee silently reduced, no event | Medium |
 | M-03 | `tokenIn == tokenOut` not validated in execute CALL swap | Medium |
 | M-05 | Platform fee has no hard cap below 100% | Medium |
+| M-07 | `executeWithUserOrder` order is not consume-once, action-bound, or vault-bound | Medium |
 | L-01 | `maxPositions` has no upper cap — gas DoS risk | Low |
 | M-02 | `exitProportional` returns empty on dust-sized withdrawal | Info |
 | M-06 | `minTokenPrecision = 0` disables dust floor | Info |
@@ -221,6 +222,40 @@ Publish the cap as a documented protocol guarantee.
 
 ---
 
+### M-07 — `executeWithUserOrder` order is not consume-once, action-bound, or vault-bound
+
+**Severity:** Medium  
+**File:** `SharedVaultAutomator.sol:40-48` (`executeWithUserOrder`), `:122-126` (`_validateOrder`)
+
+**Description:**
+
+`executeWithUserOrder` is documented as the **one-time, scoped** alternative to the broad `AgentAllowance` delegation (see `ISharedVaultAutomator` NatSpec and the H-02 note below). The implementation delivers none of those three properties:
+
+```solidity
+function executeWithUserOrder(ISharedVault vault, ISharedVault.Action[] calldata actions,
+    bytes calldata abiEncodedUserOrder, bytes calldata orderSignature)
+    external override onlyRole(OPERATOR_ROLE_HASH) whenNotPaused {
+    _validateOrder(abiEncodedUserOrder, orderSignature, vault.vaultOwner());
+    vault.execute(actions);
+}
+
+function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
+    bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
+    require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
+    require(!_cancelledOrder[digest], OrderCancelled());
+}
+```
+
+1. **Not consume-once / no nonce.** `_validateOrder` is `view` and only checks the signature and `_cancelledOrder[digest]`; nothing marks the digest used on execution (the sole writer of `_cancelledOrder` is the owner-driven `cancelOrder`). The same `(order, signature)` replays indefinitely until the owner explicitly cancels — contradicting the NatSpec claim that it "consumes the signature after a single use."
+2. **Actions not bound to the signature.** The signed `Order` struct hash (`chainId, nfpmAddress, tokenId, orderType, config, signatureTime`) omits the `actions` array. A valid order signature authorizes **any** `actions` passed to `vault.execute(actions)` — the "scoped" order provides no on-chain scoping over what executes.
+3. **Not bound to the target vault.** Unlike `_validateAgentAllowance` (line 109: `require(allowance.vault == vault)`), `_validateOrder` checks no vault field, and the `Order` struct has none. An order signed by an owner of multiple vaults validates against any of them. The `Order.chainId` field is also never compared to `block.chainid` (cross-chain replay is blocked only by the EIP-712 domain separator).
+
+Both entry points are `onlyRole(OPERATOR_ROLE)`, so exploitation requires a **trusted** operator — not externally exploitable. The issue is that the on-chain guarantee is materially weaker than what the NatSpec promises the vault owner: a signed UserOrder is effectively a broad, replayable authorization token, not a scoped one-time order. This distinguishes it from H-02 (where the broad scope is *by design and documented*); here the code contradicts its own stated scoping.
+
+**Recommended fix:** Bind the executed `actions` into the signed order hash; add a per-order nonce or mark the digest consumed on execution; add `require(order.vault == address(vault))` and `require(order.chainId == block.chainid)`. Until implemented, correct the NatSpec to stop describing the path as one-time/scoped.
+
+---
+
 ### L-01 — `maxPositions` has no upper cap
 
 **Severity:** Low  
@@ -279,7 +314,7 @@ Intentional design decisions documented in [TrustModel.md](TrustModel.md); not c
 
 | Topic | TrustModel reference |
 |---|---|
-| **H-02** — AgentAllowance has no nonce; valid signature is replayable until expiry | §6 — whitelistedCaller. By design: a long-lived delegation (like an approval), bounded by `expirationTime`, revocable via `cancelOrder`. Source recommends `executeWithUserOrder` for one-time scoped actions. |
+| **H-02** — AgentAllowance has no nonce; valid signature is replayable until expiry | §6 — whitelistedCaller. By design: a long-lived delegation (like an approval), bounded by `expirationTime`, revocable via `cancelOrder`. NatSpec points to `executeWithUserOrder` as the one-time scoped alternative — but that path does **not** actually deliver scoping (see **M-07**). |
 | `execute(CALL)` swap — `minAmountOut` uncapped; caller can set 1 wei | §3 — Swap Execution: Accepted Trust Assumption |
 | `execute(CALL)` swap — `swapCalldata` recipient not validated | §3 — Swap Execution: Accepted Trust Assumption |
 | `execute(DELEGATECALL)` — caller-supplied `gasFeeX64` applied to LP principal; routed to `msg.sender` with no cap | §3 — Strategy Fee Parameters: Accepted Trust Assumption |
