@@ -3063,6 +3063,17 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenA.allowance(address(vault), address(swapTarget)), 0, "residual allowance must be reset to 0");
   }
 
+  function test_swap_fail_identical_tokens() public {
+    vm.startPrank(VAULT_OWNER);
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenA), 10e18));
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenA), 10e18, 0, swapCalldata);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+    vm.stopPrank();
+  }
+
   function test_swap_fail_non_vault_token_in() public {
     vm.startPrank(VAULT_OWNER);
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenE), address(tokenA), 10e18));

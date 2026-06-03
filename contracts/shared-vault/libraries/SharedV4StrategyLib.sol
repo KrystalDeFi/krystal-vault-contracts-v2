@@ -326,9 +326,9 @@ library SharedV4StrategyLib {
       );
       amount0 += principal0;
       amount1 += principal1;
-      // Decrease-and-exit: pool tokens are vault-tracked, so the post-pipeline totals do not need
-      // to be threaded further. The pipeline still enforces full consumption of any non-pool
-      // intermediates via the virtual ledger inside `_executeV4Swaps`.
+      // Decrease-and-exit intentionally drops the returned token0/token1 totals: pool tokens stay
+      // vault-tracked as idle balances. The pipeline still enforces full consumption of any non-pool
+      // intermediates through its virtual ledger.
       SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, decParams.swapParams);
     } else if (instructions.action == ISharedV4Utils.UtilActions.ADJUST_RANGE) {
       ISharedV4Utils.AdjustRangeParams memory adjustParams =

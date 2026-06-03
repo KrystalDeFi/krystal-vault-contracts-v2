@@ -667,7 +667,7 @@ contract SharedVault is
   ///                          Token-only operations (harvest, swap-reward) return an empty array.
   ///   CALL                 — direct call to a swap aggregator.
   ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                          tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+  ///                          tokenIn/tokenOut must be distinct vault tokens; output delta checked against minAmountOut.
   ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   ///                          The target is stored as pos.strategy and will be delegatecalled via
@@ -703,6 +703,7 @@ contract SharedVault is
 
         require(isVaultToken[tokenIn], TokenNotConfigured());
         require(isVaultToken[tokenOut], TokenNotConfigured());
+        require(tokenIn != tokenOut, InvalidOperation());
 
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
 

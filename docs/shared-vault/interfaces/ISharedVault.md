@@ -185,7 +185,7 @@ function execute(struct ISharedVault.Action[] actions) external
 
 Execute one or more actions: strategy delegatecalls (LP) and/or direct swap calls.
         For strategy actions the vault tracks LP position changes.
-        For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
+        For swap actions the vault validates tokenIn/tokenOut are distinct vault tokens and checks
         that the output meets minAmountOut.
 
 ### getTokens
