@@ -39,9 +39,9 @@ interface ISharedV4Utils {
   }
 
   struct SwapParams {
-    address tokenIn;
+    Currency tokenIn;
     uint256 amountIn;
-    address tokenOut;
+    Currency tokenOut;
     uint256 amountOutMin;
     bytes swapData;
   }
@@ -65,6 +65,7 @@ interface ISharedV4Utils {
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -76,6 +77,7 @@ interface ISharedV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -84,6 +86,7 @@ interface ISharedV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
+    Currency swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -111,7 +114,7 @@ interface ISharedV4Utils {
     uint64 gasFeeX64;
   }
 
-  function swapAndMint(SwapAndMintParams calldata params) external;
+  function swapAndMint(SwapAndMintParams calldata params) external payable;
 
   function swapAndIncrease(SwapAndIncreaseParams calldata params) external;
 

@@ -630,7 +630,7 @@ contract MockV4Permit2 {
 }
 
 struct V4TestInputTokenParams {
-  address token;
+  Currency token;
   uint256 amount;
 }
 
@@ -640,6 +640,7 @@ struct V4TestSwapAndMintParams {
   IV4Utils.MintParams mintParams;
   IV4Utils.SwapParams[] swapParams;
   V4TestInputTokenParams[] inputTokens;
+  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -3928,8 +3929,8 @@ contract SharedVaultTest is TestCommon {
     });
 
     V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
-    inputTokens[0] = V4TestInputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = V4TestInputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenB)), amount: 1e18 });
 
     V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
       posm: address(posm),
@@ -3939,6 +3940,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -3962,6 +3964,133 @@ contract SharedVaultTest is TestCommon {
     assertEq(tracked0, address(tokenA), "tracked token0");
     assertEq(tracked1, address(tokenB), "tracked token1");
     assertEq(posm.ownerOf(100), address(v), "vault owns minted V4 NFT");
+  }
+
+  function test_v4_execute_swapAndMint_nativeCurrency_usesWethVaultTokenAndTracksPosition() public {
+    MockV4PositionManager posm = new MockV4PositionManager(100);
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    vm.deal(address(this), 10e18);
+    mockWeth.deposit{ value: 10e18 }();
+    mockWeth.transfer(address(v), 10e18);
+    address[4] memory vtokens = [address(mockWeth), address(tokenA), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4NativeMint", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(mockWeth), 0);
+
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(tokenA)),
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: IHooks(address(0))
+    });
+
+    V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(0)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+
+    V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    assertEq(v.getPositionCount(), 1, "native V4 position should be tracked");
+    (, address trackedNfpm, uint256 trackedId, address tracked0, address tracked1) = v.getPosition(0);
+    assertEq(trackedNfpm, address(posm), "tracked POSM");
+    assertEq(trackedId, 100, "minted tokenId");
+    assertEq(tracked0, address(mockWeth), "native currency is tracked as WETH");
+    assertEq(tracked1, address(tokenA), "tracked ERC20 side");
+    assertEq(posm.ownerOf(100), address(v), "vault owns minted V4 NFT");
+    assertEq(mockWeth.balanceOf(address(v)), 9e18, "strategy unwraps WETH for native settlement");
+    assertEq(address(v).balance, 0, "vault does not retain raw native balance");
+  }
+
+  function test_v4_execute_swapAndMint_nativeCurrency_revertsWhenWethIsNotVaultToken() public {
+    MockV4PositionManager posm = new MockV4PositionManager(100);
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4NativeNoWeth", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(mockWeth), 0);
+
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(tokenA)),
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: IHooks(address(0))
+    });
+
+    V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(0)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+
+    V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    v.execute(actions);
   }
 
   function test_v4_execute_revertsWhenEmptySwapDataHasMinOut() public {
@@ -3995,12 +4124,16 @@ contract SharedVaultTest is TestCommon {
     });
 
     V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
-    inputTokens[0] = V4TestInputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = V4TestInputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenB)), amount: 1e18 });
 
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](1);
     swaps[0] = IV4Utils.SwapParams({
-      tokenIn: address(tokenA), amountIn: 0.1e18, tokenOut: address(tokenB), amountOutMin: 1, swapData: ""
+      tokenIn: Currency.wrap(address(tokenA)),
+      amountIn: 0.1e18,
+      tokenOut: Currency.wrap(address(tokenB)),
+      amountOutMin: 1,
+      swapData: ""
     });
 
     V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
@@ -4011,6 +4144,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: swaps,
       inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -4060,17 +4194,21 @@ contract SharedVaultTest is TestCommon {
     });
 
     V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
-    inputTokens[0] = V4TestInputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = V4TestInputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenB)), amount: 1e18 });
 
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
-      tokenIn: address(tokenA), amountIn: 0, tokenOut: address(tokenB), amountOutMin: 0, swapData: ""
+      tokenIn: Currency.wrap(address(tokenA)),
+      amountIn: 0,
+      tokenOut: Currency.wrap(address(tokenB)),
+      amountOutMin: 0,
+      swapData: ""
     });
     swaps[1] = IV4Utils.SwapParams({
-      tokenIn: address(tokenA),
+      tokenIn: Currency.wrap(address(tokenA)),
       amountIn: 0.1e18,
-      tokenOut: address(tokenB),
+      tokenOut: Currency.wrap(address(tokenB)),
       amountOutMin: 0,
       swapData: abi.encodeWithSignature("missingSwapFunction()")
     });
@@ -4083,6 +4221,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: swaps,
       inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -4213,8 +4352,8 @@ contract SharedVaultTest is TestCommon {
     });
 
     IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
-    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
 
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
       posm: address(posm),
@@ -4224,6 +4363,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -4247,6 +4387,137 @@ contract SharedVaultTest is TestCommon {
     assertEq(tracked0, address(tokenA), "tracked token0");
     assertEq(tracked1, address(tokenB), "tracked token1");
     assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
+  }
+
+  function test_pancake_v4_execute_swapAndMint_nativeCurrency_usesWethVaultTokenAndTracksPosition() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    vm.deal(address(this), 10e18);
+    mockWeth.deposit{ value: 10e18 }();
+    mockWeth.transfer(address(v), 10e18);
+    address[4] memory vtokens = [address(mockWeth), address(tokenA), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4NativeMint", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(mockWeth), 0);
+
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(0)),
+      currency1: PancakeCurrency.wrap(address(tokenA)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(posm.poolManager())),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(0)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    assertEq(v.getPositionCount(), 1, "native Pancake V4 position should be tracked");
+    (, address trackedNfpm, uint256 trackedId, address tracked0, address tracked1) = v.getPosition(0);
+    assertEq(trackedNfpm, address(posm), "tracked POSM");
+    assertEq(trackedId, 100, "minted tokenId");
+    assertEq(tracked0, address(mockWeth), "native currency is tracked as WETH");
+    assertEq(tracked1, address(tokenA), "tracked ERC20 side");
+    assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
+    assertEq(mockWeth.balanceOf(address(v)), 9e18, "strategy unwraps WETH for native settlement");
+    assertEq(address(v).balance, 0, "vault does not retain raw native balance");
+  }
+
+  function test_pancake_v4_execute_swapAndMint_nativeCurrency_revertsWhenWethIsNotVaultToken() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize(
+      "PancakeV4NativeNoWeth", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(mockWeth), 0
+    );
+
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(0)),
+      currency1: PancakeCurrency.wrap(address(tokenA)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(posm.poolManager())),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(0)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    v.execute(actions);
   }
 
   function test_pancake_v4_execute_revertsWhenEmptySwapDataHasMinOut() public {
@@ -4281,12 +4552,16 @@ contract SharedVaultTest is TestCommon {
     });
 
     IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
-    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
 
     IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](1);
     swaps[0] = IPancakeV4Utils.SwapParams({
-      tokenIn: address(tokenA), amountIn: 0.1e18, tokenOut: address(tokenB), amountOutMin: 1, swapData: ""
+      tokenIn: PancakeCurrency.wrap(address(tokenA)),
+      amountIn: 0.1e18,
+      tokenOut: PancakeCurrency.wrap(address(tokenB)),
+      amountOutMin: 1,
+      swapData: ""
     });
 
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
@@ -4297,6 +4572,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: swaps,
       inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -4347,17 +4623,21 @@ contract SharedVaultTest is TestCommon {
     });
 
     IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
-    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
 
     IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
     swaps[0] = IPancakeV4Utils.SwapParams({
-      tokenIn: address(tokenA), amountIn: 0, tokenOut: address(tokenB), amountOutMin: 0, swapData: ""
+      tokenIn: PancakeCurrency.wrap(address(tokenA)),
+      amountIn: 0,
+      tokenOut: PancakeCurrency.wrap(address(tokenB)),
+      amountOutMin: 0,
+      swapData: ""
     });
     swaps[1] = IPancakeV4Utils.SwapParams({
-      tokenIn: address(tokenA),
+      tokenIn: PancakeCurrency.wrap(address(tokenA)),
       amountIn: 0.1e18,
-      tokenOut: address(tokenB),
+      tokenOut: PancakeCurrency.wrap(address(tokenB)),
       amountOutMin: 0,
       swapData: abi.encodeWithSignature("missingSwapFunction()")
     });
@@ -4370,6 +4650,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: swaps,
       inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -6640,6 +6921,7 @@ contract SharedVaultTest is TestCommon {
       increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -6684,8 +6966,8 @@ contract SharedVaultTest is TestCommon {
     posm.setLiquidity(tokenId, 1e18);
 
     IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
-    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: address(tokenA), amount: 1e18 });
-    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: address(tokenB), amount: 1e18 });
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
 
     IPancakeV4Utils.SwapAndIncreaseParams memory incParams = IPancakeV4Utils.SwapAndIncreaseParams({
       posm: address(posm),
@@ -6695,6 +6977,7 @@ contract SharedVaultTest is TestCommon {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -7379,9 +7662,7 @@ contract SharedVaultTest is TestCommon {
     vm.expectCall(
       address(strat), abi.encodeCall(MockFeeAccrualStrategy.getPositionAmountsSplit, (address(nft), uint256(1))), 1
     );
-    vm.expectCall(
-      address(strat), abi.encodeCall(ISharedStrategy.getPositionAmounts, (address(nft), uint256(1))), 0
-    );
+    vm.expectCall(address(strat), abi.encodeCall(ISharedStrategy.getPositionAmounts, (address(nft), uint256(1))), 0);
     vm.expectCall(
       address(strat), abi.encodeCall(ISharedStrategy.getPositionPrincipalAmounts, (address(nft), uint256(1))), 0
     );

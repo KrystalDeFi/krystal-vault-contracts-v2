@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { SharedV4StrategyLib } from "../../contracts/shared-vault/libraries/SharedV4StrategyLib.sol";
+import { SharedV4ValuationLib } from "../../contracts/shared-vault/libraries/SharedV4ValuationLib.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
@@ -176,9 +177,9 @@ contract SharedStrategyFeeAccrualV4Test is Test {
     (address nfpm,) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0);
 
     (uint256 splitTotal0, uint256 splitTotal1, uint256 splitPrincipal0, uint256 splitPrincipal1) =
-      SharedV4StrategyLib.getPositionAmountsSplit(nfpm, 1);
-    (uint256 total0, uint256 total1) = SharedV4StrategyLib.getPositionAmounts(nfpm, 1);
-    (uint256 principal0, uint256 principal1) = SharedV4StrategyLib.getPositionPrincipalAmounts(nfpm, 1);
+      SharedV4ValuationLib.getPositionAmountsSplit(nfpm, 1);
+    (uint256 total0, uint256 total1) = SharedV4ValuationLib.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = SharedV4ValuationLib.getPositionPrincipalAmounts(nfpm, 1);
 
     assertEq(splitTotal0, total0, "split total0 matches gross valuation");
     assertEq(splitTotal1, total1, "split total1 matches gross valuation");

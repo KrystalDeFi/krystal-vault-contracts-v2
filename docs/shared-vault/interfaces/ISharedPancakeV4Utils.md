@@ -59,9 +59,9 @@ struct IncreaseLiquidityParams {
 
 ```solidity
 struct SwapParams {
-  address tokenIn;
+  Currency tokenIn;
   uint256 amountIn;
-  address tokenOut;
+  Currency tokenOut;
   uint256 amountOutMin;
   bytes swapData;
 }
@@ -71,7 +71,7 @@ struct SwapParams {
 
 ```solidity
 struct InputTokenParams {
-  address token;
+  Currency token;
   uint256 amount;
 }
 ```
@@ -85,6 +85,7 @@ struct SwapAndMintParams {
   struct ISharedPancakeV4Utils.MintParams mintParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
+  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -100,6 +101,7 @@ struct SwapAndIncreaseParams {
   struct ISharedPancakeV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
   struct ISharedPancakeV4Utils.InputTokenParams[] inputTokens;
+  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -112,6 +114,7 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedPancakeV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedPancakeV4Utils.SwapParams[] swapParams;
+  Currency swapDestToken;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -148,11 +151,8 @@ struct CompoundFeesParams {
 ### swapAndMint
 
 ```solidity
-function swapAndMint(struct ISharedPancakeV4Utils.SwapAndMintParams params) external
+function swapAndMint(struct ISharedPancakeV4Utils.SwapAndMintParams params) external payable
 ```
-
-_Not `payable`: `SharedPancakeV4Strategy._execute` enforces `ethValue == 0` and
-     `_validateVaultToken` rejects `address(0)`, so native-currency pools are not supported._
 
 ### swapAndIncrease
 

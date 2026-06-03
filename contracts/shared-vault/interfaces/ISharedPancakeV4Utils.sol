@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
+import { Currency } from "infinity-core/src/types/Currency.sol";
 
 interface ISharedPancakeV4Utils {
   enum UtilActions {
@@ -38,15 +39,15 @@ interface ISharedPancakeV4Utils {
   }
 
   struct SwapParams {
-    address tokenIn;
+    Currency tokenIn;
     uint256 amountIn;
-    address tokenOut;
+    Currency tokenOut;
     uint256 amountOutMin;
     bytes swapData;
   }
 
   struct InputTokenParams {
-    address token;
+    Currency token;
     uint256 amount;
   }
 
@@ -64,6 +65,7 @@ interface ISharedPancakeV4Utils {
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -75,6 +77,7 @@ interface ISharedPancakeV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -83,6 +86,7 @@ interface ISharedPancakeV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
+    Currency swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
     uint64 gasFeeX64;
@@ -110,9 +114,7 @@ interface ISharedPancakeV4Utils {
     uint64 gasFeeX64;
   }
 
-  /// @dev Not `payable`: `SharedPancakeV4Strategy._execute` enforces `ethValue == 0` and
-  ///      `_validateVaultToken` rejects `address(0)`, so native-currency pools are not supported.
-  function swapAndMint(SwapAndMintParams calldata params) external;
+  function swapAndMint(SwapAndMintParams calldata params) external payable;
 
   function swapAndIncrease(SwapAndIncreaseParams calldata params) external;
 

@@ -972,15 +972,13 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @dev `approveTokens` / `approveAmounts` are NOT used to issue ERC20 approvals — those happen
-  ///      per-hop inside `_swap` against the immutable `swapRouter`. They are walked here purely
-  ///      to enforce that any positive-amount entry references a vault-tracked token, blocking
-  ///      operators from sneaking unrelated tokens through this entry point.
+  ///      per-hop inside `_swap` against the immutable `swapRouter`. `approveTokens` is walked here
+  ///      purely to enforce that EVERY entry references a vault-tracked token (including zero-amount
+  ///      entries), blocking operators from listing unrelated tokens through this entry point.
   function _validateApprovalList(address[] memory _tokens, uint256[] memory approveAmounts) internal view {
     require(_tokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
     for (uint256 i; i < _tokens.length; ) {
-      if (approveAmounts[i] > 0) {
-        _validateVaultToken(_tokens[i]);
-      }
+      _validateVaultToken(_tokens[i]);
       unchecked {
         i++;
       }

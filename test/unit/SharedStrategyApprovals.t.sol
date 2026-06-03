@@ -6,6 +6,8 @@ import "forge-std/Test.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
+import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
+import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
@@ -150,6 +152,52 @@ contract StrategyVaultHarness {
       assembly { revert(add(err, 32), mload(err)) }
     }
   }
+
+  /// @dev Delegatecall a strategy's `execute(bytes)` entry point so the strategy observes
+  ///      `address(this) == vault harness` — the same context production uses. Used to drive
+  ///      the V4/Pancake `_execute` path (whose `_validateApprovalList` is `private` and so cannot
+  ///      be probed directly).
+  function callExecute(address strategy, bytes memory data) external {
+    (bool ok, bytes memory err) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
+    if (!ok) {
+      assembly { revert(add(err, 32), mload(err)) }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Probes exposing the `internal` _validateApprovalList of the V3/Aerodrome forks
+// so it can be exercised in isolation. (The V4/Pancake twins keep it `private`,
+// so those are driven through the real `execute` entry point in the tests below.)
+// Each probe also implements isVaultToken so `_validateVaultToken`, which calls
+// ISharedVault(address(this)).isVaultToken(...), resolves against the probe itself.
+// ---------------------------------------------------------------------------
+contract V3ApprovalProbe is SharedV3Strategy {
+  mapping(address => bool) internal _vt;
+
+  constructor() SharedV3Strategy(address(1)) {}
+
+  function setVaultToken(address t) external { _vt[t] = true; }
+
+  function isVaultToken(address t) external view returns (bool) { return _vt[t]; }
+
+  function probe(address[] memory tokens, uint256[] memory amounts) external view {
+    _validateApprovalList(tokens, amounts);
+  }
+}
+
+contract AerodromeApprovalProbe is SharedAerodromeStrategy {
+  mapping(address => bool) internal _vt;
+
+  constructor() SharedAerodromeStrategy(address(1)) {}
+
+  function setVaultToken(address t) external { _vt[t] = true; }
+
+  function isVaultToken(address t) external view returns (bool) { return _vt[t]; }
+
+  function probe(address[] memory tokens, uint256[] memory amounts) external view {
+    _validateApprovalList(tokens, amounts);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,5 +290,125 @@ contract SharedStrategyApprovalsTest is Test {
 
     assertEq(tA.allowance(address(vault), address(nfpm)), 0, "token0 approval must be cleared");
     assertEq(tB.allowance(address(vault), address(nfpm)), 0, "token1 approval must be cleared");
+  }
+
+  // ===========================================================================
+  // _validateApprovalList: every entry must reference a vault token, INCLUDING
+  // zero-amount entries (previously zero-amount entries were skipped). Applies
+  // identically across all four shared-vault strategy forks.
+  // ===========================================================================
+
+  address internal constant NON_VAULT = address(0xBAD);
+  address internal constant VAULT_TOK = address(0xB0B);
+  address internal constant DUMMY_POSM = address(0xCAFE);
+
+  function _one(address token, uint256 amount)
+    internal
+    pure
+    returns (address[] memory tokens, uint256[] memory amounts)
+  {
+    tokens = new address[](1);
+    tokens[0] = token;
+    amounts = new uint256[](1);
+    amounts[0] = amount;
+  }
+
+  // ---- V3 / Aerodrome: internal helper probed directly ----
+
+  function test_v3_validateApprovalList_rejects_zeroAmount_nonVaultToken() public {
+    V3ApprovalProbe probe = new V3ApprovalProbe();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 0);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    probe.probe(tokens, amounts);
+  }
+
+  function test_v3_validateApprovalList_allows_zeroAmount_vaultToken() public {
+    V3ApprovalProbe probe = new V3ApprovalProbe();
+    probe.setVaultToken(VAULT_TOK);
+    (address[] memory tokens, uint256[] memory amounts) = _one(VAULT_TOK, 0);
+    probe.probe(tokens, amounts); // must not revert
+  }
+
+  function test_v3_validateApprovalList_rejects_positiveAmount_nonVaultToken() public {
+    V3ApprovalProbe probe = new V3ApprovalProbe();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 1);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    probe.probe(tokens, amounts);
+  }
+
+  function test_aerodrome_validateApprovalList_rejects_zeroAmount_nonVaultToken() public {
+    AerodromeApprovalProbe probe = new AerodromeApprovalProbe();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 0);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    probe.probe(tokens, amounts);
+  }
+
+  function test_aerodrome_validateApprovalList_allows_zeroAmount_vaultToken() public {
+    AerodromeApprovalProbe probe = new AerodromeApprovalProbe();
+    probe.setVaultToken(VAULT_TOK);
+    (address[] memory tokens, uint256[] memory amounts) = _one(VAULT_TOK, 0);
+    probe.probe(tokens, amounts); // must not revert
+  }
+
+  function test_aerodrome_validateApprovalList_rejects_positiveAmount_nonVaultToken() public {
+    AerodromeApprovalProbe probe = new AerodromeApprovalProbe();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 1);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    probe.probe(tokens, amounts);
+  }
+
+  // ---- V4 / Pancake: private helper exercised through the real execute() ----
+  // The 4-byte `0xdeadbeef` params reaches _validateApprovalList (which runs before
+  // op-selector dispatch). A vault-token entry therefore continues to the dispatch and
+  // reverts InvalidOperation; a non-vault entry must be rejected at validation first.
+
+  function _v4ExecuteData(address[] memory tokens, uint256[] memory amounts)
+    internal
+    pure
+    returns (bytes memory)
+  {
+    bytes memory params = hex"deadbeef"; // matches no V4Util selector
+    bytes memory inner = abi.encode(DUMMY_POSM, uint256(1), params, uint256(0), tokens, amounts);
+    // OperationType.EXECUTE == 0 for both the V4 and Pancake forks, so this prefix is shared.
+    return bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), inner);
+  }
+
+  function _v4Harness() internal returns (StrategyVaultHarness vault) {
+    SharedConfigManager c = _setupConfigManager(DUMMY_POSM);
+    vault = new StrategyVaultHarness(address(c));
+    vault.addVaultToken(VAULT_TOK);
+  }
+
+  function test_v4_execute_rejects_zeroAmount_nonVaultToken_inApprovalList() public {
+    SharedV4Strategy strategy = new SharedV4Strategy(address(1));
+    StrategyVaultHarness vault = _v4Harness();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 0);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.callExecute(address(strategy), _v4ExecuteData(tokens, amounts));
+  }
+
+  function test_v4_execute_allows_zeroAmount_vaultToken_inApprovalList() public {
+    SharedV4Strategy strategy = new SharedV4Strategy(address(1));
+    StrategyVaultHarness vault = _v4Harness();
+    (address[] memory tokens, uint256[] memory amounts) = _one(VAULT_TOK, 0);
+    // Validation passes for the vault token; the bogus selector then fails op-dispatch.
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.callExecute(address(strategy), _v4ExecuteData(tokens, amounts));
+  }
+
+  function test_pancakeV4_execute_rejects_zeroAmount_nonVaultToken_inApprovalList() public {
+    SharedPancakeV4Strategy strategy = new SharedPancakeV4Strategy(address(1));
+    StrategyVaultHarness vault = _v4Harness();
+    (address[] memory tokens, uint256[] memory amounts) = _one(NON_VAULT, 0);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.callExecute(address(strategy), _v4ExecuteData(tokens, amounts));
+  }
+
+  function test_pancakeV4_execute_allows_zeroAmount_vaultToken_inApprovalList() public {
+    SharedPancakeV4Strategy strategy = new SharedPancakeV4Strategy(address(1));
+    StrategyVaultHarness vault = _v4Harness();
+    (address[] memory tokens, uint256[] memory amounts) = _one(VAULT_TOK, 0);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.callExecute(address(strategy), _v4ExecuteData(tokens, amounts));
   }
 }

@@ -53,7 +53,9 @@ import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfa
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
 import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
-import { ISharedPancakeV4Utils as IPancakeV4Utils } from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
+import {
+  ISharedPancakeV4Utils as IPancakeV4Utils
+} from "../../contracts/shared-vault/interfaces/ISharedPancakeV4Utils.sol";
 import { PoolKey as PancakeV4PoolKey } from "infinity-core/src/types/PoolKey.sol";
 import { Currency as PancakeCurrency } from "infinity-core/src/types/Currency.sol";
 import { IHooks as IPancakeHooks } from "infinity-core/src/interfaces/IHooks.sol";
@@ -311,12 +313,14 @@ contract SharedVaultForkFuzzer {
   bool public v4HarnessReady;
   bool public v4SecurityFiredAtLeastOnce;
   bool public v4SuccessChecked;
+  bool public v4NativeSuccessChecked;
 
   SharedPancakeV4Strategy public localPancakeV4Strategy;
   ISharedVault public pancakeV4ThreeTokenVault;
   bool public pancakeV4HarnessReady;
   bool public pancakeV4SecurityFiredAtLeastOnce;
   bool public pancakeV4SuccessChecked;
+  bool public pancakeV4NativeSuccessChecked;
 
   constructor() payable { }
 
@@ -949,7 +953,8 @@ contract SharedVaultForkFuzzer {
     });
     IPositionManager(BASE_UNISWAP_V4_POSM).initializePool(key, SQRT_PRICE_1_1);
 
-    SharedVault successVault = _newLocalV4Vault(address(token0), address(token1), address(localV4Strategy), BASE_UNISWAP_V4_POSM);
+    SharedVault successVault =
+      _newLocalV4Vault(address(token0), address(token1), address(localV4Strategy), BASE_UNISWAP_V4_POSM);
 
     uint256 nextIdBefore = IPositionManager(BASE_UNISWAP_V4_POSM).nextTokenId();
 
@@ -969,16 +974,77 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
-    _executeLocalV4(successVault, address(localV4Strategy), _v4ExecuteData(BASE_UNISWAP_V4_POSM, 0, abi.encodeCall(IV4Utils.swapAndMint, (mintParams))));
+    _executeLocalV4(
+      successVault,
+      address(localV4Strategy),
+      _v4ExecuteData(BASE_UNISWAP_V4_POSM, 0, abi.encodeCall(IV4Utils.swapAndMint, (mintParams)))
+    );
 
     assert(successVault.getPositionCount() == 1);
     assert(IERC721(BASE_UNISWAP_V4_POSM).ownerOf(nextIdBefore) == address(successVault));
     assert(IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
+  }
+
+  function fork_v4_swapAndMint_native_success_with_local_pool() external {
+    if (v4NativeSuccessChecked) return;
+    v4NativeSuccessChecked = true;
+    _ensureV4Harness();
+
+    ForkV4MockERC20 token1 = new ForkV4MockERC20("Fork V4 Native Pair", "FV4N");
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token1)),
+      fee: V4_LP_FEE,
+      tickSpacing: V4_TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    IPositionManager(BASE_UNISWAP_V4_POSM).initializePool(key, SQRT_PRICE_1_1);
+
+    SharedVault successVault = _newLocalV4NativeVault(address(token1), address(localV4Strategy), BASE_UNISWAP_V4_POSM);
+    uint256 nextIdBefore = IPositionManager(BASE_UNISWAP_V4_POSM).nextTokenId();
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_UNISWAP_V4_POSM,
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _executeLocalV4(
+      successVault,
+      address(localV4Strategy),
+      _v4ExecuteData(BASE_UNISWAP_V4_POSM, 0, abi.encodeCall(IV4Utils.swapAndMint, (mintParams)))
+    );
+
+    assert(successVault.getPositionCount() == 1);
+    assert(IERC721(BASE_UNISWAP_V4_POSM).ownerOf(nextIdBefore) == address(successVault));
+    assert(IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
+    (,, uint256 trackedId, address tracked0, address tracked1) = successVault.getPosition(0);
+    assert(trackedId == nextIdBefore);
+    assert(tracked0 == BASE_WETH);
+    assert(tracked1 == address(token1));
+    assert(address(successVault).balance == 0);
   }
 
   function fork_pancake_v4_swapAndMint_rejects_non_pool_input_token(uint64 gasFeeSeed) external {
@@ -1030,8 +1096,8 @@ contract SharedVaultForkFuzzer {
     uint256 nextIdBefore = ICLPositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
 
     IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
-    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: address(token0), amount: 0.25 ether });
-    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: address(token1), amount: 0.25 ether });
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token1)), amount: 0.25 ether });
 
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
       posm: BASE_PANCAKE_V4_POSM,
@@ -1045,6 +1111,7 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -1059,6 +1126,65 @@ contract SharedVaultForkFuzzer {
     assert(successVault.getPositionCount() == 1);
     assert(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore) == address(successVault));
     assert(ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
+  }
+
+  function fork_pancake_v4_swapAndMint_native_success_with_local_pool() external {
+    if (pancakeV4NativeSuccessChecked) return;
+    pancakeV4NativeSuccessChecked = true;
+    _ensurePancakeV4Harness();
+
+    ForkV4MockERC20 token1 = new ForkV4MockERC20("Fork Pancake V4 Native Pair", "FPV4N");
+    address poolManager = address(ICLPositionManager(BASE_PANCAKE_V4_POSM).clPoolManager());
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(0)),
+      currency1: PancakeCurrency.wrap(address(token1)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(poolManager),
+      fee: V4_LP_FEE,
+      parameters: _pancakeClParameters(V4_TICK_SPACING)
+    });
+    ICLPoolManager(poolManager).initialize(key, SQRT_PRICE_1_1);
+
+    SharedVault successVault =
+      _newLocalV4NativeVault(address(token1), address(localPancakeV4Strategy), BASE_PANCAKE_V4_POSM);
+    uint256 nextIdBefore = ICLPositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token1)), amount: 0.25 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _executeLocalV4(
+      successVault,
+      address(localPancakeV4Strategy),
+      _pancakeV4ExecuteData(BASE_PANCAKE_V4_POSM, 0, abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams)))
+    );
+
+    assert(successVault.getPositionCount() == 1);
+    assert(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore) == address(successVault));
+    assert(ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(nextIdBefore) > 0);
+    (,, uint256 trackedId, address tracked0, address tracked1) = successVault.getPosition(0);
+    assert(trackedId == nextIdBefore);
+    assert(tracked0 == BASE_WETH);
+    assert(tracked1 == address(token1));
+    assert(address(successVault).balance == 0);
   }
 
   function _ensureV4Harness() internal {
@@ -1155,12 +1281,10 @@ contract SharedVaultForkFuzzer {
     v = ISharedVault(factory.createVault("EchidnaForkPancakeV4Bait", tokens, initialAmounts, 0));
   }
 
-  function _newLocalV4Vault(
-    address token0,
-    address token1,
-    address strategy,
-    address posm
-  ) internal returns (SharedVault successVault) {
+  function _newLocalV4Vault(address token0, address token1, address strategy, address posm)
+    internal
+    returns (SharedVault successVault)
+  {
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = strategy;
@@ -1178,6 +1302,27 @@ contract SharedVaultForkFuzzer {
     );
   }
 
+  function _newLocalV4NativeVault(address token1, address strategy, address posm)
+    internal
+    returns (SharedVault successVault)
+  {
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = strategy;
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = posm;
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+
+    successVault = new SharedVault();
+    _dealERC20(BASE_WETH, address(successVault), 10 ether);
+    ForkV4MockERC20(token1).mint(address(successVault), 10 ether);
+    address[4] memory tokens = [BASE_WETH, token1, address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(10 ether), uint256(10 ether), uint256(0), uint256(0)];
+    successVault.initialize(
+      "EchidnaForkV4NativeSuccess", tokens, initialAmounts, address(this), address(this), address(cm), BASE_WETH, 0
+    );
+  }
+
   function _executeLocalV4(SharedVault targetVault, address strategy, bytes memory stratData) internal {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] =
@@ -1185,16 +1330,20 @@ contract SharedVaultForkFuzzer {
     targetVault.execute(actions);
   }
 
-  function _v4ExecuteData(address posm, uint256 tokenId_, bytes memory paramsBytes) internal pure returns (bytes memory) {
+  function _v4ExecuteData(address posm, uint256 tokenId_, bytes memory paramsBytes)
+    internal
+    pure
+    returns (bytes memory)
+  {
     bytes memory innerData = abi.encode(posm, tokenId_, paramsBytes, uint256(0), new address[](0), new uint256[](0));
     return bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
   }
 
-  function _pancakeV4ExecuteData(
-    address posm,
-    uint256 tokenId_,
-    bytes memory paramsBytes
-  ) internal pure returns (bytes memory) {
+  function _pancakeV4ExecuteData(address posm, uint256 tokenId_, bytes memory paramsBytes)
+    internal
+    pure
+    returns (bytes memory)
+  {
     bytes memory innerData = abi.encode(posm, tokenId_, paramsBytes, uint256(0), new address[](0), new uint256[](0));
     return bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
   }
@@ -1237,6 +1386,7 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: gasFeeX64
@@ -1252,9 +1402,9 @@ contract SharedVaultForkFuzzer {
     (address c0, address c1) = BASE_WETH < BASE_USDC ? (BASE_WETH, BASE_USDC) : (BASE_USDC, BASE_WETH);
 
     IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](3);
-    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: c0, amount: 0.01 ether });
-    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: c1, amount: 30e6 });
-    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: BASE_DAI, amount: 100 ether });
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(c0), amount: 0.01 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(c1), amount: 30e6 });
+    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(BASE_DAI), amount: 100 ether });
 
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
       posm: BASE_PANCAKE_V4_POSM,
@@ -1271,6 +1421,7 @@ contract SharedVaultForkFuzzer {
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new PancakeCurrency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: gasFeeX64

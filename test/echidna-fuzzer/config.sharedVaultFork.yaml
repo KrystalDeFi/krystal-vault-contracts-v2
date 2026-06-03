@@ -22,13 +22,15 @@ deployer: "0x10000"
 
 # `SharedVault`, `SharedV4Strategy`, and `SharedPancakeV4Strategy` link to external Solidity libraries
 # (`SharedVaultPreviewLib`, `SharedV4StrategyLib`, and `SharedPancakeV4StrategyLib` respectively). The
-# V4 strategy libraries also link to `SharedV4SwapPipeline`. Echidna's `crytic-compile` doesn't auto-link
-# them, so we declare deterministic deploy addresses here; Echidna places the library bytecode at those
-# slots at session start. Without these, local SharedVault / V4 strategy deployments inside the fork
-# harness fail with "Unlinked libraries detected in bytecode". Mirrors the same directive used by the
-# non-fork config; the addresses must stay distinct from each other and from any address the fuzzer
-# touches at runtime.
+# V4 strategy libraries also link to `SharedV4SwapPipeline`, and — since the position-valuation/fee-growth
+# math was split out to keep the strategy libs under the EIP-170 limit — to `SharedV4ValuationLib` /
+# `SharedPancakeV4ValuationLib`. Those valuation libs are ALSO linked directly by the strategy contracts
+# (the `getPosition*` getters). Echidna's `crytic-compile` doesn't auto-link any of them, so we declare
+# deterministic deploy addresses here; Echidna places the library bytecode at those slots at session
+# start. Without these, local SharedVault / V4 strategy deployments inside the fork harness fail with
+# "Unlinked libraries detected in bytecode". The addresses must stay distinct from each other and from
+# any address the fuzzer touches at runtime.
 cryticArgs:
   [
-    "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedV4StrategyLib,0x1000000000000000000000000000000000000002),(SharedPancakeV4StrategyLib,0x1000000000000000000000000000000000000003),(SharedV4SwapPipeline,0x1000000000000000000000000000000000000004)",
+    "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedV4StrategyLib,0x1000000000000000000000000000000000000002),(SharedPancakeV4StrategyLib,0x1000000000000000000000000000000000000003),(SharedV4SwapPipeline,0x1000000000000000000000000000000000000004),(SharedV4ValuationLib,0x1000000000000000000000000000000000000005),(SharedPancakeV4ValuationLib,0x1000000000000000000000000000000000000006)",
   ]

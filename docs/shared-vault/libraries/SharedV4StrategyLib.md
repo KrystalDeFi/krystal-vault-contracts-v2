@@ -56,24 +56,6 @@ function swapAndIncreaseCalldata(address swapRouter, address posm, uint256 token
 function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1) external returns (struct ISharedStrategy.PositionChange[] changes)
 ```
 
-### getPositionAmounts
-
-```solidity
-function getPositionAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
-```
-
-### getPositionPrincipalAmounts
-
-```solidity
-function getPositionPrincipalAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
-```
-
-### getPositionAmountsSplit
-
-```solidity
-function getPositionAmountsSplit(address posm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
-```
-
 ### _v4ParamsSelector
 
 ```solidity

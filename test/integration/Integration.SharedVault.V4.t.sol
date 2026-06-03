@@ -18,6 +18,7 @@ import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
+import { IWETH9 } from "../../contracts/public-vault/interfaces/IWETH9.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 
@@ -82,6 +83,7 @@ contract RecordingSwapRouter {
 
 contract SharedVaultV4IntegrationTest is TestCommon {
   address internal constant BASE_V4_POSM = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+  address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
   uint256 internal constant BASE_FORK_BLOCK = 36_953_600;
   uint24 internal constant LP_FEE = 3000;
   int24 internal constant TICK_SPACING = 60;
@@ -107,7 +109,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   address internal depositor;
   address internal feeRecipient;
 
-  receive() external payable {}
+  receive() external payable { }
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), BASE_FORK_BLOCK);
@@ -184,8 +186,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(token0.allowance(address(vault), address(permit2)), 0, "token0 ERC20 Permit2 approval cleared");
     assertEq(token1.allowance(address(vault), address(permit2)), 0, "token1 ERC20 Permit2 approval cleared");
 
-    (uint160 permitAmount0, , ) = permit2.allowance(address(vault), address(token0), BASE_V4_POSM);
-    (uint160 permitAmount1, , ) = permit2.allowance(address(vault), address(token1), BASE_V4_POSM);
+    (uint160 permitAmount0,,) = permit2.allowance(address(vault), address(token0), BASE_V4_POSM);
+    (uint160 permitAmount1,,) = permit2.allowance(address(vault), address(token1), BASE_V4_POSM);
     assertEq(permitAmount0, 0, "token0 Permit2 POSM allowance cleared");
     assertEq(permitAmount1, 0, "token1 Permit2 POSM allowance cleared");
   }
@@ -202,14 +204,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       poolKey: poolKey,
       mintParams: IV4Utils.MintParams({
-        tickLower: TICK_LOWER,
-        tickUpper: TICK_UPPER,
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -234,6 +233,85 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "new V4 liquidity");
   }
 
+  function test_swapAndMint_nativeCurrency_usesWethVaultTokenWithRealV4PositionManager() public {
+    PoolKey memory nativeKey = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token0)),
+      fee: LP_FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    posm.initializePool(nativeKey, SQRT_PRICE_1_1);
+
+    SharedVault nativeVault = new SharedVault();
+    vm.deal(address(this), 10 ether);
+    IWETH9(BASE_WETH).deposit{ value: 10 ether }();
+    IERC20(BASE_WETH).transfer(address(nativeVault), 10 ether);
+    token0.mint(address(nativeVault), 10 ether);
+    address[4] memory vaultTokens = [BASE_WETH, address(token0), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(10 ether), uint256(10 ether), uint256(0), uint256(0)];
+    nativeVault.initialize(
+      "SharedVault-V4-Native-Fork",
+      vaultTokens,
+      initialAmounts,
+      vaultOwner,
+      address(this),
+      address(configManager),
+      BASE_WETH,
+      0
+    );
+
+    uint256 countBefore = nativeVault.getPositionCount();
+    uint256 nextIdBefore = posm.nextTokenId();
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: nativeKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory stratData = bytes.concat(
+      abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+      abi.encode(
+        BASE_V4_POSM,
+        uint256(0),
+        abi.encodeCall(IV4Utils.swapAndMint, (mintParams)),
+        uint256(0),
+        new address[](0),
+        new uint256[](0)
+      )
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    uint256 wethBefore = IERC20(BASE_WETH).balanceOf(address(nativeVault));
+    vm.prank(vaultOwner);
+    nativeVault.execute(actions);
+
+    assertEq(nativeVault.getPositionCount(), countBefore + 1, "new native V4 position tracked");
+    (, address trackedNfpm, uint256 trackedId, address tracked0, address tracked1) = nativeVault.getPosition(0);
+    assertEq(trackedNfpm, BASE_V4_POSM, "tracked POSM");
+    assertEq(trackedId, nextIdBefore, "tracked tokenId");
+    assertEq(tracked0, BASE_WETH, "native side tracked as WETH");
+    assertEq(tracked1, address(token0), "tracked ERC20 side");
+    assertEq(IERC721(BASE_V4_POSM).ownerOf(nextIdBefore), address(nativeVault), "vault owns new native V4 NFT");
+    assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "new native V4 liquidity");
+    assertLt(IERC20(BASE_WETH).balanceOf(address(nativeVault)), wethBefore, "WETH was unwrapped for settlement");
+    assertEq(address(nativeVault).balance, 0, "raw native was not left in vault");
+  }
+
   function test_swapAndMint_rejectsPoolKeyNotInitializedInPositionManagerPoolManager() public {
     PoolKey memory uninitializedKey = PoolKey({
       currency0: poolKey.currency0,
@@ -251,28 +329,19 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       poolKey: uninitializedKey,
       mintParams: IV4Utils.MintParams({
-        tickLower: TICK_LOWER,
-        tickUpper: TICK_UPPER,
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
 
     bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
-    bytes memory innerData = abi.encode(
-      BASE_V4_POSM,
-      uint256(0),
-      paramsBytes,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -295,12 +364,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       tokenId: tokenId,
       increaseParams: IV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -332,9 +400,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
@@ -342,8 +408,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
 
     _executeV4Instructions(
-      tokenId,
-      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+      tokenId, IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
     );
 
     assertEq(vault.getPositionCount(), countBefore, "compound does not change tracking without range change");
@@ -351,8 +416,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   }
 
   function test_getPositionAmounts_includesRealDonatedV4Fees() public {
-    (uint256 principal0Before, uint256 principal1Before) =
-      strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
+    (uint256 principal0Before, uint256 principal1Before) = strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
     (uint256 amount0Before, uint256 amount1Before) = strategy.getPositionAmounts(BASE_V4_POSM, tokenId);
 
     assertEq(amount0Before, principal0Before, "token0 starts with no pending fees");
@@ -360,8 +424,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     _donateV4Fees(1 ether, 2 ether);
 
-    (uint256 principal0After, uint256 principal1After) =
-      strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
+    (uint256 principal0After, uint256 principal1After) = strategy.getPositionPrincipalAmounts(BASE_V4_POSM, tokenId);
     (uint256 amount0After, uint256 amount1After) = strategy.getPositionAmounts(BASE_V4_POSM, tokenId);
 
     assertEq(principal0After, principal0Before, "donation does not change token0 principal");
@@ -380,9 +443,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       collectFeesHookData: "",
       swapParams: new IV4Utils.SwapParams[](0),
       increaseParams: IV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
@@ -390,8 +451,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
 
     _executeV4Instructions(
-      tokenId,
-      IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+      tokenId, IV4Utils.Instructions({ action: IV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
     );
 
     assertEq(vault.getPositionCount(), countBefore, "compound keeps the tracked V4 position");
@@ -418,12 +478,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
 
     _executeV4Instructions(
-      tokenId,
-      IV4Utils.Instructions({ action: IV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(adjustParams) })
+      tokenId, IV4Utils.Instructions({ action: IV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(adjustParams) })
     );
 
     assertEq(vault.getPositionCount(), 1, "range adjust replaces one tracked position");
-    (, , uint256 trackedTokenId, , ) = vault.getPosition(0);
+    (,, uint256 trackedTokenId,,) = vault.getPosition(0);
     assertEq(trackedTokenId, nextIdBefore, "new V4 tokenId tracked");
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "replacement V4 position has liquidity");
   }
@@ -437,21 +496,16 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: liquidity,
-        deadline: block.timestamp + 300,
-        amount0Min: 0,
-        amount1Min: 0,
-        hookData: ""
+        liquidity: liquidity, deadline: block.timestamp + 300, amount0Min: 0, amount1Min: 0, hookData: ""
       }),
       swapParams: new IV4Utils.SwapParams[](0),
+      swapDestToken: Currency.wrap(address(0)),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory decreaseInstructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
-      params: abi.encode(decParams)
-    });
+    IV4Utils.Instructions memory decreaseInstructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
     bytes memory decreaseParams = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, oldTokenId, decreaseInstructions));
     bytes memory decreaseData = bytes.concat(
       abi.encode(SharedV4Strategy.OperationType.EXECUTE),
@@ -466,14 +520,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       poolKey: poolKey,
       mintParams: IV4Utils.MintParams({
-        tickLower: TICK_LOWER,
-        tickUpper: TICK_UPPER,
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
@@ -499,7 +550,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     assertEq(vault.getPositionCount(), countBefore, "full exit plus mint keeps one tracked V4 position");
     assertEq(posm.getPositionLiquidity(oldTokenId), 0, "old V4 position fully exited");
-    (, , uint256 trackedTokenId, address trackedToken0, address trackedToken1) = vault.getPosition(0);
+    (,, uint256 trackedTokenId, address trackedToken0, address trackedToken1) = vault.getPosition(0);
     assertEq(trackedTokenId, nextIdBefore, "new V4 tokenId tracked");
     assertEq(trackedToken0, address(token0), "tracked token0");
     assertEq(trackedToken1, address(token1), "tracked token1");
@@ -540,37 +591,32 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
-      tokenIn: address(token0),
+      tokenIn: Currency.wrap(address(token0)),
       amountIn: 0.01 ether,
-      tokenOut: address(hopToken),
+      tokenOut: Currency.wrap(address(hopToken)),
       amountOutMin: 1,
       swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
     });
     swaps[1] = IV4Utils.SwapParams({
-      tokenIn: address(hopToken),
+      tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0,
-      tokenOut: address(token1),
+      tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
       swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether))
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: 0.5 ether,
-        deadline: block.timestamp,
-        amount0Min: 0,
-        amount1Min: 0,
-        hookData: ""
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
       }),
       swapParams: swaps,
+      swapDestToken: Currency.wrap(address(token1)),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
-      params: abi.encode(decParams)
-    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, tokenId, instructions));
 
     address[] memory approveTokens = new address[](2);
@@ -606,39 +652,34 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   function test_execute_revertsWhenPipelineLeavesUnconsumedIntermediate() public {
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
-      tokenIn: address(token0),
+      tokenIn: Currency.wrap(address(token0)),
       amountIn: 0.01 ether,
-      tokenOut: address(hopToken),
+      tokenOut: Currency.wrap(address(hopToken)),
       amountOutMin: 1,
       // RecordingSwapRouter mints `amountOut` of `tokenOut`; the third arg specifies the amountOut.
       // First hop produces 0.01 ether of hopToken.
       swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
     });
     swaps[1] = IV4Utils.SwapParams({
-      tokenIn: address(hopToken),
+      tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0.005 ether, // intentionally consumes less than what hop 1 produced
-      tokenOut: address(token1),
+      tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
       swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether))
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
       decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: 0.5 ether,
-        deadline: block.timestamp,
-        amount0Min: 0,
-        amount1Min: 0,
-        hookData: ""
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
       }),
       swapParams: swaps,
+      swapDestToken: Currency.wrap(address(token1)),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
-    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
-      params: abi.encode(decParams)
-    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
     bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, tokenId, instructions));
 
     bytes memory innerData = abi.encode(BASE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
@@ -685,14 +726,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       poolKey: poolKey,
       mintParams: IV4Utils.MintParams({
-        tickLower: TICK_LOWER,
-        tickUpper: TICK_UPPER,
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       // `Q64 / 2` ≈ 50% gas fee — well above any honest rate and large enough to make the
@@ -702,14 +740,8 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
 
     bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
-    bytes memory innerData = abi.encode(
-      BASE_V4_POSM,
-      uint256(0),
-      paramsBytes,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -749,26 +781,19 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       tokenId: idForIncrease,
       increaseParams: IV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
+      sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
       gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
     });
 
     bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndIncrease, (incParams));
-    bytes memory innerData = abi.encode(
-      BASE_V4_POSM,
-      idForIncrease,
-      paramsBytes,
-      uint256(0),
-      new address[](0),
-      new uint256[](0)
-    );
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -777,6 +802,254 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
     vm.prank(vaultOwner);
     threeTokenVault.execute(actions);
+  }
+
+  // ===========================================================================
+  // Gap coverage: dispatch guards, slippage floors, and revert-safe valuation.
+  // The happy-path tests above always pass `minLiquidity: 0` and well-formed dispatch
+  // envelopes, so these negative branches were previously unexercised.
+  // ===========================================================================
+
+  /// @dev `_mintV4WithAmounts` enforces `liquidity >= minLiquidity`. With an unreachable floor the
+  ///      mint must revert with `InsufficientOutput` — this is the real swap-and-mint slippage guard.
+  function test_swapAndMint_revertsBelowMinLiquidity() public {
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: type(uint256).max,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_V4_POSM,
+          uint256(0),
+          abi.encodeCall(IV4Utils.swapAndMint, (mintParams)),
+          uint256(0),
+          new address[](0),
+          new uint256[](0)
+        )
+      ),
+      ISharedCommon.InsufficientOutput.selector
+    );
+  }
+
+  /// @dev `_increaseV4WithAmounts` enforces `liquidity >= minLiquidity`.
+  function test_swapAndIncrease_revertsBelowMinLiquidity() public {
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
+
+    IV4Utils.SwapAndIncreaseParams memory incParams = IV4Utils.SwapAndIncreaseParams({
+      posm: BASE_V4_POSM,
+      tokenId: tokenId,
+      increaseParams: IV4Utils.IncreaseLiquidityParams({
+        minLiquidity: type(uint256).max,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_V4_POSM,
+          tokenId,
+          abi.encodeCall(IV4Utils.swapAndIncrease, (incParams)),
+          uint256(0),
+          new address[](0),
+          new uint256[](0)
+        )
+      ),
+      ISharedCommon.InsufficientOutput.selector
+    );
+  }
+
+  /// @dev F8: the ADJUST_RANGE round-trip is bounded ONLY by the re-mint's `minLiquidity`. An
+  ///      unreachable floor must revert the whole rebalance (the old position's burn is rolled back).
+  function test_execute_adjustRange_revertsBelowMinLiquidity() public {
+    IV4Utils.AdjustRangeParams memory adjustParams = IV4Utils.AdjustRangeParams({
+      collectFeesHookData: "",
+      swapParams: new IV4Utils.SwapParams[](0),
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER - TICK_SPACING,
+        tickUpper: TICK_UPPER + TICK_SPACING,
+        minLiquidity: type(uint256).max,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0,
+      compoundFees: false
+    });
+
+    bytes memory innerData = abi.encode(
+      BASE_V4_POSM,
+      tokenId,
+      abi.encode(IV4Utils.Instructions({ action: IV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(adjustParams) }))
+    );
+    _expectRevertExecute(
+      bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE_INSTRUCTIONS), innerData),
+      ISharedCommon.InsufficientOutput.selector
+    );
+  }
+
+  /// @dev `_execute` rejects any non-zero `ethValue` before touching the POSM (the vault settles
+  ///      native exclusively via WETH wrap/unwrap, never raw msg.value passthrough).
+  function test_execute_revertsWhenEthValueNonZero() public {
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (_minimalMintParams()));
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(1), new address[](0), new uint256[](0))
+      ),
+      ISharedCommon.InvalidAmount.selector
+    );
+  }
+
+  /// @dev `approveTokens.length != approveAmounts.length` is rejected up front with `LengthMismatch`.
+  function test_execute_revertsOnApproveArrayLengthMismatch() public {
+    address[] memory approveTokens = new address[](1);
+    approveTokens[0] = address(token0);
+    uint256[] memory approveAmounts = new uint256[](0);
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (_minimalMintParams()));
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), approveTokens, approveAmounts)
+      ),
+      ISharedCommon.LengthMismatch.selector
+    );
+  }
+
+  /// @dev `swapAndMint` must mint a fresh position, so a non-zero outer tokenId is rejected.
+  function test_swapAndMint_revertsWhenTokenIdNonZero() public {
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (_minimalMintParams()));
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(BASE_V4_POSM, tokenId, paramsBytes, uint256(0), new address[](0), new uint256[](0))
+      ),
+      ISharedCommon.InvalidOperation.selector
+    );
+  }
+
+  /// @dev `swapAndIncrease` must target an existing position, so a zero outer tokenId is rejected
+  ///      before the params are even decoded.
+  function test_swapAndIncrease_revertsWhenTokenIdZero() public {
+    IV4Utils.SwapAndIncreaseParams memory incParams = IV4Utils.SwapAndIncreaseParams({
+      posm: BASE_V4_POSM,
+      tokenId: tokenId,
+      increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp + 300 }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: new IV4Utils.InputTokenParams[](0),
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_V4_POSM,
+          uint256(0),
+          abi.encodeCall(IV4Utils.swapAndIncrease, (incParams)),
+          uint256(0),
+          new address[](0),
+          new uint256[](0)
+        )
+      ),
+      ISharedCommon.InvalidOperation.selector
+    );
+  }
+
+  /// @dev A params blob whose leading selector matches none of execute/swapAndMint/swapAndIncrease
+  ///      is rejected with `InvalidOperation`.
+  function test_execute_revertsOnUnknownSelector() public {
+    bytes memory badParams = abi.encodePacked(bytes4(0xdeadbeef));
+    _expectRevertExecute(
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(BASE_V4_POSM, uint256(0), badParams, uint256(0), new address[](0), new uint256[](0))
+      ),
+      ISharedCommon.InvalidOperation.selector
+    );
+  }
+
+  /// @dev Valuation must NEVER revert for an unknown/burned tokenId — `getPositionAmounts` is reached
+  ///      from deposit/withdraw/preview, so a revert here would brick the whole vault. It returns zeros.
+  function test_getPositionAmounts_returnsZeroForUnknownTokenId() public view {
+    uint256 bogusId = posm.nextTokenId() + 1000;
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(BASE_V4_POSM, bogusId);
+    assertEq(amount0, 0, "unknown tokenId values token0 to zero");
+    assertEq(amount1, 0, "unknown tokenId values token1 to zero");
+    (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+      strategy.getPositionAmountsSplit(BASE_V4_POSM, bogusId);
+    assertEq(total0 + total1 + principal0 + principal1, 0, "split valuation also zero, no revert");
+  }
+
+  /// @dev `getPositionTokens` resolves the pool currencies to the vault's sorted token pair.
+  function test_getPositionTokens_returnsSortedVaultTokens() public view {
+    (address t0, address t1) = strategy.getPositionTokens(BASE_V4_POSM, tokenId);
+    assertEq(t0, address(token0), "token0 resolved");
+    assertEq(t1, address(token1), "token1 resolved");
+  }
+
+  /// @dev Minimal valid mint params (zero floor) reused by the dispatch-guard tests whose revert
+  ///      fires before the params body is ever decoded.
+  function _minimalMintParams() internal view returns (IV4Utils.SwapAndMintParams memory) {
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+    return IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+  }
+
+  function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(expectedError);
+    vm.prank(vaultOwner);
+    vault.execute(actions);
   }
 
   function _executeV4(bytes memory stratData) internal {
@@ -812,14 +1085,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     address[4] memory tokens = [address(token0), address(token1), address(hopToken), address(0)];
     uint256[4] memory amounts = [uint256(10 ether), uint256(10 ether), uint256(10 ether), uint256(0)];
     threeTokenVault.initialize(
-      "SharedVault-V4-3Token",
-      tokens,
-      amounts,
-      vaultOwner,
-      address(this),
-      address(configManager),
-      address(token0),
-      0
+      "SharedVault-V4-3Token", tokens, amounts, vaultOwner, address(this), address(configManager), address(token0), 0
     );
   }
 
@@ -846,14 +1112,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     }
 
     params[0] = abi.encode(
-      key,
-      TICK_LOWER,
-      TICK_UPPER,
-      INITIAL_LIQUIDITY,
-      MAX_TOKEN_IN,
-      MAX_TOKEN_IN,
-      address(this),
-      bytes("")
+      key, TICK_LOWER, TICK_UPPER, INITIAL_LIQUIDITY, MAX_TOKEN_IN, MAX_TOKEN_IN, address(this), bytes("")
     );
     params[1] = abi.encode(key.currency0, key.currency1);
 

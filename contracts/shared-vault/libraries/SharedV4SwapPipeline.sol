@@ -10,6 +10,8 @@ import { ISharedPancakeV4Utils } from "../interfaces/ISharedPancakeV4Utils.sol";
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedV4Utils } from "../interfaces/ISharedV4Utils.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { Currency as UniCurrency } from "@uniswap/v4-core/src/types/Currency.sol";
+import { Currency as PancakeCurrency } from "infinity-core/src/types/Currency.sol";
 
 library SharedV4SwapPipeline {
   using SafeApprovalLib for IERC20;
@@ -36,7 +38,9 @@ library SharedV4SwapPipeline {
     uint256 amount1,
     ISharedV4Utils.SwapParams[] memory swapParams
   ) external returns (uint256 total0, uint256 total1) {
-    return _run(swapRouter, token0, token1, amount0, amount1, _normalizeV4(swapParams));
+    return _run(
+      swapRouter, token0, token1, amount0, amount1, _normalizeV4(swapParams, ISharedVault(address(this)).weth())
+    );
   }
 
   function executePancake(
@@ -47,18 +51,24 @@ library SharedV4SwapPipeline {
     uint256 amount1,
     ISharedPancakeV4Utils.SwapParams[] memory swapParams
   ) external returns (uint256 total0, uint256 total1) {
-    return _run(swapRouter, token0, token1, amount0, amount1, _normalizePancake(swapParams));
+    return _run(
+      swapRouter, token0, token1, amount0, amount1, _normalizePancake(swapParams, ISharedVault(address(this)).weth())
+    );
   }
 
   /// @dev Copy a V4 swap list into the protocol-neutral `Swap[]` shape (positional 1:1 mapping; the
   ///      `swapData` bytes reference is shared, not deep-copied).
-  function _normalizeV4(ISharedV4Utils.SwapParams[] memory swapParams) private pure returns (Swap[] memory swaps) {
+  function _normalizeV4(ISharedV4Utils.SwapParams[] memory swapParams, address weth)
+    private
+    pure
+    returns (Swap[] memory swaps)
+  {
     swaps = new Swap[](swapParams.length);
     for (uint256 i; i < swapParams.length;) {
       swaps[i] = Swap(
-        swapParams[i].tokenIn,
+        _vaultToken(UniCurrency.unwrap(swapParams[i].tokenIn), weth),
         swapParams[i].amountIn,
-        swapParams[i].tokenOut,
+        _vaultToken(UniCurrency.unwrap(swapParams[i].tokenOut), weth),
         swapParams[i].amountOutMin,
         swapParams[i].swapData
       );
@@ -69,7 +79,7 @@ library SharedV4SwapPipeline {
   }
 
   /// @dev Copy a PancakeV4 swap list into the protocol-neutral `Swap[]` shape (positional 1:1 mapping).
-  function _normalizePancake(ISharedPancakeV4Utils.SwapParams[] memory swapParams)
+  function _normalizePancake(ISharedPancakeV4Utils.SwapParams[] memory swapParams, address weth)
     private
     pure
     returns (Swap[] memory swaps)
@@ -77,9 +87,9 @@ library SharedV4SwapPipeline {
     swaps = new Swap[](swapParams.length);
     for (uint256 i; i < swapParams.length;) {
       swaps[i] = Swap(
-        swapParams[i].tokenIn,
+        _vaultToken(PancakeCurrency.unwrap(swapParams[i].tokenIn), weth),
         swapParams[i].amountIn,
-        swapParams[i].tokenOut,
+        _vaultToken(PancakeCurrency.unwrap(swapParams[i].tokenOut), weth),
         swapParams[i].amountOutMin,
         swapParams[i].swapData
       );
@@ -87,6 +97,10 @@ library SharedV4SwapPipeline {
         i++;
       }
     }
+  }
+
+  function _vaultToken(address currency, address weth) private pure returns (address token) {
+    token = currency == address(0) ? weth : currency;
   }
 
   /// @dev The single swap-pipeline implementation shared by both protocols. Validates the router is

@@ -44,8 +44,10 @@ export interface SharedContracts {
   sharedVaultGateway?: SharedVaultGateway;
   // Strategy implementations (logic only — not whitelisted directly)
   sharedV3Strategy?: SharedV3Strategy;
+  sharedV4ValuationLib?: BaseContract;
   sharedV4StrategyLib?: BaseContract;
   sharedV4Strategy?: SharedV4Strategy;
+  sharedPancakeV4ValuationLib?: BaseContract;
   sharedPancakeV4StrategyLib?: BaseContract;
   sharedPancakeV4Strategy?: BaseContract;
   sharedAerodromeStrategy?: SharedAerodromeStrategy;
@@ -69,6 +71,12 @@ const SHARED_V4_STRATEGY_LIB =
   "contracts/shared-vault/libraries/SharedV4StrategyLib.sol:SharedV4StrategyLib";
 const SHARED_PANCAKE_V4_STRATEGY_LIB =
   "contracts/shared-vault/libraries/SharedPancakeV4StrategyLib.sol:SharedPancakeV4StrategyLib";
+// Position valuation + fee-growth math was split out of the strategy libs to stay under the EIP-170
+// deploy-size limit. Both the strategy lib AND the strategy contract link the matching valuation lib.
+const SHARED_V4_VALUATION_LIB =
+  "contracts/shared-vault/libraries/SharedV4ValuationLib.sol:SharedV4ValuationLib";
+const SHARED_PANCAKE_V4_VALUATION_LIB =
+  "contracts/shared-vault/libraries/SharedPancakeV4ValuationLib.sol:SharedPancakeV4ValuationLib";
 
 export function getSharedVaultLibrariesForDeployment(
   existingContract: Record<string, any> | undefined,
@@ -109,6 +117,27 @@ export function getSharedPancakeV4StrategyLibrariesForDeployment(
     ?? existingContract?.["sharedPancakeV4StrategyLib"];
 
   return strategyLibAddress ? { [SHARED_PANCAKE_V4_STRATEGY_LIB]: strategyLibAddress } : undefined;
+}
+
+export function getSharedV4ValuationLibrariesForDeployment(
+  existingContract: Record<string, any> | undefined,
+  contracts: SharedContracts,
+): Record<string, string> | undefined {
+  const valuationLibAddress =
+    (contracts.sharedV4ValuationLib?.target as string | undefined) ?? existingContract?.["sharedV4ValuationLib"];
+
+  return valuationLibAddress ? { [SHARED_V4_VALUATION_LIB]: valuationLibAddress } : undefined;
+}
+
+export function getSharedPancakeV4ValuationLibrariesForDeployment(
+  existingContract: Record<string, any> | undefined,
+  contracts: SharedContracts,
+): Record<string, string> | undefined {
+  const valuationLibAddress =
+    (contracts.sharedPancakeV4ValuationLib?.target as string | undefined)
+    ?? existingContract?.["sharedPancakeV4ValuationLib"];
+
+  return valuationLibAddress ? { [SHARED_PANCAKE_V4_VALUATION_LIB]: valuationLibAddress } : undefined;
 }
 
 export const deploy = async (
@@ -238,12 +267,23 @@ async function deployContracts(
     )) as SharedStrategyProxy;
   }
 
-  // 7. Deploy SharedV4StrategyLib + SharedV4Strategy + beacon + proxy
+  // 7. Deploy SharedV4ValuationLib + SharedV4StrategyLib + SharedV4Strategy + beacon + proxy
   if (networkConfig.sharedV4Strategy?.enabled) {
+    // SharedV4ValuationLib has no linked dependencies; it is required by BOTH SharedV4StrategyLib
+    // (collectFees fallback) and SharedV4Strategy (the getPosition* getters), so deploy it first.
+    contracts.sharedV4ValuationLib = (await deployContract(
+      ++step,
+      networkConfig.sharedV4StrategyLib?.autoVerifyContract ?? networkConfig.sharedV4Strategy?.autoVerifyContract,
+      "SharedV4ValuationLib",
+      existingContract?.["sharedV4ValuationLib"],
+      SHARED_V4_VALUATION_LIB,
+    )) as BaseContract;
+
     const sharedV4SwapPipelineLibraries = getSharedV4SwapPipelineLibrariesForDeployment(existingContract, contracts);
-    if (!existingContract?.["sharedV4StrategyLib"] && !sharedV4SwapPipelineLibraries) {
+    const sharedV4ValuationLibraries = getSharedV4ValuationLibrariesForDeployment(existingContract, contracts);
+    if (!existingContract?.["sharedV4StrategyLib"] && (!sharedV4SwapPipelineLibraries || !sharedV4ValuationLibraries)) {
       throw new Error(
-        "SharedV4StrategyLib deployment requires SharedV4SwapPipeline. Enable sharedV4SwapPipeline deployment or provide existingContract.sharedV4SwapPipeline.",
+        "SharedV4StrategyLib deployment requires SharedV4SwapPipeline and SharedV4ValuationLib. Enable their deployment or provide the matching existingContract entries.",
       );
     }
 
@@ -256,7 +296,7 @@ async function deployContracts(
       undefined,
       undefined,
       undefined,
-      sharedV4SwapPipelineLibraries,
+      { ...sharedV4SwapPipelineLibraries, ...sharedV4ValuationLibraries },
     )) as BaseContract;
 
     const sharedV4StrategyLibraries = getSharedV4StrategyLibrariesForDeployment(existingContract, contracts);
@@ -269,7 +309,7 @@ async function deployContracts(
       undefined,
       ["address"],
       [getSharedStrategySwapRouter()],
-      sharedV4StrategyLibraries,
+      { ...sharedV4StrategyLibraries, ...sharedV4ValuationLibraries },
     )) as SharedV4Strategy;
 
     const implAddr = existingContract?.["sharedV4Strategy"] || contracts.sharedV4Strategy?.target;
@@ -297,12 +337,30 @@ async function deployContracts(
     )) as SharedStrategyProxy;
   }
 
-  // 8. Deploy SharedPancakeV4StrategyLib + SharedPancakeV4Strategy + beacon + proxy
+  // 8. Deploy SharedPancakeV4ValuationLib + SharedPancakeV4StrategyLib + SharedPancakeV4Strategy + beacon + proxy
   if (networkConfig.sharedPancakeV4Strategy?.enabled) {
+    // SharedPancakeV4ValuationLib has no linked dependencies; required by BOTH SharedPancakeV4StrategyLib
+    // (collectFees fallback) and SharedPancakeV4Strategy (the getPosition* getters), so deploy it first.
+    contracts.sharedPancakeV4ValuationLib = (await deployContract(
+      ++step,
+      networkConfig.sharedPancakeV4StrategyLib?.autoVerifyContract
+        ?? networkConfig.sharedPancakeV4Strategy?.autoVerifyContract,
+      "SharedPancakeV4ValuationLib",
+      existingContract?.["sharedPancakeV4ValuationLib"],
+      SHARED_PANCAKE_V4_VALUATION_LIB,
+    )) as BaseContract;
+
     const sharedV4SwapPipelineLibraries = getSharedV4SwapPipelineLibrariesForDeployment(existingContract, contracts);
-    if (!existingContract?.["sharedPancakeV4StrategyLib"] && !sharedV4SwapPipelineLibraries) {
+    const sharedPancakeV4ValuationLibraries = getSharedPancakeV4ValuationLibrariesForDeployment(
+      existingContract,
+      contracts,
+    );
+    if (
+      !existingContract?.["sharedPancakeV4StrategyLib"]
+      && (!sharedV4SwapPipelineLibraries || !sharedPancakeV4ValuationLibraries)
+    ) {
       throw new Error(
-        "SharedPancakeV4StrategyLib deployment requires SharedV4SwapPipeline. Enable sharedV4SwapPipeline deployment or provide existingContract.sharedV4SwapPipeline.",
+        "SharedPancakeV4StrategyLib deployment requires SharedV4SwapPipeline and SharedPancakeV4ValuationLib. Enable their deployment or provide the matching existingContract entries.",
       );
     }
 
@@ -316,7 +374,7 @@ async function deployContracts(
       undefined,
       undefined,
       undefined,
-      sharedV4SwapPipelineLibraries,
+      { ...sharedV4SwapPipelineLibraries, ...sharedPancakeV4ValuationLibraries },
     )) as BaseContract;
 
     const sharedPancakeV4StrategyLibraries = getSharedPancakeV4StrategyLibrariesForDeployment(
@@ -332,7 +390,7 @@ async function deployContracts(
       undefined,
       ["address"],
       [getSharedStrategySwapRouter()],
-      sharedPancakeV4StrategyLibraries,
+      { ...sharedPancakeV4StrategyLibraries, ...sharedPancakeV4ValuationLibraries },
     );
 
     const implAddr = existingContract?.["sharedPancakeV4Strategy"] || contracts.sharedPancakeV4Strategy?.target;

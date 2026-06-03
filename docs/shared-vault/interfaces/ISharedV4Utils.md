@@ -59,9 +59,9 @@ struct IncreaseLiquidityParams {
 
 ```solidity
 struct SwapParams {
-  address tokenIn;
+  Currency tokenIn;
   uint256 amountIn;
-  address tokenOut;
+  Currency tokenOut;
   uint256 amountOutMin;
   bytes swapData;
 }
@@ -85,6 +85,7 @@ struct SwapAndMintParams {
   struct ISharedV4Utils.MintParams mintParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
   struct ISharedV4Utils.InputTokenParams[] inputTokens;
+  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -100,6 +101,7 @@ struct SwapAndIncreaseParams {
   struct ISharedV4Utils.IncreaseLiquidityParams increaseParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
   struct ISharedV4Utils.InputTokenParams[] inputTokens;
+  Currency[] sweepTokens;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -112,6 +114,7 @@ struct SwapAndIncreaseParams {
 struct DecreaseAndSwapParams {
   struct ISharedV4Utils.DecreaseLiquidityParams decreaseParams;
   struct ISharedV4Utils.SwapParams[] swapParams;
+  Currency swapDestToken;
   uint64 protocolFeeX64;
   uint64 performanceFeeX64;
   uint64 gasFeeX64;
@@ -148,7 +151,7 @@ struct CompoundFeesParams {
 ### swapAndMint
 
 ```solidity
-function swapAndMint(struct ISharedV4Utils.SwapAndMintParams params) external
+function swapAndMint(struct ISharedV4Utils.SwapAndMintParams params) external payable
 ```
 
 ### swapAndIncrease

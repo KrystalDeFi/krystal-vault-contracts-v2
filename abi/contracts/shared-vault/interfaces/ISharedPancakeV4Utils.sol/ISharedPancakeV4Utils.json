@@ -73,7 +73,7 @@
           {
             "components": [
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "tokenIn",
                 "type": "address"
               },
@@ -83,7 +83,7 @@
                 "type": "uint256"
               },
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "tokenOut",
                 "type": "address"
               },
@@ -105,7 +105,7 @@
           {
             "components": [
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "token",
                 "type": "address"
               },
@@ -118,6 +118,11 @@
             "internalType": "struct ISharedPancakeV4Utils.InputTokenParams[]",
             "name": "inputTokens",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "Currency[]",
+            "name": "sweepTokens",
+            "type": "address[]"
           },
           {
             "internalType": "uint64",
@@ -226,7 +231,7 @@
           {
             "components": [
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "tokenIn",
                 "type": "address"
               },
@@ -236,7 +241,7 @@
                 "type": "uint256"
               },
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "tokenOut",
                 "type": "address"
               },
@@ -258,7 +263,7 @@
           {
             "components": [
               {
-                "internalType": "address",
+                "internalType": "Currency",
                 "name": "token",
                 "type": "address"
               },
@@ -271,6 +276,11 @@
             "internalType": "struct ISharedPancakeV4Utils.InputTokenParams[]",
             "name": "inputTokens",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "Currency[]",
+            "name": "sweepTokens",
+            "type": "address[]"
           },
           {
             "internalType": "uint64",
@@ -295,7 +305,7 @@
     ],
     "name": "swapAndMint",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   }
 ]

@@ -55,10 +55,11 @@ function _execute(bytes data) internal returns (struct ISharedStrategy.PositionC
 ```
 
 _`approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
-     used for ERC20 approvals. Approvals are issued per-hop inside `_swapV4` against the
-     immutable `swapRouter`. These arrays are still walked by `_validateApprovalList` to
-     enforce that any positive-amount entry references a vault-tracked token, which prevents
-     operators from silently sneaking unrelated tokens through this entry point._
+     used for ERC20 approvals. Approvals are issued per-hop inside `SharedV4SwapPipeline._swap`
+     against the immutable `swapRouter` (and to the POSM via Permit2 in `SharedV4StrategyLib`).
+     `approveTokens` is still walked by `_validateApprovalList` to enforce that EVERY entry
+     references a vault-tracked token (including zero-amount entries), preventing operators
+     from listing unrelated tokens through this entry point._
 
 ### _executeInstructions
 
@@ -113,8 +114,7 @@ _Collects accumulated fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liqu
      decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
      to the vault (address(this) in delegatecall context). Performance and platform fees are
      then applied inline since V4Strategy has no dedicated lpFeeTaker.
-     Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by
-     _validateVaultToken, so this function is never called for native-currency pools._
+     Native-currency pool amounts are accounted against the vault's configured WETH token._
 
 #### Parameters
 

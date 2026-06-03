@@ -288,7 +288,7 @@ function _validateApprovalList(address[] _tokens, uint256[] approveAmounts) inte
 ```
 
 _`approveTokens` / `approveAmounts` are NOT used to issue ERC20 approvals — those happen
-     per-hop inside `_swap` against the immutable `swapRouter`. They are walked here purely
-     to enforce that any positive-amount entry references a vault-tracked token, blocking
-     operators from sneaking unrelated tokens through this entry point._
+     per-hop inside `_swap` against the immutable `swapRouter`. `approveTokens` is walked here
+     purely to enforce that EVERY entry references a vault-tracked token (including zero-amount
+     entries), blocking operators from listing unrelated tokens through this entry point._
 

@@ -6,7 +6,6 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { FixedPoint128 } from "@uniswap/v4-core/src/libraries/FixedPoint128.sol";
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -29,9 +28,11 @@ import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
+import { IWETH9 } from "../../public-vault/interfaces/IWETH9.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 import { SharedStrategyFees } from "../libraries/SharedStrategyFees.sol";
 import { SharedV4SwapPipeline } from "../libraries/SharedV4SwapPipeline.sol";
+import { SharedV4ValuationLib } from "../libraries/SharedV4ValuationLib.sol";
 
 library SharedV4StrategyLib {
   using SafeApprovalLib for IERC20;
@@ -62,8 +63,7 @@ library SharedV4StrategyLib {
     (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
     Currency currency0 = poolKey.currency0;
     Currency currency1 = poolKey.currency1;
-    address token0 = Currency.unwrap(currency0);
-    address token1 = Currency.unwrap(currency1);
+    (address token0, address token1) = _validatePoolVaultTokens(currency0, currency1);
 
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
 
@@ -83,29 +83,42 @@ library SharedV4StrategyLib {
     uint256 balance1Before = IERC20(token1).balanceOf(address(this));
 
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
-    if (amount0 > 0) {
+    if (amount0 > 0 && !_isNative(currency0)) {
       IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
     }
-    if (amount1 > 0) {
+    if (amount1 > 0 && !_isNative(currency1)) {
       IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
     }
 
-    bytes memory actions =
-      abi.encodePacked(uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY));
-    bytes[] memory params = new bytes[](3);
+    bool hasNative = _hasNative(poolKey);
+    bytes memory actions = hasNative
+      ? abi.encodePacked(
+        uint8(Actions.INCREASE_LIQUIDITY),
+        uint8(Actions.CLOSE_CURRENCY),
+        uint8(Actions.CLOSE_CURRENCY),
+        uint8(Actions.SWEEP)
+      )
+      : abi.encodePacked(
+        uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY)
+      );
+    bytes[] memory params = new bytes[](hasNative ? 4 : 3);
     params[0] = abi.encode(tokenId, uint256(liquidityToAdd), uint128(amount0), uint128(amount1), bytes(""));
     params[1] = abi.encode(currency0);
     params[2] = abi.encode(currency1);
+    if (hasNative) params[3] = abi.encode(Currency.wrap(address(0)), address(this));
 
-    pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
+    uint256 nativeBefore = address(this).balance;
+    uint256 nativeValue = _unwrapNativeForPool(poolKey, amount0, amount1);
+    pm.modifyLiquidities{ value: nativeValue }(abi.encode(actions, params), block.timestamp);
+    _wrapNativeBalanceDelta(nativeBefore);
 
-    if (amount0 > 0) {
+    if (amount0 > 0 && !_isNative(currency0)) {
       IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
       IERC20(token0).safeApprove(permit2Addr, 0);
     }
-    if (amount1 > 0) {
+    if (amount1 > 0 && !_isNative(currency1)) {
       IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
       IERC20(token1).safeApprove(permit2Addr, 0);
     }
@@ -162,10 +175,9 @@ library SharedV4StrategyLib {
 
     if (posLiquidity == 0) {
       (PoolKey memory zeroLiquidityKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (address token0, address token1) = _poolVaultTokens(zeroLiquidityKey.currency0, zeroLiquidityKey.currency1);
       changes = new ISharedStrategy.PositionChange[](1);
-      changes[0] = ISharedStrategy.PositionChange(
-        false, posm, tokenId, Currency.unwrap(zeroLiquidityKey.currency0), Currency.unwrap(zeroLiquidityKey.currency1)
-      );
+      changes[0] = ISharedStrategy.PositionChange(false, posm, tokenId, token0, token1);
       return changes;
     }
 
@@ -178,46 +190,22 @@ library SharedV4StrategyLib {
     _decreaseV4Principal(posm, poolKey, tokenId, liquidityToRemove, minAmount0, minAmount1, "", 0, block.timestamp);
 
     if (isFullExit) {
+      (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
       changes = new ISharedStrategy.PositionChange[](1);
-      changes[0] = ISharedStrategy.PositionChange(
-        false, posm, tokenId, Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1)
-      );
+      changes[0] = ISharedStrategy.PositionChange(false, posm, tokenId, token0, token1);
     } else {
       changes = new ISharedStrategy.PositionChange[](0);
     }
   }
 
-  function getPositionAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1) {
-    (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) = _positionAmountsSplit(posm, tokenId);
-    amount0 = principal0 + fees0;
-    amount1 = principal1 + fees1;
-  }
-
-  function getPositionPrincipalAmounts(address posm, uint256 tokenId)
-    external
-    view
-    returns (uint256 amount0, uint256 amount1)
-  {
-    (amount0, amount1,,) = _positionAmountsSplit(posm, tokenId);
-  }
-
-  function getPositionAmountsSplit(address posm, uint256 tokenId)
-    external
-    view
-    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
-  {
-    uint256 fees0;
-    uint256 fees1;
-    (principal0, principal1, fees0, fees1) = _positionAmountsSplit(posm, tokenId);
-    total0 = principal0 + fees0;
-    total1 = principal1 + fees1;
-  }
+  // Position valuation (`getPositionAmounts` / `getPositionPrincipalAmounts` / `getPositionAmountsSplit`)
+  // lives in `SharedV4ValuationLib`; callers (the strategy contract and tests) invoke it directly. This
+  // keeps the strategy library under the EIP-170 deploy-size limit.
 
   function _collectFees(address posm, uint256 tokenId, ICommon.FeeConfig memory fc) private {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
+    (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
 
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
@@ -232,13 +220,15 @@ library SharedV4StrategyLib {
     // there is then nothing to distribute, so skipping cannot let a withdrawer over-sweep, and one such
     // position cannot brick SharedVault.withdraw (which requires collectFees to succeed for every position).
     // If fees ARE present, propagate the original revert so the fee-fairness guarantee is preserved.
+    uint256 nativeBefore = address(this).balance;
     try pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp) {
+      _wrapNativeBalanceDelta(nativeBefore);
       uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
       uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
       if (collected0 == 0 && collected1 == 0) return;
       SharedStrategyFees.applyFees(token0, collected0, token1, collected1, fc);
     } catch (bytes memory reason) {
-      if (_hasCollectableFeesForFailedCollect(posm, tokenId)) {
+      if (SharedV4ValuationLib.hasCollectableFeesForFailedCollect(posm, tokenId)) {
         assembly ("memory-safe") {
           revert(add(reason, 0x20), mload(reason))
         }
@@ -250,17 +240,13 @@ library SharedV4StrategyLib {
     private
   {
     require(params.posm == posm, ISharedCommon.InvalidOperation());
-    address token0 = Currency.unwrap(params.poolKey.currency0);
-    address token1 = Currency.unwrap(params.poolKey.currency1);
-    _validateVaultToken(token0);
-    _validateVaultToken(token1);
+    (address token0, address token1) = _validatePoolVaultTokens(params.poolKey.currency0, params.poolKey.currency1);
     _validateV4InputTokens(params.inputTokens, params.poolKey.currency0, params.poolKey.currency1);
 
     (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
       params.poolKey.currency0, params.poolKey.currency1, params.inputTokens, params.gasFeeX64
     );
-    (amount0, amount1) =
-      SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
+    (amount0, amount1) = SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
   }
 
@@ -274,16 +260,12 @@ library SharedV4StrategyLib {
     require(IERC721(posm).ownerOf(tokenId) == address(this), ISharedStrategy.InvalidPoolTokens());
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
-    _validateVaultToken(token0);
-    _validateVaultToken(token1);
+    (address token0, address token1) = _validatePoolVaultTokens(poolKey.currency0, poolKey.currency1);
     _validateV4InputTokens(params.inputTokens, poolKey.currency0, poolKey.currency1);
 
     (uint256 amount0, uint256 amount1) =
       _takeInputGasFeesAndGetPoolAmounts(poolKey.currency0, poolKey.currency1, params.inputTokens, params.gasFeeX64);
-    (amount0, amount1) =
-      SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
+    (amount0, amount1) = SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
   }
 
@@ -295,10 +277,7 @@ library SharedV4StrategyLib {
   ) private {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
-    _validateVaultToken(token0);
-    _validateVaultToken(token1);
+    (address token0, address token1) = _validatePoolVaultTokens(poolKey.currency0, poolKey.currency1);
 
     if (instructions.action == ISharedV4Utils.UtilActions.COMPOUND) {
       ISharedV4Utils.CompoundFeesParams memory compoundParams =
@@ -361,8 +340,7 @@ library SharedV4StrategyLib {
     bytes memory hookData,
     uint64 gasFeeX64
   ) private returns (uint256 net0, uint256 net1) {
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
+    (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
 
@@ -370,7 +348,9 @@ library SharedV4StrategyLib {
     bytes[] memory collectParams = new bytes[](2);
     collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), hookData);
     collectParams[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
+    uint256 nativeBefore = address(this).balance;
     IPositionManager(posm).modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
+    _wrapNativeBalanceDelta(nativeBefore);
 
     uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
     uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
@@ -402,8 +382,7 @@ library SharedV4StrategyLib {
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
     if (liquidity > posLiquidity) liquidity = posLiquidity;
 
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
+    (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
     uint256 before0 = IERC20(token0).balanceOf(address(this));
     uint256 before1 = IERC20(token1).balanceOf(address(this));
 
@@ -411,7 +390,9 @@ library SharedV4StrategyLib {
     bytes[] memory params = new bytes[](2);
     params[0] = abi.encode(tokenId, liquidity, amount0Min, amount1Min, hookData);
     params[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(this));
+    uint256 nativeBefore = address(this).balance;
     pm.modifyLiquidities(abi.encode(actions, params), deadline == 0 ? block.timestamp : deadline);
+    _wrapNativeBalanceDelta(nativeBefore);
 
     uint256 principal0 = IERC20(token0).balanceOf(address(this)) - before0;
     uint256 principal1 = IERC20(token1).balanceOf(address(this)) - before1;
@@ -456,14 +437,28 @@ library SharedV4StrategyLib {
     if (liquidity == 0) return;
 
     _approveV4PositionManager(posm, poolKey, amount0, amount1);
-    bytes memory actions = abi.encodePacked(
-      uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY)
-    );
-    bytes[] memory callParams = new bytes[](3);
+    bool hasNative = _hasNative(poolKey);
+    bytes memory actions = hasNative
+      ? abi.encodePacked(
+        uint8(Actions.INCREASE_LIQUIDITY),
+        uint8(Actions.CLOSE_CURRENCY),
+        uint8(Actions.CLOSE_CURRENCY),
+        uint8(Actions.SWEEP)
+      )
+      : abi.encodePacked(
+        uint8(Actions.INCREASE_LIQUIDITY), uint8(Actions.CLOSE_CURRENCY), uint8(Actions.CLOSE_CURRENCY)
+      );
+    bytes[] memory callParams = new bytes[](hasNative ? 4 : 3);
     callParams[0] = abi.encode(tokenId, uint256(liquidity), uint128(amount0), uint128(amount1), params.hookData);
     callParams[1] = abi.encode(poolKey.currency0);
     callParams[2] = abi.encode(poolKey.currency1);
-    pm.modifyLiquidities(abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline);
+    if (hasNative) callParams[3] = abi.encode(Currency.wrap(address(0)), address(this));
+    uint256 nativeBefore = address(this).balance;
+    uint256 nativeValue = _unwrapNativeForPool(poolKey, amount0, amount1);
+    pm.modifyLiquidities{ value: nativeValue }(
+      abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline
+    );
+    _wrapNativeBalanceDelta(nativeBefore);
     _clearV4PositionManagerApprovals(posm, poolKey, amount0, amount1);
   }
 
@@ -491,8 +486,11 @@ library SharedV4StrategyLib {
 
     tokenId = pm.nextTokenId();
     _approveV4PositionManager(posm, poolKey, amount0, amount1);
-    bytes memory actions = abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
-    bytes[] memory callParams = new bytes[](2);
+    bool hasNative = _hasNative(poolKey);
+    bytes memory actions = hasNative
+      ? abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR), uint8(Actions.SWEEP))
+      : abi.encodePacked(uint8(Actions.MINT_POSITION), uint8(Actions.SETTLE_PAIR));
+    bytes[] memory callParams = new bytes[](hasNative ? 3 : 2);
     callParams[0] = abi.encode(
       poolKey,
       params.tickLower,
@@ -504,18 +502,24 @@ library SharedV4StrategyLib {
       params.hookData
     );
     callParams[1] = abi.encode(poolKey.currency0, poolKey.currency1);
-    pm.modifyLiquidities(abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline);
+    if (hasNative) callParams[2] = abi.encode(Currency.wrap(address(0)), address(this));
+    uint256 nativeBefore = address(this).balance;
+    uint256 nativeValue = _unwrapNativeForPool(poolKey, amount0, amount1);
+    pm.modifyLiquidities{ value: nativeValue }(
+      abi.encode(actions, callParams), params.deadline == 0 ? block.timestamp : params.deadline
+    );
+    _wrapNativeBalanceDelta(nativeBefore);
     _clearV4PositionManagerApprovals(posm, poolKey, amount0, amount1);
   }
 
   function _approveV4PositionManager(address posm, PoolKey memory poolKey, uint256 amount0, uint256 amount1) private {
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
-    if (amount0 > 0) {
+    if (amount0 > 0 && !_isNative(poolKey.currency0)) {
       address token0 = Currency.unwrap(poolKey.currency0);
       IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
     }
-    if (amount1 > 0) {
+    if (amount1 > 0 && !_isNative(poolKey.currency1)) {
       address token1 = Currency.unwrap(poolKey.currency1);
       IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
@@ -526,118 +530,73 @@ library SharedV4StrategyLib {
     private
   {
     address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
-    if (amount0 > 0) {
+    if (amount0 > 0 && !_isNative(poolKey.currency0)) {
       address token0 = Currency.unwrap(poolKey.currency0);
       IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
       IERC20(token0).safeApprove(permit2Addr, 0);
     }
-    if (amount1 > 0) {
+    if (amount1 > 0 && !_isNative(poolKey.currency1)) {
       address token1 = Currency.unwrap(poolKey.currency1);
       IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
       IERC20(token1).safeApprove(permit2Addr, 0);
     }
   }
 
-  function _positionAmountsSplit(address posm, uint256 tokenId)
-    private
-    view
-    returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1)
-  {
-    IPositionManager pm = IPositionManager(posm);
-    PoolKey memory poolKey;
-    PositionInfo positionInfo;
-    try pm.getPoolAndPositionInfo(tokenId) returns (PoolKey memory key, PositionInfo info) {
-      poolKey = key;
-      positionInfo = info;
-    } catch {
-      return (0, 0, 0, 0);
-    }
-    uint128 liquidity = pm.getPositionLiquidity(tokenId);
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
-
-    IPoolManager manager = pm.poolManager();
-    PoolId poolId = poolKey.toId();
-    (uint160 sqrtPriceX96,,,) = manager.getSlot0(poolId);
-
-    if (liquidity > 0) {
-      (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96, TickMath.getSqrtPriceAtTick(tickLower), TickMath.getSqrtPriceAtTick(tickUpper), liquidity
-      );
-    }
-
-    (fees0, fees1) = _uncollectedFees(pm, manager, poolId, tickLower, tickUpper, tokenId);
-  }
-
-  function _uncollectedFees(
-    IPositionManager posm,
-    IPoolManager manager,
-    PoolId poolId,
-    int24 tickLower,
-    int24 tickUpper,
-    uint256 tokenId
-  ) private view returns (uint256 fee0, uint256 fee1) {
-    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) =
-      manager.getPositionInfo(poolId, address(posm), tickLower, tickUpper, bytes32(tokenId));
-    if (liquidity == 0) return (0, 0);
-
-    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-      manager.getFeeGrowthInside(poolId, tickLower, tickUpper);
-
-    fee0 = _feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity);
-    fee1 = _feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
-  }
-
-  /// @dev The failed-collect fallback is only a gate for whether to re-revert a hook failure. Use a
-  ///      non-wrapping positive-delta check here so feeGrowthInside < feeGrowthInsideLast does not
-  ///      look like near-uint256.max pending fees and brick an otherwise zero-fee position. Normal
-  ///      valuation still uses `_feeOwed`'s modulo arithmetic to mirror V4 fee accounting.
-  function _hasCollectableFeesForFailedCollect(address posm, uint256 tokenId) private view returns (bool) {
-    IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
-
-    IPoolManager manager = pm.poolManager();
-    PoolId poolId = poolKey.toId();
-    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) =
-      manager.getPositionInfo(poolId, address(posm), tickLower, tickUpper, bytes32(tokenId));
-    if (liquidity == 0) return false;
-
-    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) =
-      manager.getFeeGrowthInside(poolId, tickLower, tickUpper);
-
-    return _hasPositiveCollectFeeDelta(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity)
-      || _hasPositiveCollectFeeDelta(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity);
-  }
-
-  function _hasPositiveCollectFeeDelta(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
-    private
-    pure
-    returns (bool)
-  {
-    if (liquidity == 0 || feeGrowthInsideX128 <= feeGrowthInsideLastX128) return false;
-    return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128) != 0;
-  }
-
-  /// @dev F7-parity with SharedV3Strategy: the fee-growth subtraction wraps by design (matches Uniswap V4),
-  ///      but the pending fee is accumulated in uint256 and NOT cast to uint128. A reverting SafeCast here
-  ///      would make `getPositionAmounts` / `getPositionPrincipalAmounts` — reached on `deposit()` and
-  ///      preview via `_positionAmountsSplit` — revert under extreme/wrapped fee-growth, which could brick
-  ///      deposits/valuation for the whole vault. Valuing in uint256 cannot revert.
-  function _feeOwed(uint256 feeGrowthInsideX128, uint256 feeGrowthInsideLastX128, uint256 liquidity)
-    private
-    pure
-    returns (uint256)
-  {
-    if (liquidity == 0) return 0;
-    unchecked {
-      return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128);
-    }
-  }
+  // The position valuation + fee-growth math (`_positionAmountsSplit`, `_uncollectedFees`,
+  // `_feeOwed`, `hasCollectableFeesForFailedCollect`, `_hasPositiveCollectFeeDelta`) was moved to
+  // `SharedV4ValuationLib` to keep this library under the EIP-170 deploy-size limit.
 
   function _validateVaultToken(address token) private view {
     require(ISharedVault(address(this)).isVaultToken(token), ISharedStrategy.InvalidPoolTokens());
+  }
+
+  function _validatePoolVaultTokens(Currency currency0, Currency currency1)
+    private
+    view
+    returns (address token0, address token1)
+  {
+    (token0, token1) = _poolVaultTokens(currency0, currency1);
+    _validateVaultToken(token0);
+    _validateVaultToken(token1);
+  }
+
+  function _poolVaultTokens(Currency currency0, Currency currency1)
+    private
+    view
+    returns (address token0, address token1)
+  {
+    token0 = _vaultToken(currency0);
+    token1 = _vaultToken(currency1);
+    require(token0 != token1, ISharedStrategy.InvalidPoolTokens());
+  }
+
+  function _vaultToken(Currency currency) private view returns (address token) {
+    token = Currency.unwrap(currency);
+    if (token == address(0)) token = ISharedVault(address(this)).weth();
+  }
+
+  function _isNative(Currency currency) private pure returns (bool) {
+    return Currency.unwrap(currency) == address(0);
+  }
+
+  function _hasNative(PoolKey memory poolKey) private pure returns (bool) {
+    return _isNative(poolKey.currency0) || _isNative(poolKey.currency1);
+  }
+
+  function _unwrapNativeForPool(PoolKey memory poolKey, uint256 amount0, uint256 amount1)
+    private
+    returns (uint256 nativeValue)
+  {
+    if (_isNative(poolKey.currency0)) nativeValue = amount0;
+    else if (_isNative(poolKey.currency1)) nativeValue = amount1;
+    if (nativeValue > 0) IWETH9(ISharedVault(address(this)).weth()).withdraw(nativeValue);
+  }
+
+  function _wrapNativeBalanceDelta(uint256 nativeBefore) private {
+    uint256 nativeAfter = address(this).balance;
+    if (nativeAfter > nativeBefore) {
+      IWETH9(ISharedVault(address(this)).weth()).deposit{ value: nativeAfter - nativeBefore }();
+    }
   }
 
   function _requireWhitelistedPosm(address posm) private view {
@@ -655,11 +614,12 @@ library SharedV4StrategyLib {
     Currency currency0,
     Currency currency1
   ) private view {
+    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
     for (uint256 i; i < inputTokens.length;) {
       if (inputTokens[i].amount > 0) {
-        Currency token = inputTokens[i].token;
-        _validateVaultToken(Currency.unwrap(token));
-        require(token == currency0 || token == currency1, ISharedStrategy.InvalidPoolTokens());
+        address token = _vaultToken(inputTokens[i].token);
+        _validateVaultToken(token);
+        require(token == poolToken0 || token == poolToken1, ISharedStrategy.InvalidPoolTokens());
       }
       unchecked {
         i++;
@@ -675,26 +635,25 @@ library SharedV4StrategyLib {
   ) private returns (uint256 amount0, uint256 amount1) {
     address gasFeeRecipient;
     if (gasFeeX64 > 0) (gasFeeX64, gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
+    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
     for (uint256 i; i < inputTokens.length;) {
       uint256 amount = inputTokens[i].amount;
-      address token = Currency.unwrap(inputTokens[i].token);
+      address token = _vaultToken(inputTokens[i].token);
       if (amount > 0 && gasFeeX64 > 0) {
         amount -= _applySingleTokenGasFee(token, amount, gasFeeX64, gasFeeRecipient);
       }
-      if (inputTokens[i].token == currency0) amount0 += amount;
-      else if (inputTokens[i].token == currency1) amount1 += amount;
+      if (token == poolToken0) amount0 += amount;
+      else if (token == poolToken1) amount1 += amount;
       unchecked {
         i++;
       }
     }
   }
 
-  function _applySingleTokenGasFee(
-    address token,
-    uint256 amount,
-    uint64 gasFeeX64,
-    address gasFeeRecipient
-  ) private returns (uint256 gasFee) {
+  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64, address gasFeeRecipient)
+    private
+    returns (uint256 gasFee)
+  {
     ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 0,
       vaultOwner: address(0),
