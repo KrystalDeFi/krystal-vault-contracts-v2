@@ -103,10 +103,16 @@ library SharedV4SwapPipeline {
     token = currency == address(0) ? weth : currency;
   }
 
-  /// @dev The single swap-pipeline implementation shared by both protocols. Validates the router is
-  ///      whitelisted, then for each hop enforces input/output token reachability, draws the input from
-  ///      principal (token0/token1) or a tracked intermediate balance, executes the swap, and books the
-  ///      deltas. After the loop every intermediate balance must net to zero (no token left stranded).
+  /// @dev The single swap-pipeline implementation shared by both protocols. Validates the top-level
+  ///      immutable `swapRouter` is whitelisted, then for each hop enforces input/output token
+  ///      reachability, draws the input from principal (token0/token1) or a tracked intermediate
+  ///      balance, executes the swap, and books the deltas. After the loop every intermediate balance
+  ///      must net to zero (no token left stranded).
+  ///
+  ///      Trust boundary: `swapData` is opaque calldata executed only against `swapRouter`. This
+  ///      pipeline does not parse or re-check any downstream router/adapter target embedded inside
+  ///      that calldata; the config-manager whitelist must therefore pin trusted swap-router/V4Utils
+  ///      implementations whose own routing policy is acceptable.
   function _run(
     address swapRouter,
     address token0,

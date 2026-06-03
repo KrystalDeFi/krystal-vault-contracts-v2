@@ -182,9 +182,9 @@ function getPositionTokens(address posm, uint256 tokenId) external view returns 
 
 Return the canonical token pair for an LP position as recorded on-chain by the NFPM/POSM.
 
-_Used by SharedVault.recoverPosition to validate operator-supplied token0/token1 against the
-     actual pool, preventing metadata mismatch that could misprice deposits/withdrawals.
-     Called via regular external CALL (not delegatecall) so address(this) is the strategy._
+_Native-currency positions require a vault call context so `address(0)` can be mapped
+     to that vault's configured WETH. Direct strategy calls without vault context revert
+     instead of returning `address(0)` as a misleading token address._
 
 #### Parameters
 

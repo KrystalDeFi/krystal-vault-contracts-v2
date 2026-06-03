@@ -58,6 +58,10 @@ interface ISharedV4Utils {
   // are retained ONLY for backward-compatible ABI encoding with existing off-chain callers —
   // SharedV4StrategyLib never reads them; performance fees come exclusively from
   // `performanceFeeConfig()`.
+  // ABI compatibility note: `sweepTokens` and `swapDestToken` mirror legacy V4Utils payload
+  // shapes but SharedV4StrategyLib does NOT read them. They do not trigger on-chain sweeping
+  // or select a swap destination in the shared strategy; pool-token balances remain idle in
+  // the vault, and non-pool intermediates must net to zero through SharedV4SwapPipeline.
 
   struct SwapAndMintParams {
     address posm;
@@ -65,6 +69,7 @@ interface ISharedV4Utils {
     MintParams mintParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    // Unread by SharedV4StrategyLib; retained only for ABI-compatible V4Utils payloads.
     Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
@@ -77,6 +82,7 @@ interface ISharedV4Utils {
     IncreaseLiquidityParams increaseParams;
     SwapParams[] swapParams;
     InputTokenParams[] inputTokens;
+    // Unread by SharedV4StrategyLib; retained only for ABI-compatible V4Utils payloads.
     Currency[] sweepTokens;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;
@@ -86,6 +92,7 @@ interface ISharedV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
+    // Unread by SharedV4StrategyLib; retained only for ABI-compatible V4Utils payloads.
     Currency swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;

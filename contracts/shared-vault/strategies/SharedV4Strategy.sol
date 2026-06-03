@@ -236,6 +236,9 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   }
 
   /// @inheritdoc ISharedStrategy
+  /// @dev Native-currency positions require a vault call context so `address(0)` can be mapped
+  ///      to that vault's configured WETH. Direct strategy calls without vault context revert
+  ///      instead of returning `address(0)` as a misleading token address.
   function getPositionTokens(address posm, uint256 tokenId)
     external
     view
@@ -296,14 +299,15 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   function _contextWeth() private view returns (address weth) {
     if (msg.sender.code.length > 0) {
       try ISharedVault(msg.sender).weth() returns (address callerWeth) {
-        return callerWeth;
+        if (callerWeth != address(0)) return callerWeth;
       } catch { }
     }
     if (address(this).code.length > 0) {
       try ISharedVault(address(this)).weth() returns (address selfWeth) {
-        return selfWeth;
+        if (selfWeth != address(0)) return selfWeth;
       } catch { }
     }
+    revert ISharedCommon.InvalidOperation();
   }
 
   function _requireWhitelistedPosm(address posm) private view {

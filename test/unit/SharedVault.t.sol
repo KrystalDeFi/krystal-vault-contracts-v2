@@ -4083,6 +4083,37 @@ contract SharedVaultTest is TestCommon {
     assertEq(address(v).balance, 0, "vault does not retain raw native balance");
   }
 
+  function test_v4_getPositionTokens_nativeCurrency_revertsWithoutVaultContext() public {
+    MockV4PositionManager posm = new MockV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(0), address(tokenA));
+
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    v4strat.getPositionTokens(address(posm), tokenId);
+  }
+
+  function test_v4_getPositionTokens_nativeCurrency_usesCallerVaultWethContext() public {
+    MockV4PositionManager posm = new MockV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(0), address(tokenA));
+
+    SharedVault v = new SharedVault();
+    address[4] memory vtokens = [address(mockWeth), address(tokenA), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4ReadContext", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(mockWeth), 0);
+
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    vm.prank(address(v));
+    (address token0, address token1) = v4strat.getPositionTokens(address(posm), tokenId);
+
+    assertEq(token0, address(mockWeth), "native currency resolves through caller vault WETH");
+    assertEq(token1, address(tokenA), "tracked ERC20 side");
+  }
+
   function test_v4_execute_swapAndMint_nativeCurrency_revertsWhenWethIsNotVaultToken() public {
     MockV4PositionManager posm = new MockV4PositionManager(100);
     SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
@@ -4505,6 +4536,39 @@ contract SharedVaultTest is TestCommon {
     assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
     assertEq(mockWeth.balanceOf(address(v)), 9e18, "strategy unwraps WETH for native settlement");
     assertEq(address(v).balance, 0, "vault does not retain raw native balance");
+  }
+
+  function test_pancake_v4_getPositionTokens_nativeCurrency_revertsWithoutVaultContext() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(0), address(tokenA));
+
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    pancakeStrat.getPositionTokens(address(posm), tokenId);
+  }
+
+  function test_pancake_v4_getPositionTokens_nativeCurrency_usesCallerVaultWethContext() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(0), address(tokenA));
+
+    SharedVault v = new SharedVault();
+    address[4] memory vtokens = [address(mockWeth), address(tokenA), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize(
+      "PancakeV4ReadContext", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(mockWeth), 0
+    );
+
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    vm.prank(address(v));
+    (address token0, address token1) = pancakeStrat.getPositionTokens(address(posm), tokenId);
+
+    assertEq(token0, address(mockWeth), "native currency resolves through caller vault WETH");
+    assertEq(token1, address(tokenA), "tracked ERC20 side");
   }
 
   function test_pancake_v4_execute_swapAndMint_nativeCurrency_revertsWhenWethIsNotVaultToken() public {
