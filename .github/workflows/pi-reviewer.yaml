@@ -110,5 +110,5 @@ jobs:
             - To reply to a disputed review comment, use:
               gh api repos/{owner}/{repo}/pulls/{pr}/comments/{comment_id}/replies -f body="..."
             - Do not post any summary comment on the PR.          
-          model: google/gemini-3.5-flash
+          model: deepseek/deepseek-v4-pro
 
