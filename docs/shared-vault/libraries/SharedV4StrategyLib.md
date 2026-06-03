@@ -86,12 +86,7 @@ function _v4ParamsSelector(bytes params) internal pure returns (bytes4 selector)
 function _v4ParamsBody(bytes params) internal pure returns (bytes body)
 ```
 
-_Returns `params` with its leading 4-byte selector stripped, as a FRESH buffer.
-     Non-destructive: the caller's `params` is left byte-for-byte intact. (The previous
-     in-place variant aliased `params + 4` and rewrote its length word + selector, which was
-     a latent footgun for any future caller that read `params` afterward.) Costs one
-     allocation plus an `mcopy` of the tail — negligible against the V4 operation it precedes.
-Returns `params` with its leading 4-byte selector stripped, as a FRESH buffer — the caller's
+_Returns `params` with its leading 4-byte selector stripped, as a FRESH buffer — the caller's
      `params` is left byte-for-byte intact (unlike the former in-place variant that aliased
      `params + 4` and clobbered its length word + selector). Allocated by hand rather than via
      `new bytes` to skip the redundant zero-fill (mcopy overwrites it anyway), which keeps this
