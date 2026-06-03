@@ -384,6 +384,86 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "replacement Pancake V4 position has liquidity");
   }
 
+  function test_execute_batchDecreaseAndSwapThenMint_tracksExitAndNewMintWithRealPancakeV4PositionManager() public {
+    uint256 oldTokenId = tokenId;
+    uint256 countBefore = vault.getPositionCount();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint128 liquidity = posm.getPositionLiquidity(oldTokenId);
+    assertGt(liquidity, 0, "precondition: tracked Pancake V4 position has liquidity");
+
+    IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
+        liquidity: liquidity,
+        deadline: block.timestamp + 300,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IPancakeV4Utils.Instructions memory decreaseInstructions = IPancakeV4Utils.Instructions({
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
+    });
+    bytes memory decreaseParams =
+      abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, oldTokenId, decreaseInstructions));
+    bytes memory decreaseData = bytes.concat(
+      abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE),
+      abi.encode(BASE_PANCAKE_V4_POSM, oldTokenId, decreaseParams, uint256(0), new address[](0), new uint256[](0))
+    );
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: address(token0), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: address(token1), amount: 0.25 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    bytes memory mintData = bytes.concat(
+      abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE),
+      abi.encode(
+        BASE_PANCAKE_V4_POSM,
+        uint256(0),
+        abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams)),
+        uint256(0),
+        new address[](0),
+        new uint256[](0)
+      )
+    );
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
+    actions[0] = ISharedVault.Action(address(strategy), decreaseData, ISharedCommon.CallType.DELEGATECALL);
+    actions[1] = ISharedVault.Action(address(strategy), mintData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+
+    assertEq(vault.getPositionCount(), countBefore, "full exit plus mint keeps one tracked Pancake V4 position");
+    assertEq(posm.getPositionLiquidity(oldTokenId), 0, "old Pancake V4 position fully exited");
+    (, , uint256 trackedTokenId, address trackedToken0, address trackedToken1) = vault.getPosition(0);
+    assertEq(trackedTokenId, nextIdBefore, "new Pancake V4 tokenId tracked");
+    assertEq(trackedToken0, address(token0), "tracked token0");
+    assertEq(trackedToken1, address(token1), "tracked token1");
+    assertEq(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore), address(vault), "vault owns new Pancake V4 NFT");
+    assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "new Pancake V4 position has liquidity");
+  }
+
   function test_withdrawFull_removesTrackedPancakeV4PositionWithRealPositionManager() public {
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory minAmounts;
@@ -521,8 +601,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   // Mirrors the Uniswap V4 regression in Integration.SharedVault.V4.t.sol. Before the fix in
   // `SharedPancakeV4StrategyLib._validateV4InputTokens`, an authorized executor could attach a
   // non-pool vault token inside `SwapAndMintParams.inputTokens` with a nonzero `gasFeeX64` and
-  // have `_takeInputGasFeesAndGetPoolAmounts` send `amount * gasFeeX64 / Q64` of that token to
-  // `msg.sender` before the per-entry currency check — the remainder then dropped silently from
+  // have `_takeInputGasFeesAndGetPoolAmounts` skim `amount * gasFeeX64 / Q64` of that token before
+  // the per-entry currency check — the remainder then dropped silently from
   // the LP accounting. After the fix, every positive-amount input must match `currency0` or
   // `currency1`, so the path reverts with `InvalidPoolTokens()` before any fee transfer.
   // ===========================================================================

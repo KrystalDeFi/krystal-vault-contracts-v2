@@ -428,6 +428,85 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "replacement V4 position has liquidity");
   }
 
+  function test_execute_batchDecreaseAndSwapThenMint_tracksExitAndNewMintWithRealV4PositionManager() public {
+    uint256 oldTokenId = tokenId;
+    uint256 countBefore = vault.getPositionCount();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint128 liquidity = posm.getPositionLiquidity(oldTokenId);
+    assertGt(liquidity, 0, "precondition: tracked V4 position has liquidity");
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: liquidity,
+        deadline: block.timestamp + 300,
+        amount0Min: 0,
+        amount1Min: 0,
+        hookData: ""
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IV4Utils.Instructions memory decreaseInstructions = IV4Utils.Instructions({
+      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
+      params: abi.encode(decParams)
+    });
+    bytes memory decreaseParams = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, oldTokenId, decreaseInstructions));
+    bytes memory decreaseData = bytes.concat(
+      abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+      abi.encode(BASE_V4_POSM, oldTokenId, decreaseParams, uint256(0), new address[](0), new uint256[](0))
+    );
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER,
+        tickUpper: TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    bytes memory mintData = bytes.concat(
+      abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+      abi.encode(
+        BASE_V4_POSM,
+        uint256(0),
+        abi.encodeCall(IV4Utils.swapAndMint, (mintParams)),
+        uint256(0),
+        new address[](0),
+        new uint256[](0)
+      )
+    );
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
+    actions[0] = ISharedVault.Action(address(strategy), decreaseData, ISharedCommon.CallType.DELEGATECALL);
+    actions[1] = ISharedVault.Action(address(strategy), mintData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+
+    assertEq(vault.getPositionCount(), countBefore, "full exit plus mint keeps one tracked V4 position");
+    assertEq(posm.getPositionLiquidity(oldTokenId), 0, "old V4 position fully exited");
+    (, , uint256 trackedTokenId, address trackedToken0, address trackedToken1) = vault.getPosition(0);
+    assertEq(trackedTokenId, nextIdBefore, "new V4 tokenId tracked");
+    assertEq(trackedToken0, address(token0), "tracked token0");
+    assertEq(trackedToken1, address(token1), "tracked token1");
+    assertEq(IERC721(BASE_V4_POSM).ownerOf(nextIdBefore), address(vault), "vault owns new V4 NFT");
+    assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "new V4 position has liquidity");
+  }
+
   function test_withdrawFull_removesTrackedV4PositionWithRealPositionManager() public {
     uint256 shares = vault.balanceOf(vaultOwner);
     uint256[4] memory minAmounts;
@@ -578,11 +657,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   //
   // Before the fix in `_validateV4InputTokens`, an authorized executor could attach a
   // non-pool vault token (e.g. DAI on a WETH/USDC mint) inside `SwapAndMintParams.inputTokens`
-  // with a nonzero `gasFeeX64`. `_takeInputGasFeesAndGetPoolAmounts` transferred
-  // `amount * gasFeeX64 / Q64` of that token to `msg.sender` BEFORE checking whether it
-  // matched `currency0` or `currency1`; the unmatched amount was then silently dropped from
-  // the LP accounting. The net effect: msg.sender pocketed up to ~100% of any specified
-  // non-pool vault token as a "gas fee" without that token being used by the LP action.
+  // with a nonzero `gasFeeX64`. `_takeInputGasFeesAndGetPoolAmounts` skimmed
+  // `amount * gasFeeX64 / Q64` of that token BEFORE checking whether it matched `currency0`
+  // or `currency1`; the unmatched amount was then silently dropped from the LP accounting.
   //
   // After the fix, every positive-amount `inputTokens[i]` must equal `currency0` or
   // `currency1`, so the path reverts with `InvalidPoolTokens()` long before the fee
@@ -594,7 +671,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     SharedVault threeTokenVault = _deployThreeTokenV4Vault();
 
     // Pre-seed the bogus non-pool vault token in the new vault. This is the token the pre-fix
-    // exploit would have siphoned out via the fake "gas fee" route. The amount is intentionally
+    // exploit would have skimmed via the fake "gas fee" route. The amount is intentionally
     // large so that the siphoned share (at `gasFeeX64 ≈ Q64`) would be obviously material.
     hopToken.mint(address(threeTokenVault), 1 ether);
 

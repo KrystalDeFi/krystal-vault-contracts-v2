@@ -172,6 +172,20 @@ contract SharedStrategyFeeAccrualV4Test is Test {
     harness.collect(nfpm, 1, _emptyFeeConfig());
   }
 
+  function test_v4_getPositionAmountsSplit_matches_separate_valuations() public {
+    (address nfpm,) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0);
+
+    (uint256 splitTotal0, uint256 splitTotal1, uint256 splitPrincipal0, uint256 splitPrincipal1) =
+      SharedV4StrategyLib.getPositionAmountsSplit(nfpm, 1);
+    (uint256 total0, uint256 total1) = SharedV4StrategyLib.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = SharedV4StrategyLib.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(splitTotal0, total0, "split total0 matches gross valuation");
+    assertEq(splitTotal1, total1, "split total1 matches gross valuation");
+    assertEq(splitPrincipal0, principal0, "split principal0 matches principal valuation");
+    assertEq(splitPrincipal1, principal1, "split principal1 matches principal valuation");
+  }
+
   function test_v4_collectFees_reRevertsHookRevert_whenFeesPresent() public {
     (address nfpm, V4CollectHarness harness) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0);
     vm.expectRevert(bytes("hostile hook on fee-sync"));

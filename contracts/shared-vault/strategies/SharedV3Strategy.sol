@@ -80,7 +80,7 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 tokenId;
     {
       (uint256 total0, uint256 total1) = _swapAndPrepareAmounts(params, ethValue);
-      // F3: skim the configurable input gas fee to the authorized executor, mirroring the
+      // F3: skim the configurable input gas fee to the fee collector, mirroring the
       // V4/Pancake swap-and-mint path so the fee model is uniform across all four strategies.
       if (params.gasFeeX64 > 0) {
         (total0, total1) = _takeInputGasFee(params.token0, params.token1, total0, total1, params.gasFeeX64);
@@ -109,7 +109,7 @@ contract SharedV3Strategy is ISharedStrategy {
 
     (, , address token0, address token1, , , , , , , , ) = INFPM(params.nfpm).positions(params.tokenId);
     (uint256 total0, uint256 total1) = _swapAndPrepareIncreaseAmounts(params, token0, token1, ethValue);
-    // F3: skim the configurable input gas fee to the authorized executor (uniform with V4/Pancake).
+    // F3: skim the configurable input gas fee to the fee collector (uniform with V4/Pancake).
     if (params.gasFeeX64 > 0) {
       (total0, total1) = _takeInputGasFee(token0, token1, total0, total1, params.gasFeeX64);
     }
@@ -566,8 +566,8 @@ contract SharedV3Strategy is ISharedStrategy {
 
     ICommon.FeeConfig memory fc = SharedStrategyFeeConfig.performanceFeeConfig();
     if (gasFeeX64 > 0) {
+      (gasFeeX64, fc.gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
       fc.gasFeeX64 = gasFeeX64;
-      fc.gasFeeRecipient = msg.sender;
     }
     (uint256 fee0, uint256 fee1) = _takeFees(token0, collected0, token1, collected1, fc);
     net0 = collected0 - fee0;
@@ -607,6 +607,8 @@ contract SharedV3Strategy is ISharedStrategy {
     );
 
     if (gasFeeX64 == 0 || (principal0 == 0 && principal1 == 0)) return (principal0, principal1);
+    address gasFeeRecipient;
+    (gasFeeX64, gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
 
     ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 0,
@@ -614,7 +616,7 @@ contract SharedV3Strategy is ISharedStrategy {
       platformFeeBasisPoint: 0,
       platformFeeRecipient: address(0),
       gasFeeX64: gasFeeX64,
-      gasFeeRecipient: msg.sender
+      gasFeeRecipient: gasFeeRecipient
     });
     (uint256 fee0, uint256 fee1) = _takeFees(token0, principal0, token1, principal1, gasOnly);
     net0 = principal0 - fee0;
@@ -641,8 +643,8 @@ contract SharedV3Strategy is ISharedStrategy {
     (fee0, fee1) = SharedStrategyFees.applyFees(token0, amount0, token1, amount1, fc);
   }
 
-  /// @dev F3: skim a configurable gas fee from the prepared (post-swap) pool amounts to the authorized
-  ///      executor, mirroring SharedV4StrategyLib's swap-and-mint/increase input gas-fee behavior so the
+  /// @dev F3: skim a configurable gas fee from the prepared (post-swap) pool amounts to the fee collector,
+  ///      mirroring SharedV4StrategyLib's swap-and-mint/increase input gas-fee behavior so the
   ///      fee model is uniform across V3/Aerodrome/V4/Pancake. Settled via `SharedStrategyFees` so it is
   ///      observable via FeeCollected. Both amounts are pool currencies here, so nothing untracked leaves
   ///      the vault.
@@ -654,13 +656,15 @@ contract SharedV3Strategy is ISharedStrategy {
     uint64 gasFeeX64
   ) private returns (uint256 net0, uint256 net1) {
     if (gasFeeX64 == 0 || (amount0 == 0 && amount1 == 0)) return (amount0, amount1);
+    address gasFeeRecipient;
+    (gasFeeX64, gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
     ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
       vaultOwnerFeeBasisPoint: 0,
       vaultOwner: address(0),
       platformFeeBasisPoint: 0,
       platformFeeRecipient: address(0),
       gasFeeX64: gasFeeX64,
-      gasFeeRecipient: msg.sender
+      gasFeeRecipient: gasFeeRecipient
     });
     (uint256 fee0, uint256 fee1) = _takeFees(token0, amount0, token1, amount1, gasOnly);
     net0 = amount0 - fee0;
@@ -854,6 +858,18 @@ contract SharedV3Strategy is ISharedStrategy {
     // Principal-only: excludes tokensOwed so SharedVault tops up existing positions at the exact
     // range ratio increaseLiquidity requires. See ISharedStrategy.getPositionPrincipalAmounts.
     (amount0, amount1, , ) = _positionAmountsSplit(nfpm, tokenId);
+  }
+
+  /// @inheritdoc ISharedStrategy
+  function getPositionAmountsSplit(
+    address nfpm,
+    uint256 tokenId
+  ) external view override returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) {
+    uint256 tokensOwed0;
+    uint256 tokensOwed1;
+    (principal0, principal1, tokensOwed0, tokensOwed1) = _positionAmountsSplit(nfpm, tokenId);
+    total0 = principal0 + tokensOwed0;
+    total1 = principal1 + tokensOwed1;
   }
 
   /// @dev Splits a position's on-chain amounts into principal (from in-range liquidity at current price)

@@ -52,11 +52,12 @@ interface ISharedV4Utils {
   }
 
   // Fee model: platform/owner (performance) fees are always sourced from
-  // `SharedStrategyFeeConfig.performanceFeeConfig()`. Only `gasFeeX64` is honored on these structs
-  // (skimmed to `msg.sender`/the authorized executor). The legacy `protocolFeeX64`/`performanceFeeX64`
-  // fields (and `AdjustRangeParams.compoundFees`) are retained ONLY for backward-compatible ABI
-  // encoding with existing off-chain callers — SharedV4StrategyLib never reads them; performance
-  // fees come exclusively from `performanceFeeConfig()` and only `gasFeeX64` is honored.
+  // `SharedStrategyFeeConfig.performanceFeeConfig()`. Only `gasFeeX64` is honored on these structs,
+  // subject to `configManager.maxGasFeeX64()` (skimmed to the configured fee recipient).
+  // The legacy `protocolFeeX64`/`performanceFeeX64` fields (and `AdjustRangeParams.compoundFees`)
+  // are retained ONLY for backward-compatible ABI encoding with existing off-chain callers —
+  // SharedV4StrategyLib never reads them; performance fees come exclusively from
+  // `performanceFeeConfig()`.
 
   struct SwapAndMintParams {
     address posm;

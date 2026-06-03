@@ -37,6 +37,19 @@ import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
+abstract contract MockSharedStrategySplitFallback is ISharedStrategy {
+  function getPositionAmountsSplit(address nfpm, uint256 tokenId)
+    external
+    view
+    virtual
+    override
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    (total0, total1) = this.getPositionAmounts(nfpm, tokenId);
+    (principal0, principal1) = this.getPositionPrincipalAmounts(nfpm, tokenId);
+  }
+}
+
 // Mock WETH9 for testing native ETH wrapping/unwrapping
 contract MockWETH9 {
   string public name = "Wrapped Ether";
@@ -213,7 +226,7 @@ contract MockERC20LowDecimals {
 }
 
 // Mock strategy that validates tokens and sets a value
-contract MockSharedStrategy is ISharedStrategy {
+contract MockSharedStrategy is MockSharedStrategySplitFallback {
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     // No state written — this runs via delegatecall; writing to named slots would corrupt vault storage.
     abi.decode(data, (uint256));
@@ -247,7 +260,7 @@ contract MockSharedStrategy is ISharedStrategy {
 }
 
 // Mock strategy whose exitProportional always reverts (simulates a buggy deployed strategy)
-contract MockBrokenExitStrategy is ISharedStrategy {
+contract MockBrokenExitStrategy is MockSharedStrategySplitFallback {
   // Mirrors real NFPM on-chain token data. Populated via registerPosition() since execute()
   // runs via delegatecall and cannot write to the strategy's own storage.
   mapping(bytes32 => address) private _token0;
@@ -295,7 +308,7 @@ contract MockBrokenExitStrategy is ISharedStrategy {
 
 // Mock strategy whose depositProportional always reverts but getPositionAmounts returns non-zero.
 // Simulates a rugged pool where the NFPM rejects increaseLiquidity but the strategy still reports liquidity.
-contract MockBrokenDepositStrategy is ISharedStrategy {
+contract MockBrokenDepositStrategy is MockSharedStrategySplitFallback {
   mapping(bytes32 => address) private _token0;
   mapping(bytes32 => address) private _token1;
 
@@ -346,7 +359,7 @@ contract MockBrokenDepositStrategy is ISharedStrategy {
 /// @dev DELEGATECALL strategy that returns `PositionChange.isAdd` with `token0`/`token1` from immutables,
 ///      not from calldata. Used to assert the vault rejects recording a new position when either pool
 ///      token is not a configured vault token, matching `_applyPositionChanges` + `CALL_WITH_POSITIONS`.
-contract MockMisreportingTokenAddStrategy is ISharedStrategy {
+contract MockMisreportingTokenAddStrategy is MockSharedStrategySplitFallback {
   address public immutable token0Out;
   address public immutable token1Out;
 
@@ -388,7 +401,7 @@ contract MockMisreportingTokenAddStrategy is ISharedStrategy {
 }
 
 // Mock strategy that fails
-contract MockFailingStrategy is ISharedStrategy {
+contract MockFailingStrategy is MockSharedStrategySplitFallback {
   function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
     revert("Strategy failed");
   }
@@ -440,7 +453,7 @@ contract MockSwapTarget {
 ///      Unlike strategies (which run via delegatecall), this is a standalone contract that the
 ///      vault calls directly. It stores registered token pairs so getPositionTokens satisfies the
 ///      canonical-token check in _applyPositionChangesChecked.
-contract MockDirectPositionCreator is ISharedStrategy {
+contract MockDirectPositionCreator is MockSharedStrategySplitFallback {
   mapping(address => mapping(uint256 => address)) private _token0;
   mapping(address => mapping(uint256 => address)) private _token1;
 
@@ -508,7 +521,7 @@ contract MockDirectPositionCreator is ISharedStrategy {
 
 /// @dev CALL_WITH_POSITIONS strategy whose getPositionAmounts always reverts with non-empty data.
 ///      Used to verify that the probe in _applyPositionChangesChecked requires ok=true.
-contract MockRevertingGetPositionAmountsStrategy is ISharedStrategy {
+contract MockRevertingGetPositionAmountsStrategy is MockSharedStrategySplitFallback {
   function createPosition(address nfpm, uint256 tokenId, address token0, address token1)
     external
     pure
@@ -550,7 +563,7 @@ contract MockRevertingGetPositionAmountsStrategy is ISharedStrategy {
 
 /// @dev CALL_WITH_POSITIONS strategy that reports a different (but valid vault-token) pair than what
 ///      getPositionTokens returns — used to verify the canonical token check in _applyPositionChangesChecked.
-contract MockWrongCanonicalTokensStrategy is ISharedStrategy {
+contract MockWrongCanonicalTokensStrategy is MockSharedStrategySplitFallback {
   address public immutable canonToken0;
   address public immutable canonToken1;
 
@@ -1001,7 +1014,7 @@ contract MockMintingV4UtilsRouter {
   }
 }
 
-contract MockPreCollectStrategy is ISharedStrategy {
+contract MockPreCollectStrategy is MockSharedStrategySplitFallback {
   mapping(bytes32 => address) private _token0;
   mapping(bytes32 => address) private _token1;
 
@@ -1080,7 +1093,7 @@ contract SharedVaultCollectHarness is SharedVault {
 /// @dev Delegatecall strategy that reports correct tokens in execute() but returns a DIFFERENT
 ///      pair from getPositionTokens() — used to verify the canonical-token check added to
 ///      _applyPositionChanges (delegatecall path) in Issue 7.
-contract MockDelegatecallWrongCanonTokensStrategy is ISharedStrategy {
+contract MockDelegatecallWrongCanonTokensStrategy is MockSharedStrategySplitFallback {
   address public immutable canonToken0;
   address public immutable canonToken1;
 
@@ -1127,7 +1140,7 @@ contract MockDelegatecallWrongCanonTokensStrategy is ISharedStrategy {
 /// @dev Delegatecall strategy that issues an isAdd=false PositionChange for a position the vault
 ///      still owns, and getPositionAmounts returns non-zero — used to verify Issue 8 (remove not
 ///      trusted blindly) on the _applyPositionChanges (delegatecall) path.
-contract MockFalseRemoveStrategy is ISharedStrategy {
+contract MockFalseRemoveStrategy is MockSharedStrategySplitFallback {
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     (address nfpm, uint256 tokenId, address t0, address t1) = abi.decode(data, (address, uint256, address, address));
     changes = new PositionChange[](1);
@@ -1163,7 +1176,7 @@ contract MockFalseRemoveStrategy is ISharedStrategy {
 
 /// @dev CALL_WITH_POSITIONS target that issues an isAdd=false PositionChange while the vault still
 ///      owns the NFT and getPositionAmounts is non-zero — tests Issue 8 on the _applyPositionChangesChecked path.
-contract MockCwpFalseRemoveStrategy is ISharedStrategy {
+contract MockCwpFalseRemoveStrategy is MockSharedStrategySplitFallback {
   // Returns remove change directly — used via CALL_WITH_POSITIONS.
   function removePosition(address nfpm, uint256 tokenId, address token0, address token1)
     external
@@ -1718,7 +1731,7 @@ contract MockLPPool {
 
 // Mock strategy that simulates realistic LP creation + proportional exits
 // Uses immutable lpPool ref so it's accessible in delegatecall context
-contract MockLPExitStrategy is ISharedStrategy {
+contract MockLPExitStrategy is MockSharedStrategySplitFallback {
   address public immutable lpPool;
 
   /// @dev Emitted on proportional exit; under delegatecall this logs from the vault address.
@@ -1803,7 +1816,7 @@ contract MockLPExitStrategy is ISharedStrategy {
 /// @dev Like MockLPExitStrategy but collectFees always reverts. Used to verify that a failing
 ///      pre-collect in SharedVault.withdraw() now propagates as StrategyCallFailed() instead of
 ///      silently falling back to per-withdrawer fee distribution.
-contract MockCollectFailingStrategy is ISharedStrategy {
+contract MockCollectFailingStrategy is MockSharedStrategySplitFallback {
   address public immutable lpPool;
 
   constructor(address _lpPool) {
@@ -1910,7 +1923,7 @@ contract MockDropAfterSecondDepositPool {
 
 /// @dev Strategy backed by MockDropAfterSecondDepositPool.  Mirrors MockLPExitStrategy but routes
 ///      all pool calls through MockDropAfterSecondDepositPool.
-contract MockDropAfterSecondDepositStrategy is ISharedStrategy {
+contract MockDropAfterSecondDepositStrategy is MockSharedStrategySplitFallback {
   address public immutable lpPool;
 
   constructor(address _lpPool) {
@@ -2008,7 +2021,7 @@ contract DepositProportionalRecorder {
 ///      ratio diverges from `(principal0, principal1)` beyond the allowed tolerance.
 ///      This is how the bug manifests in production: mixing rewards into the top-up desired
 ///      amounts skews the ratio off-range and the pool rejects the slippage check.
-contract MockRewardsAwareStrategy is ISharedStrategy {
+contract MockRewardsAwareStrategy is MockSharedStrategySplitFallback {
   DepositProportionalRecorder public immutable recorder;
   address public immutable lpPool;
   uint256 public immutable principal0;
@@ -2257,7 +2270,7 @@ contract ReentrantSwapRouter {
 
 /// @dev Strategy mock that exposes per-(nfpm,tokenId) principal AND uncollected fee splits.
 ///      Used to test `previewWithdraw` net-of-fee math (W-7).
-contract MockFeeAccrualStrategy is ISharedStrategy {
+contract MockFeeAccrualStrategy is MockSharedStrategySplitFallback {
   event FeeCollected(
     address indexed vaultAddress,
     IFeeTaker.FeeType indexed feeType,
@@ -2385,6 +2398,19 @@ contract MockFeeAccrualStrategy is ISharedStrategy {
   {
     bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
     return (_principal0[k], _principal1[k]);
+  }
+
+  function getPositionAmountsSplit(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    bytes32 k = keccak256(abi.encodePacked(nfpm, tokenId));
+    principal0 = _principal0[k];
+    principal1 = _principal1[k];
+    total0 = principal0 + _owed0[k];
+    total1 = principal1 + _owed1[k];
   }
 
   function getPositionTokens(address nfpm, uint256 tokenId) external view override returns (address, address) {
@@ -3035,6 +3061,17 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
 
     assertEq(tokenA.allowance(address(vault), address(swapTarget)), 0, "residual allowance must be reset to 0");
+  }
+
+  function test_swap_fail_identical_tokens() public {
+    vm.startPrank(VAULT_OWNER);
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenA), 10e18));
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenA), 10e18, 0, swapCalldata);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+    vm.stopPrank();
   }
 
   function test_swap_fail_non_vault_token_in() public {
@@ -3783,7 +3820,7 @@ contract SharedVaultTest is TestCommon {
     assertEq(tokenB.balanceOf(address(v)), 1900, "vault keeps tokenB net fees");
   }
 
-  function test_v4_execute_compound_collects_generated_fees_and_distributes_platform_owner_gas() public {
+  function test_v4_execute_compound_collects_generated_fees_and_routes_gas_to_fee_collector() public {
     MockV4PositionManager posm = new MockV4PositionManager(2);
     uint256 tokenId = 1;
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
@@ -3798,6 +3835,7 @@ contract SharedVaultTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
     cm.initialize(address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0));
+    cm.setMaxGasFeeX64(uint64(1 << 62));
 
     SharedVaultCollectHarness v = new SharedVaultCollectHarness();
     address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
@@ -3836,17 +3874,17 @@ contract SharedVaultTest is TestCommon {
     vm.expectEmit(true, true, true, true, address(v));
     emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenB), 100);
     vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenA), 250);
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenA), 250);
     vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenB), 500);
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenB), 500);
 
     vm.prank(VAULT_OWNER);
     v.executeWithStrategy(address(v4strat), stratData);
 
-    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 100, "platform tokenA fee");
-    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 200, "platform tokenB fee");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 300, "owner tokenA fee plus gas");
-    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 600, "owner tokenB fee plus gas");
+    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 350, "platform tokenA fee plus gas");
+    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 700, "platform tokenB fee plus gas");
+    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 50, "owner tokenA fee");
+    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 100, "owner tokenB fee");
     assertEq(tokenA.balanceOf(address(v)) - vaultABefore, 600, "vault keeps tokenA net generated fees");
     assertEq(tokenB.balanceOf(address(v)) - vaultBBefore, 1200, "vault keeps tokenB net generated fees");
   }
@@ -4052,7 +4090,7 @@ contract SharedVaultTest is TestCommon {
     v.execute(actions);
   }
 
-  function test_v4_execute_capsGasFeeToCollectedAmountAfterPlatformAndOwnerFees() public {
+  function test_v4_execute_revertsWhenGasFeeExceedsDefaultConfigCap() public {
     SharedConfigManager cm = new SharedConfigManager();
     MockV4PositionManager posm = new MockV4PositionManager(2);
     uint256 tokenId = 1;
@@ -4088,24 +4126,9 @@ contract SharedVaultTest is TestCommon {
     bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
     bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
 
-    uint256 platformBefore = tokenA.balanceOf(address(this));
-    uint256 ownerBefore = tokenA.balanceOf(VAULT_OWNER);
-    uint256 operatorBefore = tokenA.balanceOf(OPERATOR);
-
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.PLATFORM, address(this), address(tokenA), 100);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenA), 50);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, OPERATOR, address(tokenA), 850);
-
     vm.prank(OPERATOR);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
     v.executeWithStrategy(address(v4strat), stratData);
-
-    assertEq(tokenA.balanceOf(address(this)) - platformBefore, 100, "platform fee");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerBefore, 50, "owner fee");
-    assertEq(tokenA.balanceOf(OPERATOR) - operatorBefore, 850, "gas fee capped to remaining collected amount");
-    assertEq(tokenA.balanceOf(address(v)), 0, "all collected fees paid without over-transfer");
   }
 
   function test_pancake_v4_collectFees_emitsFeeCollected_for_platform_and_vault_owner() public {
@@ -4192,7 +4215,7 @@ contract SharedVaultTest is TestCommon {
       inputTokens: inputTokens,
       protocolFeeX64: 0,
       performanceFeeX64: 0,
-      gasFeeX64: uint64(1 << 63)
+      gasFeeX64: 0
     });
 
     bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
@@ -4202,14 +4225,6 @@ contract SharedVaultTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
-
-    uint256 ownerABefore = tokenA.balanceOf(VAULT_OWNER);
-    uint256 ownerBBefore = tokenB.balanceOf(VAULT_OWNER);
-
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenA), 0.5e18);
-    vm.expectEmit(true, true, true, true, address(v));
-    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, VAULT_OWNER, address(tokenB), 0.5e18);
 
     vm.prank(VAULT_OWNER);
     v.execute(actions);
@@ -4221,8 +4236,6 @@ contract SharedVaultTest is TestCommon {
     assertEq(tracked0, address(tokenA), "tracked token0");
     assertEq(tracked1, address(tokenB), "tracked token1");
     assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
-    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 0.5e18, "gas fee tokenA");
-    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 0.5e18, "gas fee tokenB");
   }
 
   function test_pancake_v4_execute_revertsWhenEmptySwapDataHasMinOut() public {
@@ -7320,6 +7333,51 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
 
     assertEq(shares, 5e18, "deposit shares are priced against shareholder-owned value");
+  }
+
+  function test_getTotalBalances_feeNettingUsesSingleSplitValuationCall() public {
+    configManager.setPlatformFeeBasisPoint(1000);
+
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("NetDepositSplit", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 500);
+
+    MockFeeAccrualStrategy strat = new MockFeeAccrualStrategy();
+    MockERC721 nft = new MockERC721();
+    nft.mint(address(v), 1);
+    address[] memory ts = new address[](1);
+    ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1);
+    ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    strat.register(address(nft), 1, address(tokenA), address(tokenB), 60e18, 60e18, 40e18, 40e18);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(strat),
+      data: abi.encode(address(nft), uint256(1), address(tokenA), address(tokenB)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+
+    vm.expectCall(
+      address(strat), abi.encodeCall(MockFeeAccrualStrategy.getPositionAmountsSplit, (address(nft), uint256(1))), 1
+    );
+    vm.expectCall(
+      address(strat), abi.encodeCall(ISharedStrategy.getPositionAmounts, (address(nft), uint256(1))), 0
+    );
+    vm.expectCall(
+      address(strat), abi.encodeCall(ISharedStrategy.getPositionPrincipalAmounts, (address(nft), uint256(1))), 0
+    );
+
+    uint256[4] memory totals = v.getTotalBalances();
+    assertEq(totals[0], 194e18, "tokenA total is idle + principal + net fees");
+    assertEq(totals[1], 194e18, "tokenB total is idle + principal + net fees");
   }
 
   function test_mock_generated_fees_distribute_to_platform_and_vault_owner_on_withdraw() public {

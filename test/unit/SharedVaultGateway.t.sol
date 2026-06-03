@@ -441,14 +441,7 @@ contract SharedVaultGatewayTest is TestCommon {
     uint256[4] memory initAmounts = [uint256(1e15), uint256(840_707), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
     v.initialize(
-      "Gateway Zero Slot Vault",
-      vtokens,
-      initAmounts,
-      VAULT_OWNER,
-      VAULT_OWNER,
-      address(configManager),
-      address(0),
-      0
+      "Gateway Zero Slot Vault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
     );
   }
 
@@ -1764,8 +1757,9 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(address(gateway).balance, 0, "no ETH in gateway");
   }
 
-  /// @notice When msg.value > 0, WETH entries with amountIn > 0 do NOT trigger transferFrom —
-  ///         the native wrap is the sole WETH source. Alice's ERC20 WETH balance is untouched.
+  /// @notice When msg.value > 0, the native wrap is the sole WETH source: a zero-amount WETH input is
+  ///         a no-op and no WETH is pulled from the wallet. Alice's ERC20 WETH balance is untouched.
+  ///         (A positive-amount WETH input here is rejected — see the ConflictingWethInput test.)
   function test_swapAndDeposit_native_eth_does_not_pull_weth_from_wallet() public {
     vm.deal(ALICE, 4 ether);
     vm.startPrank(ALICE);
@@ -1784,8 +1778,8 @@ contract SharedVaultGatewayTest is TestCommon {
 
     _approveGatewayAll(ALICE);
 
-    // inputs[] declares WETH with a huge amount, but because msg.value > 0 the WETH input
-    // is skipped (the native-ETH wrap is the sole WETH source). Each swap consumes 0.25 WETH.
+    // inputs[] declares WETH with amount 0 (a no-op): the native-ETH wrap is the sole WETH source,
+    // so no WETH is pulled from the wallet. Each swap consumes 0.25 WETH from the wrapped balance.
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
     swaps[0] = SharedVaultGateway.SwapParams(
       address(mockWeth),
@@ -1818,7 +1812,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
       vault: ISharedVault(address(vault)),
-      inputs: _inputs1(address(mockWeth), 999 ether), // skipped because msg.value > 0
+      inputs: _inputs1(address(mockWeth), 0), // no-op WETH input; native wrap is the sole WETH source
       swaps: swaps,
       minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
       slippageBps: 0,
@@ -1836,6 +1830,86 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(ALICE.balance, 0, "1 ETH consumed by native wrap");
     assertEq(mockWeth.balanceOf(address(gateway)), 0, "no residual WETH in gateway");
     assertEq(address(gateway).balance, 0, "no residual ETH in gateway");
+  }
+
+  /// @notice Review fix: there is exactly one WETH source per call. Declaring a positive-amount WETH
+  ///         input alongside native ETH (msg.value > 0) is rejected loudly, instead of silently
+  ///         dropping the WETH input and under-depositing relative to the caller's intent.
+  function test_swapAndDeposit_revertsWhenNativeEthCarriesPositiveWethInput() public {
+    vm.deal(ALICE, 1 ether);
+
+    // msg.value > 0 (native wrap) AND a WETH input with amount > 0 — a conflicting double WETH source.
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs1(address(mockWeth), 1 ether),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(SharedVaultGateway.ConflictingWethInput.selector);
+    gateway.swapAndDeposit{ value: 1 ether }(params);
+  }
+
+  /// @notice A zero-amount WETH input alongside native ETH is allowed (it is simply a no-op): the
+  ///         native wrap remains the sole WETH source and the call proceeds.
+  function test_swapAndDeposit_allowsZeroAmountWethInputWithNativeEth() public {
+    tokenA.mint(address(router), 100e18);
+    tokenB.mint(address(router), 200e18);
+    tokenC.mint(address(router), 50e6);
+    tokenD.mint(address(router), 100e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenB), 200e18, 1 ether);
+    router.setRate(address(mockWeth), address(tokenC), 50e6, 1 ether);
+    router.setRate(address(mockWeth), address(tokenD), 100e18, 1 ether);
+
+    vm.deal(ALICE, 1 ether);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0.25 ether,
+      address(tokenA),
+      20e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenA), 0.25 ether)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0.25 ether,
+      address(tokenB),
+      40e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenB), 0.25 ether)
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0.25 ether,
+      address(tokenC),
+      10e6,
+      _buildSwapCalldata(address(mockWeth), address(tokenC), 0.25 ether)
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(mockWeth),
+      0.25 ether,
+      address(tokenD),
+      20e18,
+      _buildSwapCalldata(address(mockWeth), address(tokenD), 0.25 ether)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs1(address(mockWeth), 0), // zero-amount WETH input is a no-op, not a conflict
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit{ value: 1 ether }(params);
+    assertGt(shares, 0, "zero-amount WETH input alongside native ETH is accepted");
   }
 
   /// @notice msg.value is wrapped to WETH; swap entry uses amountIn==0 to consume the full balance.
@@ -2199,11 +2273,7 @@ contract SharedVaultGatewayTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams(
-      address(tokenX),
-      0,
-      address(tokenA),
-      1,
-      _buildSwapAllCalldata(address(tokenX), address(tokenA))
+      address(tokenX), 0, address(tokenA), 1, _buildSwapAllCalldata(address(tokenX), address(tokenA))
     );
 
     SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({

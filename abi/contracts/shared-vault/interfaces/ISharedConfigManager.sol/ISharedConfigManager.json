@@ -23,6 +23,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint64",
+        "name": "maxGasFeeX64",
+        "type": "uint64"
+      }
+    ],
+    "name": "MaxGasFeeX64Updated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint16",
         "name": "maxPositions",
         "type": "uint16"
@@ -250,6 +263,19 @@
   },
   {
     "inputs": [],
+    "name": "maxGasFeeX64",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maxPositions",
     "outputs": [
       {
@@ -296,6 +322,19 @@
       }
     ],
     "name": "setFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "maxGasFeeX64",
+        "type": "uint64"
+      }
+    ],
+    "name": "setMaxGasFeeX64",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

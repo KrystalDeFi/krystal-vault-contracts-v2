@@ -26,22 +26,28 @@ library SharedVaultPreviewLib {
     // Clamp the owner bps so platform + owner never exceeds 100%, matching
     // SharedStrategyFeeConfig.performanceFeeConfig (the FeeConfig the real collect path uses).
     if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
-      ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
+      ownerBps = uint16(10_000 - platformBps);
     }
+    bool netFees = platformBps > 0 || ownerBps > 0;
 
     uint256 posLen = positions.length;
     for (uint256 p; p < posLen;) {
       ISharedVault.Position memory pos = positions[p];
-      (uint256 total0, uint256 total1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
-      (uint256 principal0, uint256 principal1) =
-        ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(pos.nfpm, pos.tokenId);
-      uint256 owed0 = total0 > principal0 ? total0 - principal0 : 0;
-      uint256 owed1 = total1 > principal1 ? total1 - principal1 : 0;
-      uint256 netOwed0 = netAfterPerformanceFees(owed0, platformBps, ownerBps);
-      uint256 netOwed1 = netAfterPerformanceFees(owed1, platformBps, ownerBps);
+      uint256 amount0;
+      uint256 amount1;
+      if (netFees) {
+        (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+          ISharedStrategy(pos.strategy).getPositionAmountsSplit(pos.nfpm, pos.tokenId);
+        uint256 owed0 = total0 > principal0 ? total0 - principal0 : 0;
+        uint256 owed1 = total1 > principal1 ? total1 - principal1 : 0;
+        amount0 = principal0 + netAfterPerformanceFees(owed0, platformBps, ownerBps);
+        amount1 = principal1 + netAfterPerformanceFees(owed1, platformBps, ownerBps);
+      } else {
+        (amount0, amount1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+      }
       for (uint256 i; i < 4;) {
-        if (tokens[i] == pos.token0) idleBalances[i] += principal0 + netOwed0;
-        else if (tokens[i] == pos.token1) idleBalances[i] += principal1 + netOwed1;
+        if (tokens[i] == pos.token0) idleBalances[i] += amount0;
+        else if (tokens[i] == pos.token1) idleBalances[i] += amount1;
         unchecked {
           i++;
         }
@@ -91,6 +97,45 @@ library SharedVaultPreviewLib {
 
     (bool valid,) = _buildTransferAmounts(amounts, shares, currentTotalSupply, totalBalances, tokens, configManager);
     if (!valid) return 0;
+  }
+
+  function computeTotalBalances(
+    uint256[4] memory idleBalances,
+    ISharedVault.Position[] memory positions,
+    address[4] memory tokens,
+    ISharedConfigManager configManager,
+    uint16 vaultOwnerFeeBasisPoint
+  ) external view returns (uint256[4] memory balances) {
+    balances = idleBalances;
+    (uint16 platformBps, uint16 ownerBps) = _performanceFeeBps(configManager, vaultOwnerFeeBasisPoint);
+    bool netFees = platformBps > 0 || ownerBps > 0;
+
+    uint256 posLen = positions.length;
+    for (uint256 p; p < posLen;) {
+      ISharedVault.Position memory pos = positions[p];
+
+      uint256 amount0;
+      uint256 amount1;
+      if (netFees) {
+        (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+          ISharedStrategy(pos.strategy).getPositionAmountsSplit(pos.nfpm, pos.tokenId);
+        amount0 = _netPositionAmount(total0, principal0, platformBps, ownerBps);
+        amount1 = _netPositionAmount(total1, principal1, platformBps, ownerBps);
+      } else {
+        (amount0, amount1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
+      }
+
+      for (uint256 i; i < 4;) {
+        if (tokens[i] == pos.token0) balances[i] += amount0;
+        else if (tokens[i] == pos.token1) balances[i] += amount1;
+        unchecked {
+          i++;
+        }
+      }
+      unchecked {
+        p++;
+      }
+    }
   }
 
   /// @notice Compute the proportional transfer amounts required for a subsequent deposit.
@@ -182,6 +227,26 @@ library SharedVaultPreviewLib {
     uint256 ownerFee = FullMath.mulDiv(owed, ownerBps, 10_000);
     if (ownerFee > remaining) ownerFee = remaining;
     return owed - platformFee - ownerFee;
+  }
+
+  function _performanceFeeBps(
+    ISharedConfigManager configManager,
+    uint16 vaultOwnerFeeBasisPoint
+  ) private view returns (uint16 platformBps, uint16 ownerBps) {
+    platformBps = configManager.platformFeeBasisPoint();
+    ownerBps = vaultOwnerFeeBasisPoint;
+    if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
+      ownerBps = uint16(10_000 - platformBps);
+    }
+  }
+
+  function _netPositionAmount(uint256 total, uint256 principal, uint16 platformBps, uint16 ownerBps)
+    private
+    pure
+    returns (uint256)
+  {
+    uint256 owed = total > principal ? total - principal : 0;
+    return principal + netAfterPerformanceFees(owed, platformBps, ownerBps);
   }
 
   function _minTokenAmt(address token, uint8 prec) private view returns (uint256) {

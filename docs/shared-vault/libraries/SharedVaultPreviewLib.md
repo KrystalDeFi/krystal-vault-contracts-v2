@@ -14,6 +14,12 @@ function previewWithdraw(uint256 shares, uint256 currentTotalSupply, uint256[4] 
 function previewDeposit(uint256[4] amounts, uint256 currentTotalSupply, uint256[4] totalBalances, address[4] tokens, contract ISharedConfigManager configManager, uint256 initialShares) external view returns (uint256 shares)
 ```
 
+### computeTotalBalances
+
+```solidity
+function computeTotalBalances(uint256[4] idleBalances, struct ISharedVault.Position[] positions, address[4] tokens, contract ISharedConfigManager configManager, uint16 vaultOwnerFeeBasisPoint) external view returns (uint256[4] balances)
+```
+
 ### subsequentDepositTransfers
 
 ```solidity

@@ -245,6 +245,7 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
     cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1_000, nfpms, new address[](0));
+    cm.setMaxGasFeeX64(type(uint64).max);
 
     vault = new AeroFeeCapVaultHarness(cm, vaultOwner, 500);
     vault.addVaultToken(address(token0));
@@ -273,12 +274,12 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
 
     // token0 collected 1_000: platform 100 + owner 50 + gas clamped to 850 (req 900) = 1_000 total, 0 compounded.
     // token1 collected 2_000: platform 200 + owner 100 + gas clamped to 1_700 (req 1_800) = 2_000 total, 0 compounded.
-    assertEq(token0.balanceOf(platformRecipient), 100, "token0 platform fee");
-    assertEq(token1.balanceOf(platformRecipient), 200, "token1 platform fee");
+    assertEq(token0.balanceOf(platformRecipient), 950, "token0 platform plus gas fee");
+    assertEq(token1.balanceOf(platformRecipient), 1_900, "token1 platform plus gas fee");
     assertEq(token0.balanceOf(vaultOwner), 50, "token0 owner fee");
     assertEq(token1.balanceOf(vaultOwner), 100, "token1 owner fee");
-    assertEq(token0.balanceOf(automator), 850, "token0 gas fee clamped to remainder");
-    assertEq(token1.balanceOf(automator), 1_700, "token1 gas fee clamped to remainder");
+    assertEq(token0.balanceOf(automator), 0, "executor receives no token0 gas fee");
+    assertEq(token1.balanceOf(automator), 0, "executor receives no token1 gas fee");
     assertEq(nfpm.increased0(), 0, "nothing compounded (fees consumed 100%)");
     assertEq(nfpm.increased1(), 0, "nothing compounded (fees consumed 100%)");
   }
@@ -298,14 +299,28 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
 
     // token0 collected 1_000: platform 100 + owner 50 + gas 750 = 900 fee, 100 compounded.
     // token1 collected 2_000: platform 200 + owner 100 + gas 1_500 = 1_800 fee, 200 compounded.
-    assertEq(token0.balanceOf(platformRecipient), 100, "token0 platform fee");
-    assertEq(token1.balanceOf(platformRecipient), 200, "token1 platform fee");
+    assertEq(token0.balanceOf(platformRecipient), 850, "token0 platform plus gas fee");
+    assertEq(token1.balanceOf(platformRecipient), 1_700, "token1 platform plus gas fee");
     assertEq(token0.balanceOf(vaultOwner), 50, "token0 owner fee");
     assertEq(token1.balanceOf(vaultOwner), 100, "token1 owner fee");
-    assertEq(token0.balanceOf(automator), 750, "token0 gas fee");
-    assertEq(token1.balanceOf(automator), 1_500, "token1 gas fee");
+    assertEq(token0.balanceOf(automator), 0, "executor receives no token0 gas fee");
+    assertEq(token1.balanceOf(automator), 0, "executor receives no token1 gas fee");
     assertEq(nfpm.increased0(), 100, "net token0 compounded");
     assertEq(nfpm.increased1(), 200, "net token1 compounded");
+  }
+
+  function test_aerodrome_compound_revertsWhenGasFeeExceedsConfigCap() public {
+    vault.configManager().setMaxGasFeeX64(0);
+    nfpm.setCollectFees(1_000, 2_000);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), _compoundInstructions(GAS_FEE_X64_75_PERCENT))
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    vault.executeStrategy(address(strategy), data);
   }
 
   function _compoundInstructions(uint64 gasFeeX64) internal view returns (IV3Utils.Instructions memory) {

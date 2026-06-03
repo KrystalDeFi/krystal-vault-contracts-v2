@@ -667,7 +667,7 @@ contract SharedVault is
   ///                          Token-only operations (harvest, swap-reward) return an empty array.
   ///   CALL                 — direct call to a swap aggregator.
   ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                          tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+  ///                          tokenIn/tokenOut must be distinct vault tokens; output delta checked against minAmountOut.
   ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   ///                          The target is stored as pos.strategy and will be delegatecalled via
@@ -703,6 +703,7 @@ contract SharedVault is
 
         require(isVaultToken[tokenIn], TokenNotConfigured());
         require(isVaultToken[tokenOut], TokenNotConfigured());
+        require(tokenIn != tokenOut, InvalidOperation());
 
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
 
@@ -789,6 +790,7 @@ contract SharedVault is
     return _getIdleBalances();
   }
 
+  /// @inheritdoc ISharedVault
   function getTotalBalances() external view override returns (uint256[4] memory) {
     return _getTotalBalances();
   }
@@ -1005,53 +1007,13 @@ contract SharedVault is
   }
 
   /// @notice Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
+  /// @dev Net of platform and vault-owner performance fees on the uncollected-fee portion (live read of
+  ///      `configManager.platformFeeBasisPoint()`, so it reprices instantly when the platform fee changes).
+  ///      See `ISharedVault.getTotalBalances` for the full integrator-facing semantics.
   function _getTotalBalances() internal view returns (uint256[4] memory balances) {
-    balances = _getIdleBalances();
-    (uint16 platformBps, uint16 ownerBps) = _performanceFeeBps();
-    bool netFees = platformBps > 0 || ownerBps > 0;
-
-    uint256 posLen = positions.length;
-    for (uint256 p; p < posLen;) {
-      Position memory pos = positions[p];
-
-      // Delegate valuation to the strategy that created the position
-      (uint256 amount0, uint256 amount1) = ISharedStrategy(pos.strategy).getPositionAmounts(pos.nfpm, pos.tokenId);
-      if (netFees) {
-        (uint256 principal0, uint256 principal1) =
-          ISharedStrategy(pos.strategy).getPositionPrincipalAmounts(pos.nfpm, pos.tokenId);
-        amount0 = _netPositionAmount(amount0, principal0, platformBps, ownerBps);
-        amount1 = _netPositionAmount(amount1, principal1, platformBps, ownerBps);
-      }
-
-      // Map amounts back to vault token indices
-      for (uint256 i; i < 4;) {
-        if (tokens[i] == pos.token0) balances[i] += amount0;
-        else if (tokens[i] == pos.token1) balances[i] += amount1;
-        unchecked {
-          i++;
-        }
-      }
-      unchecked {
-        p++;
-      }
-    }
-  }
-
-  function _performanceFeeBps() internal view returns (uint16 platformBps, uint16 ownerBps) {
-    platformBps = configManager.platformFeeBasisPoint();
-    ownerBps = vaultOwnerFeeBasisPoint;
-    if (uint256(platformBps) + uint256(ownerBps) > 10_000) {
-      ownerBps = platformBps > 10_000 ? 0 : uint16(10_000 - platformBps);
-    }
-  }
-
-  function _netPositionAmount(uint256 total, uint256 principal, uint16 platformBps, uint16 ownerBps)
-    internal
-    pure
-    returns (uint256)
-  {
-    uint256 owed = total > principal ? total - principal : 0;
-    return principal + SharedVaultPreviewLib.netAfterPerformanceFees(owed, platformBps, ownerBps);
+    return SharedVaultPreviewLib.computeTotalBalances(
+      _getIdleBalances(), positions, tokens, configManager, vaultOwnerFeeBasisPoint
+    );
   }
 
   receive() external payable { }

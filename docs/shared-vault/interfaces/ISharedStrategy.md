@@ -207,3 +207,31 @@ _Returns the token amounts computed purely from the position's in-range liquidit
 | amount0 | uint256 | Principal-only amount of token0 (excludes uncollected fees/rewards) |
 | amount1 | uint256 | Principal-only amount of token1 (excludes uncollected fees/rewards) |
 
+### getPositionAmountsSplit
+
+```solidity
+function getPositionAmountsSplit(address nfpm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+```
+
+Get gross and principal-only token amounts for a tracked LP position in one valuation pass.
+
+_`total*` includes principal plus uncollected fees/rewards. `principal*` excludes uncollected
+     fees/rewards. Callers that need both values should use this function instead of calling
+     `getPositionAmounts` and `getPositionPrincipalAmounts` separately._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager address |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| total0 | uint256 | Gross token0 amount in the position |
+| total1 | uint256 | Gross token1 amount in the position |
+| principal0 | uint256 | Principal-only token0 amount |
+| principal1 | uint256 | Principal-only token1 amount |
+

@@ -119,4 +119,19 @@ interface ISharedStrategy {
     external
     view
     returns (uint256 amount0, uint256 amount1);
+
+  /// @notice Get gross and principal-only token amounts for a tracked LP position in one valuation pass.
+  /// @dev `total*` includes principal plus uncollected fees/rewards. `principal*` excludes uncollected
+  ///      fees/rewards. Callers that need both values should use this function instead of calling
+  ///      `getPositionAmounts` and `getPositionPrincipalAmounts` separately.
+  /// @param nfpm NFT Position Manager address
+  /// @param tokenId Position NFT ID
+  /// @return total0 Gross token0 amount in the position
+  /// @return total1 Gross token1 amount in the position
+  /// @return principal0 Principal-only token0 amount
+  /// @return principal1 Principal-only token1 amount
+  function getPositionAmountsSplit(address nfpm, uint256 tokenId)
+    external
+    view
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1);
 }

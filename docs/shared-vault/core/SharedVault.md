@@ -350,7 +350,7 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          Token-only operations (harvest, swap-reward) return an empty array.
   CALL                 — direct call to a swap aggregator.
                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-                         tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+                         tokenIn/tokenOut must be distinct vault tokens; output delta checked against minAmountOut.
   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
                          The target is stored as pos.strategy and will be delegatecalled via
@@ -389,6 +389,18 @@ function getTotalBalances() external view returns (uint256[4])
 ```
 
 Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
+
+_Reports the NET value owned by shareholders, not gross LP value. For each tracked position the
+     uncollected-fee portion is reduced by the platform fee and then the vault-owner fee (mirroring
+     `SharedStrategyFeeConfig.performanceFeeConfig`; the combined rate is clamped to 10000 bps).
+     LP principal and idle balances are never fee-charged. This matches the realized `withdraw()`
+     flow, which collects fees first so the proportional idle distribution is already net-of-fee.
+     Integrator notes:
+     - Share price is `totalSupply() / getTotalBalances()`. Because `configManager.platformFeeBasisPoint()`
+       is read live (never cached), changing the platform fee instantly reprices every vault's shares:
+       existing depositors' per-share value moves the moment the fee changes.
+     - This same net figure feeds `previewDeposit`, `getMinDepositAmounts`, and the gateway's deposit
+       ratio math, so dashboards and valuation tooling should expect the net (lower) number, not gross._
 
 ### getPositionCount
 
@@ -613,17 +625,9 @@ function _getTotalBalances() internal view returns (uint256[4] balances)
 
 Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
 
-### _performanceFeeBps
-
-```solidity
-function _performanceFeeBps() internal view returns (uint16 platformBps, uint16 ownerBps)
-```
-
-### _netPositionAmount
-
-```solidity
-function _netPositionAmount(uint256 total, uint256 principal, uint16 platformBps, uint16 ownerBps) internal pure returns (uint256)
-```
+_Net of platform and vault-owner performance fees on the uncollected-fee portion (live read of
+     `configManager.platformFeeBasisPoint()`, so it reprices instantly when the platform fee changes).
+     See `ISharedVault.getTotalBalances` for the full integrator-facing semantics._
 
 ### receive
 

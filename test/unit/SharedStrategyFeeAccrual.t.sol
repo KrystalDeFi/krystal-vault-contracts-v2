@@ -291,6 +291,20 @@ contract SharedStrategyFeeAccrualTest is Test {
     assertGt(total1, principal1, "total should exceed principal because of fees");
   }
 
+  function test_v3_getPositionAmountsSplit_matches_separate_valuations() public {
+    (SharedV3Strategy strategy, address nfpm) = _setupV3();
+
+    (uint256 splitTotal0, uint256 splitTotal1, uint256 splitPrincipal0, uint256 splitPrincipal1) =
+      strategy.getPositionAmountsSplit(nfpm, 1);
+    (uint256 total0, uint256 total1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(splitTotal0, total0, "split total0 matches gross valuation");
+    assertEq(splitTotal1, total1, "split total1 matches gross valuation");
+    assertEq(splitPrincipal0, principal0, "split principal0 matches principal valuation");
+    assertEq(splitPrincipal1, principal1, "split principal1 matches principal valuation");
+  }
+
   function test_v3_getPositionAmounts_zero_pending_when_fgInsideLast_equals_current() public {
     // When feeGrowthInsideLast == current feeGrowthInside, no new fees have accrued.
     MockV3Pool pool = new MockV3Pool(SQRT_PRICE_TICK0, CURRENT_TICK, FG0_GLOBAL, FG1_GLOBAL);
@@ -421,6 +435,20 @@ contract SharedStrategyFeeAccrualTest is Test {
 
     assertGt(total0, principal0, "Aerodrome: total should exceed principal because of fees");
     assertGt(total1, principal1, "Aerodrome: total should exceed principal because of fees");
+  }
+
+  function test_aerodrome_getPositionAmountsSplit_matches_separate_valuations() public {
+    (SharedAerodromeStrategy strategy, address nfpm) = _setupAerodrome();
+
+    (uint256 splitTotal0, uint256 splitTotal1, uint256 splitPrincipal0, uint256 splitPrincipal1) =
+      strategy.getPositionAmountsSplit(nfpm, 1);
+    (uint256 total0, uint256 total1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(splitTotal0, total0, "Aerodrome: split total0 matches gross valuation");
+    assertEq(splitTotal1, total1, "Aerodrome: split total1 matches gross valuation");
+    assertEq(splitPrincipal0, principal0, "Aerodrome: split principal0 matches principal valuation");
+    assertEq(splitPrincipal1, principal1, "Aerodrome: split principal1 matches principal valuation");
   }
 
   function test_aerodrome_getPositionAmounts_zero_pending_when_fgInsideLast_equals_current() public {
