@@ -2,6 +2,24 @@
 
 ## SharedV4SwapPipeline
 
+### Swap
+
+_Protocol-neutral swap descriptor. `ISharedV4Utils.SwapParams` and
+     `ISharedPancakeV4Utils.SwapParams` are field-for-field identical; both `execute` and
+     `executePancake` normalize their protocol-specific input into this single shape and run the
+     exact same pipeline (`_run`). Keeping one implementation means the swap-pipeline trust
+     boundary is written and audited in one place instead of two._
+
+```solidity
+struct Swap {
+  address tokenIn;
+  uint256 amountIn;
+  address tokenOut;
+  uint256 amountOutMin;
+  bytes swapData;
+}
+```
+
 ### execute
 
 ```solidity
