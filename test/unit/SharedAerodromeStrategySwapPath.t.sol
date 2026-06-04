@@ -190,14 +190,11 @@ contract SwapPathVaultHarness {
     changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
   }
 
-  function verifySignedSwapData(
-    address,
-    address,
-    address,
-    uint256,
-    uint256,
-    bytes calldata
-  ) external pure returns (bytes memory) {
+  function verifySignedSwapData(address, address, address, uint256, uint256, bytes calldata)
+    external
+    pure
+    returns (bytes memory)
+  {
     revert("vault verify should not be called by strategy");
   }
 }
@@ -218,6 +215,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   address internal automator = address(0xBB03);
   uint256 internal swapDataSignerPk = 0x5A17;
   address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   function setUp() public {
     token0 = new SwapPathToken("ST0");
@@ -234,7 +232,9 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     address[] memory signers = new address[](1);
     signers[0] = swapDataSigner;
     // (owner, admins, whitelistedCallers, feeRecipient, platformBps, nfpms, swapRouters)
-    cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1000, nfpms, swapRouters, signers);
+    cm.initialize(
+      address(this), new address[](0), new address[](0), platformRecipient, 1000, nfpms, swapRouters, signers
+    );
 
     vault = new SwapPathVaultHarness(cm, vaultOwner, 500);
     vault.addVaultToken(address(token0));
@@ -252,6 +252,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
       address(vault),
       swapDataSigner,
@@ -261,10 +262,11 @@ contract SharedAerodromeStrategySwapPathTest is Test {
       amountIn,
       amountOutMin,
       rawSwapData,
-      deadline
+      deadline,
+      nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(swapDataSignerPk, digest);
-    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   // -------------------------------------------------------------------------
@@ -312,6 +314,38 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].tokenId, TOKEN_ID, "untracked tokenId");
     assertEq(changes[0].token0, address(token0), "change token0");
     assertEq(changes[0].token1, address(token1), "change token1");
+  }
+
+  function test_withdrawAndCollectAndSwap_revertsWhenReusingSignedSwapData() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), uint256(1000), uint256(900)));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountOut0Min = 800;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), 1000, 800, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.SwapDataSignatureAlreadyUsed.selector);
+    vault.executeStrategy(address(strategy), data);
   }
 
   function test_withdrawAndCollectAndSwap_revertsWhenUnsignedSwapRoutesOutputAwayFromVault() public {

@@ -362,7 +362,7 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
 ### _verifySignedSwapData
 
 ```solidity
-function _verifySignedSwapData(address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) internal view returns (bytes swapData)
+function _verifySignedSwapData(address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) internal returns (bytes swapData)
 ```
 
 ### _applyPositionChanges

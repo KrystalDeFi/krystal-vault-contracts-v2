@@ -113,6 +113,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   address internal feeRecipient;
   uint256 internal constant SWAP_DATA_SIGNER_PK = 0x5A17;
   address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   receive() external payable { }
 
@@ -1049,6 +1050,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
       address(vault),
       swapDataSigner,
@@ -1058,10 +1060,11 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       amountIn,
       amountOutMin,
       rawSwapData,
-      deadline
+      deadline,
+      nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
-    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {

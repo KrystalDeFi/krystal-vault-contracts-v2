@@ -2461,6 +2461,7 @@ contract SharedVaultTest is TestCommon {
   uint256 internal constant TEST_INITIAL_SHARES = 10e18;
   uint256 internal constant SWAP_DATA_SIGNER_PK = 0xA11CE;
   address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   function _assertTrackedIds(SharedVault v, uint256 expectedA, uint256 expectedB) internal view {
     assertEq(v.getPositionCount(), 2, "expected two tracked positions");
@@ -2611,11 +2612,12 @@ contract SharedVaultTest is TestCommon {
     bytes memory rawSwapData,
     uint256 deadline
   ) internal returns (bytes memory) {
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
-      vaultAddress, swapDataSigner, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData, deadline
+      vaultAddress, swapDataSigner, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData, deadline, nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
-    return abi.encode(rawSwapData, vaultAddress, deadline, swapDataSigner, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, vaultAddress, deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   function _whitelistSigner(SharedConfigManager cm) internal {
@@ -3166,7 +3168,7 @@ contract SharedVaultTest is TestCommon {
     vault.execute(actions);
   }
 
-  function test_swap_allows_reusing_signed_swapData_until_deadline() public {
+  function test_swap_reverts_when_reusing_signed_swapData() public {
     tokenB.mint(address(swapTarget), 20e18);
 
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
@@ -3181,6 +3183,7 @@ contract SharedVaultTest is TestCommon {
     vault.execute(actions);
 
     vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.SwapDataSignatureAlreadyUsed.selector);
     vault.execute(actions);
   }
 

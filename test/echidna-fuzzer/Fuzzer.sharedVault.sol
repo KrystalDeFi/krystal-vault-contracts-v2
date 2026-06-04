@@ -507,6 +507,7 @@ contract SharedVaultFuzzer {
 
   FuzzSwapRouter public swapRouter;
   FuzzSigner public swapDataSigner;
+  uint256 internal swapDataNonce;
 
   bool public fullLpExitChecked;
   bool public fotChecked;
@@ -1023,8 +1024,9 @@ contract SharedVaultFuzzer {
 
     bytes memory swapCalldata =
       abi.encodeCall(FuzzSwapRouter.swap, (address(idleA), address(idleB), amountIn, amountOut));
-    swapCalldata =
-      _signedSwapData(idleVault, address(swapRouter), address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
+    swapCalldata = _signedSwapData(
+      idleVault, address(swapRouter), address(idleA), address(idleB), amountIn, amountOut, swapCalldata
+    );
     bytes memory actionData = abi.encode(address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
 
     ISharedVault.Action[] memory callActions = new ISharedVault.Action[](1);
@@ -1555,6 +1557,7 @@ contract SharedVaultFuzzer {
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
       address(targetVault),
       address(swapDataSigner),
@@ -1564,9 +1567,10 @@ contract SharedVaultFuzzer {
       amountIn,
       amountOutMin,
       rawSwapData,
-      deadline
+      deadline,
+      nonce
     );
-    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), abi.encode(digest));
+    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), nonce, abi.encode(digest));
   }
 
   // -------------------------------------------------------------------------

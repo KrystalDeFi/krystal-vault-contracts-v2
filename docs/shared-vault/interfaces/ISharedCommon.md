@@ -193,6 +193,12 @@ error InvalidSwapDataSignature()
 error SwapDataSignatureExpired()
 ```
 
+### SwapDataSignatureAlreadyUsed
+
+```solidity
+error SwapDataSignatureAlreadyUsed()
+```
+
 ### TooManyPositions
 
 ```solidity

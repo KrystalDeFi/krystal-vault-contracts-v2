@@ -291,6 +291,7 @@ contract SharedVaultForkFuzzer {
   SharedVaultForkPlayer[2] public players;
   ForkSwapRouter public forkSwapRouter;
   ForkSigner public swapDataSigner;
+  uint256 internal swapDataNonce;
   ForkCwpNfpm public forkCwpNfpm;
   ForkCwpTarget public forkCwpTarget;
 
@@ -1571,8 +1572,9 @@ contract SharedVaultForkFuzzer {
     uint256 amountIn,
     uint256 amountOutMin,
     bytes memory rawSwapData
-  ) internal view returns (bytes memory) {
+  ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
       address(targetVault),
       address(swapDataSigner),
@@ -1582,9 +1584,10 @@ contract SharedVaultForkFuzzer {
       amountIn,
       amountOutMin,
       rawSwapData,
-      deadline
+      deadline,
+      nonce
     );
-    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), abi.encode(digest));
+    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), nonce, abi.encode(digest));
   }
 
   function _swapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {

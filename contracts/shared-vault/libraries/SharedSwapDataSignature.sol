@@ -7,19 +7,32 @@ import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
 
 library SharedSwapDataSignature {
+  bytes32 internal constant STORAGE_SLOT = 0x6ce297c6014d3c10153ad923862990ba409ec008504a76b97755f106d0c7d074;
+
+  struct Layout {
+    mapping(bytes32 => bool) consumedDigests;
+  }
+
   struct Envelope {
     bytes swapData;
     address vault;
     uint256 deadline;
     address signer;
+    bytes32 nonce;
     bytes signature;
   }
 
-  /// @dev Signed swapData envelope:
-  ///      abi.encode(bytes rawSwapData, address vault, uint256 deadline, address signer, bytes signature)
+  /// @dev Signed envelope: abi.encode(rawSwapData, vault, deadline, signer, nonce, signature).
   function decode(bytes memory signedSwapData) internal pure returns (Envelope memory envelope) {
-    (envelope.swapData, envelope.vault, envelope.deadline, envelope.signer, envelope.signature) =
-      abi.decode(signedSwapData, (bytes, address, uint256, address, bytes));
+    (envelope.swapData, envelope.vault, envelope.deadline, envelope.signer, envelope.nonce, envelope.signature) =
+      abi.decode(signedSwapData, (bytes, address, uint256, address, bytes32, bytes));
+  }
+
+  function layout() internal pure returns (Layout storage l) {
+    bytes32 slot = STORAGE_SLOT;
+    assembly {
+      l.slot := slot
+    }
   }
 
   function hash(
@@ -31,7 +44,8 @@ library SharedSwapDataSignature {
     uint256 amountIn,
     uint256 amountOutMin,
     bytes memory swapData,
-    uint256 deadline
+    uint256 deadline,
+    bytes32 nonce
   ) internal view returns (bytes32) {
     return keccak256(
       abi.encode(
@@ -44,7 +58,8 @@ library SharedSwapDataSignature {
         amountIn,
         amountOutMin,
         keccak256(swapData),
-        deadline
+        deadline,
+        nonce
       )
     );
   }
@@ -58,7 +73,7 @@ library SharedSwapDataSignature {
     uint256 amountIn,
     uint256 amountOutMin,
     bytes memory signedSwapData
-  ) public view returns (bytes memory swapData) {
+  ) public returns (bytes memory swapData) {
     Envelope memory envelope = decode(signedSwapData);
     require(envelope.vault == expectedVault, ISharedCommon.InvalidSwapDataSignature());
     require(envelope.deadline >= block.timestamp, ISharedCommon.SwapDataSignatureExpired());
@@ -73,12 +88,16 @@ library SharedSwapDataSignature {
       amountIn,
       amountOutMin,
       envelope.swapData,
-      envelope.deadline
+      envelope.deadline,
+      envelope.nonce
     );
+    Layout storage l = layout();
+    require(!l.consumedDigests[digest], ISharedCommon.SwapDataSignatureAlreadyUsed());
     require(
       SignatureChecker.isValidSignatureNow(envelope.signer, digest, envelope.signature),
       ISharedCommon.InvalidSwapDataSignature()
     );
+    l.consumedDigests[digest] = true;
 
     return envelope.swapData;
   }

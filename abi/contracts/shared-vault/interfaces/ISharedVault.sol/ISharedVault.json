@@ -125,6 +125,11 @@
   },
   {
     "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SwapDataSignatureExpired",
     "type": "error"
   },

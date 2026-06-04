@@ -52,5 +52,6 @@ interface ISharedCommon {
   error InvalidSwapRouter(address swapRouter);
   error InvalidSwapDataSignature();
   error SwapDataSignatureExpired();
+  error SwapDataSignatureAlreadyUsed();
   error TooManyPositions();
 }

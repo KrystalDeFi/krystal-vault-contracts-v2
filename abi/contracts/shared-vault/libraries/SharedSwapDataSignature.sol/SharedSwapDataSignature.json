@@ -6,61 +6,12 @@
   },
   {
     "inputs": [],
-    "name": "SwapDataSignatureExpired",
+    "name": "SwapDataSignatureAlreadyUsed",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract ISharedConfigManager",
-        "name": "configManager",
-        "type": "ISharedConfigManager"
-      },
-      {
-        "internalType": "address",
-        "name": "expectedVault",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "swapRouter",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenOut",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amountOutMin",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "signedSwapData",
-        "type": "bytes"
-      }
-    ],
-    "name": "verify",
-    "outputs": [
-      {
-        "internalType": "bytes",
-        "name": "swapData",
-        "type": "bytes"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
+    "type": "error"
   }
 ]

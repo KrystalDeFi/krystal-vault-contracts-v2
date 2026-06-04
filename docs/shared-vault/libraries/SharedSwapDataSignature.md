@@ -2,6 +2,20 @@
 
 ## SharedSwapDataSignature
 
+### STORAGE_SLOT
+
+```solidity
+bytes32 STORAGE_SLOT
+```
+
+### Layout
+
+```solidity
+struct Layout {
+  mapping(bytes32 => bool) consumedDigests;
+}
+```
+
 ### Envelope
 
 ```solidity
@@ -10,6 +24,7 @@ struct Envelope {
   address vault;
   uint256 deadline;
   address signer;
+  bytes32 nonce;
   bytes signature;
 }
 ```
@@ -20,18 +35,23 @@ struct Envelope {
 function decode(bytes signedSwapData) internal pure returns (struct SharedSwapDataSignature.Envelope envelope)
 ```
 
-_Signed swapData envelope:
-     abi.encode(bytes rawSwapData, address vault, uint256 deadline, address signer, bytes signature)_
+_Signed envelope: abi.encode(rawSwapData, vault, deadline, signer, nonce, signature)._
+
+### layout
+
+```solidity
+function layout() internal pure returns (struct SharedSwapDataSignature.Layout l)
+```
 
 ### hash
 
 ```solidity
-function hash(address vault, address signer, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes swapData, uint256 deadline) internal view returns (bytes32)
+function hash(address vault, address signer, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes swapData, uint256 deadline, bytes32 nonce) internal view returns (bytes32)
 ```
 
 ### verify
 
 ```solidity
-function verify(contract ISharedConfigManager configManager, address expectedVault, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) public view returns (bytes swapData)
+function verify(contract ISharedConfigManager configManager, address expectedVault, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) public returns (bytes swapData)
 ```
 

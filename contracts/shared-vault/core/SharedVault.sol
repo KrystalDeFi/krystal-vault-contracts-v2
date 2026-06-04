@@ -750,7 +750,7 @@ contract SharedVault is
     uint256 amountIn,
     uint256 amountOutMin,
     bytes memory signedSwapData
-  ) internal view returns (bytes memory swapData) {
+  ) internal returns (bytes memory swapData) {
     return SharedSwapDataSignature.verify(
       configManager, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, signedSwapData
     );

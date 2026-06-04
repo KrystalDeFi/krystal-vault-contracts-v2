@@ -166,6 +166,7 @@ contract SharedVaultAutomatorTest is TestCommon {
   uint256 internal constant SWAP_DATA_SIGNER_KEY = 0xA11CE;
   address public immutable VAULT_OWNER;
   address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   constructor() {
     VAULT_OWNER = vm.addr(VAULT_OWNER_KEY);
@@ -289,6 +290,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
       address(vault),
       swapDataSigner,
@@ -298,10 +300,11 @@ contract SharedVaultAutomatorTest is TestCommon {
       amountIn,
       amountOutMin,
       rawSwapData,
-      deadline
+      deadline,
+      nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_KEY, digest);
-    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   // ============ Constructor tests ============
