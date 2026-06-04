@@ -613,7 +613,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       amountIn: 0,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
-      swapData: _signedSwapData(address(hopToken), address(token1), 0.01 ether, 1, hop1SwapData)
+      swapData: _signedSwapData(address(hopToken), address(token1), 0, 1, hop1SwapData)
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
