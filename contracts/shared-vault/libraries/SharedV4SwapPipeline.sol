@@ -175,7 +175,6 @@ library SharedV4SwapPipeline {
         swapParam.tokenIn,
         swapParam.tokenOut,
         amountIn,
-        swapParam.amountIn,
         swapParam.amountOutMin,
         swapParam.swapData,
         i
@@ -264,7 +263,6 @@ library SharedV4SwapPipeline {
     address tokenIn,
     address tokenOut,
     uint256 amountIn,
-    uint256 signatureAmountIn,
     uint256 amountOutMin,
     bytes memory swapData,
     uint256 swapIndex
@@ -278,7 +276,7 @@ library SharedV4SwapPipeline {
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
     swapData = SharedSwapDataSignature.verify(
-      configManager, address(this), swapRouter, tokenIn, tokenOut, signatureAmountIn, amountOutMin, swapData
+      configManager, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData
     );
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success,) = swapRouter.call(swapData);

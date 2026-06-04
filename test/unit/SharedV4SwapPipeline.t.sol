@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
@@ -84,7 +85,7 @@ contract SharedV4SwapPipelineTest is Test {
     harness = new SharedV4SwapPipelineHarness(address(configManager), address(token0));
   }
 
-  function test_execute_acceptsSignatureBoundToDeclaredZeroAmountSentinel() public {
+  function test_execute_rejectsZeroSentinelSignatureWhenRuntimeAmountIsNonZero() public {
     uint256 runtimeAmountIn = 10 ether;
     uint256 amountOut = 5 ether;
     bytes memory rawSwapData =
@@ -100,6 +101,28 @@ contract SharedV4SwapPipelineTest is Test {
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: amountOut,
       swapData: _signedSwapData(address(token0), address(token1), 0, amountOut, rawSwapData)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    harness.execute(address(router), address(token0), address(token1), runtimeAmountIn, 0, swaps);
+  }
+
+  function test_execute_acceptsZeroSentinelWhenSignatureIsBoundToRuntimeAmount() public {
+    uint256 runtimeAmountIn = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), runtimeAmountIn);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), runtimeAmountIn, amountOut, rawSwapData)
     });
 
     (uint256 total0, uint256 total1) =
