@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/shared-vault]
     types: [opened, synchronize, ready_for_review, reopened]
 
 concurrency:
