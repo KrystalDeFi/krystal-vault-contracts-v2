@@ -9,6 +9,7 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { SharedStrategyFeeConfig } from "../../contracts/shared-vault/libraries/SharedStrategyFeeConfig.sol";
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IFeeTaker } from "../../contracts/public-vault/interfaces/strategies/IFeeTaker.sol";
@@ -446,6 +447,11 @@ contract MockSwapTarget {
     uint256 consumed = amountIn / 2;
     MockERC20(tokenIn).transferFrom(msg.sender, address(this), consumed);
     MockERC20(tokenOut).transfer(msg.sender, consumed);
+  }
+
+  function swapTo(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, address recipient) external {
+    MockERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    MockERC20(tokenOut).transfer(recipient, amountOut);
   }
 }
 
@@ -2453,6 +2459,8 @@ contract SharedVaultTest is TestCommon {
   address public constant DEPOSITOR = 0x1234567890123456789012345678901234567893;
   address public constant NON_AUTHORIZED = 0x1234567890123456789012345678901234567894;
   uint256 internal constant TEST_INITIAL_SHARES = 10e18;
+  uint256 internal constant SWAP_DATA_SIGNER_PK = 0xA11CE;
+  address internal swapDataSigner;
 
   function _assertTrackedIds(SharedVault v, uint256 expectedA, uint256 expectedB) internal view {
     assertEq(v.getPositionCount(), 2, "expected two tracked positions");
@@ -2473,7 +2481,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(strategy);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0));
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0), new address[](0)
+    );
 
     v = new SharedVault();
     MockERC20 tA = new MockERC20("PCA", "PCA");
@@ -2517,6 +2527,7 @@ contract SharedVaultTest is TestCommon {
     cwpNfpm = new MockERC721();
     mockERC1155 = new MockERC1155();
     mockWeth = new MockWETH9();
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
 
     // Deploy config manager
     configManager = new SharedConfigManager();
@@ -2525,7 +2536,11 @@ contract SharedVaultTest is TestCommon {
     targets[1] = address(mockStrategy);
     targets[2] = address(directCreator);
     address[] memory callers = new address[](0);
-    configManager.initialize(address(this), targets, callers, address(this), 0, new address[](0), new address[](0));
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.initialize(
+      address(this), targets, callers, address(this), 0, new address[](0), new address[](0), signers
+    );
 
     // NFPM / swap-router allowlists used by `_addPosition` and `CALL` swap path in unit scenarios
     {
@@ -2546,7 +2561,6 @@ contract SharedVaultTest is TestCommon {
       routers[0] = address(swapTarget);
       configManager.setWhitelistSwapRouters(routers, true);
     }
-
     // Deploy vault
     vault = new SharedVault();
 
@@ -2571,6 +2585,44 @@ contract SharedVaultTest is TestCommon {
     // Setup roles
     vault.grantAdminRole(ADMIN);
     vm.stopPrank();
+  }
+
+  function _signedSwapData(
+    address vaultAddress,
+    address swapRouter,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    return _signedSwapDataWithDeadline(
+      vaultAddress, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData, block.timestamp + 1 hours
+    );
+  }
+
+  function _signedSwapDataWithDeadline(
+    address vaultAddress,
+    address swapRouter,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData,
+    uint256 deadline
+  ) internal returns (bytes memory) {
+    bytes32 digest = SharedSwapDataSignature.hash(
+      vaultAddress, swapDataSigner, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData, deadline
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
+    return abi.encode(rawSwapData, vaultAddress, deadline, swapDataSigner, abi.encodePacked(r, s, v));
+  }
+
+  function _whitelistSigner(SharedConfigManager cm) internal {
+    if (swapDataSigner == address(0)) swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    cm.setWhitelistSigners(signers, true);
   }
 
   // ==================== Initialization Tests ====================
@@ -2961,7 +3013,9 @@ contract SharedVaultTest is TestCommon {
     targets_[0] = address(failingCollectStrat);
     address[] memory nfpms_ = new address[](1);
     nfpms_[0] = address(failNfpm);
-    cm.initialize(address(this), targets_, new address[](0), address(this), 0, nfpms_, new address[](0));
+    cm.initialize(
+      address(this), targets_, new address[](0), address(this), 0, nfpms_, new address[](0), new address[](0)
+    );
 
     SharedVault v = new SharedVault();
     MockERC20 tA = new MockERC20("A", "A");
@@ -3083,6 +3137,8 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 10e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 10e18, 9e18, swapCalldata);
     bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 9e18, swapCalldata);
 
     uint256 balanceBefore = tokenB.balanceOf(address(vault));
@@ -3095,6 +3151,92 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  function test_swap_reverts_when_unsigned_calldata_routes_output_away_from_vault() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata =
+      abi.encodeCall(MockSwapTarget.swapTo, (address(tokenA), address(tokenB), 10e18, 10e18, VAULT_OWNER));
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert();
+    vault.execute(actions);
+  }
+
+  function test_swap_allows_reusing_signed_swapData_until_deadline() public {
+    tokenB.mint(address(swapTarget), 20e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata);
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+  }
+
+  function test_swap_reverts_when_signed_swapData_bound_to_different_vault() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata =
+      _signedSwapData(address(0xBEEF), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata);
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    vault.execute(actions);
+  }
+
+  function test_swap_reverts_when_signed_swapData_expired() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata = _signedSwapDataWithDeadline(
+      address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata, block.timestamp - 1
+    );
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.SwapDataSignatureExpired.selector);
+    vault.execute(actions);
+  }
+
+  function test_swap_reverts_when_swapData_signer_not_whitelisted() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata);
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.setWhitelistSigners(signers, false);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    vault.execute(actions);
+  }
+
   function test_swap_residual_allowance_reset() public {
     // Partial-fill swap: router only consumes half of amountIn.
     // Without the post-call safeApprove(0), the residual allowance would persist.
@@ -3102,6 +3244,8 @@ contract SharedVaultTest is TestCommon {
 
     vm.startPrank(VAULT_OWNER);
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.partialSwap, (address(tokenA), address(tokenB), 10e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 10e18, 0, swapCalldata);
     bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 0, swapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -3894,7 +4038,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0));
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0), new address[](0)
+    );
     cm.setMaxGasFeeX64(uint64(1 << 62));
 
     SharedVaultCollectHarness v = new SharedVaultCollectHarness();
@@ -3958,7 +4104,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4023,7 +4169,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4103,7 +4249,9 @@ contract SharedVaultTest is TestCommon {
     address[4] memory vtokens = [address(mockWeth), address(tokenA), address(0), address(0)];
     uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
     vm.prank(VAULT_OWNER);
-    v.initialize("V4ReadContext", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(mockWeth), 0);
+    v.initialize(
+      "V4ReadContext", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(mockWeth), 0
+    );
 
     SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
 
@@ -4123,7 +4271,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4184,7 +4332,8 @@ contract SharedVaultTest is TestCommon {
     nfpms[0] = address(posm);
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters, new address[](0));
+    _whitelistSigner(cm);
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4254,7 +4403,8 @@ contract SharedVaultTest is TestCommon {
     nfpms[0] = address(posm);
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters, new address[](0));
+    _whitelistSigner(cm);
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4284,12 +4434,15 @@ contract SharedVaultTest is TestCommon {
       amountOutMin: 0,
       swapData: ""
     });
+    bytes memory failingSwapData = abi.encodeWithSignature("missingSwapFunction()");
+    failingSwapData =
+      _signedSwapData(address(v), address(swapRouter), address(tokenA), address(tokenB), 0.1e18, 0, failingSwapData);
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(tokenA)),
       amountIn: 0.1e18,
       tokenOut: Currency.wrap(address(tokenB)),
       amountOutMin: 0,
-      swapData: abi.encodeWithSignature("missingSwapFunction()")
+      swapData: failingSwapData
     });
 
     V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
@@ -4332,7 +4485,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0));
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0), new address[](0)
+    );
 
     SharedVaultCollectHarness v = new SharedVaultCollectHarness();
     address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
@@ -4411,7 +4566,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(pancakeStrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4477,7 +4632,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(pancakeStrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4580,7 +4735,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(pancakeStrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4644,7 +4799,8 @@ contract SharedVaultTest is TestCommon {
     nfpms[0] = address(posm);
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters, new address[](0));
+    _whitelistSigner(cm);
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4715,7 +4871,8 @@ contract SharedVaultTest is TestCommon {
     nfpms[0] = address(posm);
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, swapRouters, new address[](0));
+    _whitelistSigner(cm);
 
     SharedVault v = new SharedVault();
     tokenA.mint(address(v), 10e18);
@@ -4746,12 +4903,15 @@ contract SharedVaultTest is TestCommon {
       amountOutMin: 0,
       swapData: ""
     });
+    bytes memory failingSwapData = abi.encodeWithSignature("missingSwapFunction()");
+    failingSwapData =
+      _signedSwapData(address(v), address(swapRouter), address(tokenA), address(tokenB), 0.1e18, 0, failingSwapData);
     swaps[1] = IPancakeV4Utils.SwapParams({
       tokenIn: PancakeCurrency.wrap(address(tokenA)),
       amountIn: 0.1e18,
       tokenOut: PancakeCurrency.wrap(address(tokenB)),
       amountOutMin: 0,
-      swapData: abi.encodeWithSignature("missingSwapFunction()")
+      swapData: failingSwapData
     });
 
     IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
@@ -4892,7 +5052,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(lpStrategy);
     address[] memory nfpmsFee = new address[](1);
     nfpmsFee[0] = address(feeNfpm);
-    cm.initialize(VAULT_OWNER, targets, new address[](0), address(this), 0, nfpmsFee, new address[](0));
+    cm.initialize(
+      VAULT_OWNER, targets, new address[](0), address(this), 0, nfpmsFee, new address[](0), new address[](0)
+    );
 
     SharedVault v = new SharedVault();
     MockERC20 tA = new MockERC20("TA", "TA");
@@ -5263,7 +5425,7 @@ contract SharedVaultTest is TestCommon {
     address[] memory callers = new address[](0);
     address[] memory nfpmsLp = new address[](1);
     nfpmsLp[0] = address(lpNfpm);
-    cm.initialize(address(this), targets, callers, address(this), 0, nfpmsLp, new address[](0));
+    cm.initialize(address(this), targets, callers, address(this), 0, nfpmsLp, new address[](0), new address[](0));
 
     v = new SharedVault();
     tA = new MockERC20("Token A", "A");
@@ -5669,6 +5831,8 @@ contract SharedVaultTest is TestCommon {
 
     // Action 2: CALL — token swap tokenA → tokenB
     bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 5e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 5e18, 0, swapCalldata);
     bytes memory swapData = abi.encode(address(tokenA), address(tokenB), 5e18, uint256(0), swapCalldata);
 
     // Action 3: CALL_WITH_POSITIONS — direct call creates another position
@@ -6211,7 +6375,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     // --- Arrange: seed the vault with idle balances large enough to cover principal transfer
     rewardsVault = new SharedVault();
@@ -6405,7 +6569,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     SharedVault rv = new SharedVault();
     tA.mint(address(rv), total0);
@@ -6453,6 +6617,76 @@ contract SharedVaultTest is TestCommon {
       idle1Before + token1Floor - recorder.lastAmount1(),
       "unused precision-floor token1 remains idle"
     );
+  }
+
+  /// @notice If the binding-share clamp rounds one side of a two-sided LP top-up to zero, the vault
+  ///         must skip that LP top-up instead of calling the strategy with `(amount0 > 0, amount1 == 0)`.
+  ///         This reproduces the Echidna fork sequence:
+  ///         fork_swap_and_mint_random_split(0,0) -> fork_execute_call_swap(0) -> fork_deposit(0,0).
+  function test_deposit_skipsLpTopupWhenPostClampSideRoundsToZero() public {
+    uint256 principal0 = 46_865_486_526_515;
+    uint256 principal1 = 99_999;
+    uint256 total0 = 999_989_999_999_999_998;
+    uint256 total1 = 3_000_029_998;
+    uint256 deposit0 = 10_000_000_000_000;
+    uint256 deposit1 = 30_001;
+
+    MockERC20 tA = new MockERC20("WETH-like", "WETH");
+    MockERC20LowDecimals tB = new MockERC20LowDecimals("USDC-like", "USDC", 6);
+    MockLPPool pool = new MockLPPool();
+    DepositProportionalRecorder recorder = new DepositProportionalRecorder();
+    MockRewardsAwareStrategy strat =
+      new MockRewardsAwareStrategy(address(pool), address(recorder), principal0, principal1, 0, 0);
+    MockERC721 nfpm = new MockERC721();
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(nfpm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault rv = new SharedVault();
+    tA.mint(address(rv), total0);
+    tB.mint(address(rv), total1);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [total0, total1, uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    rv.initialize("PostClampDustVault", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(cm), address(0), 0);
+
+    uint256 tokenId = 5_149_631;
+    nfpm.mint(address(rv), tokenId);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(strat), abi.encode(address(nfpm), tokenId, address(tA), address(tB)), ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(VAULT_OWNER);
+    rv.execute(actions);
+
+    uint256 independentToken1Topup = FullMath.mulDiv(deposit1, principal1, total1);
+    uint256 independentToken0Topup = FullMath.mulDiv(deposit0, principal0, total0);
+    assertEq(independentToken1Topup, 1, "setup: token1 starts nonzero before binding clamp");
+    assertEq(
+      FullMath.mulDiv(independentToken0Topup, principal1, principal0),
+      0,
+      "setup: token0 binding share rounds token1 to zero"
+    );
+
+    tA.mint(DEPOSITOR, deposit0);
+    tB.mint(DEPOSITOR, deposit1);
+    vm.startPrank(DEPOSITOR);
+    tA.approve(address(rv), type(uint256).max);
+    tB.approve(address(rv), type(uint256).max);
+    uint256[4] memory amounts = [deposit0, deposit1, uint256(0), uint256(0)];
+    uint256 preview = rv.previewDeposit(amounts);
+    uint256 shares = rv.deposit(amounts, uint16(100), 0);
+    vm.stopPrank();
+
+    assertGt(preview, 0, "setup: preview says the deposit is meaningful");
+    assertEq(shares, preview, "deposit succeeds with previewed shares");
+    assertEq(recorder.callCount(), 0, "LP top-up skipped when the post-clamp ratio loses one side");
+    assertEq(tA.balanceOf(address(rv)), total0 - principal0 + deposit0, "token0 stays idle");
+    assertEq(tB.balanceOf(address(rv)), total1 - principal1 + deposit1, "token1 stays idle");
   }
 
   // ==================== getMinDepositAmounts Tests ====================
@@ -6629,7 +6863,7 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(dropStrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     // --- Arrange: vault — Alice seeds [100A, 100B], 50A/50B go into LP (depositCount=1) ------
     SharedVault dv = new SharedVault();
@@ -6683,7 +6917,9 @@ contract SharedVaultTest is TestCommon {
     address whitelistedPosm = makeAddr("v4posm");
     address[] memory posmList = new address[](1);
     posmList[0] = whitelistedPosm;
-    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, posmList, new address[](0));
+    v4cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, posmList, new address[](0), new address[](0)
+    );
 
     SharedVault v4v = new SharedVault();
     tokenA.mint(address(v4v), 100e18);
@@ -6739,7 +6975,9 @@ contract SharedVaultTest is TestCommon {
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(v3strat);
-    v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+    v3cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0), new address[](0)
+    );
 
     // Deploy inverted-ordering NFPM; next new id = 999.
     MockInvertedOrderingNfpm invertedNfpm = new MockInvertedOrderingNfpm(address(tokenA), address(tokenB), 999);
@@ -6785,7 +7023,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v3strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(partialNfpm);
-    v3cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    v3cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0)
+    );
 
     SharedVault v3v = new SharedVault();
     tokenA.mint(address(v3v), 100e18);
@@ -6824,7 +7064,9 @@ contract SharedVaultTest is TestCommon {
     SharedConfigManager v3cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(v3strat);
-    v3cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+    v3cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0), new address[](0)
+    );
 
     // NFPM that mints a new token but does NOT return the old one (burns it).
     MockBurnWithoutReturnNfpm burnNfpm = new MockBurnWithoutReturnNfpm(address(tokenA), address(tokenB), 888);
@@ -6864,7 +7106,9 @@ contract SharedVaultTest is TestCommon {
     SharedConfigManager aerocm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(aerostrat);
-    aerocm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+    aerocm.initialize(
+      address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0), new address[](0)
+    );
 
     MockAerodromeInvertedOrderingNfpm aeroNfpm =
       new MockAerodromeInvertedOrderingNfpm(address(tokenA), address(tokenB), 777);
@@ -6910,7 +7154,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(aerostrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(aeroNfpm);
-    aerocm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    aerocm.initialize(
+      address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0)
+    );
 
     SharedVault aerov = new SharedVault();
     tokenA.mint(address(aerov), 100e18);
@@ -6951,7 +7197,9 @@ contract SharedVaultTest is TestCommon {
     SharedConfigManager v4cm = new SharedConfigManager();
     address[] memory targets = new address[](1);
     targets[0] = address(v4strat);
-    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0));
+    v4cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0), new address[](0)
+    );
 
     MockV4PositionManager posm = new MockV4PositionManager(100); // nextTokenId = 100
     address[] memory posmList = new address[](1);
@@ -7008,7 +7256,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    v4cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0)
+    );
 
     SharedVault v4v = new SharedVault();
     tokenA.mint(address(v4v), 100e18);
@@ -7060,7 +7310,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(pancakeStrat);
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(posm);
-    pancakeCm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    pancakeCm.initialize(
+      address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0)
+    );
 
     SharedVault pv = new SharedVault();
     tokenA.mint(address(pv), 100e18);
@@ -7151,7 +7403,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory posmList = new address[](1);
     posmList[0] = address(posm);
-    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, posmList, new address[](0));
+    v4cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, posmList, new address[](0), new address[](0)
+    );
 
     SharedVault v4v = new SharedVault();
     tokenA.mint(address(v4v), 100e18);
@@ -7204,7 +7458,9 @@ contract SharedVaultTest is TestCommon {
     targets[0] = address(v4strat);
     address[] memory posmList = new address[](1);
     posmList[0] = address(posm);
-    v4cm.initialize(address(this), targets, new address[](0), address(this), 0, posmList, new address[](0));
+    v4cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, posmList, new address[](0), new address[](0)
+    );
 
     SharedVault v4v = new SharedVault();
     tokenA.mint(address(v4v), 100e18);
@@ -8044,6 +8300,7 @@ contract SharedVaultTest is TestCommon {
     rsr.arm(v);
 
     bytes memory swapData = abi.encodeCall(ReentrantSwapRouter.swap, (address(tokenA), 10e18, address(tokenB), 5e18));
+    swapData = _signedSwapData(address(v), address(rsr), address(tokenA), address(tokenB), 10e18, 5e18, swapData);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action({
       target: address(rsr),

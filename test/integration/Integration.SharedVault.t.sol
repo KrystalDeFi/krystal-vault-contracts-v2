@@ -78,7 +78,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
 
     // Deploy vault implementation + factory
     vaultImplementation = new SharedVault();

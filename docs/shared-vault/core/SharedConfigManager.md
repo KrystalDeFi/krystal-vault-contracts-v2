@@ -32,6 +32,12 @@ mapping(address => bool) whitelistedNfpms
 mapping(address => bool) whitelistedSwapRouters
 ```
 
+### whitelistedSigners
+
+```solidity
+mapping(address => bool) whitelistedSigners
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -104,7 +110,7 @@ _Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just b
 ### initialize
 
 ```solidity
-function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, uint16 _platformFeeBasisPoint, address[] _whitelistNfpms, address[] _whitelistSwapRouters) public
+function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, uint16 _platformFeeBasisPoint, address[] _whitelistNfpms, address[] _whitelistSwapRouters, address[] _whitelistSigners) public
 ```
 
 One-time initializer. Argument order is intentional; pass-by-position callers must
@@ -116,6 +122,7 @@ One-time initializer. Argument order is intentional; pass-by-position callers mu
         5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
         6. _whitelistNfpms         — NFT position managers to whitelist
         7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
+        8. _whitelistSigners       — backend signers to whitelist
 
 ### setWhitelistTargets
 
@@ -163,6 +170,18 @@ function setWhitelistSwapRouters(address[] swapRouters, bool _isWhitelisted) ext
 
 ```solidity
 function isWhitelistedSwapRouter(address swapRouter) external view returns (bool)
+```
+
+### setWhitelistSigners
+
+```solidity
+function setWhitelistSigners(address[] signers, bool _isWhitelisted) external
+```
+
+### isWhitelistedSigner
+
+```solidity
+function isWhitelistedSigner(address signer) external view returns (bool)
 ```
 
 ### setVaultPaused

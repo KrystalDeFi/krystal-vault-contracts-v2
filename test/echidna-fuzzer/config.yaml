@@ -13,10 +13,17 @@ testMode: "assertion"
 # guide: https://secure-contracts.com/program-analysis/echidna/advanced/using-all-contracts.html
 allContracts: false
 
-# SharedVault uses an external library. Echidna needs the library deployed and
-# crytic-compile needs the same address linked into SharedVault bytecode.
-deployContracts: [["0x1000000000000000000000000000000000000001", "SharedVaultPreviewLib"]]
-cryticArgs: ["--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001)"]
+# SharedVault uses external libraries. Echidna needs the libraries deployed and
+# crytic-compile needs the same addresses linked into SharedVault bytecode.
+deployContracts:
+  [
+    ["0x1000000000000000000000000000000000000001", "SharedVaultPreviewLib"],
+    ["0x1000000000000000000000000000000000000007", "SharedSwapDataSignature"],
+  ]
+cryticArgs:
+  [
+    "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedSwapDataSignature,0x1000000000000000000000000000000000000007)",
+  ]
 
 # balanceContract: balance of deployed contract in wei
 balanceContract: 1000000000000000000000000
@@ -28,6 +35,6 @@ balanceContract: 1000000000000000000000000
 
 # Number of test sequences to run
 # Default: 50000
-testLimit: 999999999999999999  # unlimited
+testLimit: 999999999999999999 # unlimited
 
 deployer: "0x10000"

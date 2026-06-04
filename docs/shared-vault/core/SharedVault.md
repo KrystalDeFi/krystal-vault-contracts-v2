@@ -350,7 +350,7 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          Token-only operations (harvest, swap-reward) return an empty array.
   CALL                 — direct call to a swap aggregator.
                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-                         tokenIn/tokenOut must be distinct vault tokens; output delta checked against minAmountOut.
+                         tokenIn/tokenOut must be distinct vault tokens; output delta is checked.
   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
                          The target is stored as pos.strategy and will be delegatecalled via
@@ -358,6 +358,12 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          No token pre-approval or balance check is performed on this path:
                          the external contract manages its own token transfers (unlike CALL,
                          where the vault is the initiator and owns the approval flow).
+
+### _verifySignedSwapData
+
+```solidity
+function _verifySignedSwapData(address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) internal view returns (bytes swapData)
+```
 
 ### _applyPositionChanges
 

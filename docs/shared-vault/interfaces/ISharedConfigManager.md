@@ -38,6 +38,12 @@ event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted)
 event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted)
 ```
 
+### WhitelistSignersUpdated
+
+```solidity
+event WhitelistSignersUpdated(address[] signers, bool isWhitelisted)
+```
+
 ### VaultPausedUpdated
 
 ```solidity
@@ -151,6 +157,18 @@ function isWhitelistedSwapRouter(address swapRouter) external view returns (bool
 
 ```solidity
 function setWhitelistSwapRouters(address[] swapRouters, bool isWhitelisted) external
+```
+
+### isWhitelistedSigner
+
+```solidity
+function isWhitelistedSigner(address signer) external view returns (bool)
+```
+
+### setWhitelistSigners
+
+```solidity
+function setWhitelistSigners(address[] signers, bool isWhitelisted) external
 ```
 
 ### setVaultPaused

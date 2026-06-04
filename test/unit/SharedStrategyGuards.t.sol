@@ -27,7 +27,7 @@ contract SharedStrategyGuardsTest is Test {
     cm = new SharedConfigManager();
     address[] memory nfpms = new address[](1);
     nfpms[0] = listedNfpm;
-    cm.initialize(address(this), new address[](0), new address[](0), address(0xABC), 0, nfpms, new address[](0));
+    cm.initialize(address(this), new address[](0), new address[](0), address(0xABC), 0, nfpms, new address[](0), new address[](0));
     h = new SharedStrategyGuardsHarness();
   }
 

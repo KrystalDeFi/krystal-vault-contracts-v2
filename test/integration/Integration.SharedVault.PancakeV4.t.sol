@@ -13,6 +13,7 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { IWETH9 } from "../../contracts/public-vault/interfaces/IWETH9.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { IVault as IInfinityVault } from "infinity-core/src/interfaces/IVault.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
 import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
@@ -110,6 +111,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   address internal vaultOwner;
   address internal depositor;
   address internal feeRecipient;
+  uint256 internal constant SWAP_DATA_SIGNER_PK = 0x5A17;
+  address internal swapDataSigner;
 
   receive() external payable { }
 
@@ -120,6 +123,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     vaultOwner = makeAddr("vaultOwner");
     depositor = makeAddr("depositor");
     feeRecipient = makeAddr("feeRecipient");
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
 
     posm = ICLPositionManager(BASE_PANCAKE_V4_POSM);
     poolManager = posm.clPoolManager();
@@ -147,7 +151,9 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
     configManager = new SharedConfigManager();
-    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters, signers);
 
     vault = new SharedVault();
     token0.mint(address(vault), 10 ether);
@@ -548,6 +554,10 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
 
   function test_execute_forwardsMultiHopDecreaseAndSwapPayloadWithRealPancakeV4PositionManager() public {
     uint256 token1Before = token1.balanceOf(address(vault));
+    bytes memory hop0SwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether));
+    bytes memory hop1SwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether));
 
     IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
     swaps[0] = IPancakeV4Utils.SwapParams({
@@ -555,14 +565,14 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       amountIn: 0.01 ether,
       tokenOut: Currency.wrap(address(hopToken)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 1, hop0SwapData)
     });
     swaps[1] = IPancakeV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether))
+      swapData: _signedSwapData(address(hopToken), address(token1), 0.01 ether, 1, hop1SwapData)
     });
 
     IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
@@ -590,7 +600,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     vault.execute(actions);
 
     assertEq(swapRouter.callCount(), 2, "native strategy executes both swap hops");
-    assertEq(keccak256(swapRouter.lastData()), keccak256(swaps[1].swapData), "router receives final hop payload");
+    assertEq(keccak256(swapRouter.lastData()), keccak256(hop1SwapData), "router receives final hop payload");
     assertGt(token1.balanceOf(address(vault)), token1Before, "vault receives final hop output");
     assertEq(token0.allowance(address(vault), address(swapRouter)), 0, "token0 router approval cleared");
     assertEq(hopToken.allowance(address(vault), address(swapRouter)), 0, "hop router approval cleared");
@@ -603,20 +613,25 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   // value cannot be stranded in the vault.
   // =========================================================
   function test_execute_revertsWhenPipelineLeavesUnconsumedIntermediate() public {
+    bytes memory hop0SwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether));
+    bytes memory hop1SwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether));
+
     IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
     swaps[0] = IPancakeV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(token0)),
       amountIn: 0.01 ether,
       tokenOut: Currency.wrap(address(hopToken)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 1, hop0SwapData)
     });
     swaps[1] = IPancakeV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0.005 ether, // hop 1 produced 0.01 ether; consuming only half leaves leftover
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether))
+      swapData: _signedSwapData(address(hopToken), address(token1), 0.005 ether, 1, hop1SwapData)
     });
 
     IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
@@ -797,9 +812,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       tokenId: tokenId,
       increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: type(uint256).max,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: type(uint256).max, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: inputs,
@@ -848,8 +861,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       tokenId,
       abi.encode(
         IPancakeV4Utils.Instructions({
-          action: IPancakeV4Utils.UtilActions.ADJUST_RANGE,
-          params: abi.encode(adjustParams)
+          action: IPancakeV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(adjustParams)
         })
       )
     );
@@ -952,9 +964,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       posm: BASE_PANCAKE_V4_POSM,
       tokenId: tokenId,
       increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IPancakeV4Utils.SwapParams[](0),
       inputTokens: new IPancakeV4Utils.InputTokenParams[](0),
@@ -1029,6 +1039,29 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(swapRouter),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
   }
 
   function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {
