@@ -4,13 +4,16 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { INonfungiblePositionManager } from "../../contracts/common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
+import {
+  INonfungiblePositionManager
+} from "../../contracts/common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 
 // ---------------------------------------------------------------------------
 // Coverage for the previously-untested SharedAerodromeStrategy swap paths
@@ -51,9 +54,7 @@ contract SwapPathToken {
   }
 
   function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-    if (allowance[from][msg.sender] != type(uint256).max) {
-      allowance[from][msg.sender] -= amount;
-    }
+    if (allowance[from][msg.sender] != type(uint256).max) allowance[from][msg.sender] -= amount;
     balanceOf[from] -= amount;
     balanceOf[to] += amount;
     return true;
@@ -96,9 +97,7 @@ contract SwapPathNfpm {
     principalOut1 = amount1;
   }
 
-  function positions(
-    uint256
-  )
+  function positions(uint256)
     external
     view
     returns (uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128)
@@ -106,9 +105,10 @@ contract SwapPathNfpm {
     return (0, address(0), address(token0), address(token1), int24(60), int24(-60), int24(60), liquidity, 0, 0, 0, 0);
   }
 
-  function collect(
-    INonfungiblePositionManager.CollectParams calldata params
-  ) external returns (uint256 amount0, uint256 amount1) {
+  function collect(INonfungiblePositionManager.CollectParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
     amount0 = pendingCollect0;
     amount1 = pendingCollect1;
     pendingCollect0 = 0;
@@ -117,9 +117,10 @@ contract SwapPathNfpm {
     if (amount1 > 0) token1.mint(params.recipient, amount1);
   }
 
-  function decreaseLiquidity(
-    INonfungiblePositionManager.DecreaseLiquidityParams calldata params
-  ) external returns (uint256 amount0, uint256 amount1) {
+  function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
     require(params.liquidity <= liquidity, "decrease exceeds liquidity");
     liquidity -= params.liquidity;
     // Stage the principal so the strategy's immediately-following collect() releases it.
@@ -128,9 +129,10 @@ contract SwapPathNfpm {
     return (principalOut0, principalOut1);
   }
 
-  function mint(
-    INonfungiblePositionManager.MintParams calldata params
-  ) external returns (uint256 tokenId, uint128 liq, uint256 amount0, uint256 amount1) {
+  function mint(INonfungiblePositionManager.MintParams calldata params)
+    external
+    returns (uint256 tokenId, uint128 liq, uint256 amount0, uint256 amount1)
+  {
     mintCalls++;
     tokenId = nextMintId;
     if (params.amount0Desired > 0) token0.transferFrom(msg.sender, address(this), params.amount0Desired);
@@ -152,6 +154,11 @@ contract SwapPathRouter {
     SwapPathToken(tokenIn).transferFrom(msg.sender, address(this), amountIn);
     SwapPathToken(tokenOut).mint(msg.sender, amountOut);
   }
+
+  function swapTo(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, address recipient) external {
+    SwapPathToken(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    SwapPathToken(tokenOut).mint(recipient, amountOut);
+  }
 }
 
 contract SwapPathVaultHarness {
@@ -170,10 +177,10 @@ contract SwapPathVaultHarness {
     isVaultToken[token] = true;
   }
 
-  function executeStrategy(
-    address strategy,
-    bytes memory data
-  ) external returns (ISharedStrategy.PositionChange[] memory changes) {
+  function executeStrategy(address strategy, bytes memory data)
+    external
+    returns (ISharedStrategy.PositionChange[] memory changes)
+  {
     (bool ok, bytes memory result) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
     if (!ok) {
       assembly {
@@ -181,6 +188,17 @@ contract SwapPathVaultHarness {
       }
     }
     changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+  }
+
+  function verifySignedSwapData(
+    address,
+    address,
+    address,
+    uint256,
+    uint256,
+    bytes calldata
+  ) external pure returns (bytes memory) {
+    revert("vault verify should not be called by strategy");
   }
 }
 
@@ -198,6 +216,8 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   address internal platformRecipient = address(0xBB01);
   address internal vaultOwner = address(0xBB02);
   address internal automator = address(0xBB03);
+  uint256 internal swapDataSignerPk = 0x5A17;
+  address internal swapDataSigner;
 
   function setUp() public {
     token0 = new SwapPathToken("ST0");
@@ -210,8 +230,11 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     nfpms[0] = address(nfpm);
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(router);
+    swapDataSigner = vm.addr(swapDataSignerPk);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
     // (owner, admins, whitelistedCallers, feeRecipient, platformBps, nfpms, swapRouters)
-    cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1_000, nfpms, swapRouters);
+    cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1000, nfpms, swapRouters, signers);
 
     vault = new SwapPathVaultHarness(cm, vaultOwner, 500);
     vault.addVaultToken(address(token0));
@@ -219,6 +242,29 @@ contract SharedAerodromeStrategySwapPathTest is Test {
 
     // Strategy's immutable swapRouter is the whitelisted mock aggregator.
     strategy = new SharedAerodromeStrategy(address(router));
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(router),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(swapDataSignerPk, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
   }
 
   // -------------------------------------------------------------------------
@@ -232,21 +278,19 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   function test_withdrawAndCollectAndSwap_fullExit_swapsToTargetAndUntracks() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0); // no accrued fees — keep the focus on the principal swap
-    nfpm.setPrincipalOut(1_000, 2_000);
+    nfpm.setPrincipalOut(1000, 2000);
 
-    uint256 amountIn = 1_000; // token0 principal, swapped in full
+    uint256 amountIn = 1000; // token0 principal, swapped in full
     uint256 amountOut = 900; // token1 delivered by the router
-    bytes memory swapData0 = abi.encodeCall(
-      SwapPathRouter.swap,
-      (address(token0), address(token1), amountIn, amountOut)
-    );
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), amountIn, amountOut));
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max; // full-exit sentinel; capped to posLiquidity
     instructions.targetToken = address(token1);
     instructions.amountOut0Min = 800; // < amountOut, so the slippage gate passes with margin
-    instructions.swapData0 = swapData0;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn, 800, swapData0);
 
     bytes memory data = bytes.concat(
       abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
@@ -259,7 +303,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     // Swap executed: router pulled the full token0 principal, vault holds principal token1 + swap output.
     assertEq(token0.balanceOf(address(router)), amountIn, "router pulled token0 amountIn");
     assertEq(token0.balanceOf(address(vault)), 0, "vault token0 fully swapped out");
-    assertEq(token1.balanceOf(address(vault)), 2_000 + amountOut, "vault token1 = principal + swap output");
+    assertEq(token1.balanceOf(address(vault)), 2000 + amountOut, "vault token1 = principal + swap output");
 
     // Full exit -> position untracked.
     assertEq(nfpm.liquidity(), 0, "position fully drained");
@@ -270,25 +314,50 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].token1, address(token1), "change token1");
   }
 
-  /// @dev The aggregator-swap slippage gate: when the router returns less than `amountOut0Min`, `_swap`
-  ///      reverts with InsufficientOutput (this gate was never hit before because all prior tests used
-  ///      empty swapData and skipped `_swap` entirely).
-  function test_withdrawAndCollectAndSwap_revertsWhenSwapOutputBelowMin() public {
+  function test_withdrawAndCollectAndSwap_revertsWhenUnsignedSwapRoutesOutputAwayFromVault() public {
+    address attacker = address(0xA77A);
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
-    nfpm.setPrincipalOut(1_000, 2_000);
+    nfpm.setPrincipalOut(1000, 2000);
 
     bytes memory swapData0 = abi.encodeCall(
-      SwapPathRouter.swap,
-      (address(token0), address(token1), uint256(1_000), uint256(900))
+      SwapPathRouter.swapTo, (address(token0), address(token1), uint256(1000), uint256(900), attacker)
     );
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
-    instructions.amountOut0Min = 1_000; // > 900 actually delivered -> must revert
+    instructions.amountOut0Min = 0;
     instructions.swapData0 = swapData0;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert();
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev The aggregator-swap slippage gate: when the router returns less than `amountOut0Min`, `_swap`
+  ///      reverts with InsufficientOutput (this gate was never hit before because all prior tests used
+  ///      empty swapData and skipped `_swap` entirely).
+  function test_withdrawAndCollectAndSwap_revertsWhenSwapOutputBelowMin() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), uint256(1000), uint256(900)));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountOut0Min = 1000; // > 900 actually delivered -> must revert
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), 1000, 1000, swapData0);
 
     bytes memory data = bytes.concat(
       abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
@@ -303,7 +372,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   function test_withdrawAndCollectAndSwap_revertsWhenEmptySwapDataHasMinOut() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
-    nfpm.setPrincipalOut(1_000, 2_000);
+    nfpm.setPrincipalOut(1000, 2000);
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
@@ -325,7 +394,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   function test_withdrawAndCollectAndSwap_revertsWhenTargetSideHasMinOut() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
-    nfpm.setPrincipalOut(1_000, 0);
+    nfpm.setPrincipalOut(1000, 0);
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
@@ -346,7 +415,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   function test_changeRange_revertsWhenTargetTokenIsNotPoolToken() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
-    nfpm.setPrincipalOut(1_000, 2_000);
+    nfpm.setPrincipalOut(1000, 2000);
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
@@ -371,17 +440,15 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   function test_withdrawAndCollectAndSwap_revertsWhenSwapRouterDeWhitelisted() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
-    nfpm.setPrincipalOut(1_000, 2_000);
+    nfpm.setPrincipalOut(1000, 2000);
 
     // Owner revokes the (compromised/deprecated) aggregator.
     address[] memory toRevoke = new address[](1);
     toRevoke[0] = address(router);
     cm.setWhitelistSwapRouters(toRevoke, false);
 
-    bytes memory swapData0 = abi.encodeCall(
-      SwapPathRouter.swap,
-      (address(token0), address(token1), uint256(1_000), uint256(900))
-    );
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), uint256(1000), uint256(900)));
 
     IV3Utils.Instructions memory instructions = _baseInstructions();
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
@@ -471,31 +538,30 @@ contract SharedAerodromeStrategySwapPathTest is Test {
   }
 
   function _baseInstructions() internal view returns (IV3Utils.Instructions memory) {
-    return
-      IV3Utils.Instructions({
-        whatToDo: IV3Utils.WhatToDo.COMPOUND_FEES,
-        protocol: 0,
-        targetToken: address(0),
-        amountRemoveMin0: 0,
-        amountRemoveMin1: 0,
-        amountIn0: 0,
-        amountOut0Min: 0,
-        swapData0: "",
-        amountIn1: 0,
-        amountOut1Min: 0,
-        swapData1: "",
-        tickLower: 0,
-        tickUpper: 0,
-        compoundFees: true,
-        liquidity: 0,
-        amountAddMin0: 0,
-        amountAddMin1: 0,
-        deadline: block.timestamp + 1,
-        recipient: address(vault),
-        unwrap: false,
-        liquidityFeeX64: 0,
-        performanceFeeX64: 0,
-        gasFeeX64: 0
-      });
+    return IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.COMPOUND_FEES,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: 0,
+      amountRemoveMin1: 0,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: true,
+      liquidity: 0,
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp + 1,
+      recipient: address(vault),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
   }
 }

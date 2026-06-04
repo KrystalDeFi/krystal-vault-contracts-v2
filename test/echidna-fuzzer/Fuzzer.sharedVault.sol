@@ -36,6 +36,7 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 
 contract FuzzERC20 {
   string public name;
@@ -194,6 +195,15 @@ contract FuzzSwapRouter {
   function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) external {
     require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "pull failed");
     require(IERC20(tokenOut).transfer(msg.sender, amountOut), "push failed");
+  }
+}
+
+contract FuzzSigner {
+  bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external pure returns (bytes4) {
+    if (signature.length == 32 && abi.decode(signature, (bytes32)) == hash) return EIP1271_MAGIC;
+    return 0xffffffff;
   }
 }
 
@@ -496,6 +506,7 @@ contract SharedVaultFuzzer {
   SharedDelegatedWithdrawer public delegatedWithdrawer;
 
   FuzzSwapRouter public swapRouter;
+  FuzzSigner public swapDataSigner;
 
   bool public fullLpExitChecked;
   bool public fotChecked;
@@ -507,6 +518,7 @@ contract SharedVaultFuzzer {
 
   constructor() payable {
     swapRouter = new FuzzSwapRouter();
+    swapDataSigner = new FuzzSigner();
     delegatedWithdrawer = new SharedDelegatedWithdrawer();
     configManager = _newConfig(new address[](0), new address[](0));
     _whitelistSwapRouter(configManager, address(swapRouter));
@@ -840,7 +852,7 @@ contract SharedVaultFuzzer {
     address[] memory empty = new address[](0);
     address[] memory callers = new address[](1);
     callers[0] = address(this);
-    cm.initialize(address(this), empty, callers, platformRecipient, platformBps, empty, empty);
+    cm.initialize(address(this), empty, callers, platformRecipient, platformBps, empty, empty, empty);
 
     FuzzERC20 t0 = new FuzzERC20("GeneratedFeeA", "GFA", 18);
     FuzzERC20 t1 = new FuzzERC20("GeneratedFeeB", "GFB", 18);
@@ -1011,6 +1023,8 @@ contract SharedVaultFuzzer {
 
     bytes memory swapCalldata =
       abi.encodeCall(FuzzSwapRouter.swap, (address(idleA), address(idleB), amountIn, amountOut));
+    swapCalldata =
+      _signedSwapData(idleVault, address(swapRouter), address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
     bytes memory actionData = abi.encode(address(idleA), address(idleB), amountIn, amountOut, swapCalldata);
 
     ISharedVault.Action[] memory callActions = new ISharedVault.Action[](1);
@@ -1506,7 +1520,8 @@ contract SharedVaultFuzzer {
   function _newConfig(address[] memory targets, address[] memory nfpms) internal returns (SharedConfigManager cm) {
     cm = new SharedConfigManager();
     address[] memory empty = new address[](0);
-    cm.initialize(address(this), targets, empty, address(this), 0, nfpms, empty);
+    cm.initialize(address(this), targets, empty, address(this), 0, nfpms, empty, empty);
+    _whitelistSigner(cm);
   }
 
   function _whitelist(SharedConfigManager cm, address target, address nfpm) internal {
@@ -1522,6 +1537,36 @@ contract SharedVaultFuzzer {
     address[] memory routers = new address[](1);
     routers[0] = router;
     cm.setWhitelistSwapRouters(routers, true);
+  }
+
+  function _whitelistSigner(SharedConfigManager cm) internal {
+    address[] memory signers = new address[](1);
+    signers[0] = address(swapDataSigner);
+    cm.setWhitelistSigners(signers, true);
+  }
+
+  function _signedSwapData(
+    SharedVault targetVault,
+    address router,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(targetVault),
+      address(swapDataSigner),
+      router,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline
+    );
+    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), abi.encode(digest));
   }
 
   // -------------------------------------------------------------------------

@@ -19,6 +19,7 @@ contract SharedConfigManagerTest is TestCommon {
   address public constant CALLER_A = address(0x200);
   address public constant NFPM_A = address(0x300);
   address public constant ROUTER_A = address(0x400);
+  address public constant SIGNER_A = address(0x500);
 
   function setUp() public {
     configManager = new SharedConfigManager();
@@ -31,8 +32,10 @@ contract SharedConfigManagerTest is TestCommon {
     nfpms[0] = NFPM_A;
     address[] memory routers = new address[](1);
     routers[0] = ROUTER_A;
+    address[] memory signers = new address[](1);
+    signers[0] = SIGNER_A;
 
-    configManager.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers);
+    configManager.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers, signers);
   }
 
   // ========== initialize ==========
@@ -65,6 +68,11 @@ contract SharedConfigManagerTest is TestCommon {
     assertFalse(configManager.isWhitelistedSwapRouter(NON_OWNER));
   }
 
+  function test_initialize_setsWhitelistSigners() public view {
+    assertTrue(configManager.isWhitelistedSigner(SIGNER_A));
+    assertFalse(configManager.isWhitelistedSigner(NON_OWNER));
+  }
+
   function test_initialize_defaultPlatformFeeBpsIsZero() public view {
     assertEq(configManager.platformFeeBasisPoint(), 0);
   }
@@ -88,17 +96,27 @@ contract SharedConfigManagerTest is TestCommon {
     nfpms[0] = NFPM_A;
     address[] memory routers = new address[](1);
     routers[0] = ROUTER_A;
+    address[] memory signers = new address[](1);
+    signers[0] = SIGNER_A;
 
     vm.expectEmit(false, false, false, true, address(fresh));
     emit ISharedConfigManager.WhitelistTargetsUpdated(targets, true);
+    vm.expectEmit(false, false, false, true, address(fresh));
+    emit ISharedConfigManager.WhitelistCallersUpdated(callers, true);
+    vm.expectEmit(false, false, false, true, address(fresh));
+    emit ISharedConfigManager.WhitelistNfpmsUpdated(nfpms, true);
+    vm.expectEmit(false, false, false, true, address(fresh));
+    emit ISharedConfigManager.WhitelistSwapRoutersUpdated(routers, true);
+    vm.expectEmit(false, false, false, true, address(fresh));
+    emit ISharedConfigManager.WhitelistSignersUpdated(signers, true);
 
-    fresh.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers);
+    fresh.initialize(OWNER, targets, callers, FEE_RECIPIENT, 0, nfpms, routers, signers);
   }
 
   function test_initialize_withEmptyArraysDoesNotEmit() public {
     // Should not revert when all arrays are empty
     SharedConfigManager fresh = new SharedConfigManager();
-    fresh.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0));
+    fresh.initialize(OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0), new address[](0));
 
     assertEq(fresh.owner(), OWNER);
     assertFalse(fresh.isWhitelistedTarget(TARGET_A));
@@ -107,7 +125,7 @@ contract SharedConfigManagerTest is TestCommon {
   function test_initialize_revertsIfCalledTwice() public {
     vm.expectRevert();
     configManager.initialize(
-      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0)
+      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0), new address[](0)
     );
   }
 
@@ -116,7 +134,7 @@ contract SharedConfigManagerTest is TestCommon {
 
     vm.expectRevert();
     fresh.initialize(
-      address(0), new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0)
+      address(0), new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0), new address[](0)
     );
   }
 
@@ -124,7 +142,7 @@ contract SharedConfigManagerTest is TestCommon {
     SharedConfigManager fresh = new SharedConfigManager();
 
     vm.expectRevert(ISharedCommon.ZeroAddress.selector);
-    fresh.initialize(OWNER, new address[](0), new address[](0), address(0), 0, new address[](0), new address[](0));
+    fresh.initialize(OWNER, new address[](0), new address[](0), address(0), 0, new address[](0), new address[](0), new address[](0));
   }
 
   function test_initialize_revertsWithPlatformFeeAboveMax() public {
@@ -132,7 +150,7 @@ contract SharedConfigManagerTest is TestCommon {
 
     vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
     fresh.initialize(
-      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 10_001, new address[](0), new address[](0)
+      OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 10_001, new address[](0), new address[](0), new address[](0)
     );
   }
 
@@ -312,6 +330,53 @@ contract SharedConfigManagerTest is TestCommon {
     vm.prank(NON_OWNER);
     vm.expectRevert();
     configManager.setWhitelistSwapRouters(routers, true);
+  }
+
+  // ========== setWhitelistSigners ==========
+
+  function test_setWhitelistSigners_addsAddress() public {
+    address signer = address(0x501);
+    address[] memory signers = new address[](1);
+    signers[0] = signer;
+
+    vm.prank(OWNER);
+    configManager.setWhitelistSigners(signers, true);
+
+    assertTrue(configManager.isWhitelistedSigner(signer));
+  }
+
+  function test_setWhitelistSigners_removesAddress() public {
+    address signer = address(0x501);
+    address[] memory signers = new address[](1);
+    signers[0] = signer;
+
+    vm.prank(OWNER);
+    configManager.setWhitelistSigners(signers, true);
+    assertTrue(configManager.isWhitelistedSigner(signer));
+
+    vm.prank(OWNER);
+    configManager.setWhitelistSigners(signers, false);
+
+    assertFalse(configManager.isWhitelistedSigner(signer));
+  }
+
+  function test_setWhitelistSigners_emitsEvent() public {
+    address[] memory signers = new address[](1);
+    signers[0] = address(0x501);
+
+    vm.prank(OWNER);
+    vm.expectEmit(false, false, false, true, address(configManager));
+    emit ISharedConfigManager.WhitelistSignersUpdated(signers, true);
+    configManager.setWhitelistSigners(signers, true);
+  }
+
+  function test_setWhitelistSigners_revertsForNonOwner() public {
+    address[] memory signers = new address[](1);
+    signers[0] = address(0x999);
+
+    vm.prank(NON_OWNER);
+    vm.expectRevert();
+    configManager.setWhitelistSigners(signers, true);
   }
 
   // ========== setVaultPaused ==========

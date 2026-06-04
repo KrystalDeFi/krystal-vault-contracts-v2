@@ -16,12 +16,14 @@ import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
 import { SharedNfpmProportionalExit } from "../libraries/SharedNfpmProportionalExit.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
 import { SharedStrategyFees } from "../libraries/SharedStrategyFees.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
+import { SharedSwapDataSignature } from "../libraries/SharedSwapDataSignature.sol";
 
 /// @title SharedAerodromeStrategy
 /// @notice Aerodrome CL LP operations for SharedVault with token validation and position tracking.
@@ -753,14 +755,14 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     // Defense-in-depth kill-switch: re-validate the immutable swapRouter against the live ConfigManager
     // whitelist at execution time (parity with SharedV4StrategyLib._executeV4Swaps), so the owner can
     // revoke a compromised/deprecated aggregator without redeploying the strategy.
-    require(
-      ISharedVault(address(this)).configManager().isWhitelistedSwapRouter(swapRouter),
-      ISharedCommon.InvalidSwapRouter(swapRouter)
-    );
+    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
+    require(cm.isWhitelistedSwapRouter(swapRouter), ISharedCommon.InvalidSwapRouter(swapRouter));
 
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
 
+    swapData =
+      SharedSwapDataSignature.verify(cm, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData);
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success, ) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed(swapIndex);

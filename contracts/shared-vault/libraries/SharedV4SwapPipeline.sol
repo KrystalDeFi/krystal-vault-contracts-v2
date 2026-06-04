@@ -6,10 +6,12 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
+import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { ISharedPancakeV4Utils } from "../interfaces/ISharedPancakeV4Utils.sol";
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedV4Utils } from "../interfaces/ISharedV4Utils.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
+import { SharedSwapDataSignature } from "./SharedSwapDataSignature.sol";
 import { Currency as UniCurrency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { Currency as PancakeCurrency } from "infinity-core/src/types/Currency.sol";
 
@@ -124,11 +126,10 @@ library SharedV4SwapPipeline {
     total0 = amount0;
     total1 = amount1;
 
+    ISharedConfigManager configManager;
     if (swaps.length > 0) {
-      require(
-        ISharedVault(address(this)).configManager().isWhitelistedSwapRouter(swapRouter),
-        ISharedCommon.InvalidSwapRouter(swapRouter)
-      );
+      configManager = ISharedVault(address(this)).configManager();
+      require(configManager.isWhitelistedSwapRouter(swapRouter), ISharedCommon.InvalidSwapRouter(swapRouter));
     }
 
     address[] memory intTokens = new address[](swaps.length);
@@ -169,7 +170,14 @@ library SharedV4SwapPipeline {
       }
 
       (uint256 amountInDelta, uint256 amountOutDelta) = _swap(
-        swapRouter, swapParam.tokenIn, swapParam.tokenOut, amountIn, swapParam.amountOutMin, swapParam.swapData, i
+        configManager,
+        swapRouter,
+        swapParam.tokenIn,
+        swapParam.tokenOut,
+        amountIn,
+        swapParam.amountOutMin,
+        swapParam.swapData,
+        i
       );
 
       if (inIsIntermediate) intBalances[inIdx] -= amountInDelta;
@@ -250,6 +258,7 @@ library SharedV4SwapPipeline {
   }
 
   function _swap(
+    ISharedConfigManager configManager,
     address swapRouter,
     address tokenIn,
     address tokenOut,
@@ -266,6 +275,9 @@ library SharedV4SwapPipeline {
 
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
+    swapData = SharedSwapDataSignature.verify(
+      configManager, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData
+    );
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success,) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed(swapIndex);

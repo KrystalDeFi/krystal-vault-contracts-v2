@@ -21,7 +21,8 @@ seqLen: 40
 deployer: "0x10000"
 
 # `SharedVault`, `SharedV4Strategy`, and `SharedPancakeV4Strategy` link to external Solidity libraries
-# (`SharedVaultPreviewLib`, `SharedV4StrategyLib`, and `SharedPancakeV4StrategyLib` respectively). The
+# (`SharedVaultPreviewLib`, `SharedSwapDataSignature`, `SharedV4StrategyLib`, and
+# `SharedPancakeV4StrategyLib` respectively). The
 # V4 strategy libraries also link to `SharedV4SwapPipeline`, and — since the position-valuation/fee-growth
 # math was split out to keep the strategy libs under the EIP-170 limit — to `SharedV4ValuationLib` /
 # `SharedPancakeV4ValuationLib`. Those valuation libs are ALSO linked directly by the strategy contracts
@@ -30,7 +31,17 @@ deployer: "0x10000"
 # start. Without these, local SharedVault / V4 strategy deployments inside the fork harness fail with
 # "Unlinked libraries detected in bytecode". The addresses must stay distinct from each other and from
 # any address the fuzzer touches at runtime.
+deployContracts:
+  [
+    ["0x1000000000000000000000000000000000000001", "SharedVaultPreviewLib"],
+    ["0x1000000000000000000000000000000000000002", "SharedV4StrategyLib"],
+    ["0x1000000000000000000000000000000000000003", "SharedPancakeV4StrategyLib"],
+    ["0x1000000000000000000000000000000000000004", "SharedV4SwapPipeline"],
+    ["0x1000000000000000000000000000000000000005", "SharedV4ValuationLib"],
+    ["0x1000000000000000000000000000000000000006", "SharedPancakeV4ValuationLib"],
+    ["0x1000000000000000000000000000000000000007", "SharedSwapDataSignature"],
+  ]
 cryticArgs:
   [
-    "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedV4StrategyLib,0x1000000000000000000000000000000000000002),(SharedPancakeV4StrategyLib,0x1000000000000000000000000000000000000003),(SharedV4SwapPipeline,0x1000000000000000000000000000000000000004),(SharedV4ValuationLib,0x1000000000000000000000000000000000000005),(SharedPancakeV4ValuationLib,0x1000000000000000000000000000000000000006)",
+    "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedV4StrategyLib,0x1000000000000000000000000000000000000002),(SharedPancakeV4StrategyLib,0x1000000000000000000000000000000000000003),(SharedV4SwapPipeline,0x1000000000000000000000000000000000000004),(SharedV4ValuationLib,0x1000000000000000000000000000000000000005),(SharedPancakeV4ValuationLib,0x1000000000000000000000000000000000000006),(SharedSwapDataSignature,0x1000000000000000000000000000000000000007)",
   ]

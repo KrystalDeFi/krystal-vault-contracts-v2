@@ -9,6 +9,7 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -162,7 +163,9 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   // Signing keys
   uint256 public constant VAULT_OWNER_KEY = 0x1234567890123456789012345678901234567890123456789012345678901234;
+  uint256 internal constant SWAP_DATA_SIGNER_KEY = 0xA11CE;
   address public immutable VAULT_OWNER;
+  address internal swapDataSigner;
 
   constructor() {
     VAULT_OWNER = vm.addr(VAULT_OWNER_KEY);
@@ -173,14 +176,19 @@ contract SharedVaultAutomatorTest is TestCommon {
     tokenB = new MockERC20("Token B", "TKB");
     swapTarget = new MockSwapTarget();
     mockStrategy = new MockAutomatorStrategy();
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_KEY);
 
     // Config manager
     configManager = new SharedConfigManager();
     address[] memory targets = new address[](2);
     targets[0] = address(mockStrategy);
     targets[1] = address(swapTarget);
+    address[] memory swapRouters = new address[](1);
+    swapRouters[0] = address(swapTarget);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
     address[] memory callers = new address[](0);
-    configManager.initialize(ADMIN, targets, callers, ADMIN, 0, new address[](0), new address[](0));
+    configManager.initialize(ADMIN, targets, callers, ADMIN, 0, new address[](0), swapRouters, signers);
 
     // Vault
     vault = new SharedVault();
@@ -263,14 +271,37 @@ contract SharedVaultAutomatorTest is TestCommon {
 
   function _swapOp(address tokenIn, address tokenOut, uint256 amountIn)
     internal
-    view
     returns (ISharedVault.Action[] memory actions)
   {
     bytes memory swapCall = abi.encodeWithSelector(MockSwapTarget.swap.selector, tokenIn, tokenOut, amountIn);
+    swapCall = _signedSwapData(tokenIn, tokenOut, amountIn, 0, swapCall);
     bytes memory opData = abi.encode(tokenIn, tokenOut, amountIn, uint256(0), swapCall);
     actions = new ISharedVault.Action[](1);
     actions[0] =
       ISharedVault.Action({ target: address(swapTarget), data: opData, callType: ISharedCommon.CallType.CALL });
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(swapTarget),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_KEY, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, abi.encodePacked(r, s, v));
   }
 
   // ============ Constructor tests ============

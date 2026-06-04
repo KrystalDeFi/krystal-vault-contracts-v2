@@ -212,7 +212,7 @@ contract SharedStrategyApprovalsTest is Test {
     SharedConfigManager c = new SharedConfigManager();
     address[] memory nfpms = new address[](1);
     nfpms[0] = nfpm;
-    c.initialize(address(this), new address[](0), new address[](0), address(0xFEE), 0, nfpms, new address[](0));
+    c.initialize(address(this), new address[](0), new address[](0), address(0xFEE), 0, nfpms, new address[](0), new address[](0));
     return c;
   }
 

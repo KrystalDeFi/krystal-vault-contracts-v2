@@ -13,6 +13,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   mapping(address => bool) public whitelistedCallers;
   mapping(address => bool) public whitelistedNfpms;
   mapping(address => bool) public whitelistedSwapRouters;
+  mapping(address => bool) public whitelistedSigners;
 
   bool public override isVaultPaused;
   address public override feeRecipient;
@@ -32,6 +33,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   ///         5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
   ///         6. _whitelistNfpms         — NFT position managers to whitelist
   ///         7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
+  ///         8. _whitelistSigners       — backend signers to whitelist
   function initialize(
     address _owner,
     address[] calldata _whitelistTargets,
@@ -39,7 +41,8 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     address _feeRecipient,
     uint16 _platformFeeBasisPoint,
     address[] calldata _whitelistNfpms,
-    address[] calldata _whitelistSwapRouters
+    address[] calldata _whitelistSwapRouters,
+    address[] calldata _whitelistSigners
   ) public initializer {
     require(_platformFeeBasisPoint <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     require(_feeRecipient != address(0), ISharedCommon.ZeroAddress());
@@ -81,12 +84,21 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       }
     }
 
+    length = _whitelistSigners.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSigners[_whitelistSigners[i]] = true;
+      unchecked {
+        i++;
+      }
+    }
+
     feeRecipient = _feeRecipient;
 
     if (_whitelistTargets.length > 0) emit WhitelistTargetsUpdated(_whitelistTargets, true);
     if (_whitelistCallers.length > 0) emit WhitelistCallersUpdated(_whitelistCallers, true);
     if (_whitelistNfpms.length > 0) emit WhitelistNfpmsUpdated(_whitelistNfpms, true);
     if (_whitelistSwapRouters.length > 0) emit WhitelistSwapRoutersUpdated(_whitelistSwapRouters, true);
+    if (_whitelistSigners.length > 0) emit WhitelistSignersUpdated(_whitelistSigners, true);
   }
 
   function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {
@@ -147,6 +159,21 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   function isWhitelistedSwapRouter(address swapRouter) external view override returns (bool) {
     return whitelistedSwapRouters[swapRouter];
+  }
+
+  function setWhitelistSigners(address[] calldata signers, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = signers.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSigners[signers[i]] = _isWhitelisted;
+      unchecked {
+        i++;
+      }
+    }
+    emit WhitelistSignersUpdated(signers, _isWhitelisted);
+  }
+
+  function isWhitelistedSigner(address signer) external view override returns (bool) {
+    return whitelistedSigners[signer];
   }
 
   function setVaultPaused(bool _isVaultPaused) external onlyOwner {
