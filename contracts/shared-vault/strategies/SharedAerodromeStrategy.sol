@@ -758,11 +758,11 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     require(cm.isWhitelistedSwapRouter(swapRouter), ISharedCommon.InvalidSwapRouter(swapRouter));
 
+    swapData =
+      SharedSwapDataSignature.verify(cm, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData);
     uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
     uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
 
-    swapData =
-      SharedSwapDataSignature.verify(cm, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData);
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success, ) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed(swapIndex);

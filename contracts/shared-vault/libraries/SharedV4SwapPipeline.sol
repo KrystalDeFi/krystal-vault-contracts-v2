@@ -115,6 +115,11 @@ library SharedV4SwapPipeline {
   ///      pipeline does not parse or re-check any downstream router/adapter target embedded inside
   ///      that calldata; the config-manager whitelist must therefore pin trusted swap-router/V4Utils
   ///      implementations whose own routing policy is acceptable.
+  ///
+  ///      Signing note: `Swap.amountIn == 0` is resolved to the full available token balance before
+  ///      `SharedSwapDataSignature.verify` is called. The off-chain signer must sign that resolved
+  ///      runtime amount, not the zero sentinel; vault balance drift between signing and execution
+  ///      invalidates the signature by design.
   function _run(
     address swapRouter,
     address token0,
@@ -273,11 +278,12 @@ library SharedV4SwapPipeline {
     }
     require(tokenIn != tokenOut, ISharedCommon.InvalidOperation());
 
-    uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
-    uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
     swapData = SharedSwapDataSignature.verify(
       configManager, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, swapData
     );
+    uint256 balanceInBefore = IERC20(tokenIn).balanceOf(address(this));
+    uint256 balanceOutBefore = IERC20(tokenOut).balanceOf(address(this));
+
     IERC20(tokenIn).safeResetAndApprove(swapRouter, amountIn);
     (bool success,) = swapRouter.call(swapData);
     if (!success) revert ISharedCommon.SwapFailed(swapIndex);

@@ -19,6 +19,14 @@ contract SharedV4SwapPipelineTestToken is ERC20 {
   }
 }
 
+contract SharedV4SwapPipelineBalanceTrapToken {
+  error BalanceOfCalled();
+
+  function balanceOf(address) external pure returns (uint256) {
+    revert BalanceOfCalled();
+  }
+}
+
 contract SharedV4SwapPipelineConfigManager {
   address public router;
   address public signer;
@@ -132,6 +140,24 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(total1, amountOut, "swap output credited to token1 total");
     assertEq(token0.balanceOf(address(harness)), 0, "harness token0 spent");
     assertEq(token1.balanceOf(address(harness)), amountOut, "harness received token1");
+  }
+
+  function test_execute_rejectsBadSignatureBeforeBalanceSnapshots() public {
+    SharedV4SwapPipelineBalanceTrapToken trapToken = new SharedV4SwapPipelineBalanceTrapToken();
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(trapToken), address(token1), uint256(1 ether)));
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(trapToken)),
+      amountIn: 1 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: abi.encode(rawSwapData, address(harness), block.timestamp + 1 hours, signer, bytes32("bad"), bytes(""))
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    harness.execute(address(router), address(trapToken), address(token1), 1 ether, 0, swaps);
   }
 
   function _signedSwapData(

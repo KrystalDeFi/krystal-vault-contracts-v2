@@ -38,6 +38,9 @@ interface ISharedPancakeV4Utils {
     uint256 deadline;
   }
 
+  /// @dev `amountIn == 0` means "use the full available amount" in SharedV4SwapPipeline. For signed
+  ///      operator swaps, the signature binds the resolved runtime amount, not this zero sentinel.
+  ///      `amountOutMin` is signer-controlled; signers must apply their own route/oracle slippage policy.
   struct SwapParams {
     Currency tokenIn;
     uint256 amountIn;

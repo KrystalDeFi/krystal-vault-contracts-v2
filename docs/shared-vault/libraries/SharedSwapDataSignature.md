@@ -9,7 +9,8 @@ bytes32 STORAGE_SLOT
 ```
 
 _Replay-protection storage namespace:
-     keccak256("krystal.shared-vault.swap-data-signature.storage")._
+     keccak256("krystal.shared-vault.swap-data-signature.storage").
+     This is intentionally the plain namespace hash; changing it requires a consumed-digest migration._
 
 ### Layout
 

@@ -57,6 +57,10 @@ struct IncreaseLiquidityParams {
 
 ### SwapParams
 
+_`amountIn == 0` means "use the full available amount" in SharedV4SwapPipeline. For signed
+     operator swaps, the signature binds the resolved runtime amount, not this zero sentinel.
+     `amountOutMin` is signer-controlled; signers must apply their own route/oracle slippage policy._
+
 ```solidity
 struct SwapParams {
   Currency tokenIn;
