@@ -15,12 +15,14 @@ import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaul
 import { SharedVaultAutomator } from "../../contracts/shared-vault/core/SharedVaultAutomator.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { AgentAllowanceStructHash } from "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
 import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 
-// ─── Mock swap router ─────────────────────────────────────────────────────────
+// ─── Mock swap router
+// ─────────────────────────────────────────────────────────
 
 /// @dev Mock router for automator CALL-type actions.
 contract MockAutomatorSwapRouter {
@@ -32,7 +34,8 @@ contract MockAutomatorSwapRouter {
   }
 }
 
-// ─── Test contract ────────────────────────────────────────────────────────────
+// ─── Test contract
+// ────────────────────────────────────────────────────────────
 
 contract SharedVaultAutomatorIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
@@ -51,6 +54,9 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
   address public vaultOwner;
   address public operator;
   address public feeRecipient;
+  uint256 internal constant SWAP_DATA_SIGNER_PK = 0x5A17;
+  address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
@@ -60,6 +66,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     operator = makeAddr("operator");
     feeRecipient = makeAddr("feeRecipient");
     swapRouter = new MockAutomatorSwapRouter();
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
 
     setErc20Balance(WETH, vaultOwner, 100 ether);
     setErc20Balance(USDC, vaultOwner, 200_000e6);
@@ -86,7 +93,9 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     callers[0] = address(automator);
 
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, callers, feeRecipient, 0, nfpms, routers);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.initialize(vaultOwner, targets, callers, feeRecipient, 0, nfpms, routers, signers);
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
@@ -101,18 +110,17 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.stopPrank();
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
+  // ─── Helpers
+  // ─────────────────────────────────────────────────────────────
 
   /// @dev Build and sign an AgentAllowance. Returns encoded struct + signature.
-  function _signAgentAllowance(
-    uint256 signerPk,
-    address vaultAddr,
-    uint64 expirationTime
-  ) internal view returns (bytes memory encodedAA, bytes memory sig) {
+  function _signAgentAllowance(uint256 signerPk, address vaultAddr, uint64 expirationTime)
+    internal
+    view
+    returns (bytes memory encodedAA, bytes memory sig)
+  {
     AgentAllowanceStructHash.AgentAllowance memory aa = AgentAllowanceStructHash.AgentAllowance({
-      vault: vaultAddr,
-      signatureTime: uint64(block.timestamp),
-      expirationTime: expirationTime
+      vault: vaultAddr, signatureTime: uint64(block.timestamp), expirationTime: expirationTime
     });
     encodedAA = abi.encode(aa);
 
@@ -144,10 +152,36 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
   }
 
   /// @dev Build a CALL-type action that swaps amountIn WETH for amountOut USDC via the mock router.
-  function _buildSwapAction(uint256 amountIn, uint256 amountOut) internal view returns (ISharedVault.Action memory) {
+  function _buildSwapAction(uint256 amountIn, uint256 amountOut) internal returns (ISharedVault.Action memory) {
     bytes memory swapCalldata = abi.encodeCall(MockAutomatorSwapRouter.swap, (WETH, USDC, amountIn, amountOut));
+    swapCalldata = _signedSwapData(WETH, USDC, amountIn, 0, swapCalldata);
     bytes memory actionData = abi.encode(WETH, USDC, amountIn, uint256(0), swapCalldata);
     return ISharedVault.Action(address(swapRouter), actionData, ISharedCommon.CallType.CALL);
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(swapRouter),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline,
+      nonce
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   // =========================================================
@@ -159,11 +193,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     uint256 amountOut = 300e6;
     setErc20Balance(USDC, address(swapRouter), amountOut);
 
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = _buildSwapAction(amountIn, amountOut);
@@ -183,11 +214,12 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
 
   function test_executeWithAgentAllowance_revertsForExpiredAllowance() public {
     // Sign with expiration in the past
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp - 1) // expired
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(
+        vaultOwnerPk,
+        address(vault),
+        uint64(block.timestamp - 1) // expired
+      );
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -204,11 +236,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     // Sign with a different private key (not vault owner)
     (, uint256 wrongPk) = makeAddrAndKey("wrongSigner");
 
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      wrongPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(wrongPk, address(vault), uint64(block.timestamp + 1 hours));
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -225,11 +254,12 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     address wrongVault = makeAddr("wrongVault");
 
     // Sign a valid allowance for a different vault address
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      wrongVault, // not our vault
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(
+        vaultOwnerPk,
+        wrongVault, // not our vault
+        uint64(block.timestamp + 1 hours)
+      );
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -243,11 +273,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
   // =========================================================
 
   function test_executeWithAgentAllowance_revertsForNonOperator() public {
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     address attacker = makeAddr("attacker");
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
@@ -300,11 +327,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
   // =========================================================
 
   function test_cancelOrder_preventsAgentAllowanceExecution() public {
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     // Vault owner cancels the allowance digest
     bytes32 structHash = AgentAllowanceStructHash._hash(encodedAA);
@@ -354,11 +378,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     automator.grantOperator(newOperator);
 
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -372,11 +393,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     automator.revokeOperator(operator);
 
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -393,11 +411,8 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     automator.pause();
 
-    (bytes memory encodedAA, bytes memory sig) = _signAgentAllowance(
-      vaultOwnerPk,
-      address(vault),
-      uint64(block.timestamp + 1 hours)
-    );
+    (bytes memory encodedAA, bytes memory sig) =
+      _signAgentAllowance(vaultOwnerPk, address(vault), uint64(block.timestamp + 1 hours));
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 

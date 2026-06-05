@@ -37,6 +37,7 @@ import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVau
 import { ISharedVaultFactory } from "../../contracts/shared-vault/interfaces/ISharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 // ─── V4 imports (Currency / PoolKey / IHooks)
@@ -95,7 +96,11 @@ interface IForkOwnable {
 ///      implementation pointer to a locally-compiled `SharedVault`. The full interface
 ///      doesn't expose these (they're owner-gated admin methods).
 interface IForkFactoryUpgrade {
+  function configManager() external view returns (address);
+
   function vaultImplementation() external view returns (address);
+
+  function setConfigManager(address newConfigManager) external;
 
   function setVaultImplementation(address newImpl) external;
 }
@@ -162,6 +167,15 @@ contract ForkSwapRouter {
   function swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut) external {
     require(IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn), "pull failed");
     require(IERC20(tokenOut).transfer(msg.sender, amountOut), "push failed");
+  }
+}
+
+contract ForkSigner {
+  bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external pure returns (bytes4) {
+    if (signature.length == 32 && abi.decode(signature, (bytes32)) == hash) return EIP1271_MAGIC;
+    return 0xffffffff;
   }
 }
 
@@ -276,6 +290,8 @@ contract SharedVaultForkFuzzer {
   ISharedVault public vault;
   SharedVaultForkPlayer[2] public players;
   ForkSwapRouter public forkSwapRouter;
+  ForkSigner public swapDataSigner;
+  uint256 internal swapDataNonce;
   ForkCwpNfpm public forkCwpNfpm;
   ForkCwpTarget public forkCwpTarget;
 
@@ -294,6 +310,7 @@ contract SharedVaultForkFuzzer {
   ///      AFTER `_upgradeVaultImplementationToLocalSource()` runs. Exposed so an assertion
   ///      handler can confirm the upgrade actually took effect.
   address public localVaultImplementation;
+  SharedConfigManager public localConfigManager;
 
   // ─── V4 security-regression harness
   // ──────────────────────────────────────────
@@ -322,7 +339,9 @@ contract SharedVaultForkFuzzer {
   bool public pancakeV4SuccessChecked;
   bool public pancakeV4NativeSuccessChecked;
 
-  constructor() payable { }
+  constructor() payable {
+    swapDataSigner = new ForkSigner();
+  }
 
   function _ensureBaseVault() internal {
     if (address(vault) != address(0)) return;
@@ -336,21 +355,43 @@ contract SharedVaultForkFuzzer {
     vault = _newInitializedVault("EchidnaForkShared");
   }
 
-  /// @dev Replace the factory's `vaultImplementation` pointer with a freshly-deployed
-  ///      `SharedVault` compiled from the current source tree. Without this the fork
+  /// @dev Replace the factory's `vaultImplementation` and `configManager` pointers with
+  ///      freshly-deployed contracts compiled from the current source tree. Without this the fork
   ///      harness would silently test the historical bytecode at `BASE_FORK_BLOCK`, not
   ///      whatever the repo says. Concretely this lifts in fixes like commit `fb10e44`
-  ///      ("fix overpayment dust amount") that landed AFTER the on-chain implementation.
+  ///      ("fix overpayment dust amount") and the signed-swap verifier support that landed
+  ///      AFTER the on-chain implementation.
   ///      EIP-1167 clones pin the implementation at clone time, so the swap only matters
   ///      for vaults created from here on — which is exactly what `_ensureBaseVault`
   ///      and `fork_full_owner_exit_removes_real_position` do.
   function _upgradeVaultImplementationToLocalSource() internal {
     SharedVault freshImpl = new SharedVault();
+    SharedConfigManager freshConfig = _newForkConfigManager();
     address factoryOwner = IForkOwnable(BASE_SHARED_VAULT_FACTORY).owner();
     vm.prank(factoryOwner);
     IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).setVaultImplementation(address(freshImpl));
+    vm.prank(factoryOwner);
+    IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).setConfigManager(address(freshConfig));
     localVaultImplementation = address(freshImpl);
+    localConfigManager = freshConfig;
     assert(IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).vaultImplementation() == address(freshImpl));
+    assert(IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).configManager() == address(freshConfig));
+  }
+
+  function _newForkConfigManager() internal returns (SharedConfigManager cm) {
+    address[] memory targets = new address[](1);
+    targets[0] = BASE_SHARED_V3_STRATEGY_PROXY;
+
+    address[] memory nfpms = new address[](3);
+    nfpms[0] = BASE_UNISWAP_V3_NFPM;
+    nfpms[1] = BASE_UNISWAP_V4_POSM;
+    nfpms[2] = BASE_PANCAKE_V4_POSM;
+
+    address[] memory signers = new address[](1);
+    signers[0] = address(swapDataSigner);
+
+    cm = new SharedConfigManager();
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), signers);
   }
 
   function fork_setup_real_position() public {
@@ -426,7 +467,9 @@ contract SharedVaultForkFuzzer {
     uint256 usdcBefore = IERC20(BASE_USDC).balanceOf(address(vault));
 
     bytes memory swapCalldata = abi.encodeCall(ForkSwapRouter.swap, (BASE_WETH, BASE_USDC, wethAmount, usdcOut));
-    bytes memory actionData = abi.encode(BASE_WETH, BASE_USDC, wethAmount, usdcOut, swapCalldata);
+    bytes memory signedSwapCalldata =
+      _signedSwapData(vault, address(forkSwapRouter), BASE_WETH, BASE_USDC, wethAmount, usdcOut, swapCalldata);
+    bytes memory actionData = abi.encode(BASE_WETH, BASE_USDC, wethAmount, usdcOut, signedSwapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] =
@@ -1290,7 +1333,7 @@ contract SharedVaultForkFuzzer {
     targets[0] = strategy;
     address[] memory nfpms = new address[](1);
     nfpms[0] = posm;
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     successVault = new SharedVault();
     ForkV4MockERC20(token0).mint(address(successVault), 10 ether);
@@ -1311,7 +1354,7 @@ contract SharedVaultForkFuzzer {
     targets[0] = strategy;
     address[] memory nfpms = new address[](1);
     nfpms[0] = posm;
-    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0));
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
 
     successVault = new SharedVault();
     _dealERC20(BASE_WETH, address(successVault), 10 ether);
@@ -1518,6 +1561,33 @@ contract SharedVaultForkFuzzer {
     assert(cm.isWhitelistedTarget(address(forkCwpTarget)));
     assert(cm.isWhitelistedNfpm(address(forkCwpNfpm)));
     assert(cm.isWhitelistedSwapRouter(address(forkSwapRouter)));
+    assert(cm.isWhitelistedSigner(address(swapDataSigner)));
+  }
+
+  function _signedSwapData(
+    ISharedVault targetVault,
+    address router,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(targetVault),
+      address(swapDataSigner),
+      router,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline,
+      nonce
+    );
+    return abi.encode(rawSwapData, address(targetVault), deadline, address(swapDataSigner), nonce, abi.encode(digest));
   }
 
   function _swapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {

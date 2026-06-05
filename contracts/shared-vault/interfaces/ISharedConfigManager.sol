@@ -8,6 +8,7 @@ interface ISharedConfigManager {
   event WhitelistCallersUpdated(address[] callers, bool isWhitelisted);
   event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted);
   event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted);
+  event WhitelistSignersUpdated(address[] signers, bool isWhitelisted);
   event VaultPausedUpdated(bool isVaultPaused);
   event MaxPositionsUpdated(uint16 maxPositions);
   event MinTokenPrecisionUpdated(uint8 precision);
@@ -48,6 +49,11 @@ interface ISharedConfigManager {
   function isWhitelistedSwapRouter(address swapRouter) external view returns (bool);
 
   function setWhitelistSwapRouters(address[] calldata swapRouters, bool isWhitelisted) external;
+
+  // Signer whitelist (backend signers allowed to authorize off-chain validated payloads)
+  function isWhitelistedSigner(address signer) external view returns (bool);
+
+  function setWhitelistSigners(address[] calldata signers, bool isWhitelisted) external;
 
   function setVaultPaused(bool _isVaultPaused) external;
 

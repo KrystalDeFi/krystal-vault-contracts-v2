@@ -92,6 +92,10 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
 
 const SharedConfig: Record<string, IConfigShared> = {
   base_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedVaultPreviewLib: {
       enabled: true,
       autoVerifyContract: true,

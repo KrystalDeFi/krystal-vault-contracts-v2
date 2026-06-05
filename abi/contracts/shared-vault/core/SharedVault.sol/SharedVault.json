@@ -243,6 +243,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidSwapDataSignature",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -313,6 +318,16 @@
   {
     "inputs": [],
     "name": "StrategyCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
     "type": "error"
   },
   {

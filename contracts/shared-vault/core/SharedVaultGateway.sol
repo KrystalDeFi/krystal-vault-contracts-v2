@@ -364,6 +364,9 @@ contract SharedVaultGateway is OwnableUpgradeable, ReentrancyGuardUpgradeable, P
 
   /// @dev Execute each swap via the configured swapRouter with opaque calldata.
   ///      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
+  ///      These participant zap swaps are intentionally unsigned: the Gateway only spends balances
+  ///      pulled from the caller or received from the caller's vault shares within this transaction.
+  ///      Operator swaps against pooled vault funds use strategy paths and require SharedSwapDataSignature.
   function _executeSwaps(SwapParams[] calldata swaps, BalanceSnapshot memory snapshot) internal {
     for (uint256 i; i < swaps.length; ) {
       if (swaps[i].swapData.length == 0) {

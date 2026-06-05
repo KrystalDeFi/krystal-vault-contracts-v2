@@ -1,0 +1,17 @@
+[
+  {
+    "inputs": [],
+    "name": "InvalidSwapDataSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
+    "type": "error"
+  }
+]

@@ -181,6 +181,24 @@ error InvalidNfpm(address nfpm)
 error InvalidSwapRouter(address swapRouter)
 ```
 
+### InvalidSwapDataSignature
+
+```solidity
+error InvalidSwapDataSignature()
+```
+
+### SwapDataSignatureExpired
+
+```solidity
+error SwapDataSignatureExpired()
+```
+
+### SwapDataSignatureAlreadyUsed
+
+```solidity
+error SwapDataSignatureAlreadyUsed()
+```
+
 ### TooManyPositions
 
 ```solidity

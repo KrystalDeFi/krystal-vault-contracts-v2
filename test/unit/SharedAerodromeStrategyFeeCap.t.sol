@@ -244,7 +244,7 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     SharedConfigManager cm = new SharedConfigManager();
     address[] memory nfpms = new address[](1);
     nfpms[0] = address(nfpm);
-    cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1_000, nfpms, new address[](0));
+    cm.initialize(address(this), new address[](0), new address[](0), platformRecipient, 1_000, nfpms, new address[](0), new address[](0));
     cm.setMaxGasFeeX64(type(uint64).max);
 
     vault = new AeroFeeCapVaultHarness(cm, vaultOwner, 500);

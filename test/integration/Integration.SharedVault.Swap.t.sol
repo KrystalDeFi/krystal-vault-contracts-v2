@@ -13,9 +13,11 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { SharedVaultFactory } from "../../contracts/shared-vault/core/SharedVaultFactory.sol";
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
-// ─── Mock swap router ─────────────────────────────────────────────────────────
+// ─── Mock swap router
+// ─────────────────────────────────────────────────────────
 
 /// @dev Minimal mock that simulates a swap aggregator for fork-based CALL tests.
 ///      The vault pre-approves this contract for `amountIn` before calling it.
@@ -31,7 +33,8 @@ contract MockVaultSwapRouter {
   }
 }
 
-// ─── Test contract ────────────────────────────────────────────────────────────
+// ─── Test contract
+// ────────────────────────────────────────────────────────────
 
 contract SharedVaultSwapIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
@@ -46,6 +49,9 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
 
   address public vaultOwner = USER;
   address public feeRecipient;
+  uint256 internal constant SWAP_DATA_SIGNER_PK = 0x5A17;
+  address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   function setUp() public {
     uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
@@ -53,6 +59,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
 
     feeRecipient = makeAddr("feeRecipient");
     swapRouter = new MockVaultSwapRouter();
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
 
     setErc20Balance(WETH, vaultOwner, 100 ether);
     setErc20Balance(USDC, vaultOwner, 200_000e6);
@@ -71,7 +78,9 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     routers[0] = address(swapRouter);
 
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, routers);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, routers, signers);
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
@@ -84,6 +93,31 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Swap-Test", vaultTokens, initialAmounts, 0)));
 
     vm.stopPrank();
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(swapRouter),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline,
+      nonce
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   // =========================================================
@@ -101,6 +135,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     uint256 usdcBefore = IERC20(USDC).balanceOf(address(vault));
 
     bytes memory swapCalldata = abi.encodeCall(MockVaultSwapRouter.swap, (WETH, USDC, amountIn, amountOut));
+    swapCalldata = _signedSwapData(WETH, USDC, amountIn, 0, swapCalldata);
     bytes memory actionData = abi.encode(WETH, USDC, amountIn, uint256(0), swapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -128,6 +163,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     uint256 wethBefore = IERC20(WETH).balanceOf(address(vault));
 
     bytes memory swapCalldata = abi.encodeCall(MockVaultSwapRouter.swap, (USDC, WETH, amountIn, amountOut));
+    swapCalldata = _signedSwapData(USDC, WETH, amountIn, 0, swapCalldata);
     bytes memory actionData = abi.encode(USDC, WETH, amountIn, uint256(0), swapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -153,6 +189,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     setErc20Balance(USDC, address(swapRouter), amountOut);
 
     bytes memory swapCalldata = abi.encodeCall(MockVaultSwapRouter.swap, (WETH, USDC, amountIn, amountOut));
+    swapCalldata = _signedSwapData(WETH, USDC, amountIn, minAmountOut, swapCalldata);
     bytes memory actionData = abi.encode(WETH, USDC, amountIn, minAmountOut, swapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -174,6 +211,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     setErc20Balance(USDC, address(swapRouter), amountOut);
 
     bytes memory swapCalldata = abi.encodeCall(MockVaultSwapRouter.swap, (WETH, USDC, amountIn, amountOut));
+    swapCalldata = _signedSwapData(WETH, USDC, amountIn, amountOut, swapCalldata);
     // minAmountOut == amountOut exactly
     bytes memory actionData = abi.encode(WETH, USDC, amountIn, amountOut, swapCalldata);
 
@@ -271,6 +309,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
     setErc20Balance(USDC, address(swapRouter), amountOut);
 
     bytes memory swapCalldata = abi.encodeCall(MockVaultSwapRouter.swap, (WETH, USDC, amountIn, amountOut));
+    swapCalldata = _signedSwapData(WETH, USDC, amountIn, 0, swapCalldata);
     bytes memory actionData = abi.encode(WETH, USDC, amountIn, uint256(0), swapCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
@@ -290,6 +329,7 @@ contract SharedVaultSwapIntegrationTest is TestCommon {
   function test_execute_call_revertsWhenRouterCallFails() public {
     // Pass calldata that will cause the mock router to revert (calling a nonexistent function)
     bytes memory badCalldata = abi.encodeWithSignature("nonexistentFunction()");
+    badCalldata = _signedSwapData(WETH, USDC, 0.1 ether, 0, badCalldata);
     bytes memory actionData = abi.encode(WETH, USDC, uint256(0.1 ether), uint256(0), badCalldata);
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);

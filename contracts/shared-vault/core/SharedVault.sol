@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
@@ -26,6 +26,7 @@ import "../interfaces/ISharedVault.sol";
 import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedStrategy.sol";
+import "../libraries/SharedSwapDataSignature.sol";
 import "../libraries/SharedVaultPreviewLib.sol";
 import "../../public-vault/interfaces/IWETH9.sol";
 
@@ -480,17 +481,16 @@ contract SharedVault is
       }
 
       if (posAmt0 > 0 && posAmt1 > 0) {
+        uint256 toAdd1AtToken0Share = FullMath.mulDiv(toAdd0, posAmt1, posAmt0);
+        if (toAdd1AtToken0Share < toAdd1) {
+          toAdd1 = toAdd1AtToken0Share;
+        } else {
+          uint256 toAdd0AtToken1Share = FullMath.mulDiv(toAdd1, posAmt0, posAmt1);
+          if (toAdd0AtToken1Share < toAdd0) toAdd0 = toAdd0AtToken1Share;
+        }
         if (toAdd0 == 0 || toAdd1 == 0) {
           toAdd0 = 0;
           toAdd1 = 0;
-        } else {
-          uint256 toAdd1AtToken0Share = FullMath.mulDiv(toAdd0, posAmt1, posAmt0);
-          if (toAdd1AtToken0Share < toAdd1) {
-            toAdd1 = toAdd1AtToken0Share;
-          } else {
-            uint256 toAdd0AtToken1Share = FullMath.mulDiv(toAdd1, posAmt0, posAmt1);
-            if (toAdd0AtToken1Share < toAdd0) toAdd0 = toAdd0AtToken1Share;
-          }
         }
       }
 
@@ -673,7 +673,7 @@ contract SharedVault is
   ///                          Token-only operations (harvest, swap-reward) return an empty array.
   ///   CALL                 — direct call to a swap aggregator.
   ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                          tokenIn/tokenOut must be distinct vault tokens; output delta checked against minAmountOut.
+  ///                          tokenIn/tokenOut must be distinct vault tokens; output delta is checked.
   ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   ///                          The target is stored as pos.strategy and will be delegatecalled via
@@ -711,10 +711,11 @@ contract SharedVault is
         require(isVaultToken[tokenOut], TokenNotConfigured());
         require(tokenIn != tokenOut, InvalidOperation());
 
+        swapCalldata = _verifySignedSwapData(action.target, tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata);
+
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
 
         IERC20(tokenIn).safeResetAndApprove(action.target, amountIn);
-
         (bool success,) = action.target.call(swapCalldata);
         require(success, SwapFailed(i));
         IERC20(tokenIn).safeApprove(action.target, 0);
@@ -741,6 +742,19 @@ contract SharedVault is
         i++;
       }
     }
+  }
+
+  function _verifySignedSwapData(
+    address swapRouter,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory signedSwapData
+  ) internal returns (bytes memory swapData) {
+    return SharedSwapDataSignature.verify(
+      configManager, address(this), swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, signedSwapData
+    );
   }
 
   /// @dev Decode a PositionChange[] from raw return bytes and update LP position tracking.

@@ -19,6 +19,7 @@ import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCo
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { IWETH9 } from "../../contracts/public-vault/interfaces/IWETH9.sol";
+import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 
@@ -108,6 +109,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   address internal vaultOwner;
   address internal depositor;
   address internal feeRecipient;
+  uint256 internal constant SWAP_DATA_SIGNER_PK = 0x5A17;
+  address internal swapDataSigner;
+  uint256 internal swapDataNonce;
 
   receive() external payable { }
 
@@ -118,6 +122,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     vaultOwner = makeAddr("vaultOwner");
     depositor = makeAddr("depositor");
     feeRecipient = makeAddr("feeRecipient");
+    swapDataSigner = vm.addr(SWAP_DATA_SIGNER_PK);
 
     posm = IPositionManager(BASE_V4_POSM);
     permit2 = IPermit2Getter(BASE_V4_POSM).permit2();
@@ -143,7 +148,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     address[] memory swapRouters = new address[](1);
     swapRouters[0] = address(swapRouter);
     configManager = new SharedConfigManager();
-    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters);
+    address[] memory signers = new address[](1);
+    signers[0] = swapDataSigner;
+    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters, signers);
 
     vault = new SharedVault();
     token0.mint(address(vault), 10 ether);
@@ -588,6 +595,10 @@ contract SharedVaultV4IntegrationTest is TestCommon {
 
   function test_execute_forwardsMultiHopDecreaseAndSwapPayloadWithRealV4PositionManager() public {
     uint256 token1Before = token1.balanceOf(address(vault));
+    bytes memory hop0SwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether));
+    bytes memory hop1SwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether));
 
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
@@ -595,14 +606,14 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       amountIn: 0.01 ether,
       tokenOut: Currency.wrap(address(hopToken)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 1, hop0SwapData)
     });
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.01 ether))
+      swapData: _signedSwapData(address(hopToken), address(token1), 0.01 ether, 1, hop1SwapData)
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
@@ -636,7 +647,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     vault.execute(actions);
 
     assertEq(swapRouter.callCount(), 2, "native strategy executes both swap hops");
-    assertEq(keccak256(swapRouter.lastData()), keccak256(swaps[1].swapData), "router receives final hop payload");
+    assertEq(keccak256(swapRouter.lastData()), keccak256(hop1SwapData), "router receives final hop payload");
     assertGt(token1.balanceOf(address(vault)), token1Before, "vault receives final hop output");
     assertEq(token0.allowance(address(vault), address(swapRouter)), 0, "token0 router approval cleared");
     assertEq(hopToken.allowance(address(vault), address(swapRouter)), 0, "hop router approval cleared");
@@ -650,6 +661,11 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   // leaving 0.005 ether of an untracked token stranded in the vault outside TVL/share accounting.
   // =========================================================
   function test_execute_revertsWhenPipelineLeavesUnconsumedIntermediate() public {
+    bytes memory hop0SwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether));
+    bytes memory hop1SwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether));
+
     IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
     swaps[0] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(token0)),
@@ -658,14 +674,14 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       amountOutMin: 1,
       // RecordingSwapRouter mints `amountOut` of `tokenOut`; the third arg specifies the amountOut.
       // First hop produces 0.01 ether of hopToken.
-      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.01 ether))
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 1, hop0SwapData)
     });
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
       amountIn: 0.005 ether, // intentionally consumes less than what hop 1 produced
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
-      swapData: abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.005 ether))
+      swapData: _signedSwapData(address(hopToken), address(token1), 0.005 ether, 1, hop1SwapData)
     });
 
     IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
@@ -861,9 +877,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       posm: BASE_V4_POSM,
       tokenId: tokenId,
       increaseParams: IV4Utils.IncreaseLiquidityParams({
-        minLiquidity: type(uint256).max,
-        hookData: "",
-        deadline: block.timestamp + 300
+        minLiquidity: type(uint256).max, hookData: "", deadline: block.timestamp + 300
       }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: inputs,
@@ -966,7 +980,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     IV4Utils.SwapAndIncreaseParams memory incParams = IV4Utils.SwapAndIncreaseParams({
       posm: BASE_V4_POSM,
       tokenId: tokenId,
-      increaseParams: IV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp + 300 }),
+      increaseParams: IV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
       swapParams: new IV4Utils.SwapParams[](0),
       inputTokens: new IV4Utils.InputTokenParams[](0),
       sweepTokens: new Currency[](0),
@@ -1041,6 +1057,31 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
+  }
+
+  function _signedSwapData(
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32(++swapDataNonce);
+    bytes32 digest = SharedSwapDataSignature.hash(
+      address(vault),
+      swapDataSigner,
+      address(swapRouter),
+      tokenIn,
+      tokenOut,
+      amountIn,
+      amountOutMin,
+      rawSwapData,
+      deadline,
+      nonce
+    );
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
+    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {

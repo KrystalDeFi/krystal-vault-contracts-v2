@@ -48,6 +48,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
 
 const SharedConfig: Record<string, IConfigShared> = {
   arbitrum_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedVaultPreviewLib: {
       enabled: true,
       autoVerifyContract: true,

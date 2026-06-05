@@ -35,6 +35,7 @@ if (!networkConfig) {
 }
 
 export interface SharedContracts {
+  sharedSwapDataSignatureLib?: BaseContract;
   sharedVaultPreviewLib?: SharedVaultPreviewLib;
   sharedV4SwapPipeline?: BaseContract;
   sharedVault?: SharedVault;
@@ -63,18 +64,16 @@ export interface SharedContracts {
   sharedAerodromeProxy?: SharedStrategyProxy;
 }
 
-const SHARED_VAULT_PREVIEW_LIB =
-  "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib";
-const SHARED_V4_SWAP_PIPELINE =
-  "contracts/shared-vault/libraries/SharedV4SwapPipeline.sol:SharedV4SwapPipeline";
-const SHARED_V4_STRATEGY_LIB =
-  "contracts/shared-vault/libraries/SharedV4StrategyLib.sol:SharedV4StrategyLib";
+const SHARED_SWAP_DATA_SIGNATURE_LIB =
+  "contracts/shared-vault/libraries/SharedSwapDataSignature.sol:SharedSwapDataSignature";
+const SHARED_VAULT_PREVIEW_LIB = "contracts/shared-vault/libraries/SharedVaultPreviewLib.sol:SharedVaultPreviewLib";
+const SHARED_V4_SWAP_PIPELINE = "contracts/shared-vault/libraries/SharedV4SwapPipeline.sol:SharedV4SwapPipeline";
+const SHARED_V4_STRATEGY_LIB = "contracts/shared-vault/libraries/SharedV4StrategyLib.sol:SharedV4StrategyLib";
 const SHARED_PANCAKE_V4_STRATEGY_LIB =
   "contracts/shared-vault/libraries/SharedPancakeV4StrategyLib.sol:SharedPancakeV4StrategyLib";
 // Position valuation + fee-growth math was split out of the strategy libs to stay under the EIP-170
 // deploy-size limit. Both the strategy lib AND the strategy contract link the matching valuation lib.
-const SHARED_V4_VALUATION_LIB =
-  "contracts/shared-vault/libraries/SharedV4ValuationLib.sol:SharedV4ValuationLib";
+const SHARED_V4_VALUATION_LIB = "contracts/shared-vault/libraries/SharedV4ValuationLib.sol:SharedV4ValuationLib";
 const SHARED_PANCAKE_V4_VALUATION_LIB =
   "contracts/shared-vault/libraries/SharedPancakeV4ValuationLib.sol:SharedPancakeV4ValuationLib";
 
@@ -84,8 +83,27 @@ export function getSharedVaultLibrariesForDeployment(
 ): Record<string, string> | undefined {
   const previewLibAddress =
     (contracts.sharedVaultPreviewLib?.target as string | undefined) ?? existingContract?.["sharedVaultPreviewLib"];
+  const signatureLibAddress =
+    (contracts.sharedSwapDataSignatureLib?.target as string | undefined) ??
+    existingContract?.["sharedSwapDataSignatureLib"];
 
-  return previewLibAddress ? { [SHARED_VAULT_PREVIEW_LIB]: previewLibAddress } : undefined;
+  return previewLibAddress || signatureLibAddress
+    ? {
+        ...(previewLibAddress ? { [SHARED_VAULT_PREVIEW_LIB]: previewLibAddress } : {}),
+        ...(signatureLibAddress ? { [SHARED_SWAP_DATA_SIGNATURE_LIB]: signatureLibAddress } : {}),
+      }
+    : undefined;
+}
+
+export function getSharedSwapDataSignatureLibrariesForDeployment(
+  existingContract: Record<string, any> | undefined,
+  contracts: SharedContracts,
+): Record<string, string> | undefined {
+  const signatureLibAddress =
+    (contracts.sharedSwapDataSignatureLib?.target as string | undefined) ??
+    existingContract?.["sharedSwapDataSignatureLib"];
+
+  return signatureLibAddress ? { [SHARED_SWAP_DATA_SIGNATURE_LIB]: signatureLibAddress } : undefined;
 }
 
 export function getSharedV4SwapPipelineLibrariesForDeployment(
@@ -113,8 +131,8 @@ export function getSharedPancakeV4StrategyLibrariesForDeployment(
   contracts: SharedContracts,
 ): Record<string, string> | undefined {
   const strategyLibAddress =
-    (contracts.sharedPancakeV4StrategyLib?.target as string | undefined)
-    ?? existingContract?.["sharedPancakeV4StrategyLib"];
+    (contracts.sharedPancakeV4StrategyLib?.target as string | undefined) ??
+    existingContract?.["sharedPancakeV4StrategyLib"];
 
   return strategyLibAddress ? { [SHARED_PANCAKE_V4_STRATEGY_LIB]: strategyLibAddress } : undefined;
 }
@@ -134,8 +152,8 @@ export function getSharedPancakeV4ValuationLibrariesForDeployment(
   contracts: SharedContracts,
 ): Record<string, string> | undefined {
   const valuationLibAddress =
-    (contracts.sharedPancakeV4ValuationLib?.target as string | undefined)
-    ?? existingContract?.["sharedPancakeV4ValuationLib"];
+    (contracts.sharedPancakeV4ValuationLib?.target as string | undefined) ??
+    existingContract?.["sharedPancakeV4ValuationLib"];
 
   return valuationLibAddress ? { [SHARED_PANCAKE_V4_VALUATION_LIB]: valuationLibAddress } : undefined;
 }
@@ -174,7 +192,18 @@ async function deployContracts(
     )) as SharedConfigManager;
   }
 
-  // 2. Deploy SharedVaultPreviewLib (required by SharedVault)
+  // 2. Deploy SharedSwapDataSignature (linked by SharedVault, swap strategies, and SharedV4SwapPipeline)
+  if (networkConfig.sharedSwapDataSignatureLib?.enabled) {
+    contracts.sharedSwapDataSignatureLib = await deployContract(
+      ++step,
+      networkConfig.sharedSwapDataSignatureLib?.autoVerifyContract,
+      "SharedSwapDataSignature",
+      existingContract?.["sharedSwapDataSignatureLib"],
+      SHARED_SWAP_DATA_SIGNATURE_LIB,
+    );
+  }
+
+  // 3. Deploy SharedVaultPreviewLib (required by SharedVault)
   if (networkConfig.sharedVaultPreviewLib?.enabled) {
     contracts.sharedVaultPreviewLib = (await deployContract(
       ++step,
@@ -185,23 +214,40 @@ async function deployContracts(
     )) as SharedVaultPreviewLib;
   }
 
-  // 3. Deploy SharedV4SwapPipeline (required by SharedV4StrategyLib and SharedPancakeV4StrategyLib)
+  // 4. Deploy SharedV4SwapPipeline (required by SharedV4StrategyLib and SharedPancakeV4StrategyLib)
   if (networkConfig.sharedV4SwapPipeline?.enabled) {
+    const sharedSwapDataSignatureLibraries = getSharedSwapDataSignatureLibrariesForDeployment(
+      existingContract,
+      contracts,
+    );
+    if (!existingContract?.["sharedV4SwapPipeline"] && !sharedSwapDataSignatureLibraries) {
+      throw new Error(
+        "SharedV4SwapPipeline deployment requires SharedSwapDataSignature. Enable sharedSwapDataSignatureLib deployment or provide existingContract.sharedSwapDataSignatureLib.",
+      );
+    }
+
     contracts.sharedV4SwapPipeline = await deployContract(
       ++step,
       networkConfig.sharedV4SwapPipeline?.autoVerifyContract,
       "SharedV4SwapPipeline",
       existingContract?.["sharedV4SwapPipeline"],
       SHARED_V4_SWAP_PIPELINE,
+      undefined,
+      undefined,
+      undefined,
+      sharedSwapDataSignatureLibraries,
     );
   }
 
-  // 4. Deploy SharedVault implementation
+  // 5. Deploy SharedVault implementation
   if (networkConfig.sharedVault?.enabled) {
     const sharedVaultLibraries = getSharedVaultLibrariesForDeployment(existingContract, contracts);
-    if (!existingContract?.["sharedVault"] && !sharedVaultLibraries) {
+    if (
+      !existingContract?.["sharedVault"] &&
+      (!sharedVaultLibraries?.[SHARED_VAULT_PREVIEW_LIB] || !sharedVaultLibraries?.[SHARED_SWAP_DATA_SIGNATURE_LIB])
+    ) {
       throw new Error(
-        "SharedVault deployment requires SharedVaultPreviewLib. Enable sharedVaultPreviewLib deployment or provide existingContract.sharedVaultPreviewLib.",
+        "SharedVault deployment requires SharedVaultPreviewLib and SharedSwapDataSignature. Enable both library deployments or provide existingContract.sharedVaultPreviewLib and existingContract.sharedSwapDataSignatureLib.",
       );
     }
 
@@ -218,7 +264,7 @@ async function deployContracts(
     )) as SharedVault;
   }
 
-  // 5. Deploy SharedVaultFactory
+  // 6. Deploy SharedVaultFactory
   if (networkConfig.sharedVaultFactory?.enabled) {
     contracts.sharedVaultFactory = (await deployContract(
       ++step,
@@ -231,6 +277,16 @@ async function deployContracts(
 
   // 6. Deploy SharedV3Strategy + beacon + proxy
   if (networkConfig.sharedV3Strategy?.enabled) {
+    const sharedSwapDataSignatureLibraries = getSharedSwapDataSignatureLibrariesForDeployment(
+      existingContract,
+      contracts,
+    );
+    if (!existingContract?.["sharedV3Strategy"] && !sharedSwapDataSignatureLibraries) {
+      throw new Error(
+        "SharedV3Strategy deployment requires SharedSwapDataSignature. Enable sharedSwapDataSignatureLib deployment or provide existingContract.sharedSwapDataSignatureLib.",
+      );
+    }
+
     contracts.sharedV3Strategy = (await deployContract(
       ++step,
       networkConfig.sharedV3Strategy?.autoVerifyContract,
@@ -240,6 +296,7 @@ async function deployContracts(
       undefined,
       ["address"],
       [getSharedStrategySwapRouter()],
+      sharedSwapDataSignatureLibraries,
     )) as SharedV3Strategy;
 
     const implAddr = existingContract?.["sharedV3Strategy"] || contracts.sharedV3Strategy?.target;
@@ -343,8 +400,8 @@ async function deployContracts(
     // (collectFees fallback) and SharedPancakeV4Strategy (the getPosition* getters), so deploy it first.
     contracts.sharedPancakeV4ValuationLib = (await deployContract(
       ++step,
-      networkConfig.sharedPancakeV4StrategyLib?.autoVerifyContract
-        ?? networkConfig.sharedPancakeV4Strategy?.autoVerifyContract,
+      networkConfig.sharedPancakeV4StrategyLib?.autoVerifyContract ??
+        networkConfig.sharedPancakeV4Strategy?.autoVerifyContract,
       "SharedPancakeV4ValuationLib",
       existingContract?.["sharedPancakeV4ValuationLib"],
       SHARED_PANCAKE_V4_VALUATION_LIB,
@@ -356,8 +413,8 @@ async function deployContracts(
       contracts,
     );
     if (
-      !existingContract?.["sharedPancakeV4StrategyLib"]
-      && (!sharedV4SwapPipelineLibraries || !sharedPancakeV4ValuationLibraries)
+      !existingContract?.["sharedPancakeV4StrategyLib"] &&
+      (!sharedV4SwapPipelineLibraries || !sharedPancakeV4ValuationLibraries)
     ) {
       throw new Error(
         "SharedPancakeV4StrategyLib deployment requires SharedV4SwapPipeline and SharedPancakeV4ValuationLib. Enable their deployment or provide the matching existingContract entries.",
@@ -366,8 +423,8 @@ async function deployContracts(
 
     contracts.sharedPancakeV4StrategyLib = (await deployContract(
       ++step,
-      networkConfig.sharedPancakeV4StrategyLib?.autoVerifyContract
-        ?? networkConfig.sharedPancakeV4Strategy?.autoVerifyContract,
+      networkConfig.sharedPancakeV4StrategyLib?.autoVerifyContract ??
+        networkConfig.sharedPancakeV4Strategy?.autoVerifyContract,
       "SharedPancakeV4StrategyLib",
       existingContract?.["sharedPancakeV4StrategyLib"],
       SHARED_PANCAKE_V4_STRATEGY_LIB,
@@ -421,6 +478,16 @@ async function deployContracts(
 
   // 9. Deploy SharedAerodromeStrategy + beacon + proxy (single; nfpm passed per-call, validated by ConfigManager)
   if (networkConfig.sharedAerodromeStrategy?.enabled) {
+    const sharedSwapDataSignatureLibraries = getSharedSwapDataSignatureLibrariesForDeployment(
+      existingContract,
+      contracts,
+    );
+    if (!existingContract?.["sharedAerodromeStrategy"] && !sharedSwapDataSignatureLibraries) {
+      throw new Error(
+        "SharedAerodromeStrategy deployment requires SharedSwapDataSignature. Enable sharedSwapDataSignatureLib deployment or provide existingContract.sharedSwapDataSignatureLib.",
+      );
+    }
+
     contracts.sharedAerodromeStrategy = (await deployContract(
       ++step,
       networkConfig.sharedAerodromeStrategy?.autoVerifyContract,
@@ -430,6 +497,7 @@ async function deployContracts(
       undefined,
       ["address"],
       [getSharedStrategySwapRouter()],
+      sharedSwapDataSignatureLibraries,
     )) as SharedAerodromeStrategy;
 
     const implAddr = existingContract?.["sharedAerodromeStrategy"] || contracts.sharedAerodromeStrategy?.target;
@@ -542,6 +610,7 @@ async function deployContracts(
       commonConfig.platformFeeBasisPoint,
       whitelistedNfpms,
       whitelistedSwapRouters,
+      commonConfig.signers,
     );
   }
 

@@ -50,5 +50,8 @@ interface ISharedCommon {
   error NfpmEnumerableRequired();
   error InvalidNfpm(address nfpm);
   error InvalidSwapRouter(address swapRouter);
+  error InvalidSwapDataSignature();
+  error SwapDataSignatureExpired();
+  error SwapDataSignatureAlreadyUsed();
   error TooManyPositions();
 }
