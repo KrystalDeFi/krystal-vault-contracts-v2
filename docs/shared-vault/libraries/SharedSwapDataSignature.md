@@ -54,10 +54,11 @@ function hash(address vault, address signer, address swapRouter, address tokenIn
 ```
 
 _Intentionally non-EIP-712: backend signers sign this raw digest directly. The digest
-includes chain id and vault to bind signatures without changing the envelope ABI._
+     includes chain id and vault to bind signatures without changing the envelope ABI._
 
 ### verify
 
 ```solidity
 function verify(contract ISharedConfigManager configManager, address expectedVault, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) public returns (bytes swapData)
 ```
+
