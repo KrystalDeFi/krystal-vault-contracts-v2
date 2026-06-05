@@ -18,7 +18,8 @@ interface ISharedConfigManager {
 
   function feeRecipient() external view returns (address);
 
-  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are settled.
+  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are
+  /// settled.
   function platformFeeBasisPoint() external view returns (uint16);
 
   function setPlatformFeeBasisPoint(uint16 basisPoints) external;
@@ -50,9 +51,13 @@ interface ISharedConfigManager {
 
   function setWhitelistSwapRouters(address[] calldata swapRouters, bool isWhitelisted) external;
 
-  // Signer whitelist (backend signers allowed to authorize off-chain validated payloads)
+  /// @notice Backend signers allowed to authorize off-chain validated shared-vault swap payloads.
+  /// @dev A whitelisted signer is a slippage/router-policy authority for operator swap paths.
+  ///      Treat signer keys as hot privileged keys: monitor them and de-whitelist immediately on compromise.
   function isWhitelistedSigner(address signer) external view returns (bool);
 
+  /// @notice Updates backend signers allowed to authorize shared-vault swap payloads.
+  /// @dev See `isWhitelistedSigner` for the signer key-management trust assumption.
   function setWhitelistSigners(address[] calldata signers, bool isWhitelisted) external;
 
   function setVaultPaused(bool _isVaultPaused) external;

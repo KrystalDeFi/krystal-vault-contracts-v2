@@ -27,6 +27,8 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     EXECUTE,
     /// @dev Historically named `SAFE_TRANSFER_NFT`; the NFT no longer moves — the strategy
     ///      executes the encoded instruction bytes inline via the lib. Renamed for clarity.
+    ///      Numeric value 1 is retained for legacy calldata; off-chain decoders must treat it as
+    ///      inline instruction execution, not as NFT transfer semantics.
     EXECUTE_INSTRUCTIONS
   }
 

@@ -56,7 +56,8 @@ address feeRecipient
 uint16 platformFeeBasisPoint
 ```
 
-Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are settled.
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are
+settled.
 
 ### maxPositions
 
@@ -183,6 +184,11 @@ function setWhitelistSigners(address[] signers, bool _isWhitelisted) external
 ```solidity
 function isWhitelistedSigner(address signer) external view returns (bool)
 ```
+
+Backend signers allowed to authorize off-chain validated shared-vault swap payloads.
+
+_A whitelisted signer is a slippage/router-policy authority for operator swap paths.
+     Treat signer keys as hot privileged keys: monitor them and de-whitelist immediately on compromise._
 
 ### setVaultPaused
 

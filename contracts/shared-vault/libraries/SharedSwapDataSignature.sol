@@ -10,6 +10,9 @@ library SharedSwapDataSignature {
   /// @dev Replay-protection storage namespace:
   ///      keccak256("krystal.shared-vault.swap-data-signature.storage").
   ///      This is intentionally the plain namespace hash; changing it requires a consumed-digest migration.
+  ///      Public library calls write this layout in the caller's storage; production paths execute in
+  ///      SharedVault storage, so consumed digests are scoped per vault. Future vault upgrades must
+  ///      continue reserving this unstructured slot.
   bytes32 internal constant STORAGE_SLOT = 0x6ce297c6014d3c10153ad923862990ba409ec008504a76b97755f106d0c7d074;
 
   struct Layout {
@@ -39,7 +42,7 @@ library SharedSwapDataSignature {
   }
 
   /// @dev Intentionally non-EIP-712: backend signers sign this raw digest directly. The digest
-  ///      includes chain id and vault to bind signatures without changing the envelope ABI.
+  ///      includes chain id, vault, and deadline to bind signatures without changing the envelope ABI.
   function hash(
     address vault,
     address signer,
@@ -70,7 +73,10 @@ library SharedSwapDataSignature {
   }
 
   /// @dev Validates signer authorization and binds `swapRouter` into the signed digest. Router
-  ///      whitelisting is caller-owned and must be checked before calling this function.
+  ///      whitelisting is caller-owned and must be checked before calling this function. Replay
+  ///      state is caller-scoped; in production this means per-vault replay protection, while the
+  ///      signed vault field prevents cross-vault use of the same signature. Whitelisted signers are
+  ///      privileged slippage/router-policy authorities and must be key-managed accordingly.
   function verify(
     ISharedConfigManager configManager,
     address expectedVault,
