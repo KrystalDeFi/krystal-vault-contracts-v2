@@ -2,7 +2,7 @@ name: .Pi Reviewer
 
 on:
   pull_request:
-    branches: [main, feat/shared-vault]
+    branches: [main]
     types: [opened, synchronize, ready_for_review, reopened]
 
 concurrency:
