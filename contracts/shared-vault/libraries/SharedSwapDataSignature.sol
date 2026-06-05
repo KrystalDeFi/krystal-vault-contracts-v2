@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
 
 library SharedSwapDataSignature {
+  /// @dev Replay-protection storage namespace:
+  ///      keccak256("krystal.shared-vault.swap-data-signature.storage").
   bytes32 internal constant STORAGE_SLOT = 0x6ce297c6014d3c10153ad923862990ba409ec008504a76b97755f106d0c7d074;
 
   struct Layout {
@@ -74,6 +76,9 @@ library SharedSwapDataSignature {
     uint256 amountOutMin,
     bytes memory signedSwapData
   ) public returns (bytes memory swapData) {
+    // Operator strategies execute against pooled vault funds, so swap calldata must be
+    // authorized by a whitelisted off-chain signer. Participant Gateway zaps are unsigned by design:
+    // they spend only the caller's transient Gateway balance and sweep leftovers back to that caller.
     Envelope memory envelope = decode(signedSwapData);
     require(envelope.vault == expectedVault, ISharedCommon.InvalidSwapDataSignature());
     require(envelope.deadline >= block.timestamp, ISharedCommon.SwapDataSignatureExpired());

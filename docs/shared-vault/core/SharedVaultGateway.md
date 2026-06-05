@@ -330,7 +330,10 @@ function _executeSwaps(struct SharedVaultGateway.SwapParams[] swaps, struct Shar
 ```
 
 _Execute each swap via the configured swapRouter with opaque calldata.
-     Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset._
+     Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
+     These participant zap swaps are intentionally unsigned: the Gateway only spends balances
+     pulled from the caller or received from the caller's vault shares within this transaction.
+     Operator swaps against pooled vault funds use strategy paths and require SharedSwapDataSignature._
 
 ### _executeSingleSwap
 

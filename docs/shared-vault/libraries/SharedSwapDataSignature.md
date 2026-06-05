@@ -8,6 +8,9 @@
 bytes32 STORAGE_SLOT
 ```
 
+_Replay-protection storage namespace:
+     keccak256("krystal.shared-vault.swap-data-signature.storage")._
+
 ### Layout
 
 ```solidity

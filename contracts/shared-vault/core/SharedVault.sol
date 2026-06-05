@@ -16,6 +16,7 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
