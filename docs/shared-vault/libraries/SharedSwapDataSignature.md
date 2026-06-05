@@ -62,3 +62,6 @@ _Intentionally non-EIP-712: backend signers sign this raw digest directly. The d
 function verify(contract ISharedConfigManager configManager, address expectedVault, address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) public returns (bytes swapData)
 ```
 
+_Validates signer authorization and binds `swapRouter` into the signed digest. Router
+     whitelisting is caller-owned and must be checked before calling this function._
+

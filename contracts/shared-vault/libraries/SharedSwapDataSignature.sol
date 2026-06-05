@@ -69,6 +69,8 @@ library SharedSwapDataSignature {
     );
   }
 
+  /// @dev Validates signer authorization and binds `swapRouter` into the signed digest. Router
+  ///      whitelisting is caller-owned and must be checked before calling this function.
   function verify(
     ISharedConfigManager configManager,
     address expectedVault,
@@ -104,6 +106,7 @@ library SharedSwapDataSignature {
       envelope.nonce
     );
     Layout storage l = layout();
+    // Check replay state before signature verification: a bad signature must not consume the digest.
     require(!l.consumedDigests[digest], ISharedCommon.SwapDataSignatureAlreadyUsed());
     require(
       SignatureChecker.isValidSignatureNow(envelope.signer, digest, envelope.signature),

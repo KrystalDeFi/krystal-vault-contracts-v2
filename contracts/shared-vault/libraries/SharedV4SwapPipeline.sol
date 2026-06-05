@@ -272,6 +272,7 @@ library SharedV4SwapPipeline {
     bytes memory swapData,
     uint256 swapIndex
   ) private returns (uint256 amountInDelta, uint256 amountOutDelta) {
+    // No swap occurs on this path, so no signature is required; amountOutMin must be zero.
     if (amountIn == 0 || swapData.length == 0 || tokenOut == address(0)) {
       require(amountOutMin == 0, ISharedCommon.InsufficientOutput());
       return (0, 0);

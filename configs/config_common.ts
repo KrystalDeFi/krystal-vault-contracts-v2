@@ -13,7 +13,7 @@ export const commonConfig = {
   signers: [
     "0x7D9C8f3255331633c1693547C521b9E9f764838F",
     "0xb7fF80039870BD4b8B1Fb578aE515d67BD25C664",
-    "0x05c5b3d233edbbb067797bdc2afcdd71fae6ee58",
+    "0x05c5B3d233eDBBb067797bDC2Afcdd71faE6EE58",
   ],
   feeCollector: "0x12Eb25bc8f57f4F7920150F9EeC0b96d96278be4",
   vaultOwnerFeeBasisPoint: 500,
