@@ -38,6 +38,8 @@ library SharedSwapDataSignature {
     }
   }
 
+  /// @dev Intentionally non-EIP-712: backend signers sign this raw digest directly. The digest
+  ///      includes chain id and vault to bind signatures without changing the envelope ABI.
   function hash(
     address vault,
     address signer,
