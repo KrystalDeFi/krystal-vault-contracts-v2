@@ -692,7 +692,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         instructions.amountIn1,
         instructions.amountOut1Min,
         instructions.swapData1,
-        1
+        0
       );
       total1 -= amountInDelta;
       total0 += amountOutDelta;
@@ -705,7 +705,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
         instructions.amountIn0,
         instructions.amountOut0Min,
         instructions.swapData0,
-        0
+        1
       );
       total0 -= amountInDelta;
       total1 += amountOutDelta;
