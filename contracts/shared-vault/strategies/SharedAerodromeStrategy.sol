@@ -729,12 +729,34 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     if (token0 == instructions.targetToken) {
       require(instructions.amountOut0Min == 0, ISharedCommon.InsufficientOutput());
     } else {
-      _swap(token0, instructions.targetToken, amount0, instructions.amountOut0Min, instructions.swapData0, 0);
+      // Swap the signer-authorized `amountIn0`, not the on-chain computed principal + fees. `amountIn0` is
+      // the amount bound into the SwapDataSignature digest and the backend folds withdraw-liquidity slippage
+      // into it, so it diverges from the realized `amount0`; passing the computed amount here would break
+      // signature verification. `amountIn0` doubles as the minAmount0 floor for the realized amount, so
+      // require `amount0 >= amountIn0` to keep the swap from reaching past this withdraw into the rest of the
+      // pooled vault balance (mirrors `_swapForCompound`).
+      require(amount0 >= instructions.amountIn0, ISharedCommon.InvalidAmount());
+      _swap(
+        token0,
+        instructions.targetToken,
+        instructions.amountIn0,
+        instructions.amountOut0Min,
+        instructions.swapData0,
+        0
+      );
     }
     if (token1 == instructions.targetToken) {
       require(instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput());
     } else {
-      _swap(token1, instructions.targetToken, amount1, instructions.amountOut1Min, instructions.swapData1, 1);
+      require(amount1 >= instructions.amountIn1, ISharedCommon.InvalidAmount());
+      _swap(
+        token1,
+        instructions.targetToken,
+        instructions.amountIn1,
+        instructions.amountOut1Min,
+        instructions.swapData1,
+        1
+      );
     }
   }
 

@@ -291,6 +291,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max; // full-exit sentinel; capped to posLiquidity
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = amountIn; // signer-authorized swap amount (== full realized principal here)
     instructions.amountOut0Min = 800; // < amountOut, so the slippage gate passes with margin
     instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn, 800, swapData0);
 
@@ -316,6 +317,111 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].token1, address(token1), "change token1");
   }
 
+  /// @dev The swap must consume the signer-authorized `instructions.amountIn0` — NOT the on-chain
+  ///      computed principal+fees `amount0`. The backend folds withdraw-liquidity slippage into amountIn0,
+  ///      so it is intentionally smaller than the realized principal, and the SwapDataSignature digest is
+  ///      bound to amountIn0. Before the fix `_swapForWithdraw` passed the computed amount0 to `_swap`, so
+  ///      the digest reconstructed over amount0 (=1000) diverged from the signature over amountIn0 (=900)
+  ///      and the withdraw reverted with InvalidSwapDataSignature. After the fix it swaps exactly amountIn0
+  ///      and leaves the slippage-buffer remainder as vault token0.
+  function test_withdrawAndCollectAndSwap_swapsSignedAmountInNotComputedAmount() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000); // realized amount0 = 1000, amount1 = 2000
+
+    uint256 amountIn0 = 900; // backend's slippage-adjusted swap amount (< realized 1000)
+    uint256 amountOut = 880; // token1 delivered for swapping 900 token0
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), amountIn0, amountOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = amountIn0;
+    instructions.amountOut0Min = 800;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn0, 800, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+
+    // Swap consumed exactly the signed amountIn0; the slippage-buffer remainder stays as vault token0.
+    assertEq(token0.balanceOf(address(router)), amountIn0, "router pulled exactly amountIn0");
+    assertEq(token0.balanceOf(address(vault)), 1000 - amountIn0, "vault keeps realized - amountIn0 remainder");
+    assertEq(token1.balanceOf(address(vault)), 2000 + amountOut, "vault token1 = principal + swap output");
+  }
+
+  /// @dev Pooled-funds guard: `instructions.amountIn0` is both the signer's swap amount and the minAmount0
+  ///      floor for the realized (decreased liquidity + collected fees). If the realized `amount0` lands
+  ///      below the signed amountIn0 (a withdraw-slippage breach), the swap must NOT proceed and reach past
+  ///      this withdraw into the rest of the pooled vault balance — it reverts with InvalidAmount.
+  function test_withdrawAndCollectAndSwap_revertsWhenRealizedBelowSignedAmountIn() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(900, 2000); // realized amount0 = 900 < signed amountIn0 = 1000
+
+    uint256 amountIn0 = 1000;
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), amountIn0, uint256(900)));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = amountIn0;
+    instructions.amountOut0Min = 800;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn0, 800, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Symmetric token1 leg: with targetToken == token0, the token1 principal is swapped to token0 using
+  ///      the signer-authorized `instructions.amountIn1` (bound into the digest), the token0 principal stays
+  ///      as the target, and the amountIn1 slippage-buffer remainder stays as vault token1. Guards the other
+  ///      half of the fix (`amount1 >= amountIn1` + swap amountIn1, not the computed amount1).
+  function test_withdrawAndCollectAndSwap_swapsSignedAmountIn1ForToken1Leg() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(2000, 1000); // realized amount0 = 2000 (target), amount1 = 1000
+
+    uint256 amountIn1 = 900; // backend's slippage-adjusted swap amount for the token1 leg (< realized 1000)
+    uint256 amountOut = 880; // token0 delivered for swapping 900 token1
+    bytes memory swapData1 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token1), address(token0), amountIn1, amountOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token0); // token0 is the target; token1 gets swapped into it
+    instructions.amountIn1 = amountIn1;
+    instructions.amountOut1Min = 800;
+    instructions.swapData1 = _signedSwapData(address(token1), address(token0), amountIn1, 800, swapData1);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+
+    assertEq(token1.balanceOf(address(router)), amountIn1, "router pulled exactly amountIn1");
+    assertEq(token1.balanceOf(address(vault)), 1000 - amountIn1, "vault keeps realized - amountIn1 remainder");
+    assertEq(token0.balanceOf(address(vault)), 2000 + amountOut, "vault token0 = principal + swap output");
+  }
+
   function test_withdrawAndCollectAndSwap_revertsWhenReusingSignedSwapData() public {
     nfpm.setLiquidity(1_000_000);
     nfpm.stageCollect(0, 0);
@@ -328,6 +434,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1000;
     instructions.amountOut0Min = 800;
     instructions.swapData0 = _signedSwapData(address(token0), address(token1), 1000, 800, swapData0);
 
@@ -362,6 +469,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1000;
     instructions.amountOut0Min = 0;
     instructions.swapData0 = swapData0;
 
@@ -390,6 +498,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1000;
     instructions.amountOut0Min = 1000; // > 900 actually delivered -> must revert
     instructions.swapData0 = _signedSwapData(address(token0), address(token1), 1000, 1000, swapData0);
 
@@ -412,6 +521,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1000; // non-zero so _swap reaches the empty-swapData guard, not the amountIn==0 guard
     instructions.amountOut0Min = 1;
     instructions.swapData0 = "";
 
@@ -488,6 +598,7 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
     instructions.liquidity = type(uint128).max;
     instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1000;
     instructions.swapData0 = swapData0;
 
     bytes memory data = bytes.concat(
