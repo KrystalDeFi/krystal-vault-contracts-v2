@@ -671,9 +671,17 @@ contract SharedVault is
   ///                          Result is PositionChange[]: LP positions are tracked.
   ///                          New position entries (isAdd) require token0/token1 to be vault tokens.
   ///                          Token-only operations (harvest, swap-reward) return an empty array.
-  ///   CALL                 — direct call to a swap aggregator.
+  ///   CALL                 — direct call to a swap aggregator (target must be a whitelisted swap router).
   ///                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                          tokenIn/tokenOut must be distinct vault tokens; output delta is checked.
+  ///                          Trust boundary for the opaque `swapCalldata` (W-4): it is NOT executed on
+  ///                          trust — it must carry a whitelisted-signer signature
+  ///                          (`SharedSwapDataSignature`) binding chainId/vault/router/tokenIn/tokenOut/
+  ///                          amountIn/minAmountOut/keccak(swapData); tokenIn/tokenOut must be distinct
+  ///                          vault tokens; the router allowance is scoped to exactly `amountIn` and reset
+  ///                          to 0 after the call; and the realized tokenOut delta INTO the vault must be
+  ///                          >= minAmountOut. The residual trust is only that the (governance-)whitelisted
+  ///                          router and signer behave — a compromised signer signing minAmountOut == 0 is
+  ///                          the boundary. Funds cannot be redirected to a non-vault recipient profitably.
   ///   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
   ///                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
   ///                          The target is stored as pos.strategy and will be delegatecalled via
@@ -840,7 +848,12 @@ contract SharedVault is
   ///      vault-owner basis points are clamped to 10000 (silent platform clamp) and applied only to the
   ///      uncollected-fees portion of each tracked position. Principal exits incur no perf/platform fee
   ///      (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
-  ///      Callers should still apply a slippage margin for AMM price impact at exit time.
+  ///      **Estimate, not exact (W-7)**: this is a close UPPER BOUND on what `withdraw` actually
+  ///      transfers and can exceed it by a few wei per token per position. `previewWithdraw` divides once
+  ///      over (idle + spot-valued LP), whereas `withdraw` floors the idle slice separately and then adds
+  ///      the tokens actually returned by removing `floor(liquidity·shares/supply)` (a second layer of AMM
+  ///      rounding). Always apply a slippage margin; do NOT pass `previewWithdraw()` verbatim as
+  ///      `minAmounts`, or a 1-wei shortfall can trigger `InsufficientOutput`.
   function previewWithdraw(uint256 _shares) external view override returns (uint256[4] memory amounts) {
     amounts = SharedVaultPreviewLib.previewWithdraw(
       _shares, totalSupply(), _getIdleBalances(), positions, tokens, configManager, vaultOwnerFeeBasisPoint
@@ -970,6 +983,9 @@ contract SharedVault is
 
     require(configManager.isWhitelistedNfpm(nfpm), InvalidNfpm(nfpm));
     require(positions.length < configManager.maxPositions(), TooManyPositions());
+    // The no-liquidity-hook invariant is enforced by the strategy's `getPositionTokens`, which every
+    // tracking entry (`_applyPositionChanges` and `recoverPosition`) calls before reaching here — so a
+    // hooked pool is rejected at the staticcall above rather than being admitted into tracking.
     positions.push(Position(strategy, nfpm, tokenId, token0, token1));
     positionIndex[key] = positions.length; // index+1
   }

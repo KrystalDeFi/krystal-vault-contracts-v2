@@ -525,6 +525,63 @@ contract MockDirectPositionCreator is MockSharedStrategySplitFallback {
   function collectFees(address, uint256, uint16) external override { }
 }
 
+/// @dev Strategy whose `getPositionTokens` reverts — simulates a position whose pool registers an
+///      add/remove-liquidity hook (the real V4/Pancake strategies host the no-liquidity-hook gate in
+///      `getPositionTokens`). Used to verify SharedVault refuses tracking on every entry point: the
+///      recoverPosition path (direct call) surfaces `UnsupportedLiquidityHook`; the CALL_WITH_POSITIONS
+///      path (staticcall in `_applyPositionChanges`) surfaces `InvalidTarget`. Either way the position
+///      is never tracked.
+contract MockLiquidityHookStrategy is MockSharedStrategySplitFallback {
+  mapping(address => mapping(uint256 => address)) private _token0;
+  mapping(address => mapping(uint256 => address)) private _token1;
+
+  function registerPosition(address nfpm, uint256 tokenId, address token0, address token1) external {
+    _token0[nfpm][tokenId] = token0;
+    _token1[nfpm][tokenId] = token1;
+  }
+
+  function createPosition(address nfpm, uint256 tokenId, address token0, address token1)
+    external
+    returns (PositionChange[] memory changes)
+  {
+    _token0[nfpm][tokenId] = token0;
+    _token1[nfpm][tokenId] = token1;
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
+  }
+
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
+    return new PositionChange[](0);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  /// @dev The position's pool registers an add/remove-liquidity hook → the tracking-time gate
+  ///      (`getPositionTokens`) refuses it. The registered pair is intentionally never returned.
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    revert ISharedCommon.UnsupportedLiquidityHook();
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+
+  function collectFees(address, uint256, uint16) external override { }
+}
+
 /// @dev CALL_WITH_POSITIONS strategy whose getPositionAmounts always reverts with non-empty data.
 ///      Used to verify that the probe in _applyPositionChangesChecked requires ok=true.
 contract MockRevertingGetPositionAmountsStrategy is MockSharedStrategySplitFallback {
@@ -744,6 +801,13 @@ contract MockV4PositionManager {
     return _liquidity[tokenId];
   }
 
+  mapping(uint256 => address) private _hooks;
+
+  /// @dev Set the pool hook reported by getPoolAndPositionInfo (for liquidity-hook gate tests).
+  function setHooks(uint256 tokenId, address hooks) external {
+    _hooks[tokenId] = hooks;
+  }
+
   function getPoolAndPositionInfo(uint256 tokenId)
     external
     view
@@ -751,7 +815,8 @@ contract MockV4PositionManager {
   {
     poolKey.currency0 = Currency.wrap(_currency0[tokenId]);
     poolKey.currency1 = Currency.wrap(_currency1[tokenId]);
-    // fee, tickSpacing, hooks left at zero defaults; PositionInfo default-zero is fine for tests.
+    poolKey.hooks = IHooks(_hooks[tokenId]);
+    // fee, tickSpacing left at zero defaults; PositionInfo default-zero is fine for tests.
     posInfo = PositionInfo.wrap(0);
   }
 
@@ -4052,6 +4117,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     v.initialize("V4ExecuteCollect", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 500);
     posm.setOwner(tokenId, address(v));
+    _trackViaCwp(v, cm, address(posm), tokenId, address(tokenA), address(tokenB));
 
     IV4Utils.CompoundFeesParams memory compoundParams = IV4Utils.CompoundFeesParams({
       collectFeesHookData: "",
@@ -4498,6 +4564,7 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     v.initialize("V4FeeCap", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 500);
     posm.setOwner(tokenId, address(v));
+    _trackViaCwp(v, cm, address(posm), tokenId, address(tokenA), address(tokenB));
 
     IV4Utils.CompoundFeesParams memory compoundParams = IV4Utils.CompoundFeesParams({
       collectFeesHookData: "",
@@ -5873,6 +5940,106 @@ contract SharedVaultTest is TestCommon {
     vault.execute(actions);
   }
 
+  /// @dev Track an already vault-owned position into `v` via CALL_WITH_POSITIONS using the shared
+  ///      `directCreator`, so strategy increase / instruction paths — now gated to tracked positions —
+  ///      can operate on it. `cm` must be the vault's config manager (owned by this test contract) so
+  ///      `directCreator` can be whitelisted as a CALL_WITH_POSITIONS target. Requires `nfpm.ownerOf(tokenId)`
+  ///      to already be the vault.
+  function _trackViaCwp(
+    SharedVault v,
+    SharedConfigManager cm,
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1
+  ) internal {
+    address[] memory tg = new address[](1);
+    tg[0] = address(directCreator);
+    cm.setWhitelistTargets(tg, true);
+    ISharedVault.Action[] memory acts = new ISharedVault.Action[](1);
+    acts[0] = ISharedVault.Action(
+      address(directCreator),
+      abi.encodeCall(MockDirectPositionCreator.createPosition, (nfpm, tokenId, token0, token1)),
+      ISharedCommon.CallType.CALL_WITH_POSITIONS
+    );
+    vm.prank(v.vaultOwner());
+    v.execute(acts);
+  }
+
+  // ============ Liquidity-hook re-validation on position tracking ============
+
+  /// @notice A pool that registers an add/remove-liquidity hook is refused on the CALL_WITH_POSITIONS
+  ///         tracking entry — the no-liquidity-hook invariant is hosted in the strategy's
+  ///         `getPositionTokens`, which every tracking entry calls, not only the strategy mint path.
+  function test_callWithPositions_revertsWhenPoolHasLiquidityHook() public {
+    MockLiquidityHookStrategy hookStrat = new MockLiquidityHookStrategy();
+    address[] memory tg = new address[](1);
+    tg[0] = address(hookStrat);
+    configManager.setWhitelistTargets(tg, true);
+
+    uint256 tokenId = 4243;
+    cwpNfpm.mint(address(vault), tokenId);
+    bytes memory cd = abi.encodeCall(
+      MockLiquidityHookStrategy.createPosition, (address(cwpNfpm), tokenId, address(tokenA), address(tokenB))
+    );
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(hookStrat), cd, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+
+    vm.prank(VAULT_OWNER);
+    // The gate lives in the strategy's getPositionTokens; on the CALL_WITH_POSITIONS path the vault
+    // reaches it via staticcall in _applyPositionChanges, so a revert there surfaces as InvalidTarget.
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidTarget.selector, address(hookStrat)));
+    vault.execute(actions);
+    assertEq(vault.getPositionCount(), 0, "hooked-pool position must not be tracked");
+  }
+
+  /// @notice recoverPosition (operator entry) also re-validates the no-liquidity-hook invariant.
+  function test_recoverPosition_revertsWhenPoolHasLiquidityHook() public {
+    MockLiquidityHookStrategy hookStrat = new MockLiquidityHookStrategy();
+    MockERC721 hookNfpm = new MockERC721();
+    uint256 tokenId = 4244;
+
+    address[] memory tg = new address[](1);
+    tg[0] = address(hookStrat);
+    configManager.setWhitelistTargets(tg, true);
+    address[] memory nf = new address[](1);
+    nf[0] = address(hookNfpm);
+    configManager.setWhitelistNfpms(nf, true);
+
+    hookStrat.registerPosition(address(hookNfpm), tokenId, address(tokenA), address(tokenB));
+    // Operator (VAULT_OWNER for the main vault) holds the NFT and approves the vault to pull it in.
+    hookNfpm.mint(VAULT_OWNER, tokenId);
+    vm.prank(VAULT_OWNER);
+    hookNfpm.approve(address(vault), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.UnsupportedLiquidityHook.selector);
+    vault.recoverPosition(address(hookNfpm), tokenId, address(hookStrat), address(tokenA), address(tokenB));
+  }
+
+  function test_v4_getPositionTokens_rejectsAddLiquidityHookPool() public {
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+    MockV4PositionManager posm = new MockV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    // Hook address with the Uniswap v4 AFTER_ADD_LIQUIDITY permission bit (1 << 10) set.
+    posm.setHooks(tokenId, address(uint160(1) << 10));
+    // The no-liquidity-hook gate is hosted in getPositionTokens (the staticcall every tracking entry makes).
+    vm.expectRevert(ISharedCommon.UnsupportedLiquidityHook.selector);
+    v4strat.getPositionTokens(address(posm), tokenId);
+  }
+
+  function test_v4_getPositionTokens_allowsHooklessPool() public {
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+    MockV4PositionManager posm = new MockV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    // No hook (address(0)) → returns the pool's vault-token pair without reverting.
+    (address t0, address t1) = v4strat.getPositionTokens(address(posm), tokenId);
+    assertEq(t0, address(tokenA));
+    assertEq(t1, address(tokenB));
+  }
+
   function test_maxPositions_defaultIs20() public view {
     assertEq(configManager.maxPositions(), 20);
   }
@@ -6998,6 +7165,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256 tokenId = 7;
     invertedNfpm.mint(address(v3v), tokenId);
+    _trackViaCwp(v3v, v3cm, address(invertedNfpm), tokenId, address(tokenA), address(tokenB));
 
     IV3Utils.Instructions memory instructions;
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
@@ -7087,6 +7255,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256 tokenId = 42;
     burnNfpm.mint(address(v3v), tokenId);
+    _trackViaCwp(v3v, v3cm, address(burnNfpm), tokenId, address(tokenA), address(tokenB));
 
     IV3Utils.Instructions memory instructions;
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
@@ -7129,6 +7298,7 @@ contract SharedVaultTest is TestCommon {
 
     uint256 tokenId = 55;
     aeroNfpm.mint(address(aerov), tokenId);
+    _trackViaCwp(aerov, aerocm, address(aeroNfpm), tokenId, address(tokenA), address(tokenB));
 
     IV3Utils.Instructions memory instructions;
     instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
@@ -7223,6 +7393,7 @@ contract SharedVaultTest is TestCommon {
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
     // Non-zero liquidity → strategy takes "partial decrease / compound" path → no position changes.
     posm.setLiquidity(tokenId, 1e18);
+    _trackViaCwp(v4v, v4cm, address(posm), tokenId, address(tokenA), address(tokenB));
 
     IV4Utils.CompoundFeesParams memory compoundParams = IV4Utils.CompoundFeesParams({
       collectFeesHookData: "",
@@ -7272,9 +7443,13 @@ contract SharedVaultTest is TestCommon {
     v4v.initialize("V4ForeignIncrease", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(v4cm), address(0), 0);
 
     uint256 tokenId = 5;
-    posm.setOwner(tokenId, NON_AUTHORIZED);
+    posm.setOwner(tokenId, address(v4v));
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
     posm.setLiquidity(tokenId, 1e18);
+    // Track while vault-owned, then transfer away so the swapAndIncrease ownerOf guard (not the
+    // tracked-position gate) is what fires.
+    _trackViaCwp(v4v, v4cm, address(posm), tokenId, address(tokenA), address(tokenB));
+    posm.setOwner(tokenId, NON_AUTHORIZED);
 
     IV4Utils.InputTokenParams[] memory inputTokens = new IV4Utils.InputTokenParams[](2);
     inputTokens[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
@@ -7328,9 +7503,13 @@ contract SharedVaultTest is TestCommon {
     );
 
     uint256 tokenId = 5;
-    posm.setOwner(tokenId, NON_AUTHORIZED);
+    posm.setOwner(tokenId, address(pv));
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
     posm.setLiquidity(tokenId, 1e18);
+    // Track while vault-owned, then transfer away so the swapAndIncrease ownerOf guard (not the
+    // tracked-position gate) is what fires.
+    _trackViaCwp(pv, pancakeCm, address(posm), tokenId, address(tokenA), address(tokenB));
+    posm.setOwner(tokenId, NON_AUTHORIZED);
 
     IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
     inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
@@ -7423,6 +7602,7 @@ contract SharedVaultTest is TestCommon {
     posm.setOwner(tokenId, address(v4v));
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
     posm.setLiquidity(tokenId, 1e18);
+    _trackViaCwp(v4v, v4cm, address(posm), tokenId, address(tokenA), address(tokenB));
 
     // The unexpected mint happens inside native POSM execution so nextIdBefore=100 is snapshotted first.
     posm.setModifyLiquiditiesMint(100, address(v4v));
@@ -7477,6 +7657,7 @@ contract SharedVaultTest is TestCommon {
     posm.setOwner(tokenId, address(v4v));
     posm.setLiquidity(tokenId, 1e18); // non-zero → ADJUST_RANGE and full-exit branches NOT taken
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    _trackViaCwp(v4v, v4cm, address(posm), tokenId, address(tokenA), address(tokenB));
 
     // Configure POSM to mint tokenId=100 to the vault during native modifyLiquidities.
     // After the call: nextTokenId=101, ownerOf[100]=vault, liquidity[7]=1e18 -> else branch.

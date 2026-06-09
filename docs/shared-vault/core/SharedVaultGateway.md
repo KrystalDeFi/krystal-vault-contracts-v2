@@ -331,9 +331,17 @@ function _executeSwaps(struct SharedVaultGateway.SwapParams[] swaps, struct Shar
 
 _Execute each swap via the configured swapRouter with opaque calldata.
      Pattern mirrors V3Utils._swap and V4Utils._swap — approve, call, verify delta, reset.
-     These participant zap swaps are intentionally unsigned: the Gateway only spends balances
-     pulled from the caller or received from the caller's vault shares within this transaction.
-     Operator swaps against pooled vault funds use strategy paths and require SharedSwapDataSignature._
+     Trust boundary for the opaque `swap.swapData` (W-17): these participant zap swaps are
+     intentionally UNSIGNED, which is safe because the Gateway never touches pooled vault funds — it
+     spends only balances pulled from the caller (or received from burning the caller's own vault
+     shares) within this single transaction, and `_sweepAll` returns every leftover to the caller, so
+     a misbehaving router can at worst waste the CALLER's own funds, bounded below by the caller's
+     `minDepositAmounts` / `amountOutMin` floors. `swapRouter` is a single owner-configured address
+     (not caller-chosen — see `setSwapRouter`); per swap the allowance is scoped to exactly `amountIn`
+     and reset to 0 after the call; and the realized `tokenOut` delta must be >= `amountOutMin`. The
+     per-call snapshot baseline (`_balanceDelta`) means a caller can never spend balances left by a
+     prior caller. Operator swaps against POOLED vault funds take the strategy paths instead and DO
+     require `SharedSwapDataSignature`._
 
 ### _executeSingleSwap
 

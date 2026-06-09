@@ -15,6 +15,8 @@ import "../../common/Withdrawable.sol";
 contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, ISharedVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
+  /// @dev Keyed on `_cancelKey(canceller, digest)` (not the bare digest) so cancellation is scoped to
+  ///      the order's own signer; see `cancelOrder` for why this prevents third-party cancellation DoS.
   mapping(bytes32 => bool) private _cancelledOrder;
 
   constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "5.0") {
@@ -51,17 +53,21 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   function cancelOrder(bytes32 hash, bytes memory signature) external override {
     // SignatureChecker: for EOA checks ECDSA recovery; for multisig calls EIP-1271.isValidSignature
     require(SignatureChecker.isValidSignatureNow(_msgSender(), hash, signature), InvalidSignature());
-    // Key on the EIP-712 digest, not the raw signature bytes.
-    // EIP-1271 multisig wallets can produce different valid signature bytes for the same digest
-    // on every call, so keying on signature bytes would allow the owner to bypass cancellation
-    // by generating a fresh signature. Keying on the digest makes cancellation order-based.
-    _cancelledOrder[hash] = true;
+    // Key on (canceller, EIP-712 digest) — NOT the digest alone.
+    //  - On the digest (not raw signature bytes): EIP-1271 multisig wallets can produce different
+    //    valid signature bytes for the same digest on every call, so keying on signature bytes would
+    //    let the owner bypass cancellation by re-signing. Digest-keying makes cancellation order-based.
+    //  - Scoped to `_msgSender()` (the canceller): the order validators only consult the entry under
+    //    the order's own signer (`_cancelKey(actor, digest)`). A third party who learns a digest and
+    //    self-signs it therefore cancels only their own (never-consulted) entry and cannot grief the
+    //    owner's order. Without this scoping any caller could brick any known digest.
+    _cancelledOrder[_cancelKey(_msgSender(), hash)] = true;
     emit CancelOrder(_msgSender(), hash, signature);
   }
 
   /// @inheritdoc ISharedVaultAutomator
-  function isOrderCancelled(bytes32 hash) external view override returns (bool) {
-    return _cancelledOrder[hash];
+  function isOrderCancelled(address actor, bytes32 hash) external view override returns (bool) {
+    return _cancelledOrder[_cancelKey(actor, hash)];
   }
 
   /// @inheritdoc ISharedVaultAutomator
@@ -112,7 +118,9 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
     address owner = ISharedVault(vault).vaultOwner();
     require(SignatureChecker.isValidSignatureNow(owner, digest, signature), InvalidSignature());
-    require(!_cancelledOrder[digest], OrderCancelled());
+    // Consult the cancellation entry scoped to the allowance signer (the vault owner), so only the
+    // owner's own cancellation revokes the allowance.
+    require(!_cancelledOrder[_cancelKey(owner, digest)], OrderCancelled());
   }
 
   /// @dev Validate the order
@@ -122,6 +130,14 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
     require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
-    require(!_cancelledOrder[digest], OrderCancelled());
+    // Consult the cancellation entry scoped to the order signer (`actor`), so only that signer's own
+    // cancellation revokes the order — a third party self-signing the digest cannot grief it.
+    require(!_cancelledOrder[_cancelKey(actor, digest)], OrderCancelled());
+  }
+
+  /// @dev Cancellation key, scoped to the order signer / canceller so cancellation is per-actor rather
+  ///      than global. `abi.encode` (not `encodePacked`) keeps the address and digest fields unambiguous.
+  function _cancelKey(address actor, bytes32 digest) private pure returns (bytes32) {
+    return keccak256(abi.encode(actor, digest));
   }
 }

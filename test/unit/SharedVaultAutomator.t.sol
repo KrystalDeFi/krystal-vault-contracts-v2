@@ -498,12 +498,12 @@ contract SharedVaultAutomatorTest is TestCommon {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
     bytes memory sig = abi.encodePacked(r, s, v);
 
-    assertFalse(automator.isOrderCancelled(digest));
+    assertFalse(automator.isOrderCancelled(VAULT_OWNER, digest));
 
     vm.prank(VAULT_OWNER);
     automator.cancelOrder(digest, sig);
 
-    assertTrue(automator.isOrderCancelled(digest));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, digest));
   }
 
   function test_cancelOrder_succeedsWhileAutomatorPaused() public {
@@ -517,7 +517,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(VAULT_OWNER);
     automator.cancelOrder(digest, sig);
 
-    assertTrue(automator.isOrderCancelled(digest));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, digest));
   }
 
   function test_cancelOrder_fail_wrongSigner() public {
@@ -531,6 +531,34 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
     automator.cancelOrder(digest, sig);
+  }
+
+  /// @dev C-3 regression: cancellation must be scoped to the canceller. An attacker who learns a
+  ///      victim's order digest (e.g. from the mempool) can self-sign that digest and call
+  ///      cancelOrder, but doing so must NOT brick the vault owner's order. The owner's order stays
+  ///      executable because the attacker's cancellation is recorded under the attacker's identity,
+  ///      not the vault owner's.
+  function test_cancelOrder_attackerCannotGriefVictimOrder() public {
+    // Victim (vault owner) creates and signs a user order.
+    (bytes32 digest, bytes memory encoded) = _userOrderDigest();
+    (uint8 vv, bytes32 vr, bytes32 vs) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory victimSig = abi.encodePacked(vr, vs, vv);
+
+    // Attacker learns the digest and signs it with their OWN key.
+    uint256 attackerKey = 0xA77ACE;
+    address attacker = vm.addr(attackerKey);
+    (uint8 av, bytes32 ar, bytes32 asig) = vm.sign(attackerKey, digest);
+    bytes memory attackerSig = abi.encodePacked(ar, asig, av);
+
+    // Attacker cancels the digest under their own identity (they did sign it, so this succeeds).
+    vm.prank(attacker);
+    automator.cancelOrder(digest, attackerSig);
+
+    // The vault owner's order must still execute: the attacker's cancellation is scoped to the
+    // attacker, not the vault owner.
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+    vm.prank(OPERATOR);
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, victimSig);
   }
 
   // ============ grantOperator / revokeOperator ============
@@ -811,7 +839,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(address(multisig));
     msAutomator.cancelOrder(digest, sig);
 
-    assertTrue(msAutomator.isOrderCancelled(digest));
+    assertTrue(msAutomator.isOrderCancelled(address(multisig), digest));
 
     // Execution now fails
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));

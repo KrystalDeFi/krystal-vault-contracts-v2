@@ -338,6 +338,11 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
         "internalType": "bytes32",
         "name": "hash",
         "type": "bytes32"

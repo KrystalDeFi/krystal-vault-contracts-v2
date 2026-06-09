@@ -337,7 +337,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     automator.cancelOrder(digest, sig);
 
-    assertTrue(automator.isOrderCancelled(digest), "order should be cancelled");
+    assertTrue(automator.isOrderCancelled(vaultOwner, digest), "order should be cancelled");
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
@@ -359,7 +359,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     vm.prank(vaultOwner);
     automator.cancelOrder(digest, sig);
 
-    assertTrue(automator.isOrderCancelled(digest), "order should be cancelled");
+    assertTrue(automator.isOrderCancelled(vaultOwner, digest), "order should be cancelled");
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 

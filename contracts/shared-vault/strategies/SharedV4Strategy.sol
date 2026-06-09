@@ -241,6 +241,11 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   /// @dev Native-currency positions require a vault call context so `address(0)` can be mapped
   ///      to that vault's configured WETH. Direct strategy calls without vault context revert
   ///      instead of returning `address(0)` as a misleading token address.
+  ///      Also enforces the no-liquidity-hook invariant: reverts with `UnsupportedLiquidityHook` if the
+  ///      pool registers an add/remove-liquidity hook. SharedVault calls `getPositionTokens` on EVERY
+  ///      position-tracking entry (`_applyPositionChanges` and `recoverPosition`, both before
+  ///      `_addPosition`), so hosting the check here re-enforces the gate on recover / CALL_WITH_POSITIONS
+  ///      — not only the strategy mint path — reusing the `poolKey` already read here (no extra call).
   function getPositionTokens(address posm, uint256 tokenId)
     external
     view
@@ -248,6 +253,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
     returns (address token0, address token1)
   {
     (PoolKey memory poolKey,) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
+    SharedStrategyGuards.requireNoLiquidityHookV4(poolKey.hooks);
     (token0, token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
   }
 

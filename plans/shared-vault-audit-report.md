@@ -17,7 +17,14 @@
 
 **Exploit:** Operator with `OPERATOR_ROLE` calls `executeWithUserOrder(vault, actions, encodedOrder, sig)` twice — both succeed.
 
-**Fix:** Mark `_cancelledOrder[digest] = true` inside `_validateOrder` BEFORE returning, OR change the function to track a `_consumedOrder[digest]` mapping populated at execute time.
+**Status:** **Resolved by documentation (behavior retained by design).** Under the trust model the
+`OPERATOR_ROLE` holder is trusted to choose `actions`, and reusable delegation is the intended semantics
+(it matches `executeWithAgentAllowance`). The defect was that the NatSpec *claimed* one-time consumption:
+`AgentAllowanceStructHash` and `ISharedVaultAutomator` asserted `executeWithUserOrder` "consumes the
+signature after a single use." Those claims have been corrected to state plainly that the order is
+reusable until `cancelOrder`, is not bound to the executed actions, and (unlike AgentAllowance) is not
+vault- or expiry-bound — so AgentAllowance is the narrower primitive. No code change; owners bound
+exposure via `cancelOrder` (now griefing-safe, see C-3) and by signing sparingly.
 
 ---
 
@@ -43,20 +50,29 @@
 
 **Fix:** Either key cancellation on `keccak256(abi.encode(_msgSender(), hash))` and read `_cancelledOrder[keccak256(abi.encode(actor, digest))]` inside the validators, OR require the cancel signature to be the SAME signature used in the order.
 
+**Status:** **FIXED.** Cancellation is now keyed on `_cancelKey(actor, digest) = keccak256(abi.encode(actor, digest))`. `cancelOrder` writes the entry under `_msgSender()`, and both `_validateOrder` and `_validateAgentAllowance` consult the entry under the order's own signer (the vault owner), so a third party who self-signs a known digest only cancels their own (never-consulted) entry and cannot grief the owner's order. Digest-keying (not raw signature bytes) is preserved for EIP-1271 compatibility. `isOrderCancelled` now takes `(address actor, bytes32 hash)`. Regression test: `SharedVaultAutomator.t.sol::test_cancelOrder_attackerCannotGriefVictimOrder`.
+
 ---
 
-### C-4: V4 strategy's `_execute` accepts arbitrary inner-action calldata
-**Location:** `strategies/SharedV4Strategy.sol:616-630` (`_validateV4ExecuteCalldataSwapRouters`).
+### C-4: V4 strategy's `_execute` accepts arbitrary inner-action calldata — FIXED
 
-**Issue:** The only validation is:
-1. First 4 bytes match `IV4Utils.execute.selector`
-2. Decoded `(posm, tokenId, _)` match passed arguments
+**Issue (historical):** The only validation was (1) first 4 bytes match `IV4Utils.execute.selector` and
+(2) decoded `(posm, tokenId, _)` match passed arguments. The `Instructions` (UtilActions + params) field
+was decoded but its contents were never validated, so an operator with execute access could submit a
+`DECREASE_AND_SWAP` with arbitrary inline swap calldata — bypassing the `isWhitelistedSwapRouter` check
+that protects the `CALL` path in `SharedVault.execute`. If an operator key were compromised, this allowed
+draining V4 positions via non-whitelisted swap targets.
 
-The `Instructions` (UtilActions + params) field is decoded but its contents are never validated. An admin/operator with execute access can submit a `DECREASE_AND_SWAP` with arbitrary inline swap calldata — bypassing the `isWhitelistedSwapRouter` check that protects the `CALL` path in `SharedVault.execute`.
-
-**Impact:** V4 strategy creates a wider trust surface than V3/Aerodrome. If an operator is compromised, they can drain V4 positions via non-whitelisted swap targets.
-
-**Fix:** Decode the inner `Instructions.params` and validate that every `SwapParams.tokenIn`/`tokenOut` is a vault token AND that the inner swap router is whitelisted.
+**Status:** **Fix applied.** `_validateV4ExecuteCalldataSwapRouters` was removed entirely; every V4 and
+PancakeV4 swap path (`COMPOUND`, `DECREASE_AND_SWAP`, `ADJUST_RANGE`, `swapAndMint`, `swapAndIncrease`)
+now routes through the single shared `SharedV4SwapPipeline._run`, which: (a) requires the top-level
+`swapRouter` to be `isWhitelistedSwapRouter`; (b) verifies every hop's calldata via
+`SharedSwapDataSignature.verify` (binding chainId/vault/signer/router/tokenIn/tokenOut/amountIn/
+amountOutMin/keccak(swapData)/deadline/nonce, with per-vault replay protection); (c) enforces tokenIn/
+tokenOut reachability against pool tokens + prior-hop outputs; (d) scopes the router allowance to exactly
+`amountIn` and resets it to 0; (e) checks the realized output delta `>= amountOutMin`; and (f) requires all
+intermediate balances to net to zero. The decode is now `abi.decode` of the full `Instructions` struct
+(`_decodeV4ExecuteCalldata`), closing W-11 as well. The fix is symmetric across both V4 twins.
 
 ---
 
@@ -175,12 +191,17 @@ The shared-vault implementation is substantially more mature than its plan sugge
 1. Plan ↔ impl divergence on `executeWithUserOrder` (C-1) appears to be an unimplemented commitment, not a deliberate design change — the plan's "one-time" guarantee is what users will reasonably expect.
 2. C-4 (V4 `_validateV4ExecuteCalldataSwapRouters` incomplete) shows that defense-in-depth applied carefully on V3 (separate `isWhitelistedSwapRouter` + tokenIn/tokenOut + delta check) was not symmetrically extended to V4, where inline swaps bypass the swap-router whitelist entirely.
 
+Resolved in this round:
+- **C-1** — RESOLVED by documentation: reusable delegation is retained by design (operator trust model); the false "one-time/consumes" NatSpec was corrected. See C-1 status.
+- **C-3** — FIXED: actor-scoped cancellation (`_cancelKey(actor, digest)`), with regression test.
+- **C-4** — FIXED: validator removed; all V4/Pancake swaps routed through `SharedV4SwapPipeline._run` (whitelist + signed calldata). Closes W-11.
+- **Hook-gate bypass** — FIXED: the no-liquidity-hook check is hosted in each strategy's `getPositionTokens`, which SharedVault calls on every tracking entry (`_applyPositionChanges` staticcall + `recoverPosition` direct call) before `_addPosition`. So recover / CALL_WITH_POSITIONS now re-enforce the gate, not only the strategy mint path. The check lives in the strategies (V4/Pancake read `poolKey.hooks`/`parameters`; V3/Aerodrome have no hooks) so `SharedVault` stays at 24,557 B / 19 B under EIP-170. On the recover path a hooked pool reverts with `UnsupportedLiquidityHook`; on the CALL_WITH_POSITIONS path (staticcall-wrapped) it surfaces as `InvalidTarget`.
+
 The highest-leverage remaining work before mainnet deployment:
-1. **C-1** — make user orders one-time (or rename to `executeWithReusableOrder`).
-2. **C-2** — bind UserOrder digest to specific vault.
-3. **C-4** — validate V4 `Instructions.params` contents.
-4. **C-3** — restrict cancellation to original signer.
-5. **W-2** — Ownable2Step for vault ownership.
-6. **W-3** — beacon timelock for strategy upgrades.
+1. **C-2** — bind the UserOrder digest to a specific vault (the order struct still carries no vault field; one signature is valid against every vault the same owner controls). Lower severity now that C-1 is documented and C-3 is fixed, but still a cross-vault replay surface for a compromised operator.
+2. **W-2** — Ownable2Step for vault ownership.
+3. **W-3** — beacon timelock for strategy upgrades.
+4. **Singleton init** — atomic deploy-and-initialize (+ `_disableInitializers`) for ConfigManager / Factory / Gateway to remove the front-run init-hijack window.
+5. **EIP-170** — `SharedVault` runtime is ~19 bytes under the limit; keep new logic in libraries.
 
 The contracts are well-engineered overall with several thoughtful patterns: defense-in-depth position validation, dust-rounding mitigation, idle-snapshot withdraw semantics, fee-pre-collect to defeat last-withdrawer fee sweeping. The biggest residual risk is the gap between *what the plan documented* and *what the code does* — closed by the plan rewrite in this round.
