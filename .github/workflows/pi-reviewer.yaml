@@ -12,6 +12,7 @@ concurrency:
 jobs:
   pi-reviewer-job:
     name: "Pi Review job"
+    if: github.event.pull_request.draft == false
     runs-on: [ubuntu-latest]
     steps:
       - name: Checkout repository
@@ -70,6 +71,7 @@ jobs:
   pi-validate-job:
     name: "Pi Validate job"
     needs: pi-reviewer-job
+    if: github.event.pull_request.draft == false
     runs-on: [ubuntu-latest]
     steps:
       - name: Checkout repository
