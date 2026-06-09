@@ -249,6 +249,13 @@ contract SharedVault is
     uint256[4] memory actualPulled;
     uint256 excessEthRefund;
     if (currentTotalSupply == 0) {
+      // Accepted edge case (intentionally NOT guarded — SharedVault is at the EIP-170 size limit, so no
+      // new bytecode is added here): if the vault ever returns to zero share supply while a tracked LP
+      // position still lingers (e.g. dust a strategy left after a full exit), this fixed-INITIAL_SHARES
+      // first-deposit path does not price that position in, so the next first depositor would capture its
+      // residual value. There is no current-holder victim (supply is zero), and operator/owner can
+      // `dropPosition` the stale entry to clear it. `_getTotalBalances` above already reverts if such a
+      // lingering position's valuation is broken.
       (transferAmounts, shares) = _firstDepositTransfers(amounts);
       excessEthRefund = _wrapWethDeposit(wi, transferAmounts);
       _pullDepositTokensExcludingWethSlot(wi, transferAmounts);

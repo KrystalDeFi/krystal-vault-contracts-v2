@@ -226,7 +226,9 @@ function setMaxPositions(uint16 _maxPositions) external
 function setMinTokenPrecision(uint8 precision) external
 ```
 
-Set the dust-floor precision level.
-        5 → 0.00001 of any token (default).
-        0 → floor disabled (ceiling rounding still prevents the dilution attack).
+Set the per-token deposit precision floor (see `SharedVaultPreviewLib._minTokenAmt`):
+        the floored slice is `10**(decimals - precision)` per token, `1` when `precision >=
+        decimals`, or disabled when `precision == 0`. No upper bound is enforced on purpose — any
+        `precision >= a token's decimals` simply collapses to a 1-wei floor (the safe minimum); it
+        can never raise the floor unboundedly or brick deposits.
 

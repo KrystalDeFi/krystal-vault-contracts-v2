@@ -206,6 +206,11 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     emit MaxPositionsUpdated(_maxPositions);
   }
 
+  /// @notice Set the per-token deposit precision floor (see `SharedVaultPreviewLib._minTokenAmt`):
+  ///         the floored slice is `10**(decimals - precision)` per token, `1` when `precision >=
+  ///         decimals`, or disabled when `precision == 0`. No upper bound is enforced on purpose — any
+  ///         `precision >= a token's decimals` simply collapses to a 1-wei floor (the safe minimum); it
+  ///         can never raise the floor unboundedly or brick deposits.
   function setMinTokenPrecision(uint8 precision) external override onlyOwner {
     minTokenPrecision = precision;
     emit MinTokenPrecisionUpdated(precision);

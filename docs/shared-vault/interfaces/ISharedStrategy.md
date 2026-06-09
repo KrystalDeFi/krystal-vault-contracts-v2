@@ -10,9 +10,11 @@ error InvalidPoolTokens()
 
 ### PositionChange
 
-_Shared strategies validate pool currencies against SharedVault's ERC20 token set.
-     Because vault token slots use `address(0)` as "unused", native-currency V4/Pancake pools
-     where a currency unwraps to `address(0)` are unsupported. Use wrapped-native ERC20 pools._
+_Shared strategies validate pool currencies against SharedVault's ERC20 token set and report
+     `token0`/`token1` here as those vault tokens. Native-currency V4/Pancake pools (a pool currency
+     of `address(0)`) ARE supported: the strategy maps the native currency to the configured WETH
+     vault token and wraps/unwraps around liquidity ops, so the position is tracked against WETH.
+     A pool whose non-native side is not a configured vault token is rejected._
 
 ```solidity
 struct PositionChange {

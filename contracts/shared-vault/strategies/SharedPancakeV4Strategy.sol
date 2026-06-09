@@ -171,9 +171,12 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
   /// @dev Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
   ///      amounts required for the computed liquidity through Permit2. Any amount not needed for
   ///      the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
-  ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
-  ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
-  ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
+  ///      Slippage is enforced via a per-token consumed-amount floor (NOT a liquidity comparison):
+  ///      the lib quotes `(expected0, expected1) = getAmountsForLiquidity(...)` for the computed
+  ///      liquidity at the pre-call sqrtPrice, measures the amounts ACTUALLY consumed via balance
+  ///      deltas, and reverts unless `used0 >= expected0 * (1 - slippageBps/10000)` and likewise for
+  ///      token1. Quoting the floor from `getAmountsForLiquidity` (not the raw supplied amounts) lets
+  ///      single-sided / out-of-range adds pass without spurious reverts.
   function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external
     override
