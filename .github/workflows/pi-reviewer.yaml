@@ -45,7 +45,11 @@ jobs:
 
             Be concise and actionable.
 
-            For each issue found, use the GitHub CLI to post an inline review comment:
+            Review workflow:
+            - Check recent commits since last review
+            - Read changed files
+            - Verify status of previously open issues
+            - For each issue found, use the GitHub CLI to post an inline review comment:
             gh api repos/$REPO/pulls/$PR_NUMBER/comments \
               --method POST \
               -f body="<your comment>" \
@@ -53,6 +57,7 @@ jobs:
               -f path="<file>" \
               -F line=<line_number> \
               -f side="RIGHT"
+
               
             Provide detailed feedback using inline comments for specific issues.
             Avoid adding inline comments for issues that have already been addressed or are currently under discussion.
