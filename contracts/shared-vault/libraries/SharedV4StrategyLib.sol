@@ -8,7 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
+import { PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -422,6 +422,13 @@ library SharedV4StrategyLib {
     ISharedV4Utils.IncreaseLiquidityParams memory params
   ) private {
     if (amount0 == 0 && amount1 == 0) return;
+    // Auto-gate (same invariant as _mintV4WithAmounts): swapAndIncrease/COMPOUND reach this
+    // increase chokepoint for any vault-OWNED tokenId — vault-TRACKED is not required — so a
+    // hooked-pool position planted on the vault (minted with recipient = vault) could otherwise
+    // route vault funds through its add-liquidity hook. Tracked positions are provably hook-free
+    // (gated at mint and at getPositionTokens on every tracking entry), so this can only fire for
+    // planted NFTs. Sits after the zero-amount early-return so no-op compounds stay no-ops.
+    SharedStrategyGuards.requireNoLiquidityHookV4(poolKey.hooks);
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     IPositionManager pm = IPositionManager(posm);
     PositionInfo positionInfo = pm.positionInfo(tokenId);

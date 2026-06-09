@@ -25,7 +25,6 @@ import { SharedPancakeV4ValuationLib } from "../libraries/SharedPancakeV4Valuati
 
 import { PoolKey } from "infinity-core/src/types/PoolKey.sol";
 import { Currency } from "infinity-core/src/types/Currency.sol";
-import { PoolId } from "infinity-core/src/types/PoolId.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
 import { ICLPositionManager } from "infinity-periphery/src/pool-cl/interfaces/ICLPositionManager.sol";
 import {
@@ -429,6 +428,13 @@ library SharedPancakeV4StrategyLib {
     ISharedPancakeV4Utils.IncreaseLiquidityParams memory params
   ) private {
     if (amount0 == 0 && amount1 == 0) return;
+    // Auto-gate (same invariant as _mintV4WithAmounts): swapAndIncrease/COMPOUND reach this
+    // increase chokepoint for any vault-OWNED tokenId — vault-TRACKED is not required — so a
+    // hooked-pool position planted on the vault (minted with recipient = vault) could otherwise
+    // route vault funds through its add-liquidity hook. Tracked positions are provably hook-free
+    // (gated at mint and at getPositionTokens on every tracking entry), so this can only fire for
+    // planted NFTs. Sits after the zero-amount early-return so no-op compounds stay no-ops.
+    SharedStrategyGuards.requireNoLiquidityHookCL(poolKey.parameters);
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     ICLPositionManager pm = ICLPositionManager(posm);
     (, CLPositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
