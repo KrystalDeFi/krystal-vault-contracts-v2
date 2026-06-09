@@ -250,6 +250,11 @@
   },
   {
     "inputs": [],
+    "name": "UnsupportedLiquidityHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "VaultPaused",
     "type": "error"
   },

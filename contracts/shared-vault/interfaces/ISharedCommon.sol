@@ -54,4 +54,10 @@ interface ISharedCommon {
   error SwapDataSignatureExpired();
   error SwapDataSignatureAlreadyUsed();
   error TooManyPositions();
+  /// @notice A position cannot be tracked because its pool hook intercepts liquidity add or removal
+  ///         (registers before/after{Add,Remove}Liquidity). Such hooks may require non-empty
+  ///         hookData, which the permissionless deposit/withdraw/adjust paths pass as empty bytes —
+  ///         a remove-hook would freeze withdrawals, an add-hook would freeze deposits. Minting into
+  ///         them is refused so empty hookData is always safe on every permissionless path.
+  error UnsupportedLiquidityHook();
 }

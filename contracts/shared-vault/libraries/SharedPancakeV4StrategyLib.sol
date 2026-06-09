@@ -474,6 +474,11 @@ library SharedPancakeV4StrategyLib {
     uint256 amount1,
     ISharedPancakeV4Utils.MintParams memory params
   ) private returns (uint256 tokenId) {
+    // Auto-gate: refuse pools whose hook intercepts liquidity removal. The withdraw/adjust exit
+    // paths remove with empty hookData; a remove-hook pool could revert there and freeze withdraws,
+    // so such a position must never be minted/tracked. Single chokepoint for both swapAndMint and
+    // the ADJUST_RANGE re-mint.
+    SharedStrategyGuards.requireNoLiquidityHookCL(poolKey.parameters);
     if (amount0 == 0 && amount1 == 0) revert ISharedCommon.InvalidAmount();
     require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
     ICLPositionManager pm = ICLPositionManager(posm);
