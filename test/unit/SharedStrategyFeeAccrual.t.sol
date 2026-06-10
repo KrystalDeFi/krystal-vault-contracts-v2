@@ -475,6 +475,29 @@ contract SharedStrategyFeeAccrualTest is Test {
     assertEq(amount0, principal0 + STORED_OWED0, "Aerodrome pending=0, only stored owed");
     assertEq(amount1, principal1 + STORED_OWED1, "Aerodrome pending=0, only stored owed");
   }
+
+  /// @dev F7 twin-parity with test_v3_getPositionAmounts_pending_above_uint128_not_truncated: the
+  ///      Aerodrome strategy shares the V3 valuation math fork, so pending fees above uint128 must be
+  ///      reported in full there too (no silent uint128 wrap inside the unchecked accumulation).
+  function test_aerodrome_getPositionAmounts_pending_above_uint128_not_truncated() public {
+    uint128 hugeLiquidity = type(uint128).max;
+    MockAerodromePool pool = new MockAerodromePool(SQRT_PRICE_TICK0, CURRENT_TICK, 2 * Q128, 2 * Q128);
+    MockAerodromeFactory factory = new MockAerodromeFactory(address(pool));
+    address nfpm = address(
+      new MockAerodromeNfpmWithFees(
+        address(factory), address(0x1111), address(0x2222), hugeLiquidity, TICK_LOWER, TICK_UPPER, 0, 0, 0, 0
+      )
+    );
+
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    uint256 expectedPending = 2 * uint256(type(uint128).max); // mulDiv(2*Q128, uint128.max, Q128)
+    assertGt(expectedPending, uint256(type(uint128).max), "sanity: pending exceeds uint128 range");
+    assertEq(amount0 - principal0, expectedPending, "token0 pending reported in full (no uint128 wrap)");
+    assertEq(amount1 - principal1, expectedPending, "token1 pending reported in full (no uint128 wrap)");
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -505,6 +505,22 @@ contract SharedVaultFuzzer {
   SharedVaultGateway public gateway;
   SharedDelegatedWithdrawer public delegatedWithdrawer;
 
+  // Fee-bearing stateful vault: platform fee 10% + vault-owner fee 5% on collected LP rewards.
+  // Every other stateful vault runs with zero fees, so this one is the only sequence-fuzzed
+  // coverage of the fee-netted valuation (computeTotalBalances / previewWithdraw netFees branch)
+  // and of collect-during-withdraw fee distribution.
+  SharedConfigManager public feeConfigManager;
+  SharedVault public feeVault;
+  FuzzERC20 public feeA;
+  FuzzERC20 public feeB;
+  FuzzLpPool public feePool;
+  FuzzERC721 public feeNfpm;
+  FuzzLpStrategy public feeStrategy;
+  SharedFuzzPlayer public feePlayer;
+  uint256 internal constant FEE_TOKEN_ID = 11;
+  address internal constant FEE_PLATFORM_RECIPIENT = address(0xFEE1);
+  address internal constant FEE_VAULT_OWNER = address(0xFEE2);
+
   FuzzSwapRouter public swapRouter;
   FuzzSigner public swapDataSigner;
   uint256 internal swapDataNonce;
@@ -529,6 +545,7 @@ contract SharedVaultFuzzer {
     _setupLpVault();
     _setupWethVault();
     _setupPrecisionGatewayVault();
+    _setupFeeVault();
   }
 
   receive() external payable { }
@@ -1364,10 +1381,146 @@ contract SharedVaultFuzzer {
     _assertPositiveBacking(precisionVault);
   }
 
+  // -------------------------------------------------------------------------
+  // Stateful fee-bearing vault (platform 10% + owner 5% on collected rewards)
+  // -------------------------------------------------------------------------
+
+  /// @dev Accrue extra rewards on the fee vault's LP position. setRewards REPLACES the staged
+  ///      rewards, so re-read the live pending amount and add on top.
+  function fee_accrue_rewards(uint256 reward0, uint256 reward1) external {
+    reward0 = _bound(reward0, 0, 1e24);
+    reward1 = _bound(reward1, 0, 1e24);
+    if (reward0 == 0 && reward1 == 0) return;
+
+    (uint256 total0, uint256 total1) = feePool.getAmounts(address(feeNfpm), FEE_TOKEN_ID);
+    (uint256 principal0, uint256 principal1) = feePool.getPrincipal(address(feeNfpm), FEE_TOKEN_ID);
+
+    feeA.mint(address(feePool), reward0);
+    feeB.mint(address(feePool), reward1);
+    feePool.setRewards(address(feeNfpm), FEE_TOKEN_ID, (total0 - principal0) + reward0, (total1 - principal1) + reward1);
+
+    _assertPositiveBacking(feeVault);
+  }
+
+  function fee_deposit(uint256 amountA) external {
+    amountA = _bound(amountA, 1e13, MAX_18);
+    uint256[4] memory totals = feeVault.getTotalBalances();
+    if (totals[0] == 0 || totals[1] == 0) return;
+
+    uint256[4] memory amounts;
+    amounts[0] = amountA;
+    amounts[1] = _ceilMulDiv(amountA, totals[1], totals[0]);
+    if (amounts[1] > MAX_18) return;
+
+    uint256 preview = feeVault.previewDeposit(amounts);
+    uint256 supplyBefore = feeVault.totalSupply();
+    uint256 posBefore = feeVault.getPositionCount();
+    (uint256 principal0Before, uint256 principal1Before) = feePool.getPrincipal(address(feeNfpm), FEE_TOKEN_ID);
+
+    try feePlayer.deposit(amounts, 100) returns (uint256 shares) {
+      assert(preview > 0);
+      assert(shares > 0);
+      assert(feeVault.totalSupply() == supplyBefore + shares);
+      assert(feeVault.getPositionCount() == posBefore);
+      (uint256 principal0After, uint256 principal1After) = feePool.getPrincipal(address(feeNfpm), FEE_TOKEN_ID);
+      assert(principal0After >= principal0Before);
+      assert(principal1After >= principal1Before);
+    } catch {
+      assert(preview == 0);
+    }
+
+    _assertFeeShareConservation();
+    _assertPositiveBacking(feeVault);
+  }
+
+  /// @dev The core fee-vault property: previewWithdraw (which nets platform + owner fees off the
+  ///      uncollected rewards via SharedVaultPreviewLib) must match the realized withdraw — which
+  ///      actually collects the rewards, pays the fee recipients, and distributes the net — within
+  ///      1 wei per token (the documented floor-splitting drift). A divergence means the preview
+  ///      fee math no longer mirrors the collect-path fee math.
+  function fee_withdraw(uint256 shareSeed) external {
+    uint256 bal = feeVault.balanceOf(address(feePlayer));
+    if (bal == 0) return;
+
+    uint256 shares = _sharesFromSeed(bal, shareSeed);
+    uint256[4] memory preview = feeVault.previewWithdraw(shares);
+    if (!_hasNonDustOutput(preview)) return;
+    uint256 supplyBefore = feeVault.totalSupply();
+    uint256 platformABefore = feeA.balanceOf(FEE_PLATFORM_RECIPIENT);
+    uint256 platformBBefore = feeB.balanceOf(FEE_PLATFORM_RECIPIENT);
+    uint256 ownerABefore = feeA.balanceOf(FEE_VAULT_OWNER);
+    uint256 ownerBBefore = feeB.balanceOf(FEE_VAULT_OWNER);
+    uint256[4] memory mins;
+
+    try feePlayer.withdraw(shares, mins, false) returns (uint256[4] memory got) {
+      assert(_hasAnyOutput(got));
+      assert(_withinOneUnit(got[0], preview[0]));
+      assert(_withinOneUnit(got[1], preview[1]));
+      assert(feeVault.totalSupply() == supplyBefore - shares);
+      // Fee recipients never lose balance on a withdraw.
+      assert(feeA.balanceOf(FEE_PLATFORM_RECIPIENT) >= platformABefore);
+      assert(feeB.balanceOf(FEE_PLATFORM_RECIPIENT) >= platformBBefore);
+      assert(feeA.balanceOf(FEE_VAULT_OWNER) >= ownerABefore);
+      assert(feeB.balanceOf(FEE_VAULT_OWNER) >= ownerBBefore);
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+    }
+
+    _assertFeeShareConservation();
+    _assertPositiveBacking(feeVault);
+  }
+
+  // -------------------------------------------------------------------------
+  // Roundtrip no-profit invariant
+  // -------------------------------------------------------------------------
+
+  /// @dev No value extraction: an immediate deposit -> withdraw(all minted shares) roundtrip must
+  ///      never leave the player with MORE of any vault token than they started with. Rounding in
+  ///      both the deposit pull (ceil + precision floor) and the withdraw split (floor) favors the
+  ///      vault, so the player's balances can only stay equal or shrink. The fork harness pins this
+  ///      against real pools; this is the mock-side twin that runs orders of magnitude more sequences.
+  function idle_roundtrip_no_profit(uint8 idx, uint256 amountA, uint256 amountB) external {
+    idx = idx % 3;
+    amountA = _bound(amountA, 1e13, MAX_18);
+    amountB = _bound(amountB, 1e13, MAX_18 * 2);
+    SharedFuzzPlayer player = idlePlayers[idx];
+
+    uint256 balABefore = idleA.balanceOf(address(player));
+    uint256 balBBefore = idleB.balanceOf(address(player));
+    uint256 sharesBefore = idleVault.balanceOf(address(player));
+
+    uint256[4] memory amounts = [amountA, amountB, uint256(0), uint256(0)];
+    uint256 minted;
+    try player.deposit(amounts, 0) returns (uint256 shares) {
+      minted = shares;
+    } catch {
+      return; // invalid-ratio deposits are covered by idle_deposit's preview assertions
+    }
+    if (minted == 0) return;
+
+    uint256[4] memory mins;
+    try player.withdraw(minted, mins, false) returns (uint256[4] memory) { }
+    catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+      return;
+    }
+
+    assert(idleVault.balanceOf(address(player)) == sharesBefore);
+    assert(idleA.balanceOf(address(player)) <= balABefore);
+    assert(idleB.balanceOf(address(player)) <= balBBefore);
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
   // Assertion-mode standalone checks. These are deliberately assert-based
   // instead of echidna_* bool properties because config.yaml uses assertion mode.
   function assert_idle_share_conservation() public view {
     _assertIdleShareConservation();
+  }
+
+  function assert_fee_share_conservation() public view {
+    _assertFeeShareConservation();
   }
 
   function assert_multi_share_conservation() public view {
@@ -1388,6 +1541,7 @@ contract SharedVaultFuzzer {
     _assertPositiveBacking(lpVault);
     _assertPositiveBacking(wethVault);
     _assertPositiveBacking(precisionVault);
+    _assertPositiveBacking(feeVault);
   }
 
   // -------------------------------------------------------------------------
@@ -1519,6 +1673,52 @@ contract SharedVaultFuzzer {
     precisionVault.approve(address(gateway), type(uint256).max);
   }
 
+  function _setupFeeVault() internal {
+    feeA = new FuzzERC20("FeeA", "FEA", 18);
+    feeB = new FuzzERC20("FeeB", "FEB", 18);
+    feePool = new FuzzLpPool();
+    feeNfpm = new FuzzERC721();
+
+    // Platform fee 10% with a dedicated recipient; address(this) is a whitelisted caller so it
+    // can drive execute() even though the vault owner is the passive FEE_VAULT_OWNER address.
+    feeConfigManager = new SharedConfigManager();
+    address[] memory empty = new address[](0);
+    address[] memory callers = new address[](1);
+    callers[0] = address(this);
+    feeConfigManager.initialize(address(this), empty, callers, FEE_PLATFORM_RECIPIENT, 1000, empty, empty, empty);
+
+    feeStrategy = new FuzzLpStrategy(feePool, address(feeNfpm), FEE_TOKEN_ID, address(feeA), address(feeB));
+    _whitelist(feeConfigManager, address(feeStrategy), address(feeNfpm));
+
+    feeVault = new SharedVault();
+    feeA.mint(address(feeVault), 100e18);
+    feeB.mint(address(feeVault), 100e18);
+    address[4] memory toks = [address(feeA), address(feeB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    // Vault-owner fee 5% on top of the 10% platform fee.
+    feeVault.initialize(
+      "FeeShared", toks, init, FEE_VAULT_OWNER, address(this), address(feeConfigManager), address(0), 500
+    );
+
+    feeNfpm.mint(address(feeVault), FEE_TOKEN_ID);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(feeStrategy),
+      data: abi.encode(uint256(50e18), uint256(50e18)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    feeVault.execute(actions);
+
+    // Seed initial rewards so fee paths are live from the first sequence.
+    feeA.mint(address(feePool), 10e18);
+    feeB.mint(address(feePool), 20e18);
+    feePool.setRewards(address(feeNfpm), FEE_TOKEN_ID, 10e18, 20e18);
+
+    feePlayer = new SharedFuzzPlayer(feeVault, toks);
+    feeA.mint(address(feePlayer), 1e30);
+    feeB.mint(address(feePlayer), 1e30);
+  }
+
   function _newConfig(address[] memory targets, address[] memory nfpms) internal returns (SharedConfigManager cm) {
     cm = new SharedConfigManager();
     address[] memory empty = new address[](0);
@@ -1600,6 +1800,12 @@ contract SharedVaultFuzzer {
 
   function _assertPrecisionShareConservation() internal view {
     assert(precisionVault.balanceOf(address(this)) == precisionVault.totalSupply());
+  }
+
+  function _assertFeeShareConservation() internal view {
+    uint256 sum = feeVault.balanceOf(address(this)) + feeVault.balanceOf(address(feePlayer))
+      + feeVault.balanceOf(FEE_VAULT_OWNER);
+    assert(sum == feeVault.totalSupply());
   }
 
   function _assertPositiveBacking(SharedVault v) internal view {

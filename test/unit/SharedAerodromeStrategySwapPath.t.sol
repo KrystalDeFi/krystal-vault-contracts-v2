@@ -75,6 +75,7 @@ contract SwapPathNfpm {
   uint256 public principalOut1;
   uint256 public mintCalls;
   uint256 public nextMintId = 777;
+  address public positionOwner;
 
   constructor(SwapPathToken _token0, SwapPathToken _token1) {
     token0 = _token0;
@@ -83,6 +84,15 @@ contract SwapPathNfpm {
 
   function setLiquidity(uint128 _liquidity) external {
     liquidity = _liquidity;
+  }
+
+  /// @dev Owner reported for every tokenId; SWAP_AND_INCREASE requires the vault to own the position.
+  function setPositionOwner(address owner) external {
+    positionOwner = owner;
+  }
+
+  function ownerOf(uint256) external view returns (address) {
+    return positionOwner;
   }
 
   /// @dev Stage the amounts the next `collect()` returns (used as the withdraw fee-sync slice).
@@ -680,6 +690,187 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     vm.prank(automator);
     vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
     vault.executeStrategy(address(strategy), data);
+  }
+
+  // -------------------------------------------------------------------------
+  // Mint/increase-side signed-amount guards (_swapAndPrepareAmounts /
+  // _swapAndPrepareIncreaseAmounts) — twins of the SharedV3StrategySwapPath
+  // tests; the two strategies fork the same branch logic.
+  // -------------------------------------------------------------------------
+
+  /// @dev swapSourceToken == token0: the signed token1-leg swap may consume at most `amount0`. A swap
+  ///      amount above the provided budget must revert InvalidAmount BEFORE any router interaction —
+  ///      otherwise the swap would reach past this operation into pooled vault token0.
+  function test_swapAndMint_revertsWhenAmount0BelowSignedAmountIn1() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 500;
+    params.amountIn1 = 1000; // > amount0 budget
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev swapSourceToken == token1: mirrored budget guard for the token0 leg.
+  function test_swapAndMint_revertsWhenAmount1BelowSignedAmountIn0() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token1);
+    params.amount1 = 500;
+    params.amountIn0 = 1000; // > amount1 budget
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Third-vault-token source: amountIn0 + amountIn1 must fit within the declared amount2 budget.
+  function test_swapAndMint_thirdTokenSource_revertsWhenBudgetExceeded() public {
+    SwapPathToken tokenX = new SwapPathToken("STX");
+    vault.addVaultToken(address(tokenX));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 1000;
+    params.amountIn0 = 600;
+    params.amountIn1 = 500; // 600 + 500 > 1000
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev A swap source that is not a vault token must be rejected — the two-leg swap branch would
+  ///      otherwise move an untracked asset through the vault's swap path.
+  function test_swapAndMint_thirdTokenSource_revertsWhenSourceNotVaultToken() public {
+    SwapPathToken tokenX = new SwapPathToken("STX"); // NOT registered on the vault
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 1000;
+    params.amountIn0 = 400;
+    params.amountIn1 = 400;
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Happy path for the previously-untested third-token branch: both legs swap signed amounts of the
+  ///      source vault token into the pool pair, and the mint consumes exactly the swap outputs.
+  function test_swapAndMint_thirdTokenSource_swapsBothLegsAndMints() public {
+    SwapPathToken tokenX = new SwapPathToken("STX");
+    vault.addVaultToken(address(tokenX));
+    tokenX.mint(address(vault), 2000);
+
+    uint256 amountIn0 = 1000;
+    uint256 amountIn1 = 1000;
+    uint256 out0 = 600;
+    uint256 out1 = 700;
+    bytes memory swapData0 = abi.encodeCall(SwapPathRouter.swap, (address(tokenX), address(token0), amountIn0, out0));
+    bytes memory swapData1 = abi.encodeCall(SwapPathRouter.swap, (address(tokenX), address(token1), amountIn1, out1));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 2000;
+    params.amountIn0 = amountIn0;
+    params.amountOut0Min = out0;
+    params.swapData0 = _signedSwapData(address(tokenX), address(token0), amountIn0, out0, swapData0);
+    params.amountIn1 = amountIn1;
+    params.amountOut1Min = out1;
+    params.swapData1 = _signedSwapData(address(tokenX), address(token1), amountIn1, out1, swapData1);
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), _mintData(params));
+
+    assertEq(tokenX.balanceOf(address(vault)), 0, "both legs consumed the tokenX budget");
+    assertEq(tokenX.balanceOf(address(router)), 2000, "router pulled the signed amounts");
+    assertEq(nfpm.mintCalls(), 1, "position minted");
+    assertEq(token0.balanceOf(address(nfpm)), out0, "mint consumed the token0 swap output");
+    assertEq(token1.balanceOf(address(nfpm)), out1, "mint consumed the token1 swap output");
+    assertEq(changes.length, 1, "single position change");
+    assertEq(changes[0].isAdd, true, "mint tracked");
+    assertEq(changes[0].tokenId, 777, "tracked tokenId from the NFPM mint");
+  }
+
+  /// @dev Same budget guard on the increase path (_swapAndPrepareIncreaseAmounts).
+  function test_swapAndIncrease_revertsWhenAmount0BelowSignedAmountIn1() public {
+    nfpm.setPositionOwner(address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 500;
+    params.amountIn1 = 1000; // > amount0 budget
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function _mintData(IV3Utils.SwapAndMintParams memory params) internal pure returns (bytes memory) {
+    return bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+  }
+
+  function _baseMintParams() internal view returns (IV3Utils.SwapAndMintParams memory) {
+    return IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      token0: address(token0),
+      token1: address(token1),
+      fee: 0,
+      tickSpacing: 60,
+      tickLower: -60,
+      tickUpper: 60,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: 0,
+      amount1: 0,
+      amount2: 0,
+      recipient: address(vault),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+  }
+
+  function _baseIncreaseParams() internal view returns (IV3Utils.SwapAndIncreaseLiquidityParams memory) {
+    return IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      tokenId: TOKEN_ID,
+      amount0: 0,
+      amount1: 0,
+      amount2: 0,
+      recipient: address(vault),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
   }
 
   function _baseInstructions() internal view returns (IV3Utils.Instructions memory) {

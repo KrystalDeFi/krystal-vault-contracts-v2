@@ -50,6 +50,7 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
+import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
@@ -72,6 +73,27 @@ interface IBaseV3Nfpm {
       address token0,
       address token1,
       uint24 fee,
+      int24 tickLower,
+      int24 tickUpper,
+      uint128 liquidity,
+      uint256 feeGrowthInside0LastX128,
+      uint256 feeGrowthInside1LastX128,
+      uint128 tokensOwed0,
+      uint128 tokensOwed1
+    );
+}
+
+/// @dev Aerodrome Slipstream NFPM positions() layout: int24 tickSpacing where V3 has uint24 fee.
+interface IAeroForkNfpm {
+  function positions(uint256 tokenId)
+    external
+    view
+    returns (
+      uint96 nonce,
+      address operator,
+      address token0,
+      address token1,
+      int24 tickSpacing,
       int24 tickLower,
       int24 tickUpper,
       uint128 liquidity,
@@ -269,6 +291,9 @@ contract SharedVaultForkFuzzer {
   // exercises the `_validateV4InputTokens` gate which fires before any V4 PM call.
   address internal constant BASE_UNISWAP_V4_POSM = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
   address internal constant BASE_PANCAKE_V4_POSM = 0x55f4c8abA71A1e923edC303eb4fEfF14608cC226;
+  // Aerodrome Slipstream NonfungiblePositionManager on Base (same constant as TestCommon's
+  // AERODROME_NFPM). The WETH/USDC volatile CL pool (tickSpacing 100) predates BASE_FORK_BLOCK.
+  address internal constant BASE_AERODROME_NFPM = 0x827922686190790b37229fd06084350E74485b72;
 
   uint256 internal constant BASE_FORK_BLOCK = 46_190_000;
   uint24 internal constant FEE_TIER = 500;
@@ -279,6 +304,11 @@ contract SharedVaultForkFuzzer {
   int24 internal constant V4_TICK_SPACING = 60;
   int24 internal constant V4_TICK_LOWER = -600;
   int24 internal constant V4_TICK_UPPER = 600;
+  // Aerodrome WETH/USDC volatile pool parameters (1% tier). Full-range ticks are multiples of
+  // the 100 tickSpacing, mirroring Integration.SharedVault.Aerodrome.t.sol.
+  int24 internal constant AERO_TICK_SPACING = 100;
+  int24 internal constant AERO_TICK_LOWER = -887_000;
+  int24 internal constant AERO_TICK_UPPER = 887_000;
   uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
   uint256 internal constant INITIAL_WETH = 1 ether;
@@ -338,6 +368,14 @@ contract SharedVaultForkFuzzer {
   bool public pancakeV4SecurityFiredAtLeastOnce;
   bool public pancakeV4SuccessChecked;
   bool public pancakeV4NativeSuccessChecked;
+
+  // ─── Aerodrome (Slipstream) harness ────────────────────────────────────────
+  // Locally-compiled SharedAerodromeStrategy driven against the REAL Base
+  // Slipstream NFPM — the only fuzz coverage of the Aerodrome strategy fork.
+  SharedAerodromeStrategy public localAerodromeStrategy;
+  ISharedVault public aerodromeVault;
+  bool public aerodromeReady;
+  bool public aeroFullExitChecked;
 
   constructor() payable {
     swapDataSigner = new ForkSigner();
@@ -633,6 +671,240 @@ contract SharedVaultForkFuzzer {
     assert(withdrawn[0] > 0 || withdrawn[1] > 0);
     assert(IERC20(address(freshVault)).totalSupply() == 0);
     assert(freshVault.getPositionCount() == 0);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Aerodrome (Slipstream) handlers — locally-compiled SharedAerodromeStrategy
+  // against the real Base Slipstream NFPM and WETH/USDC tickSpacing-100 pool.
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  function fork_aero_setup_real_position() public {
+    _ensureAerodromeReady();
+  }
+
+  function _ensureAerodromeReady() internal {
+    if (aerodromeReady) return;
+    _ensureBaseVault();
+    if (address(forkSwapRouter) == address(0)) forkSwapRouter = new ForkSwapRouter();
+
+    // The strategy's immutable swapRouter is the fork mock router; these handlers never carry
+    // swapData, so the router is never actually called.
+    localAerodromeStrategy = new SharedAerodromeStrategy(address(forkSwapRouter));
+    address[] memory targets = new address[](1);
+    targets[0] = address(localAerodromeStrategy);
+    localConfigManager.setWhitelistTargets(targets, true);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = BASE_AERODROME_NFPM;
+    localConfigManager.setWhitelistNfpms(nfpms, true);
+
+    aerodromeVault = _newInitializedVault("EchidnaForkAero");
+    IERC20(BASE_WETH).approve(address(aerodromeVault), type(uint256).max);
+    IERC20(BASE_USDC).approve(address(aerodromeVault), type(uint256).max);
+    _mintAerodromePosition(aerodromeVault, 0.3 ether, 900e6);
+    aerodromeReady = true;
+
+    _assertAerodromePositionOwned();
+  }
+
+  function fork_aero_increase_real_position(uint256 wethAmount) external {
+    _ensureAerodromeReady();
+    if (aerodromeVault.getPositionCount() == 0) return;
+    uint256 tokenId = _firstTokenId(aerodromeVault);
+    uint128 liquidityBefore = _aeroLiquidity(tokenId);
+
+    uint256 idleWeth = IERC20(BASE_WETH).balanceOf(address(aerodromeVault));
+    uint256 idleUsdc = IERC20(BASE_USDC).balanceOf(address(aerodromeVault));
+    if (idleWeth < 1e13 || idleUsdc < 1e6) return;
+
+    wethAmount = _clamp(wethAmount, 1e13, idleWeth / 2);
+    uint256 usdcAmount = _ceilMulDiv(wethAmount, idleUsdc, idleWeth);
+    if (usdcAmount == 0 || usdcAmount > idleUsdc / 2) return;
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(localAerodromeStrategy),
+      data: _aeroSwapAndIncreaseData(tokenId, wethAmount, usdcAmount),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    aerodromeVault.execute(actions);
+
+    assert(aerodromeVault.getPositionCount() >= 1);
+    assert(_aeroLiquidity(tokenId) >= liquidityBefore);
+    _assertAerodromePositionOwned();
+    _assertVaultBacked(aerodromeVault);
+  }
+
+  /// @notice Property: a deposit -> withdraw(all minted shares) roundtrip on the Aerodrome vault
+  ///         never profits the depositor (rounding favors the vault; no fees are configured here).
+  function fork_aero_deposit_withdraw_roundtrip(uint256 wethSeed) external {
+    _ensureAerodromeReady();
+    if (aerodromeVault.getPositionCount() == 0) return;
+
+    uint256[4] memory totals = aerodromeVault.getTotalBalances();
+    if (totals[0] == 0 || totals[1] == 0) return;
+
+    uint256 wethAmount = _clamp(wethSeed, 1e13, MAX_WETH_DEPOSIT);
+    uint256 usdcAmount = _ceilMulDiv(wethAmount, totals[1], totals[0]);
+    if (usdcAmount == 0 || usdcAmount > 20_000e6) return;
+
+    _topUpERC20(BASE_WETH, address(this), wethAmount);
+    _topUpERC20(BASE_USDC, address(this), usdcAmount);
+    uint256 wethBefore = IERC20(BASE_WETH).balanceOf(address(this));
+    uint256 usdcBefore = IERC20(BASE_USDC).balanceOf(address(this));
+    uint256 supplyBefore = IERC20(address(aerodromeVault)).totalSupply();
+
+    uint256[4] memory amounts = [wethAmount, usdcAmount, uint256(0), uint256(0)];
+    uint256 preview = aerodromeVault.previewDeposit(amounts);
+    uint256 minted;
+    try aerodromeVault.deposit(amounts, 100, 0) returns (uint256 shares) {
+      minted = shares;
+      assert(preview > 0);
+      assert(shares > 0);
+      assert(IERC20(address(aerodromeVault)).totalSupply() == supplyBefore + shares);
+    } catch {
+      assert(preview == 0);
+      return;
+    }
+
+    uint256[4] memory mins;
+    uint256[4] memory got = aerodromeVault.withdraw(minted, mins, false);
+    assert(got[0] > 0 || got[1] > 0);
+
+    // No-profit: the roundtrip can only return at most what was put in.
+    assert(IERC20(BASE_WETH).balanceOf(address(this)) <= wethBefore);
+    assert(IERC20(BASE_USDC).balanceOf(address(this)) <= usdcBefore);
+    assert(IERC20(address(aerodromeVault)).totalSupply() == supplyBefore);
+
+    _assertAerodromePositionOwned();
+    _assertVaultBacked(aerodromeVault);
+  }
+
+  function fork_aero_full_owner_exit_removes_real_position() external {
+    _ensureAerodromeReady();
+    if (aeroFullExitChecked) return;
+    aeroFullExitChecked = true;
+
+    ISharedVault freshVault = _newInitializedVault("EchidnaForkAeroFullExit");
+    _mintAerodromePosition(freshVault, 0.3 ether, 900e6);
+
+    assert(freshVault.getPositionCount() == 1);
+    uint256 shares = IERC20(address(freshVault)).balanceOf(address(this));
+    uint256[4] memory minAmounts;
+    uint256[4] memory withdrawn = freshVault.withdraw(shares, minAmounts, false);
+
+    assert(withdrawn[0] > 0 || withdrawn[1] > 0);
+    assert(IERC20(address(freshVault)).totalSupply() == 0);
+    assert(freshVault.getPositionCount() == 0);
+  }
+
+  function assert_fork_aero_position_owned_when_tracked() public view {
+    if (!aerodromeReady) return;
+    _assertAerodromePositionOwned();
+  }
+
+  function _mintAerodromePosition(ISharedVault targetVault, uint256 amount0, uint256 amount1) internal {
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(localAerodromeStrategy),
+      data: _aeroSwapAndMintData(amount0, amount1),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    targetVault.execute(actions);
+    assert(targetVault.getPositionCount() == 1);
+  }
+
+  function _aeroSwapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = BASE_WETH;
+    approveTokens[1] = BASE_USDC;
+
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amount0;
+    approveAmounts[1] = amount1;
+
+    IV3Utils.SwapAndMintParams memory params = IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: BASE_AERODROME_NFPM,
+      token0: BASE_WETH,
+      token1: BASE_USDC,
+      fee: 0,
+      tickSpacing: AERO_TICK_SPACING,
+      tickLower: AERO_TICK_LOWER,
+      tickUpper: AERO_TICK_UPPER,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: amount0,
+      amount1: amount1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+
+    return bytes.concat(abi.encode(uint8(0)), abi.encode(params, approveTokens, approveAmounts, uint256(0)));
+  }
+
+  function _aeroSwapAndIncreaseData(uint256 tokenId, uint256 amount0, uint256 amount1)
+    internal
+    view
+    returns (bytes memory)
+  {
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = BASE_WETH;
+    approveTokens[1] = BASE_USDC;
+
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amount0;
+    approveAmounts[1] = amount1;
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: BASE_AERODROME_NFPM,
+      tokenId: tokenId,
+      amount0: amount0,
+      amount1: amount1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    return bytes.concat(abi.encode(uint8(1)), abi.encode(params, approveTokens, approveAmounts, uint256(0)));
+  }
+
+  function _assertAerodromePositionOwned() internal view {
+    uint256 count = aerodromeVault.getPositionCount();
+    assert(count > 0);
+    (address strategy, address nfpm, uint256 tokenId, address token0, address token1) = aerodromeVault.getPosition(0);
+    assert(strategy == address(localAerodromeStrategy));
+    assert(nfpm == BASE_AERODROME_NFPM);
+    assert(token0 == BASE_WETH);
+    assert(token1 == BASE_USDC);
+    assert(IERC721(BASE_AERODROME_NFPM).ownerOf(tokenId) == address(aerodromeVault));
+    assert(_aeroLiquidity(tokenId) > 0);
+  }
+
+  function _aeroLiquidity(uint256 tokenId) internal view returns (uint128 liquidity) {
+    (,,,,,,, liquidity,,,,) = IAeroForkNfpm(BASE_AERODROME_NFPM).positions(tokenId);
   }
 
   // ──────────────────────────────────────────────────────────────────────────────

@@ -174,6 +174,135 @@ contract SharedSwapDataSignatureTest is Test {
     assertEq(decodedSwapData, rawSwapData);
   }
 
+  /// @dev Pins the order of the replay check vs signature verification (SharedSwapDataSignature.sol:
+  ///      "Check replay state before signature verification"). Once a digest is consumed, re-submitting
+  ///      the same envelope with CORRUPTED signature bytes must surface SwapDataSignatureAlreadyUsed —
+  ///      not InvalidSwapDataSignature — proving the consumed-digest check runs first. (The digest does
+  ///      not cover the signature bytes, so the corrupted envelope still maps to the consumed digest.)
+  function test_verify_consumedDigest_surfacesBeforeInvalidSignature() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+    bytes memory rawSwapData = hex"1234";
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32("priority-nonce");
+
+    bytes memory signedSwapData = _signSwapData(
+      caller, expectedVault, signer, swapRouter, address(0xC), address(0xD), 1 ether, 0.9 ether, rawSwapData,
+      deadline, nonce
+    );
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+
+    // Same envelope fields, garbage signature: digest is identical and already consumed.
+    bytes memory corrupted = abi.encode(rawSwapData, expectedVault, deadline, signer, nonce, bytes(hex"deadbeef"));
+    vm.expectRevert(ISharedCommon.SwapDataSignatureAlreadyUsed.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, corrupted
+    );
+  }
+
+  /// @dev `deadline >= block.timestamp` is inclusive: a signature expiring exactly now must still verify,
+  ///      and one second past must revert SwapDataSignatureExpired.
+  function test_verify_deadlineBoundary() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+
+    bytes memory atNow = _signSwapData(
+      caller, expectedVault, signer, swapRouter, address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      block.timestamp, bytes32("deadline-now")
+    );
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, atNow
+    );
+    assertEq(decoded, hex"1234", "deadline == block.timestamp verifies");
+
+    bytes memory expired = _signSwapData(
+      caller, expectedVault, signer, swapRouter, address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      block.timestamp - 1, bytes32("deadline-past")
+    );
+    vm.expectRevert(ISharedCommon.SwapDataSignatureExpired.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, expired
+    );
+  }
+
+  /// @dev Completes the digest-binding coverage of test_hash_bindsVaultAndDeadline: every remaining
+  ///      field of the signed tuple — router, tokenIn, tokenOut, amountIn, amountOutMin, swapData,
+  ///      nonce, signer — must change the digest, or a signature could be replayed across that field.
+  function test_hash_bindsAllRemainingFields() public {
+    SharedSwapDataSignatureHarness harness = new SharedSwapDataSignatureHarness();
+    address signer = vm.addr(SIGNER_PK);
+    uint256 deadline = block.timestamp + 1 hours;
+
+    bytes32 base =
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce"));
+
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xBB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce")),
+      "router not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xCC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce")),
+      "tokenIn not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xDD), 1 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce")),
+      "tokenOut not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xD), 2 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce")),
+      "amountIn not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.8 ether, hex"1234",
+      deadline, bytes32("nonce")),
+      "amountOutMin not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"125678",
+      deadline, bytes32("nonce")),
+      "swapData not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      deadline, bytes32("nonce2")),
+      "nonce not bound"
+    );
+    assertNotEq(
+      base,
+      harness.hash(address(0xA), address(0xE), address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether,
+      hex"1234", deadline, bytes32("nonce")),
+      "signer not bound"
+    );
+  }
+
   function _signSwapData(
     SharedSwapDataSignatureHarness harness,
     address vault,

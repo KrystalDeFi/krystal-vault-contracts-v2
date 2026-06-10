@@ -1,6 +1,22 @@
-## TestSuites 
+## TestSuites
 
-### Create A Vault
+### Shared Vault (contracts/shared-vault)
+
+Coverage lives in three layers; the checklist below this section is the legacy private-vault plan.
+
+* **Unit** (`test/unit/Shared*.t.sol`): core vault accounting (`SharedVault.t.sol`), gateway zaps
+  (`SharedVaultGateway.t.sol`), factory/automator/config-manager, strategy swap paths and signed-amount
+  guards for the V3/Aerodrome twins (`SharedV3StrategySwapPath.t.sol` / `SharedAerodromeStrategySwapPath.t.sol`
+  — keep these mirrored, the strategies are forks), valuation fee-accrual parity across V3/Aerodrome/V4/Pancake
+  (`SharedStrategyFeeAccrual*.t.sol`), hook gates, swap-data signature binding, the V4 swap pipeline,
+  and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`).
+* **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol
+  (V3/Sushi/Pancake V3, Aerodrome, Uniswap V4, Pancake V4), multi-protocol vaults, gateway, automator,
+  and the vault `CALL` swap path.
+* **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness,
+  `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
+
+### Create A Vault (legacy private-vault checklist)
 [x] User can create a Vault without any assets
 [x] User can set a principal token from the whitelist, principal can't be changed
 

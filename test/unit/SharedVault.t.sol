@@ -2491,6 +2491,135 @@ contract MockFeeAccrualStrategy is MockSharedStrategySplitFallback {
   }
 }
 
+/// @dev Strategy that registers a position but never exits it and reports a fixed residual value.
+///      Models the documented "accepted edge case" in SharedVault._deposit: a tracked position whose
+///      dust survives a full share-supply exit. Values are immutables (code, not storage) so they are
+///      readable in the vault's delegatecall context.
+contract MockResidualPositionStrategy is MockSharedStrategySplitFallback {
+  address public immutable token0;
+  address public immutable token1;
+  uint256 public immutable residual0;
+  uint256 public immutable residual1;
+
+  constructor(address _token0, address _token1, uint256 _residual0, uint256 _residual1) {
+    token0 = _token0;
+    token1 = _token1;
+    residual0 = _residual0;
+    residual1 = _residual1;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId) = abi.decode(data, (address, uint256));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  /// @dev Never exits: returns no changes and transfers nothing, so the position stays tracked with
+  ///      its residual value even after the last share is burned.
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external view override returns (uint256, uint256) {
+    return (residual0, residual1);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external view override returns (uint256, uint256) {
+    return (residual0, residual1);
+  }
+
+  function getPositionTokens(address, uint256) external view override returns (address, address) {
+    return (token0, token1);
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+
+  function collectFees(address, uint256, uint16) external override { }
+}
+
+/// @dev Extracts the 4-byte selector from raw revert data.
+abstract contract RevertSelectorRecorder {
+  bytes4 public reentryRevertSelector;
+
+  function _recordSelector(bytes memory reason) internal {
+    bytes4 selector;
+    if (reason.length >= 4) {
+      assembly {
+        selector := mload(add(reason, 32))
+      }
+    }
+    reentryRevertSelector = selector;
+  }
+}
+
+/// @dev Withdraws with unwrap=true and attempts to re-enter the vault from the native-ETH receive
+///      callback. The reentry must be blocked by the ReentrancyGuard; the receive itself must not
+///      revert so the outer withdraw can complete.
+contract ReentrantWithdrawReceiver is RevertSelectorRecorder {
+  SharedVault public vault;
+
+  function doWithdraw(SharedVault _vault, uint256 shares) external returns (uint256[4] memory amounts) {
+    vault = _vault;
+    uint256[4] memory mins;
+    amounts = _vault.withdraw(shares, mins, true);
+  }
+
+  receive() external payable {
+    uint256[4] memory zeros;
+    try vault.deposit(zeros, 0, 0) { }
+    catch (bytes memory reason) {
+      _recordSelector(reason);
+    }
+  }
+}
+
+/// @dev Deposits with excess msg.value and, in the refund callback, records how many shares it already
+///      holds (pinning the refund-AFTER-mint ordering documented in SharedVault._deposit) and attempts
+///      to re-enter deposit (must be blocked by the ReentrancyGuard).
+contract ReentrantRefundDepositor is RevertSelectorRecorder {
+  SharedVault public vault;
+  uint256 public sharesAtRefund;
+  uint256 public refundReceived;
+
+  function doDeposit(SharedVault _vault, address tokenA_, uint256 amountA, uint256 ethAmount)
+    external
+    payable
+    returns (uint256 shares)
+  {
+    vault = _vault;
+    MockERC20(tokenA_).approve(address(_vault), type(uint256).max);
+    uint256[4] memory amounts = [amountA, ethAmount, uint256(0), uint256(0)];
+    shares = _vault.deposit{ value: ethAmount }(amounts, 0, 0);
+  }
+
+  receive() external payable {
+    refundReceived += msg.value;
+    sharesAtRefund = vault.balanceOf(address(this));
+    uint256[4] memory zeros;
+    try vault.deposit(zeros, 0, 0) { }
+    catch (bytes memory reason) {
+      _recordSelector(reason);
+    }
+  }
+}
+
+/// @dev Holds vault shares and withdraws with unwrap=true while rejecting all native ETH.
+contract RejectEthWithdrawer {
+  function doWithdraw(SharedVault _vault, uint256 shares) external returns (uint256[4] memory amounts) {
+    uint256[4] memory mins;
+    amounts = _vault.withdraw(shares, mins, true);
+  }
+
+  receive() external payable {
+    revert("no eth");
+  }
+}
+
 contract SharedVaultTest is TestCommon {
   event FeeCollected(
     address indexed vaultAddress,
@@ -3282,6 +3411,72 @@ contract SharedVaultTest is TestCommon {
 
     vm.prank(VAULT_OWNER);
     vm.expectRevert(ISharedCommon.SwapDataSignatureExpired.selector);
+    vault.execute(actions);
+  }
+
+  /// @dev The signed digest binds the swap ROUTER: a signature produced for whitelisted router A must
+  ///      not authorize the same calldata against whitelisted router B. Without this binding, an
+  ///      operator could re-route a signed swap to any other whitelisted aggregator whose semantics
+  ///      for the same calldata differ.
+  function test_swap_reverts_when_signed_swapData_bound_to_different_router() public {
+    MockSwapTarget router2 = new MockSwapTarget();
+    address[] memory routers = new address[](1);
+    routers[0] = address(router2);
+    configManager.setWhitelistSwapRouters(routers, true);
+    tokenB.mint(address(router2), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    // Signed for `swapTarget`...
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata);
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    // ...but executed against `router2` (also whitelisted): digest reconstruction diverges.
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(router2), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    vault.execute(actions);
+  }
+
+  /// @dev The signed digest binds amountIn: raising the executed amountIn above the signed value must
+  ///      fail signature verification (otherwise the operator could push a larger slice of pooled
+  ///      funds through the signed route).
+  function test_swap_reverts_when_amountIn_tampered_after_signing() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0, swapCalldata);
+    // Action declares amountIn = 2e18, signature covers 1e18.
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 2e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    vault.execute(actions);
+  }
+
+  /// @dev The signed digest binds minAmountOut: lowering the executed floor below the signed value
+  ///      must fail signature verification — minAmountOut is the signer's slippage policy, and a
+  ///      lowered floor would re-enable the sandwich the signature exists to prevent.
+  function test_swap_reverts_when_minAmountOut_tampered_after_signing() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 1e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 1e18, 0.9e18, swapCalldata);
+    // Action declares minAmountOut = 0, signature covers 0.9e18.
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 1e18, uint256(0), swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
     vault.execute(actions);
   }
 
@@ -5421,6 +5616,141 @@ contract SharedVaultTest is TestCommon {
     assertEq(VAULT_OWNER.balance, 0);
     // tokenA received as ERC20
     assertEq(tokenA.balanceOf(VAULT_OWNER), received[0]);
+  }
+
+  /// @notice Withdraw with unwrap=true to a receiver that rejects native ETH must revert with
+  ///         SwapFailed(wethIndex) — the unwrap send is require-guarded, not fire-and-forget.
+  function test_withdraw_unwrap_reverts_when_receiver_rejects_eth() public {
+    SharedVault wethVault = _setupWethVault();
+    RejectEthWithdrawer rejector = new RejectEthWithdrawer();
+
+    uint256 shares = wethVault.balanceOf(VAULT_OWNER);
+    vm.prank(VAULT_OWNER);
+    wethVault.transfer(address(rejector), shares);
+
+    // WETH sits in slot 1 of the wethVault token set.
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.SwapFailed.selector, 1));
+    rejector.doWithdraw(wethVault, shares);
+  }
+
+  /// @notice The unwrap ETH send hands control to the withdrawer mid-withdraw; a reentry into the
+  ///         vault from that callback must hit the ReentrancyGuard (deposit and withdraw share it).
+  ///         The outer withdraw still completes because the receiver swallows its own reentry revert.
+  function test_withdraw_unwrap_receiveCallback_cannotReenter() public {
+    SharedVault wethVault = _setupWethVault();
+    ReentrantWithdrawReceiver receiver = new ReentrantWithdrawReceiver();
+
+    uint256 shares = wethVault.balanceOf(VAULT_OWNER);
+    vm.prank(VAULT_OWNER);
+    wethVault.transfer(address(receiver), shares);
+
+    uint256[4] memory received = receiver.doWithdraw(wethVault, shares);
+
+    assertGt(received[1], 0, "outer withdraw delivered native ETH");
+    assertEq(address(receiver).balance, received[1], "receiver holds the unwrapped ETH");
+    assertEq(
+      receiver.reentryRevertSelector(),
+      bytes4(keccak256("ReentrancyGuardReentrantCall()")),
+      "reentry was blocked by the ReentrancyGuard specifically"
+    );
+    assertEq(wethVault.totalSupply(), 0, "all shares burned by the outer withdraw");
+  }
+
+  /// @notice The excess-ETH refund is sent only AFTER shares are minted (SharedVault._deposit orders
+  ///         the refund after _mint so the callback cannot run between balance snapshots and share
+  ///         finalization). Pins both the ordering and that a reentry from the refund callback is
+  ///         blocked by the ReentrancyGuard.
+  function test_deposit_excessEthRefund_arrivesAfterMint_andReentryBlocked() public {
+    SharedVault wethVault = _setupWethVault();
+    ReentrantRefundDepositor depositor = new ReentrantRefundDepositor();
+
+    tokenA.mint(address(depositor), 40e18);
+    vm.deal(address(this), 80e18);
+
+    // Vault holds 100/100; binding constraint is tokenA (40e18 -> 40%), so only 40e18 of the
+    // 80e18 msg.value is wrapped and 40e18 is refunded to the depositor contract.
+    uint256 shares = depositor.doDeposit{ value: 80e18 }(wethVault, address(tokenA), 40e18, 80e18);
+
+    assertGt(shares, 0, "deposit minted shares");
+    assertEq(depositor.refundReceived(), 40e18, "excess ETH refunded");
+    assertEq(depositor.sharesAtRefund(), shares, "shares already minted when the refund callback ran");
+    assertEq(
+      depositor.reentryRevertSelector(),
+      bytes4(keccak256("ReentrancyGuardReentrantCall()")),
+      "reentry from the refund callback was blocked by the ReentrancyGuard specifically"
+    );
+  }
+
+  // ==================== Lingering Position After Full Exit ====================
+
+  /// @notice Pins the documented "accepted edge case" in SharedVault._deposit (zero share supply with a
+  ///         lingering tracked position): the next first depositor still receives the fixed
+  ///         INITIAL_SHARES — the residual position value is NOT priced into their entry — and they
+  ///         thereby capture it. There is no current-holder victim (supply was zero), and
+  ///         dropPosition remains the documented remediation that clears the stale entry. If this
+  ///         test ever fails, the accepted trade-off has changed and the NatSpec must be revisited.
+  function test_firstDeposit_afterFullExit_capturesLingeringPositionResidual() public {
+    // Fresh two-token vault with a strategy that never exits its position and reports a fixed residual.
+    MockERC721 nfpm = new MockERC721();
+    MockResidualPositionStrategy residualStrategy =
+      new MockResidualPositionStrategy(address(tokenA), address(tokenB), 5e18, 0);
+    {
+      address[] memory targets = new address[](1);
+      targets[0] = address(residualStrategy);
+      configManager.setWhitelistTargets(targets, true);
+      address[] memory nfpms = new address[](1);
+      nfpms[0] = address(nfpm);
+      configManager.setWhitelistNfpms(nfpms, true);
+    }
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("Lingering", vtokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
+
+    uint256 tokenId = 42;
+    nfpm.mint(address(v), tokenId);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] =
+      ISharedVault.Action(address(residualStrategy), abi.encode(address(nfpm), tokenId), ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+    assertEq(v.getPositionCount(), 1, "position tracked");
+
+    // Full exit: the strategy returns no changes and releases nothing, so the position lingers.
+    uint256 ownerShares = v.balanceOf(VAULT_OWNER);
+    uint256[4] memory mins;
+    vm.prank(VAULT_OWNER);
+    v.withdraw(ownerShares, mins, false);
+    assertEq(v.totalSupply(), 0, "share supply fully exited");
+    assertEq(v.getPositionCount(), 1, "position lingers after full exit");
+
+    // Next first depositor: fixed INITIAL_SHARES, residual not priced in.
+    tokenA.mint(DEPOSITOR, 10e18);
+    tokenB.mint(DEPOSITOR, 10e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(v), type(uint256).max);
+    tokenB.approve(address(v), type(uint256).max);
+    uint256[4] memory amounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    uint256 shares = v.deposit(amounts, 0, 0);
+    vm.stopPrank();
+    assertEq(shares, TEST_INITIAL_SHARES, "first-deposit path mints fixed INITIAL_SHARES");
+
+    // The sole depositor now owns the residual: total balances and preview include the 5e18 tokenA.
+    uint256[4] memory totals = v.getTotalBalances();
+    assertEq(totals[0], 15e18, "residual position value attributed to the new depositor");
+    uint256[4] memory preview = v.previewWithdraw(shares);
+    assertEq(preview[0], 15e18, "previewWithdraw shows the captured residual");
+
+    // Remediation: operator/owner dropPosition clears the stale entry and the phantom valuation.
+    vm.prank(VAULT_OWNER);
+    v.dropPosition(address(nfpm), tokenId);
+    assertEq(v.getPositionCount(), 0, "stale position dropped");
+    totals = v.getTotalBalances();
+    assertEq(totals[0], 10e18, "valuation back to real idle balances");
   }
 
   /// @notice With the dust-proof rounding-up rule, a sub-1-wei proportional WETH slice is

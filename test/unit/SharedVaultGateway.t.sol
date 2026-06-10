@@ -404,6 +404,89 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.withdrawAndSwap(params);
   }
 
+  // ==================== minShares / slippageBps forwarding ====================
+
+  /// @dev `minShares` is the gateway's only share-price sandwich guard (the struct doc says so) — it
+  ///      must be forwarded verbatim to vault.deposit and a sub-minimum mint must revert the WHOLE
+  ///      gateway call (no partial deposit, no swallowed shortfall).
+  function test_swapAndDeposit_forwardsMinShares_revertsBelowMinimum() public {
+    GatewayMockERC20(address(tokenA)).mint(ALICE, 10e18);
+    GatewayMockERC20(address(tokenB)).mint(ALICE, 20e18);
+    GatewayMockERC20(address(tokenC)).mint(ALICE, 5e6);
+    GatewayMockERC20(address(tokenD)).mint(ALICE, 10e18);
+    _approveGatewayAll(ALICE);
+
+    uint256[4] memory amounts = [uint256(10e18), uint256(20e18), uint256(5e6), uint256(10e18)];
+    uint256 preview = vault.previewDeposit(amounts);
+    assertGt(preview, 0, "sanity: proportional deposit previews shares");
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(address(tokenA), 10e18, address(tokenB), 20e18, address(tokenC), 5e6, address(tokenD), 10e18),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: preview + 1, // one share above what the deposit can mint
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
+    gateway.swapAndDeposit(params);
+  }
+
+  /// @dev Boundary: minShares == actual minted shares passes, and the caller receives exactly them.
+  function test_swapAndDeposit_forwardsMinShares_succeedsAtBoundary() public {
+    GatewayMockERC20(address(tokenA)).mint(ALICE, 10e18);
+    GatewayMockERC20(address(tokenB)).mint(ALICE, 20e18);
+    GatewayMockERC20(address(tokenC)).mint(ALICE, 5e6);
+    GatewayMockERC20(address(tokenD)).mint(ALICE, 10e18);
+    _approveGatewayAll(ALICE);
+
+    uint256[4] memory amounts = [uint256(10e18), uint256(20e18), uint256(5e6), uint256(10e18)];
+    uint256 preview = vault.previewDeposit(amounts);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(address(tokenA), 10e18, address(tokenB), 20e18, address(tokenC), 5e6, address(tokenD), 10e18),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: preview,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    assertEq(shares, preview, "minted exactly the previewed shares");
+    assertEq(vault.balanceOf(ALICE), preview, "shares attributed to the gateway caller");
+  }
+
+  /// @dev `slippageBps` must be forwarded verbatim to vault.deposit: a value above the vault's
+  ///      10_000 cap reverts there with InvalidAmount, proving the parameter is not dropped.
+  function test_swapAndDeposit_forwardsSlippageBps_vaultValidatesCap() public {
+    GatewayMockERC20(address(tokenA)).mint(ALICE, 10e18);
+    GatewayMockERC20(address(tokenB)).mint(ALICE, 20e18);
+    GatewayMockERC20(address(tokenC)).mint(ALICE, 5e6);
+    GatewayMockERC20(address(tokenD)).mint(ALICE, 10e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(address(tokenA), 10e18, address(tokenB), 20e18, address(tokenC), 5e6, address(tokenD), 10e18),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 10_001, // above the vault's cap
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    gateway.swapAndDeposit(params);
+  }
+
   function _setupEightDecimalGatewayVault() internal returns (SharedVault v, GatewayMockERC20 tA, GatewayMockERC20 tB) {
     v = new SharedVault();
     tA = new GatewayMockERC20("Gateway Eight A", "GEA", 18);
