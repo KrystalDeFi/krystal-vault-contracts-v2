@@ -582,6 +582,20 @@ contract SharedVaultGatewayTest is TestCommon {
     assertFalse(gateway.paused());
   }
 
+  function test_setPaused_fail_unauthorized() public {
+    vm.prank(ALICE);
+    vm.expectRevert();
+    gateway.setPaused(true);
+  }
+
+  /// @dev The event carries the OLD router (indexed) so off-chain monitors can detect router rotation.
+  function test_setSwapRouter_emitsSwapRouterUpdated() public {
+    address newRouter = address(0xBEEF);
+    vm.expectEmit(true, true, false, true, address(gateway));
+    emit SharedVaultGateway.SwapRouterUpdated(address(router), newRouter);
+    gateway.setSwapRouter(newRouter);
+  }
+
   // ==================== SwapAndDeposit: No Swaps (Direct Deposit) ====================
 
   function test_swapAndDeposit_no_swaps_direct_deposit() public {
@@ -705,6 +719,37 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertEq(vault.balanceOf(ALICE), expectedShares, "Alice receives shares directly");
     assertEq(vault.balanceOf(address(gateway)), 0, "Gateway never holds minted shares");
+  }
+
+  /// @notice The GATEWAY's own SwapAndDeposit event (not the vault's VaultDeposit) is the integration
+  ///         signal off-chain indexers key on; it must carry the vault, the depositor, and the minted shares.
+  function test_swapAndDeposit_emitsGatewaySwapAndDepositEvent() public {
+    tokenA.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    uint256[4] memory expectedAmounts = [uint256(100e18), uint256(200e18), uint256(50e6), uint256(100e18)];
+    uint256 expectedShares = vault.previewDeposit(expectedAmounts);
+
+    vm.expectEmit(true, true, false, true, address(gateway));
+    emit SharedVaultGateway.SwapAndDeposit(address(vault), ALICE, expectedShares);
+
+    vm.prank(ALICE);
+    gateway.swapAndDeposit(params);
   }
 
   // ==================== SwapAndDeposit: Single Token → 4 Vault Tokens ====================
@@ -1003,6 +1048,27 @@ contract SharedVaultGatewayTest is TestCommon {
 
     assertEq(vault.balanceOf(ALICE), 0, "Alice shares burned");
     assertEq(vault.balanceOf(address(gateway)), 0, "Gateway never holds burned shares");
+  }
+
+  /// @notice The GATEWAY's own WithdrawAndSwap event must carry the vault, the withdrawer, and the
+  ///         exact share count burned (the caller-supplied `params.shares`, not a derived value).
+  function test_withdrawAndSwap_emitsGatewayWithdrawAndSwapEvent() public {
+    uint256 shares = _depositForAlice();
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    vm.expectEmit(true, true, false, true, address(gateway));
+    emit SharedVaultGateway.WithdrawAndSwap(address(vault), ALICE, shares);
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params);
   }
 
   function test_withdrawAndSwap_doesNotSweepPreExistingNativeBalance() public {
@@ -2462,6 +2528,33 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.withdrawAndSwap(params); // must not revert; tokenA swept to Alice
 
     assertGt(tokenA.balanceOf(ALICE), 0, "tokenA swept to Alice");
+  }
+
+  /// @notice The skip twin of the zero-balance revert above: a full-balance swap (amountIn == 0) on a
+  ///         token the gateway never received resolves to zero and, with amountOutMin == 0, must be
+  ///         skipped silently — the rest of the withdraw completes and the router is never called.
+  function test_withdrawAndSwap_full_balance_swap_with_zero_balance_and_zero_min_out_is_skipped() public {
+    uint256 shares = _depositForAlice();
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenX), 0, address(tokenA), 0, _buildSwapAllCalldata(address(tokenX), address(tokenA))
+    );
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params); // must not revert — the dataful swap entry is a no-op
+
+    assertGt(tokenA.balanceOf(ALICE), 0, "withdraw output swept to Alice despite the no-op swap entry");
+    assertEq(tokenX.balanceOf(ALICE), 0, "no tokenX was conjured by the skipped swap");
   }
 
   /// @notice Empty swapData is only a skip instruction when no per-swap minimum output was requested.

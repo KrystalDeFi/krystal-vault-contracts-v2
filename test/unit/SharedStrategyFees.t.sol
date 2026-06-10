@@ -162,4 +162,44 @@ contract SharedStrategyFeesTest is Test {
     assertEq(fee0, 0);
     assertEq(fee1, 0);
   }
+
+  /// @dev The PLATFORM branch has its own recipient guard (distinct from the owner/gas guards already
+  ///      covered): platformBps > 0 with platformFeeRecipient == address(0) skips ONLY the platform fee,
+  ///      while the owner and gas slices are still taken in full from the ORIGINAL amount.
+  function test_applyFees_skipsPlatformWhenRecipientZero_othersStillApply() public {
+    ICommon.FeeConfig memory fc = _config(1_000, 500, uint64(Q64 / 4)); // 10% / 5% / 25%
+    fc.platformFeeRecipient = address(0);
+
+    (uint256 fee0, uint256 fee1) = harness.applyFees(address(t0), 1_000, address(t1), 2_000, fc);
+
+    assertEq(t0.balanceOf(platform), 0, "platform slice skipped (zero recipient)");
+    assertEq(t0.balanceOf(owner), 50, "owner slice unchanged");
+    assertEq(t0.balanceOf(gasRecipient), 250, "gas slice unchanged");
+    assertEq(fee0, 300, "fee0 = owner 5% + gas 25% of 1000");
+    assertEq(fee1, 600, "fee1 = owner 5% + gas 25% of 2000");
+  }
+
+  /// @dev OWNER-clamp branch (the existing >100% test only clamps GAS): platform 60% + owner 60%
+  ///      computes the owner fee from the ORIGINAL amount (600) but clamps it to the running
+  ///      remainder (400), so the recipients split exactly 100% and nothing underflows.
+  function test_applyFees_clampsOwnerToRemainderWhenPlatformPlusOwnerExceed100pct() public {
+    (uint256 fee0, uint256 fee1) = harness.applyFees(address(t0), 1_000, address(t1), 2_000, _config(6_000, 6_000, 0));
+
+    assertEq(t0.balanceOf(platform), 600, "platform takes its full 60%");
+    assertEq(t0.balanceOf(owner), 400, "owner computed as 600 but clamped to the 400 remainder");
+    assertEq(t1.balanceOf(platform), 1_200);
+    assertEq(t1.balanceOf(owner), 800);
+    assertEq(fee0, 1_000, "total fee0 clamped to exactly 100%");
+    assertEq(fee1, 2_000, "total fee1 clamped to exactly 100%");
+  }
+
+  /// @dev 1-wei amounts must not silently truncate to zero when the bps slice covers the full amount:
+  ///      platform at 100% of 1 wei transfers exactly 1 wei (floor division only drops SUB-wei slices).
+  function test_applyFees_oneWeiAmountFullPlatformBpsTransfersOneWei() public {
+    (uint256 fee0, uint256 fee1) = harness.applyFees(address(t0), 1, address(t1), 0, _config(10_000, 0, 0));
+
+    assertEq(fee0, 1, "1 wei * 100% = 1 wei");
+    assertEq(fee1, 0);
+    assertEq(t0.balanceOf(platform), 1, "the wei reached the platform recipient");
+  }
 }

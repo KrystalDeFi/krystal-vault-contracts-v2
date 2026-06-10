@@ -244,6 +244,49 @@ contract SharedV4SwapPipelineTest is Test {
     harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
   }
 
+  /// @dev The only way to reach _swap's no-op guard with a POSITIVE amountIn is an empty-swapData hop
+  ///      (zero-amountIn hops short-circuit earlier in _run). With amountOutMin == 0 the hop must be a
+  ///      tolerated no-op: no signature check, no router call, and the amount stays in the totals.
+  function test_execute_emptySwapDataWithPositiveAmountInIsNoOp() public {
+    uint256 runtimeAmount = 10 ether;
+    token0.mint(address(harness), runtimeAmount);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 3 ether, // covered by total0, but the hop carries no calldata
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0,
+      swapData: ""
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+
+    assertEq(total0, runtimeAmount, "dataless hop leaves total0 untouched");
+    assertEq(total1, 0, "no output credited");
+    assertEq(token0.balanceOf(address(harness)), runtimeAmount, "no tokens moved");
+  }
+
+  /// @dev The revert half of the same guard: an empty-swapData hop with a non-zero amountOutMin is a
+  ///      stale slippage floor no swap will honor — it must revert instead of being skipped.
+  function test_execute_emptySwapDataWithPositiveAmountInAndMinOutReverts() public {
+    uint256 runtimeAmount = 10 ether;
+    token0.mint(address(harness), runtimeAmount);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 3 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1,
+      swapData: ""
+    });
+
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+  }
+
   function test_execute_rejectsBadSignatureBeforeBalanceSnapshots() public {
     SharedV4SwapPipelineBalanceTrapToken trapToken = new SharedV4SwapPipelineBalanceTrapToken();
     bytes memory rawSwapData =

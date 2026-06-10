@@ -469,6 +469,13 @@ contract SharedConfigManagerTest is TestCommon {
     assertEq(configManager.platformFeeBasisPoint(), 0);
   }
 
+  function test_setPlatformFeeBasisPoint_emitsEvent() public {
+    vm.prank(OWNER);
+    vm.expectEmit(false, false, false, true, address(configManager));
+    emit ISharedConfigManager.PlatformFeeBasisPointUpdated(1234);
+    configManager.setPlatformFeeBasisPoint(1234);
+  }
+
   function test_setPlatformFeeBasisPoint_revertsAboveMax() public {
     vm.prank(OWNER);
     vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);

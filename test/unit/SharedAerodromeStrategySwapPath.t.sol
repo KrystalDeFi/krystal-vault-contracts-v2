@@ -852,6 +852,65 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     vault.executeStrategy(address(strategy), data);
   }
 
+  /// @dev SWAP_AND_INCREASE must verify the vault actually owns the target NFT before touching it:
+  ///      topping up a foreign position would donate pooled vault tokens to the NFT's real owner.
+  ///      Twin of SharedV3StrategySwapPath's test (and of the V4/Pancake security tests).
+  function test_swapAndIncrease_revertsWhenPositionNotOwnedByVault() public {
+    nfpm.setPositionOwner(address(0xDEAD)); // not the vault
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Aerodrome pools have no native-currency leg, so a nonzero ethValue in the SWAP_AND_MINT
+  ///      payload is always a caller error and must revert before any token movement. Twin of
+  ///      SharedV3StrategySwapPath's test.
+  function test_swapAndMint_revertsOnNonZeroEthValue() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 100;
+    params.amount1 = 100;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(1)) // ethValue = 1
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Same native-leg rejection on the SWAP_AND_INCREASE path. Twin of SharedV3StrategySwapPath's test.
+  function test_swapAndIncrease_revertsOnNonZeroEthValue() public {
+    nfpm.setPositionOwner(address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(1)) // ethValue = 1
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev The immutable swapRouter is the strategy's only swap counterparty; deploying with address(0)
+  ///      would brick every swap path, so the constructor must reject it. Twin of the V3 test.
+  function test_constructor_revertsOnZeroSwapRouter() public {
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    new SharedAerodromeStrategy(address(0));
+  }
+
   /// @dev Dust shares: when floor(posLiquidity * shares / totalShares) == 0 the strategy must not
   ///      touch the position at all — no liquidity decrease, no collect, no PositionChange — so the
   ///      vault's withdraw pays such a withdrawer from idle balances only and the position stays

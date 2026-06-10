@@ -12,6 +12,8 @@ import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedCon
 import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
 
@@ -624,6 +626,22 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(NON_OPERATOR);
     vm.expectRevert();
     automator.grantOperator(NON_OPERATOR);
+  }
+
+  function test_revokeOperator_fail_nonAdmin() public {
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.revokeOperator(OPERATOR);
+    // The role must be untouched after the failed revoke.
+    assertTrue(automator.hasRole(automator.OPERATOR_ROLE_HASH(), OPERATOR));
+  }
+
+  // ============ ERC165 ============
+
+  function test_supportsInterface_reportsAccessControlAndErc165() public view {
+    assertTrue(automator.supportsInterface(type(IAccessControl).interfaceId), "IAccessControl");
+    assertTrue(automator.supportsInterface(type(IERC165).interfaceId), "ERC165");
+    assertFalse(automator.supportsInterface(0xffffffff), "0xffffffff must be rejected per ERC165");
   }
 
   // ============ pause / unpause ============

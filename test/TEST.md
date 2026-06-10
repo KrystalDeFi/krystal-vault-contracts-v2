@@ -11,7 +11,10 @@ Coverage lives in three layers; the checklist below this section is the legacy p
   (`SharedStrategyFeeAccrual*.t.sol`), hook gates, swap-data signature binding (incl. chain-id replay),
   the V4 swap pipeline and its Pancake normalization twin (`SharedV4SwapPipeline.t.sol` /
   `SharedPancakeV4SwapPipeline.t.sol` — keep these mirrored too),
-  and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`).
+  the V4/Pancake depositProportional slippage floor (`SharedV4DepositProportional.t.sol` /
+  `SharedPancakeV4DepositProportional.t.sol` — mirrored twins),
+  and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`, incl. the
+  previewWithdraw owner-bps pre-clamp pin).
 * **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol
   (V3/Sushi/Pancake V3, Aerodrome, Uniswap V4, Pancake V4), multi-protocol vaults, gateway, automator,
   and the vault `CALL` swap path.

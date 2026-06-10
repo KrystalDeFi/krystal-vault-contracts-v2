@@ -4,6 +4,8 @@ pragma solidity ^0.8.28;
 import "forge-std/Test.sol";
 
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
+import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
+import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { SharedStrategyFees } from "../../contracts/shared-vault/libraries/SharedStrategyFees.sol";
 import { SharedVaultPreviewLib } from "../../contracts/shared-vault/libraries/SharedVaultPreviewLib.sol";
 
@@ -92,5 +94,82 @@ contract SharedVaultPreviewFeeParityTest is Test {
 
   function test_parity_oneWeiOwed() public {
     _run(1, 1, 1); // floor division drops both sub-wei fees on each side identically
+  }
+
+  // ---------------------------------------------------------------------------
+  // previewWithdraw's own bps PRE-CLAMP (lines mirroring performanceFeeConfig).
+  // netAfterPerformanceFees also clamps internally via the remainder, but the two clamps
+  // round DIFFERENTLY at the wei: with owed=1000, platform=3333, owner=10000,
+  //   pre-clamped (what performanceFeeConfig feeds applyFees): owner' = 6667 ->
+  //     platform 333 + owner floor(666.7)=666 -> net 1 wei;
+  //   un-pre-clamped remainder clamp alone: owner = min(1000, 667) = 667 -> net 0.
+  // The real collect path pre-clamps, so previewWithdraw must too — this pins the 1-wei case.
+  // ---------------------------------------------------------------------------
+
+  function test_previewWithdraw_preClampsOwnerBps_matchesCollectPathRounding() public {
+    ParityPreviewConfigManager cm = new ParityPreviewConfigManager(3333);
+    ParityPreviewSplitStrategy strategy = new ParityPreviewSplitStrategy(0, 1000, 0, 0); // principal0=0, owed0=1000
+
+    ISharedVault.Position[] memory positions = new ISharedVault.Position[](1);
+    positions[0] = ISharedVault.Position({
+      strategy: address(strategy),
+      nfpm: address(0xAAA1),
+      tokenId: 1,
+      token0: address(0xBBB1),
+      token1: address(0xBBB2)
+    });
+
+    address[4] memory tokens = [address(0xBBB1), address(0xBBB2), address(0), address(0)];
+    uint256[4] memory idle;
+
+    uint256[4] memory amounts = SharedVaultPreviewLib.previewWithdraw(
+      1, // shares
+      1, // totalSupply (full withdrawal of the only share)
+      idle,
+      positions,
+      tokens,
+      ISharedConfigManager(address(cm)),
+      10_000 // vault owner bps above 10_000 - platformBps: MUST be pre-clamped to 6667
+    );
+
+    assertEq(amounts[0], 1, "pre-clamped fee math nets exactly 1 wei (un-pre-clamped math would net 0)");
+    assertEq(amounts[1], 0, "no token1 value");
+
+    // Cross-check against the REAL settlement with the same pre-clamped bps, as
+    // SharedStrategyFeeConfig.performanceFeeConfig would feed applyFees.
+    uint256 netViaCollectPath = 1000 - 333 - 666;
+    assertEq(amounts[0], netViaCollectPath, "previewWithdraw matches the collect path to the wei");
+  }
+}
+
+/// @dev Just enough of ISharedConfigManager for previewWithdraw.
+contract ParityPreviewConfigManager {
+  uint16 public platformFeeBasisPoint;
+
+  constructor(uint16 _platformBps) {
+    platformFeeBasisPoint = _platformBps;
+  }
+}
+
+/// @dev Just enough of ISharedStrategy for previewWithdraw's netFees branch.
+contract ParityPreviewSplitStrategy {
+  uint256 internal principal0;
+  uint256 internal owed0;
+  uint256 internal principal1;
+  uint256 internal owed1;
+
+  constructor(uint256 _principal0, uint256 _owed0, uint256 _principal1, uint256 _owed1) {
+    principal0 = _principal0;
+    owed0 = _owed0;
+    principal1 = _principal1;
+    owed1 = _owed1;
+  }
+
+  function getPositionAmountsSplit(address, uint256)
+    external
+    view
+    returns (uint256 total0, uint256 total1, uint256 p0, uint256 p1)
+  {
+    return (principal0 + owed0, principal1 + owed1, principal0, principal1);
   }
 }

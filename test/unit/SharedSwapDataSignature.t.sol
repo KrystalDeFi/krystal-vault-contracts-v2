@@ -124,6 +124,25 @@ contract SharedSwapDataSignatureTest is Test {
     assertNotEq(baseDigest, otherDeadlineDigest);
   }
 
+  /// @dev A malformed envelope (here: the trailing `signature` field missing entirely) must revert in
+  ///      `decode` rather than mis-assign fields. Pins the 6-field abi.decode shape as a regression guard
+  ///      for anyone "simplifying" the envelope ABI without a migration.
+  function test_verify_revertsOnTruncatedEnvelope() public {
+    SharedSwapDataSignatureHarness harness = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    // Five fields instead of six — abi.decode must revert, not read garbage.
+    bytes memory truncated =
+      abi.encode(hex"1234", address(0xA), block.timestamp + 1 hours, signer, bytes32("nonce"));
+
+    vm.expectRevert();
+    harness.verify(
+      ISharedConfigManager(address(config)), address(0xA), address(0xB), address(0xC), address(0xD), 1 ether, 0, truncated
+    );
+  }
+
   function test_verify_consumesDigestInCallerStorage() public {
     SharedSwapDataSignatureHarness callerA = new SharedSwapDataSignatureHarness();
     SharedSwapDataSignatureHarness callerB = new SharedSwapDataSignatureHarness();

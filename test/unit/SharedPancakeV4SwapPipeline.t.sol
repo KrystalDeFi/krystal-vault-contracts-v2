@@ -226,6 +226,49 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     harness.executePancake(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
   }
 
+  /// @dev Twin of SharedV4SwapPipeline's test: an empty-swapData hop with POSITIVE amountIn reaches
+  ///      _swap's no-op guard (zero-amountIn hops short-circuit earlier). With amountOutMin == 0 it must
+  ///      be a tolerated no-op — no signature check, no router call, amount stays in the totals.
+  function test_executePancake_emptySwapDataWithPositiveAmountInIsNoOp() public {
+    uint256 runtimeAmount = 10 ether;
+    token0.mint(address(harness), runtimeAmount);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 3 ether, // covered by total0, but the hop carries no calldata
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0,
+      swapData: ""
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.executePancake(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+
+    assertEq(total0, runtimeAmount, "dataless hop leaves total0 untouched");
+    assertEq(total1, 0, "no output credited");
+    assertEq(token0.balanceOf(address(harness)), runtimeAmount, "no tokens moved");
+  }
+
+  /// @dev Twin of SharedV4SwapPipeline's test: the revert half — empty swapData with a non-zero
+  ///      amountOutMin is a stale slippage floor and must revert instead of being skipped.
+  function test_executePancake_emptySwapDataWithPositiveAmountInAndMinOutReverts() public {
+    uint256 runtimeAmount = 10 ether;
+    token0.mint(address(harness), runtimeAmount);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 3 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1,
+      swapData: ""
+    });
+
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    harness.executePancake(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+  }
+
   // -------------------------------------------------------------------------
   // Reachability guards and the intermediate virtual ledger via the Pancake
   // normalization (twins of the V4 entry tests).

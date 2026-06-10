@@ -1849,6 +1849,55 @@ contract SharedVaultFuzzer {
   }
 
   // -------------------------------------------------------------------------
+  // Remaining-holder value monotonicity
+  // -------------------------------------------------------------------------
+
+  /// @dev THE shared-vault fairness invariant: one participant's withdraw must never decrease the
+  ///      per-share value of any vault token for the holders who stay. Every rounding step in the
+  ///      flow favors the vault — the idle slice is floored, the LP exit removes floor(liquidity ×
+  ///      shares / supply), and the pre-collect converts fee valuation to idle at wei parity — so
+  ///      cross-multiplied per-token value (totals[i] / supply) must be weakly increasing:
+  ///      totalsAfter[i] × supplyBefore >= totalsBefore[i] × supplyAfter.
+  ///      The harness itself always retains its initial shares in these vaults, so a player withdraw
+  ///      always leaves remaining holders behind to be diluted (or not).
+  function _withdrawPreservesRemainingHolderValue(SharedVault v, SharedFuzzPlayer player, uint256 shareSeed) internal {
+    uint256 bal = v.balanceOf(address(player));
+    if (bal == 0) return;
+
+    uint256 shares = _sharesFromSeed(bal, shareSeed);
+    uint256 supplyBefore = v.totalSupply();
+    if (shares == 0 || shares >= supplyBefore) return; // need holders left behind
+    uint256[4] memory totalsBefore = v.getTotalBalances();
+
+    uint256[4] memory mins;
+    try player.withdraw(shares, mins, false) {
+      uint256 supplyAfter = v.totalSupply();
+      uint256[4] memory totalsAfter = v.getTotalBalances();
+      for (uint256 i; i < 4; i++) {
+        assert(totalsAfter[i] * supplyBefore >= totalsBefore[i] * supplyAfter);
+      }
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+    }
+  }
+
+  /// @dev LP vault flavor: exercises the pre-collect + proportional-LP-exit + idle-floor path.
+  function lp_withdraw_never_dilutes_remaining_holders(uint256 shareSeed) external {
+    _withdrawPreservesRemainingHolderValue(lpVault, lpPlayer, shareSeed);
+    _assertLpShareConservation();
+    _assertPositiveBacking(lpVault);
+  }
+
+  /// @dev Fee vault flavor: the only sequence-fuzzed coverage of the invariant under NONZERO
+  ///      platform + owner performance fees, where the fee-netted valuation (computeTotalBalances)
+  ///      must stay consistent with the realized collect during the withdraw's fee pre-collect.
+  function fee_withdraw_never_dilutes_remaining_holders(uint256 shareSeed) external {
+    _withdrawPreservesRemainingHolderValue(feeVault, feePlayer, shareSeed);
+    _assertFeeShareConservation();
+    _assertPositiveBacking(feeVault);
+  }
+
+  // -------------------------------------------------------------------------
   // Roundtrip no-profit invariant
   // -------------------------------------------------------------------------
 

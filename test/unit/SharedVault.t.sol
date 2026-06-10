@@ -732,6 +732,31 @@ contract MockV4PoolManager {
   }
 }
 
+/// @dev Pool manager whose extsload-backed slot0 reports sqrtPriceX96 == 0 (uninitialized pool).
+contract MockV4ZeroPricePoolManager {
+  function extsload(bytes32) external pure returns (bytes32) {
+    return bytes32(0);
+  }
+
+  function extsload(bytes32, uint256 nSlots) external pure returns (bytes32[] memory values) {
+    values = new bytes32[](nSlots);
+  }
+}
+
+/// @dev POSM stub backed by an uninitialized pool; only what runs before the sqrtPrice guard is
+///      implemented (the strategy snapshots nextTokenId for its unexpected-mint guard first).
+contract MockV4ZeroPricePositionManager {
+  MockV4ZeroPricePoolManager public immutable poolManager;
+
+  constructor() {
+    poolManager = new MockV4ZeroPricePoolManager();
+  }
+
+  function nextTokenId() external pure returns (uint256) {
+    return 100;
+  }
+}
+
 /// @dev Minimal V4 PositionManager mock for Issue 1 and 4 tests.
 ///      Implements only the functions called by SharedV4Strategy._execute and _safeTransferNft.
 contract MockV4PositionManager {
@@ -2322,6 +2347,10 @@ contract PerformanceFeeConfigHarness {
 
   function callPerformanceFeeConfig() external view returns (ICommon.FeeConfig memory) {
     return SharedStrategyFeeConfig.performanceFeeConfig();
+  }
+
+  function callValidateGasFeeX64(uint64 gasFeeX64) external view returns (uint64, address) {
+    return SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
   }
 }
 
@@ -4610,6 +4639,77 @@ contract SharedVaultTest is TestCommon {
     assertEq(posm.ownerOf(100), address(v), "vault owns minted V4 NFT");
   }
 
+  function test_v4_constructor_revertsOnZeroSwapRouter() public {
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    new SharedV4Strategy(address(0));
+  }
+
+  function test_pancake_v4_constructor_revertsOnZeroSwapRouter() public {
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    new SharedPancakeV4Strategy(address(0));
+  }
+
+  /// @notice An uninitialized pool reports sqrtPriceX96 == 0; minting against it would compute liquidity
+  ///         from a zero price and corrupt valuation, so `_mintV4WithAmounts` must revert InvalidOperation
+  ///         at its explicit price guard (before any POSM interaction).
+  function test_v4_execute_swapAndMint_revertsWhenPoolPriceUninitialized() public {
+    MockV4ZeroPricePositionManager posm = new MockV4ZeroPricePositionManager();
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4ZeroPrice", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(tokenA)),
+      currency1: Currency.wrap(address(tokenB)),
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: IHooks(address(0))
+    });
+
+    V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenB)), amount: 1e18 });
+
+    V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    v.execute(actions);
+  }
+
   function test_v4_execute_swapAndMint_nativeCurrency_usesWethVaultTokenAndTracksPosition() public {
     MockV4PositionManager posm = new MockV4PositionManager(100);
     SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
@@ -5072,6 +5172,70 @@ contract SharedVaultTest is TestCommon {
     assertEq(tracked0, address(tokenA), "tracked token0");
     assertEq(tracked1, address(tokenB), "tracked token1");
     assertEq(posm.ownerOf(100), address(v), "vault owns minted Pancake V4 NFT");
+  }
+
+  /// @notice F19 pin: the caller-supplied poolKey.poolManager is the PRICING source for the mint, so it
+  ///         must equal the POSM's own clPoolManager(). An attacker-chosen manager could report a fake
+  ///         price and let the mint misprice liquidity — the pin must revert InvalidOperation.
+  ///         (Uniswap V4 has no twin: its PoolKey carries no manager field, the POSM's is authoritative.)
+  function test_pancake_v4_execute_swapAndMint_revertsWhenPoolKeyPoolManagerMismatched() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4Pin", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    // poolManager deliberately NOT posm.clPoolManager() — a foreign pricing source.
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(tokenA)),
+      currency1: PancakeCurrency.wrap(address(tokenB)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(0xBAD0)),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    v.execute(actions);
   }
 
   function test_pancake_v4_execute_swapAndMint_nativeCurrency_usesWethVaultTokenAndTracksPosition() public {
@@ -5752,6 +5916,56 @@ contract SharedVaultTest is TestCommon {
 
     assertEq(fc.platformFeeBasisPoint, 0, "config disables platform fee");
     assertEq(fc.vaultOwnerFeeBasisPoint, 500, "owner fee remains vault-owned");
+  }
+
+  /// @notice Documented guarantee of the withdraw-exit FeeConfig: proportional exits NEVER charge gas.
+  ///         gasFeeX64/gasFeeRecipient are hardcoded zero regardless of any config-manager gas settings.
+  function test_performance_fee_config_never_charges_gas_on_withdraw_exits() public {
+    vm.startPrank(address(this));
+    configManager.setPlatformFeeBasisPoint(2_000);
+    configManager.setMaxGasFeeX64(type(uint64).max); // a permissive gas cap must not leak into exits
+    vm.stopPrank();
+
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 500);
+    ICommon.FeeConfig memory fc = harness.callPerformanceFeeConfig();
+
+    assertEq(fc.gasFeeX64, 0, "withdraw exits never charge gas");
+    assertEq(fc.gasFeeRecipient, address(0), "no gas recipient on withdraw exits");
+    assertEq(fc.platformFeeRecipient, configManager.feeRecipient(), "platform recipient from config");
+    assertEq(fc.vaultOwner, address(0xBEEF), "owner recipient is the vault owner");
+  }
+
+  /// @notice validateGasFeeX64 boundary: exactly the configured cap passes (returning the config fee
+  ///         recipient); one above the cap reverts InvalidGasFeeX64. Only vault-level over-cap reverts
+  ///         were covered before; the pass-at-boundary half pins that the check is `>` not `>=`.
+  function test_validate_gas_fee_x64_boundary() public {
+    uint64 cap = uint64((uint256(3) << 64) / 10); // ConfigManager default: 30%
+    assertEq(configManager.maxGasFeeX64(), cap, "default cap is 30% in Q64");
+
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 0);
+
+    (uint64 validated, address gasRecipient) = harness.callValidateGasFeeX64(cap);
+    assertEq(validated, cap, "exactly at cap passes unchanged");
+    assertEq(gasRecipient, configManager.feeRecipient(), "gas recipient is the config fee recipient");
+
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    harness.callValidateGasFeeX64(cap + 1);
+  }
+
+  /// @notice The cap is re-read live from the config manager: raising it immediately legalizes a
+  ///         previously-invalid gas fee with no per-vault migration.
+  function test_validate_gas_fee_x64_tracks_config_manager_updates() public {
+    uint64 cap = configManager.maxGasFeeX64();
+    PerformanceFeeConfigHarness harness = new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 0);
+
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    harness.callValidateGasFeeX64(cap + 1);
+
+    vm.prank(address(this));
+    configManager.setMaxGasFeeX64(cap + 1);
+
+    (uint64 validated,) = harness.callValidateGasFeeX64(cap + 1);
+    assertEq(validated, cap + 1, "raised cap legalizes the fee");
   }
 
   // ==================== Preview Tests ====================
