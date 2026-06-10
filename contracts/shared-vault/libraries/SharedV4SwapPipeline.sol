@@ -116,10 +116,13 @@ library SharedV4SwapPipeline {
   ///      that calldata; the config-manager whitelist must therefore pin trusted swap-router/V4Utils
   ///      implementations whose own routing policy is acceptable.
   ///
-  ///      Signing note: `Swap.amountIn == 0` is resolved to the full available token balance before
-  ///      `SharedSwapDataSignature.verify` is called. The off-chain signer must sign that resolved
-  ///      runtime amount, not the zero sentinel; vault balance drift between signing and execution
-  ///      invalidates the signature by design.
+  ///      Signing note: `Swap.amountIn` is forwarded to `SharedSwapDataSignature.verify` verbatim —
+  ///      it is never replaced by an on-chain computed balance (mirrors the V3/Aerodrome
+  ///      `_swapForWithdraw` signed-amount rule). The backend folds withdraw-liquidity slippage into
+  ///      the signed amount, so the realized total may exceed it; the `amountIn <= total` guard only
+  ///      requires coverage, and the un-swapped remainder stays in the returned totals.
+  ///      `Swap.amountIn == 0` means "no swap for this hop" (its `amountOutMin` must be 0) — it is
+  ///      NOT resolved to the available balance.
   function _run(
     address swapRouter,
     address token0,
@@ -149,24 +152,23 @@ library SharedV4SwapPipeline {
         ISharedStrategy.InvalidPoolTokens()
       );
 
-      uint256 amountIn = swapParam.amountIn;
+      // `swapParam.amountIn` is signature-bound and forwarded to `_swap` verbatim — never replaced
+      // by a computed balance. The tracked total only needs to COVER it (the backend folds
+      // withdraw-liquidity slippage into the signed amount); the remainder stays in the totals.
       uint256 inIdx;
       bool inIsIntermediate;
       if (swapParam.tokenIn == token0) {
-        if (amountIn == 0) amountIn = total0;
-        require(amountIn <= total0, ISharedCommon.InvalidAmount());
+        require(swapParam.amountIn <= total0, ISharedCommon.InvalidAmount());
       } else if (swapParam.tokenIn == token1) {
-        if (amountIn == 0) amountIn = total1;
-        require(amountIn <= total1, ISharedCommon.InvalidAmount());
+        require(swapParam.amountIn <= total1, ISharedCommon.InvalidAmount());
       } else {
         inIsIntermediate = true;
         inIdx = _findIntermediate(intTokens, intCount, swapParam.tokenIn);
         uint256 tracked = inIdx < intCount ? intBalances[inIdx] : 0;
-        if (amountIn == 0) amountIn = tracked;
-        require(amountIn <= tracked, ISharedCommon.InvalidAmount());
+        require(swapParam.amountIn <= tracked, ISharedCommon.InvalidAmount());
       }
 
-      if (amountIn == 0) {
+      if (swapParam.amountIn == 0) {
         require(swapParam.amountOutMin == 0, ISharedCommon.InsufficientOutput());
         unchecked {
           i++;
@@ -179,7 +181,7 @@ library SharedV4SwapPipeline {
         swapRouter,
         swapParam.tokenIn,
         swapParam.tokenOut,
-        amountIn,
+        swapParam.amountIn,
         swapParam.amountOutMin,
         swapParam.swapData,
         i

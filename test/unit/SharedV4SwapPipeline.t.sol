@@ -94,53 +94,154 @@ contract SharedV4SwapPipelineTest is Test {
     harness = new SharedV4SwapPipelineHarness(address(configManager), address(token0));
   }
 
-  function test_execute_rejectsZeroSentinelSignatureWhenRuntimeAmountIsNonZero() public {
-    uint256 runtimeAmountIn = 10 ether;
+  // -------------------------------------------------------------------------
+  // Signature-bound amountIn. The pipeline must pass `swapParam.amountIn` to
+  // SharedSwapDataSignature.verify VERBATIM — never an on-chain computed
+  // balance. The backend folds withdraw-liquidity slippage into the signed
+  // amount, so realized totals legitimately exceed it and the remainder stays
+  // in the returned totals. `amountIn == 0` means "no swap for this hop" — it
+  // is NOT resolved to the available balance. Mirrors the V3/Aerodrome
+  // _swapForWithdraw signed-amount fix (SharedV3StrategySwapPath.t.sol).
+  // -------------------------------------------------------------------------
+
+  /// @dev Realized runtime amount (10.5e) exceeds the backend's slippage-adjusted signed amount (10e).
+  ///      The hop must approve/swap exactly the signed amount — the digest binds it — and the
+  ///      slippage-buffer remainder must stay in total0.
+  function test_execute_swapsSignedParamAmountNotComputedBalance() public {
+    uint256 runtimeAmount = 10.5 ether; // realized withdraw proceeds
+    uint256 signedAmountIn = 10 ether; // backend folded withdraw-liquidity slippage into this
     uint256 amountOut = 5 ether;
     bytes memory rawSwapData =
       abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
 
-    token0.mint(address(harness), runtimeAmountIn);
+    token0.mint(address(harness), runtimeAmount);
     token1.mint(address(router), amountOut);
 
     ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
     swaps[0] = ISharedV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(token0)),
-      amountIn: 0,
+      amountIn: signedAmountIn,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: amountOut,
-      swapData: _signedSwapData(address(token0), address(token1), 0, amountOut, rawSwapData)
-    });
-
-    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
-    harness.execute(address(router), address(token0), address(token1), runtimeAmountIn, 0, swaps);
-  }
-
-  function test_execute_acceptsZeroSentinelWhenSignatureIsBoundToRuntimeAmount() public {
-    uint256 runtimeAmountIn = 10 ether;
-    uint256 amountOut = 5 ether;
-    bytes memory rawSwapData =
-      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
-
-    token0.mint(address(harness), runtimeAmountIn);
-    token1.mint(address(router), amountOut);
-
-    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
-    swaps[0] = ISharedV4Utils.SwapParams({
-      tokenIn: Currency.wrap(address(token0)),
-      amountIn: 0,
-      tokenOut: Currency.wrap(address(token1)),
-      amountOutMin: amountOut,
-      swapData: _signedSwapData(address(token0), address(token1), runtimeAmountIn, amountOut, rawSwapData)
+      swapData: _signedSwapData(address(token0), address(token1), signedAmountIn, amountOut, rawSwapData)
     });
 
     (uint256 total0, uint256 total1) =
-      harness.execute(address(router), address(token0), address(token1), runtimeAmountIn, 0, swaps);
+      harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
 
-    assertEq(total0, 0, "swap-all consumed runtime token0 balance");
-    assertEq(total1, amountOut, "swap output credited to token1 total");
-    assertEq(token0.balanceOf(address(harness)), 0, "harness token0 spent");
-    assertEq(token1.balanceOf(address(harness)), amountOut, "harness received token1");
+    assertEq(token0.balanceOf(address(router)), signedAmountIn, "router pulled exactly the signed amountIn");
+    assertEq(total0, runtimeAmount - signedAmountIn, "slippage-buffer remainder stays in total0");
+    assertEq(total1, amountOut, "swap output credited to total1");
+    assertEq(token0.balanceOf(address(harness)), runtimeAmount - signedAmountIn, "harness keeps the remainder");
+    assertEq(token1.balanceOf(address(harness)), amountOut, "harness received the swap output");
+  }
+
+  /// @dev A signature over the computed runtime balance (the old resolved-amount behavior) must NOT
+  ///      verify when `swapParam.amountIn` differs — proves the digest is reconstructed from the
+  ///      param amount, not from whatever the vault happens to hold.
+  function test_execute_rejectsSignatureBoundToComputedBalance() public {
+    uint256 runtimeAmount = 10.5 ether;
+    uint256 signedAmountIn = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), runtimeAmount);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: signedAmountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), runtimeAmount, amountOut, rawSwapData)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+  }
+
+  /// @dev Pooled-funds floor (twin of the V3/Aerodrome `amount0 >= amountIn0` guard): when the
+  ///      realized total cannot cover the signed amountIn (a withdraw-slippage breach), the hop must
+  ///      revert InvalidAmount rather than reach past this operation's proceeds.
+  function test_execute_revertsWhenSignedAmountExceedsRuntimeBalance() public {
+    uint256 runtimeAmount = 9 ether; // realized < signed
+    uint256 signedAmountIn = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), runtimeAmount);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: signedAmountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), signedAmountIn, amountOut, rawSwapData)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+  }
+
+  /// @dev `amountIn == 0` means "no swap for this hop" — NOT "swap the full available balance". The
+  ///      hop must be skipped without touching the router, even when the swapData carries a valid
+  ///      signature over the runtime balance (which the removed zero-sentinel would have resolved,
+  ///      verified, and executed).
+  function test_execute_zeroAmountInSkipsSwapInsteadOfResolvingToBalance() public {
+    uint256 runtimeAmount = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), runtimeAmount);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0,
+      swapData: _signedSwapData(address(token0), address(token1), runtimeAmount, 0, rawSwapData)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+
+    assertEq(total0, runtimeAmount, "total0 untouched by the skipped hop");
+    assertEq(total1, 0, "no output credited");
+    assertEq(token0.balanceOf(address(router)), 0, "router never called");
+    assertEq(token0.balanceOf(address(harness)), runtimeAmount, "harness keeps its token0");
+  }
+
+  /// @dev A zero-amountIn hop performs no swap, so a non-zero `amountOutMin` is a stale slippage
+  ///      floor that would be silently ignored — it must revert InsufficientOutput (mirrors the
+  ///      strategies' no-swap amountOutMin guards).
+  function test_execute_zeroAmountInWithAmountOutMinReverts() public {
+    uint256 runtimeAmount = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), runtimeAmount);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), runtimeAmount, amountOut, rawSwapData)
+    });
+
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
   }
 
   function test_execute_rejectsBadSignatureBeforeBalanceSnapshots() public {
@@ -263,9 +364,9 @@ contract SharedV4SwapPipelineTest is Test {
     harness.execute(address(router), address(token0), address(token1), 10 ether, 0, swaps);
   }
 
-  /// @dev Positive control for both guards: token0 -> intermediate -> token1, with the second hop's
-  ///      zero-sentinel resolving to the full tracked intermediate balance. The ledger nets to zero
-  ///      and the output is credited to total1.
+  /// @dev Positive control for both guards: token0 -> intermediate -> token1, with the second hop
+  ///      consuming the full tracked intermediate balance via its explicit signed amountIn. The
+  ///      ledger nets to zero and the output is credited to total1.
   function test_execute_multiHopThroughIntermediate_succeeds() public {
     SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Intermediate", "TKX");
     uint256 intermediateOut = 5 ether;
@@ -290,7 +391,7 @@ contract SharedV4SwapPipelineTest is Test {
     });
     swaps[1] = ISharedV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(tokenX)),
-      amountIn: 0, // zero-sentinel: full tracked intermediate balance (5 ether), signed as such
+      amountIn: intermediateOut, // explicit signed amount: hop 1's full output (the digest binds it)
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: finalOut,
       swapData: _signedSwapData(address(tokenX), address(token1), intermediateOut, finalOut, hop2Data)

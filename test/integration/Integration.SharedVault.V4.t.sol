@@ -610,7 +610,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
-      amountIn: 0,
+      // Hop 1's full output, passed explicitly: the pipeline forwards the param amount to signature
+      // verification verbatim (amountIn == 0 means "no swap", not "use the tracked balance").
+      amountIn: 0.01 ether,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
       swapData: _signedSwapData(address(hopToken), address(token1), 0.01 ether, 1, hop1SwapData)
