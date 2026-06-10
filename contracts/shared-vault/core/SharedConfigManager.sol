@@ -7,10 +7,13 @@ import "../interfaces/ISharedConfigManager.sol";
 import "../interfaces/ISharedCommon.sol";
 
 contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
+  uint64 internal constant DEFAULT_MAX_GAS_FEE_X64 = uint64((uint256(3) << 64) / 10);
+
   mapping(address => bool) public whitelistedTargets;
   mapping(address => bool) public whitelistedCallers;
   mapping(address => bool) public whitelistedNfpms;
   mapping(address => bool) public whitelistedSwapRouters;
+  mapping(address => bool) public whitelistedSigners;
 
   bool public override isVaultPaused;
   address public override feeRecipient;
@@ -19,6 +22,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
 
   /// @inheritdoc ISharedConfigManager
   uint8 public override minTokenPrecision;
+  uint64 public override maxGasFeeX64;
 
   /// @notice One-time initializer. Argument order is intentional; pass-by-position callers must
   ///         match this exact sequence to avoid silently misrouting values:
@@ -29,6 +33,7 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
   ///         5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
   ///         6. _whitelistNfpms         — NFT position managers to whitelist
   ///         7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
+  ///         8. _whitelistSigners       — backend signers to whitelist
   function initialize(
     address _owner,
     address[] calldata _whitelistTargets,
@@ -36,13 +41,15 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     address _feeRecipient,
     uint16 _platformFeeBasisPoint,
     address[] calldata _whitelistNfpms,
-    address[] calldata _whitelistSwapRouters
+    address[] calldata _whitelistSwapRouters,
+    address[] calldata _whitelistSigners
   ) public initializer {
     require(_platformFeeBasisPoint <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
     require(_feeRecipient != address(0), ISharedCommon.ZeroAddress());
     __Ownable_init(_owner);
     maxPositions = 20;
     minTokenPrecision = 5;
+    maxGasFeeX64 = DEFAULT_MAX_GAS_FEE_X64;
     platformFeeBasisPoint = _platformFeeBasisPoint;
 
     uint256 length = _whitelistTargets.length;
@@ -77,12 +84,21 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
       }
     }
 
+    length = _whitelistSigners.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSigners[_whitelistSigners[i]] = true;
+      unchecked {
+        i++;
+      }
+    }
+
     feeRecipient = _feeRecipient;
 
     if (_whitelistTargets.length > 0) emit WhitelistTargetsUpdated(_whitelistTargets, true);
     if (_whitelistCallers.length > 0) emit WhitelistCallersUpdated(_whitelistCallers, true);
     if (_whitelistNfpms.length > 0) emit WhitelistNfpmsUpdated(_whitelistNfpms, true);
     if (_whitelistSwapRouters.length > 0) emit WhitelistSwapRoutersUpdated(_whitelistSwapRouters, true);
+    if (_whitelistSigners.length > 0) emit WhitelistSignersUpdated(_whitelistSigners, true);
   }
 
   function setWhitelistTargets(address[] calldata targets, bool _isWhitelisted) external override onlyOwner {
@@ -145,6 +161,21 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     return whitelistedSwapRouters[swapRouter];
   }
 
+  function setWhitelistSigners(address[] calldata signers, bool _isWhitelisted) external override onlyOwner {
+    uint256 length = signers.length;
+    for (uint256 i; i < length; ) {
+      whitelistedSigners[signers[i]] = _isWhitelisted;
+      unchecked {
+        i++;
+      }
+    }
+    emit WhitelistSignersUpdated(signers, _isWhitelisted);
+  }
+
+  function isWhitelistedSigner(address signer) external view override returns (bool) {
+    return whitelistedSigners[signer];
+  }
+
   function setVaultPaused(bool _isVaultPaused) external onlyOwner {
     isVaultPaused = _isVaultPaused;
     emit VaultPausedUpdated(_isVaultPaused);
@@ -164,12 +195,22 @@ contract SharedConfigManager is OwnableUpgradeable, ISharedConfigManager {
     emit PlatformFeeBasisPointUpdated(basisPoints);
   }
 
+  function setMaxGasFeeX64(uint64 _maxGasFeeX64) external override onlyOwner {
+    maxGasFeeX64 = _maxGasFeeX64;
+    emit MaxGasFeeX64Updated(_maxGasFeeX64);
+  }
+
   function setMaxPositions(uint16 _maxPositions) external override onlyOwner {
     require(_maxPositions > 0, ISharedCommon.InvalidAmount());
     maxPositions = _maxPositions;
     emit MaxPositionsUpdated(_maxPositions);
   }
 
+  /// @notice Set the per-token deposit precision floor (see `SharedVaultPreviewLib._minTokenAmt`):
+  ///         the floored slice is `10**(decimals - precision)` per token, `1` when `precision >=
+  ///         decimals`, or disabled when `precision == 0`. No upper bound is enforced on purpose — any
+  ///         `precision >= a token's decimals` simply collapses to a 1-wei floor (the safe minimum); it
+  ///         can never raise the floor unboundedly or brick deposits.
   function setMinTokenPrecision(uint8 precision) external override onlyOwner {
     minTokenPrecision = precision;
     emit MinTokenPrecisionUpdated(precision);

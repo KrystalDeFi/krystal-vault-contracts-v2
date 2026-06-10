@@ -35,6 +35,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidGasFeeX64",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -64,6 +69,11 @@
       }
     ],
     "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapDataSignature",
     "type": "error"
   },
   {
@@ -120,6 +130,22 @@
   },
   {
     "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
     "name": "SwapFailed",
     "type": "error"
   },
@@ -141,6 +167,11 @@
   {
     "inputs": [],
     "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedLiquidityHook",
     "type": "error"
   },
   {

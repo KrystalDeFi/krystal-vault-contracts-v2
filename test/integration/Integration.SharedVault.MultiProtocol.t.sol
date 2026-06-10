@@ -69,11 +69,11 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     nfpms[0] = NFPM;
     nfpms[1] = PANCAKE_NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
     // Single implementation shared by both protocol proxies
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     v3Beacon = new SharedStrategyBeacon(address(v3Strategy), vaultOwner);
     v3Proxy = new SharedStrategyProxy(address(v3Beacon));
@@ -202,7 +202,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
 
-    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
+    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor must receive shares");
@@ -280,7 +280,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     vm.startPrank(player);
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
-    vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
+    vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
     vm.stopPrank();
 
     vm.startPrank(vaultOwner);
@@ -383,7 +383,7 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 2, "two positions before upgrade");
 
     // Upgrade only the V3 beacon — pancakeProxy's beacon is unaffected
-    SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    SharedV3Strategy newV3Impl = new SharedV3Strategy(V3_UTILS);
     v3Beacon.setImplementation(address(newV3Impl));
     assertEq(v3Beacon.implementation(), address(newV3Impl), "v3 beacon updated");
 

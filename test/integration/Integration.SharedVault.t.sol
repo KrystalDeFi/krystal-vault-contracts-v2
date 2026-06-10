@@ -18,9 +18,7 @@ import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFe
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 interface INFPMPositions {
-  function positions(
-    uint256 tokenId
-  )
+  function positions(uint256 tokenId)
     external
     view
     returns (
@@ -72,7 +70,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     // Deploy config manager with strategy whitelisted
     address[] memory targets = new address[](1);
@@ -80,7 +78,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
 
     // Deploy vault implementation + factory
     vaultImplementation = new SharedVault();
@@ -107,9 +105,7 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
+      address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
     );
     vault.execute(actions);
 
@@ -131,9 +127,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
       mintActions[0] = ISharedVault.Action(
-        address(v3Strategy),
-        _swapAndMintData(0.5 ether, 1500e6),
-        ISharedCommon.CallType.DELEGATECALL
+        address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(mintActions);
     }
@@ -142,9 +136,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory increaseActions = new ISharedVault.Action[](1);
       increaseActions[0] = ISharedVault.Action(
-        address(v3Strategy),
-        _swapAndIncreaseData(tokenId, 0.2 ether, 600e6),
-        ISharedCommon.CallType.DELEGATECALL
+        address(v3Strategy), _swapAndIncreaseData(tokenId, 0.2 ether, 600e6), ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(increaseActions);
     }
@@ -157,7 +149,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // SAFE_TRANSFER_NFT: collect fees without removing liquidity
+  // EXECUTE_INSTRUCTIONS: collect fees without removing liquidity
   // =========================================================
 
   function test_safeTransferNft_collectFees() public {
@@ -166,9 +158,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
       mintActions[0] = ISharedVault.Action(
-        address(v3Strategy),
-        _swapAndMintData(0.5 ether, 1500e6),
-        ISharedCommon.CallType.DELEGATECALL
+        address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(mintActions);
     }
@@ -202,8 +192,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     });
 
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions)
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS), abi.encode(NFPM, tokenId, instructions)
     );
 
     {
@@ -219,7 +208,7 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
-  // SAFE_TRANSFER_NFT: full withdraw removes position from tracking
+  // EXECUTE_INSTRUCTIONS: full withdraw removes position from tracking
   // =========================================================
 
   function test_safeTransferNft_fullWithdraw_removesPosition() public {
@@ -228,16 +217,14 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
       mintActions[0] = ISharedVault.Action(
-        address(v3Strategy),
-        _swapAndMintData(0.5 ether, 1500e6),
-        ISharedCommon.CallType.DELEGATECALL
+        address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(mintActions);
     }
     uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
 
     // Query the actual liquidity so we can request full removal precisely
-    (, , , , , , , uint128 posLiquidity, , , , ) = INFPMPositions(NFPM).positions(tokenId);
+    (,,,,,,, uint128 posLiquidity,,,,) = INFPMPositions(NFPM).positions(tokenId);
 
     // Full withdrawal: remove all liquidity back to vault
     IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
@@ -267,8 +254,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     });
 
     bytes memory data = bytes.concat(
-      abi.encode(SharedV3Strategy.OperationType.SAFE_TRANSFER_NFT),
-      abi.encode(NFPM, tokenId, instructions)
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS), abi.encode(NFPM, tokenId, instructions)
     );
 
     {
@@ -278,7 +264,66 @@ contract SharedVaultIntegrationTest is TestCommon {
     }
 
     assertEq(vault.getPositionCount(), 0, "position removed after full withdrawal");
-    console.log("SAFE_TRANSFER_NFT full withdraw: position removed");
+    console.log("EXECUTE_INSTRUCTIONS full withdraw: position removed");
+
+    vm.stopPrank();
+  }
+
+  // =========================================================
+  // EXECUTE_INSTRUCTIONS: oversized liquidity request collapses to a full exit
+  //
+  // Before the cap was added in SharedV3Strategy, passing a sentinel like type(uint128).max
+  // would revert at the NFPM. After the fix it collapses to the position's liquidity and
+  // becomes a clean full exit, matching V4's `_decreaseV4Principal` semantics.
+  // =========================================================
+  function test_executeInstructions_withdrawAndCollectAndSwap_capsOversizedLiquidityToFullExit() public {
+    vm.startPrank(vaultOwner);
+
+    {
+      ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+      mintActions[0] = ISharedVault.Action(
+        address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
+      );
+      vault.execute(mintActions);
+    }
+    uint256 tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
+
+    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: 0,
+      amountRemoveMin1: 0,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: false,
+      liquidity: type(uint128).max, // oversized "full exit" sentinel
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp + 300,
+      recipient: address(vault),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS), abi.encode(NFPM, tokenId, instructions)
+    );
+
+    ISharedVault.Action[] memory withdrawActions = new ISharedVault.Action[](1);
+    withdrawActions[0] = ISharedVault.Action(address(v3Strategy), data, ISharedCommon.CallType.DELEGATECALL);
+
+    vault.execute(withdrawActions);
+
+    assertEq(vault.getPositionCount(), 0, "oversized liquidity collapses to full exit and removes position");
 
     vm.stopPrank();
   }
@@ -293,9 +338,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     {
       ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
       mintActions[0] = ISharedVault.Action(
-        address(v3Strategy),
-        _swapAndMintData(0.5 ether, 1500e6),
-        ISharedCommon.CallType.DELEGATECALL
+        address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
       );
       vault.execute(mintActions);
     }
@@ -318,7 +361,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vault), usdcIn);
 
     uint256[4] memory depositAmounts = [wethIn, usdcIn, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor should receive shares");
@@ -345,7 +388,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vault), usdcIn);
 
     uint256[4] memory amounts = [ethIn, usdcIn, uint256(0), 0];
-    uint256 shares = vault.deposit{ value: ethIn }(amounts, 0);
+    uint256 shares = vault.deposit{ value: ethIn }(amounts, 0, 0);
     assertGt(shares, 0, "should receive shares for ETH deposit");
 
     uint256 ethBalBefore = player.balance;
@@ -358,6 +401,23 @@ contract SharedVaultIntegrationTest is TestCommon {
     console.log("Native ETH withdraw: ETH received =", withdrawn[0]);
 
     vm.stopPrank();
+  }
+
+  function test_pause_states_do_not_block_withdraw() public {
+    uint256 startingShares = vault.balanceOf(vaultOwner);
+    uint256[4] memory minOut;
+
+    vm.startPrank(vaultOwner);
+    vault.setPaused(true);
+    uint256[4] memory perVaultPausedOut = vault.withdraw(startingShares / 4, minOut, false);
+    assertGt(perVaultPausedOut[0] + perVaultPausedOut[1], 0, "per-vault paused withdraw should return assets");
+
+    vault.setPaused(false);
+    configManager.setVaultPaused(true);
+    uint256[4] memory globallyPausedOut = vault.withdraw(startingShares / 4, minOut, false);
+    vm.stopPrank();
+
+    assertGt(globallyPausedOut[0] + globallyPausedOut[1], 0, "globally paused withdraw should return assets");
   }
 
   // =========================================================
@@ -379,14 +439,14 @@ contract SharedVaultIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
-      _swapAndMintData(wethAmt / 2, usdcAmt / 2),
-      ISharedCommon.CallType.DELEGATECALL
+      address(v3Strategy), _swapAndMintData(wethAmt / 2, usdcAmt / 2), ISharedCommon.CallType.DELEGATECALL
     );
 
     // msg.value = wethAmt for WETH initial deposit (wrapped by factory)
     SharedVault vault2 = SharedVault(
-      payable(vaultFactory.createVault{ value: wethAmt }("Vault2-WithStrategies", vaultTokens, initialAmounts, 0, actions))
+      payable(vaultFactory.createVault{ value: wethAmt }(
+          "Vault2-WithStrategies", vaultTokens, initialAmounts, 0, actions
+        ))
     );
 
     // Vault should have exactly 1 LP position created atomically during vault creation
@@ -406,9 +466,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     // Create LP position
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
+      address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
     );
     vault.execute(actions);
 
@@ -441,9 +499,7 @@ contract SharedVaultIntegrationTest is TestCommon {
     // Create LP position — idle balances drop, LP value rises
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(
-      address(v3Strategy),
-      _swapAndMintData(0.5 ether, 1500e6),
-      ISharedCommon.CallType.DELEGATECALL
+      address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
     );
     vault.execute(actions);
 
@@ -499,18 +555,17 @@ contract SharedVaultIntegrationTest is TestCommon {
       poolDeployer: address(0)
     });
 
-    return
-      bytes.concat(
-        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0))
-      );
+    return bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, approveTokens, approveAmounts, uint256(0))
+    );
   }
 
-  function _swapAndIncreaseData(
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1
-  ) internal view returns (bytes memory) {
+  function _swapAndIncreaseData(uint256 tokenId, uint256 amount0, uint256 amount1)
+    internal
+    view
+    returns (bytes memory)
+  {
     address[] memory approveTokens = new address[](2);
     approveTokens[0] = WETH;
     approveTokens[1] = USDC;
@@ -541,10 +596,9 @@ contract SharedVaultIntegrationTest is TestCommon {
       gasFeeX64: 0
     });
 
-    return
-      bytes.concat(
-        abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
-        abi.encode(params, approveTokens, approveAmounts, uint256(0))
-      );
+    return bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, approveTokens, approveAmounts, uint256(0))
+    );
   }
 }

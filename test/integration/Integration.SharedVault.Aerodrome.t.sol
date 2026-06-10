@@ -82,10 +82,10 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
 
     lpFeeTaker = new LpFeeTaker();
-    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker));
+    aeroStrategy = new SharedAerodromeStrategy(V3_UTILS);
     aeroBeacon = new SharedStrategyBeacon(address(aeroStrategy), vaultOwner);
     aeroProxy = new SharedStrategyProxy(address(aeroBeacon));
 
@@ -225,7 +225,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethIn);
     IERC20(USDC).approve(address(vault), usdcIn);
 
-    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0);
+    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
     vm.stopPrank();
 
     assertGt(shares, 0, "second depositor should receive shares");
@@ -276,7 +276,7 @@ contract SharedVaultAerodromeIntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 1, "position created via v1 impl");
 
     // Upgrade: deploy a new impl and point the beacon at it
-    SharedAerodromeStrategy newImpl = new SharedAerodromeStrategy(V3_UTILS, address(lpFeeTaker));
+    SharedAerodromeStrategy newImpl = new SharedAerodromeStrategy(V3_UTILS);
     aeroBeacon.setImplementation(address(newImpl));
     assertEq(aeroBeacon.implementation(), address(newImpl), "beacon updated to new impl");
 

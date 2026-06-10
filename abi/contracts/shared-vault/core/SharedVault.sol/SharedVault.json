@@ -202,6 +202,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidGasFeeX64",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -235,6 +240,11 @@
       }
     ],
     "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapDataSignature",
     "type": "error"
   },
   {
@@ -312,6 +322,22 @@
   },
   {
     "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
     "name": "SwapFailed",
     "type": "error"
   },
@@ -333,6 +359,11 @@
   {
     "inputs": [],
     "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedLiquidityHook",
     "type": "error"
   },
   {
@@ -809,9 +840,9 @@
         "type": "uint16"
       },
       {
-        "internalType": "address",
-        "name": "receiver",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "minShares",
+        "type": "uint256"
       }
     ],
     "name": "deposit",
@@ -836,6 +867,16 @@
         "internalType": "uint16",
         "name": "slippageBps",
         "type": "uint16"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minShares",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
       }
     ],
     "name": "deposit",

@@ -1,116 +1,57 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
-import { IV4UtilsRouter } from "../../private-vault/interfaces/strategies/lpv4/IV4UtilsRouter.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { FixedPoint128 } from "@uniswap/v4-core/src/libraries/FixedPoint128.sol";
-import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
-import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { SafeCast } from "@uniswap/v4-core/src/libraries/SafeCast.sol";
-import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import { PositionInfo, PositionInfoLibrary } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
-import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
-
-import { Permit2Forwarder } from "@uniswap/v4-periphery/src/base/Permit2Forwarder.sol";
-import { IPermit2Forwarder } from "@uniswap/v4-periphery/src/interfaces/IPermit2Forwarder.sol";
-import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 
 import { ISharedStrategy } from "../interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../interfaces/ISharedVault.sol";
 import { ISharedCommon } from "../interfaces/ISharedCommon.sol";
 import { ISharedConfigManager } from "../interfaces/ISharedConfigManager.sol";
 import { SharedStrategyGuards } from "../libraries/SharedStrategyGuards.sol";
-import { ICommon } from "../../public-vault/interfaces/ICommon.sol";
+import { IFeeTaker } from "../../public-vault/interfaces/strategies/IFeeTaker.sol";
 import { SharedStrategyFeeConfig } from "../libraries/SharedStrategyFeeConfig.sol";
-
-/// @dev Minimal IV4Utils types for encoding exitProportional DECREASE_AND_SWAP instructions.
-///      Currency = address underneath, so address is used here for ABI-encoding compatibility.
-interface IV4Utils {
-  enum UtilActions {
-    ADJUST_RANGE,
-    DECREASE_AND_SWAP,
-    COMPOUND
-  }
-
-  struct Instructions {
-    UtilActions action;
-    bytes params;
-  }
-
-  struct DecreaseLiquidityParams {
-    uint128 liquidity;
-    uint256 deadline;
-    uint256 amount0Min;
-    uint256 amount1Min;
-    bytes hookData;
-  }
-
-  struct SwapParams {
-    address tokenIn;
-    uint256 amountIn;
-    address tokenOut;
-    uint256 amountOutMin;
-    bytes swapData;
-  }
-
-  struct DecreaseAndSwapParams {
-    DecreaseLiquidityParams decreaseParams;
-    SwapParams[] swapParams;
-    address swapDestToken;
-    uint64 protocolFeeX64;
-    uint64 performanceFeeX64;
-    uint64 gasFeeX64;
-  }
-
-  function execute(address posm, uint256 tokenId, Instructions calldata instructions) external;
-}
+import { SharedV4StrategyLib } from "../libraries/SharedV4StrategyLib.sol";
+import { SharedV4ValuationLib } from "../libraries/SharedV4ValuationLib.sol";
+import { ISharedV4Utils } from "../interfaces/ISharedV4Utils.sol";
 
 /// @title SharedV4Strategy
 /// @notice Uniswap V4 LP operations for SharedVault with token validation and position tracking
-contract SharedV4Strategy is ISharedStrategy {
-  using SafeApprovalLib for IERC20;
-  using SafeERC20 for IERC20;
-  using PoolIdLibrary for PoolKey;
-  using PositionInfoLibrary for PositionInfo;
-  using SafeCast for uint256;
-  using StateLibrary for IPoolManager;
-
-  uint256 private constant _FEE_Q64 = 0x10000000000000000;
-
-  address public immutable v4UtilsRouter;
+contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
+  address public immutable swapRouter;
 
   enum OperationType {
     EXECUTE,
-    SAFE_TRANSFER_NFT
+    /// @dev Historically named `SAFE_TRANSFER_NFT`; the NFT no longer moves — the strategy
+    ///      executes the encoded instruction bytes inline via the lib. Renamed for clarity.
+    ///      Numeric value 1 is retained for legacy calldata; off-chain decoders must treat it as
+    ///      inline instruction execution, not as NFT transfer semantics.
+    EXECUTE_INSTRUCTIONS
   }
 
-  constructor(address _v4UtilsRouter) {
-    require(_v4UtilsRouter != address(0), ISharedCommon.ZeroAddress());
-    v4UtilsRouter = _v4UtilsRouter;
+  constructor(address _swapRouter) {
+    require(_swapRouter != address(0), ISharedCommon.ZeroAddress());
+    swapRouter = _swapRouter;
   }
 
   /// @inheritdoc ISharedStrategy
   function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
     OperationType opType = abi.decode(data[:32], (OperationType));
 
-    if (opType == OperationType.EXECUTE) {
-      return _execute(data[32:]);
-    } else if (opType == OperationType.SAFE_TRANSFER_NFT) {
-      return _safeTransferNft(data[32:]);
-    } else {
-      revert ISharedCommon.InvalidOperation();
-    }
+    if (opType == OperationType.EXECUTE) return _execute(data[32:]);
+    else if (opType == OperationType.EXECUTE_INSTRUCTIONS) return _executeInstructions(data[32:]);
+    else revert ISharedCommon.InvalidOperation();
   }
 
+  /// @dev `approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
+  ///      used for ERC20 approvals. Approvals are issued per-hop inside `SharedV4SwapPipeline._swap`
+  ///      against the immutable `swapRouter` (and to the POSM via Permit2 in `SharedV4StrategyLib`).
+  ///      `approveTokens` is still walked by `_validateApprovalList` to enforce that EVERY entry
+  ///      references a vault-tracked token (including zero-amount entries), preventing operators
+  ///      from listing unrelated tokens through this entry point.
   function _execute(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (
       address posm,
@@ -123,37 +64,29 @@ contract SharedV4Strategy is ISharedStrategy {
 
     ISharedConfigManager cm = ISharedVault(address(this)).configManager();
     SharedStrategyGuards.requireWhitelistedNfpm(cm, posm);
-    _validateV4ExecuteCalldataSwapRouters(params, posm, tokenId);
-
-    // Validate approved tokens are vault tokens
     require(approveTokens.length == approveAmounts.length, ISharedCommon.LengthMismatch());
-    for (uint256 i; i < approveTokens.length; ) {
-      if (approveAmounts[i] > 0) {
-        _validateVaultToken(approveTokens[i]);
-        IERC20(approveTokens[i]).safeResetAndApprove(v4UtilsRouter, approveAmounts[i]);
-      }
-      unchecked {
-        i++;
-      }
-    }
+    bytes4 selector = _v4ParamsSelector(params);
+    _validateApprovalList(approveTokens);
+    require(ethValue == 0, ISharedCommon.InvalidAmount());
+    bool isExecute = selector == ISharedV4Utils.execute.selector;
+    bool isSwapAndMint = selector == ISharedV4Utils.swapAndMint.selector;
+    bool isSwapAndIncrease = selector == ISharedV4Utils.swapAndIncrease.selector;
+    if (!isExecute && !isSwapAndMint && !isSwapAndIncrease) revert ISharedCommon.InvalidOperation();
 
     IPositionManager pm = IPositionManager(posm);
 
     // Snapshot next tokenId before the call to detect newly minted positions
     uint256 nextIdBefore = pm.nextTokenId();
 
-    if (tokenId != 0) IERC721(posm).approve(v4UtilsRouter, tokenId);
-    IV4UtilsRouter(v4UtilsRouter).execute{ value: ethValue }(posm, params);
-
-    // Revoke residual token allowances: the utility may have consumed less than approved.
-    for (uint256 i; i < approveTokens.length; ) {
-      if (approveAmounts[i] > 0) IERC20(approveTokens[i]).safeApprove(v4UtilsRouter, 0);
-      unchecked { i++; }
-    }
-    // Revoke residual NFT approval: V4Utils normally clears it via safeTransferFrom, but future
-    // router implementations that operate via approval-only would leave it dangling otherwise.
-    if (tokenId != 0 && _posmNftOwnedByVault(posm, tokenId)) {
-      IERC721(posm).approve(address(0), tokenId);
+    if (isExecute) {
+      require(tokenId != 0, ISharedCommon.InvalidOperation());
+      SharedV4StrategyLib.executeCalldata(swapRouter, posm, tokenId, params);
+    } else if (isSwapAndMint) {
+      require(tokenId == 0, ISharedCommon.InvalidOperation());
+      SharedV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
+    } else {
+      require(tokenId != 0, ISharedCommon.InvalidOperation());
+      SharedV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
     }
 
     // Compute position changes from on-chain state — never trust caller-supplied values
@@ -162,42 +95,35 @@ contract SharedV4Strategy is ISharedStrategy {
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
       uint256 newId = nextIdBefore;
       require(_posmNftOwnedByVault(posm, newId), InvalidPoolTokens());
-      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(newId);
-      address c0 = Currency.unwrap(key.currency0);
-      address c1 = Currency.unwrap(key.currency1);
+      (PoolKey memory key,) = pm.getPoolAndPositionInfo(newId);
+      (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
       _validateVaultToken(c0);
       _validateVaultToken(c1);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(true, posm, newId, c0, c1);
     } else if (
-      pm.nextTokenId() > nextIdBefore &&
-      _posmNftOwnedByVault(posm, nextIdBefore) &&
-      pm.getPositionLiquidity(tokenId) == 0
+      pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)
+        && pm.getPositionLiquidity(tokenId) == 0
     ) {
       // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory oldKey, ) = pm.getPoolAndPositionInfo(tokenId);
-      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PoolKey memory oldKey,) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies too (symmetry with the tokenId==0 mint branch);
+      // defense-in-depth on top of the vault's own _applyPositionChanges checks.
+      (address old0, address old1) = _poolVaultTokens(oldKey.currency0, oldKey.currency1);
+      (address new0, address new1) = _poolVaultTokens(newKey.currency0, newKey.currency1);
+      _validateVaultToken(new0);
+      _validateVaultToken(new1);
       changes = new PositionChange[](2);
-      changes[0] = PositionChange(
-        false,
-        posm,
-        tokenId,
-        Currency.unwrap(oldKey.currency0),
-        Currency.unwrap(oldKey.currency1)
-      );
-      changes[1] = PositionChange(
-        true,
-        posm,
-        nextIdBefore,
-        Currency.unwrap(newKey.currency0),
-        Currency.unwrap(newKey.currency1)
-      );
+      changes[0] = PositionChange(false, posm, tokenId, old0, old1);
+      changes[1] = PositionChange(true, posm, nextIdBefore, new0, new1);
     } else if (pm.getPositionLiquidity(tokenId) == 0) {
       // Full exit: liquidity drained to zero
-      (PoolKey memory key, ) = pm.getPoolAndPositionInfo(tokenId);
+      (PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
+      (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
       changes = new PositionChange[](1);
-      changes[0] = PositionChange(false, posm, tokenId, Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
+      changes[0] = PositionChange(false, posm, tokenId, c0, c1);
     } else {
       // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
@@ -205,47 +131,41 @@ contract SharedV4Strategy is ISharedStrategy {
     }
   }
 
-  function _safeTransferNft(bytes calldata data) internal returns (PositionChange[] memory changes) {
+  /// @dev Executes the encoded instruction bytes inline against the position; despite the
+  ///      historical name `SAFE_TRANSFER_NFT`, the NFT itself is never transferred — the strategy
+  ///      operates on the position in-place via the shared lib.
+  function _executeInstructions(bytes calldata data) internal returns (PositionChange[] memory changes) {
     (address posm, uint256 tokenId, bytes memory instruction) = abi.decode(data, (address, uint256, bytes));
 
     _requireWhitelistedPosm(posm);
 
     IPositionManager pm = IPositionManager(posm);
 
-    // Read tokens and snapshot nextTokenId before transferring
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
-    address c0 = Currency.unwrap(poolKey.currency0);
-    address c1 = Currency.unwrap(poolKey.currency1);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+    (address c0, address c1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
     _validateVaultToken(c0);
     _validateVaultToken(c1);
     uint256 nextIdBefore = pm.nextTokenId();
 
-    IERC721(posm).safeTransferFrom(address(this), v4UtilsRouter, tokenId, instruction);
+    SharedV4StrategyLib.executeInstructionBytes(swapRouter, posm, tokenId, instruction);
 
-    // Compute position changes from on-chain state after the transfer
     if (
-      pm.nextTokenId() > nextIdBefore &&
-      _posmNftOwnedByVault(posm, nextIdBefore) &&
-      pm.getPositionLiquidity(tokenId) == 0
+      pm.nextTokenId() > nextIdBefore && _posmNftOwnedByVault(posm, nextIdBefore)
+        && pm.getPositionLiquidity(tokenId) == 0
     ) {
-      // ADJUST_RANGE: require exactly one new position so no vault-owned NFTs go untracked.
       require(pm.nextTokenId() == nextIdBefore + 1, InvalidPoolTokens());
-      (PoolKey memory newKey, ) = pm.getPoolAndPositionInfo(nextIdBefore);
+      (PoolKey memory newKey,) = pm.getPoolAndPositionInfo(nextIdBefore);
+      // F18: validate the new range's currencies (symmetry / defense-in-depth).
+      (address new0, address new1) = _poolVaultTokens(newKey.currency0, newKey.currency1);
+      _validateVaultToken(new0);
+      _validateVaultToken(new1);
       changes = new PositionChange[](2);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
-      changes[1] = PositionChange(
-        true,
-        posm,
-        nextIdBefore,
-        Currency.unwrap(newKey.currency0),
-        Currency.unwrap(newKey.currency1)
-      );
+      changes[1] = PositionChange(true, posm, nextIdBefore, new0, new1);
     } else if (!_posmNftOwnedByVault(posm, tokenId) || pm.getPositionLiquidity(tokenId) == 0) {
-      // Full exit: vault no longer holds the NFT, or position liquidity is zero
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
     } else {
-      // Partial or non-exit operation — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
       changes = new PositionChange[](0);
     }
@@ -255,149 +175,42 @@ contract SharedV4Strategy is ISharedStrategy {
   /// @dev Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
   ///      amounts required for the computed liquidity through Permit2. Any amount not needed for
   ///      the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
-  ///      Slippage is enforced via a pre/post `getPositionLiquidity` comparison: expected liquidity is
-  ///      derived from `LiquidityAmounts.getLiquidityForAmounts` at the pre-call sqrtPrice; if the
-  ///      actual liquidity added falls below `expectedLiquidity * (1 - slippageBps / 10000)`, reverts.
-  function depositProportional(
-    address posm,
-    uint256 tokenId,
-    uint256 amount0,
-    uint256 amount1,
-    uint16 slippageBps
-  ) external override {
-    if (amount0 == 0 && amount1 == 0) return;
-
-    _requireWhitelistedPosm(posm);
-
-    IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, PositionInfo positionInfo) = pm.getPoolAndPositionInfo(tokenId);
-    Currency currency0 = poolKey.currency0;
-    Currency currency1 = poolKey.currency1;
-
-    // Guard against silent truncation: token amounts must fit in uint128 (used in INCREASE_LIQUIDITY params).
-    // Total ERC20 supply can never exceed uint128.max in practice, but we guard explicitly.
-    require(amount0 <= type(uint128).max && amount1 <= type(uint128).max, ISharedCommon.InvalidAmount());
-
-    (uint160 sqrtPriceX96, , , ) = pm.poolManager().getSlot0(poolKey.toId());
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
-    uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96,
-      TickMath.getSqrtPriceAtTick(tickLower),
-      TickMath.getSqrtPriceAtTick(tickUpper),
-      amount0,
-      amount1
-    );
-    if (liquidityToAdd == 0) return;
-
-    // Capture pre-deposit state for slippage check (only when slippage protection requested)
-    uint128 liquidityBefore;
-    if (slippageBps > 0) liquidityBefore = pm.getPositionLiquidity(tokenId);
-
-    // Approve via Permit2: vault → Permit2 → PositionManager
-    address permit2Addr = address(Permit2Forwarder(address(IPermit2Forwarder(posm))).permit2());
-    if (amount0 > 0) {
-      address token0 = Currency.unwrap(currency0);
-      IERC20(token0).safeResetAndApprove(permit2Addr, amount0);
-      IAllowanceTransfer(permit2Addr).approve(token0, posm, uint160(amount0), uint48(block.timestamp + 1));
-    }
-    if (amount1 > 0) {
-      address token1 = Currency.unwrap(currency1);
-      IERC20(token1).safeResetAndApprove(permit2Addr, amount1);
-      IAllowanceTransfer(permit2Addr).approve(token1, posm, uint160(amount1), uint48(block.timestamp + 1));
-    }
-
-    // INCREASE_LIQUIDITY (0x00) + CLOSE_CURRENCY (0x12) for each token
-    bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x12), uint8(0x12));
-    bytes[] memory params = new bytes[](3);
-    params[0] = abi.encode(tokenId, uint256(liquidityToAdd), uint128(amount0), uint128(amount1), bytes(""));
-    params[1] = abi.encode(currency0);
-    params[2] = abi.encode(currency1);
-
-    pm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
-
-    // Clear residual ERC20 → Permit2 and Permit2 → posm allowances. The PositionManager may
-    // consume less than amount0/amount1 (e.g. when only one side of the range is used), leaving
-    // a dangling allowance that could be exploited within the Permit2 expiry window.
-    if (amount0 > 0) {
-      address token0 = Currency.unwrap(currency0);
-      IAllowanceTransfer(permit2Addr).approve(token0, posm, 0, 0);
-      IERC20(token0).safeApprove(permit2Addr, 0);
-    }
-    if (amount1 > 0) {
-      address token1 = Currency.unwrap(currency1);
-      IAllowanceTransfer(permit2Addr).approve(token1, posm, 0, 0);
-      IERC20(token1).safeApprove(permit2Addr, 0);
-    }
-
-    // Slippage check: compare actual liquidity added to expected minimum
-    if (slippageBps > 0) {
-      uint128 liquidityAdded = pm.getPositionLiquidity(tokenId) - liquidityBefore;
-      uint128 minLiquidity = uint128(FullMath.mulDiv(liquidityToAdd, 10_000 - slippageBps, 10_000));
-      require(liquidityAdded >= minLiquidity, ISharedCommon.InsufficientOutput());
-    }
+  ///      Slippage is enforced via a per-token consumed-amount floor (NOT a liquidity comparison):
+  ///      the lib quotes `(expected0, expected1) = getAmountsForLiquidity(...)` for the computed
+  ///      liquidity at the pre-call sqrtPrice, measures the amounts ACTUALLY consumed via balance
+  ///      deltas, and reverts unless `used0 >= expected0 * (1 - slippageBps/10000)` and likewise for
+  ///      token1. Quoting the floor from `getAmountsForLiquidity` (not the raw supplied amounts) lets
+  ///      single-sided / out-of-range adds pass without spurious reverts. NOTE: adding CL liquidity
+  ///      does not move the spot price, so within one tx `used == expected`; this floor catches a
+  ///      misbehaving position manager but cannot by itself defeat a CROSS-transaction sandwich —
+  ///      callers must pass a conservative `slippageBps` and derive the deposit ratio externally.
+  function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
+    external
+    override
+  {
+    SharedV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Collects accumulated fees via DECREASE_LIQUIDITY(0) + CLOSE_CURRENCY × 2 — a zero-liquidity
-  ///      decrease syncs fee growth without touching principal; CLOSE_CURRENCY sweeps accumulated fees
+  /// @dev Collects accumulated fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
+  ///      decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
   ///      to the vault (address(this) in delegatecall context). Performance and platform fees are
   ///      then applied inline since V4Strategy has no dedicated lpFeeTaker.
-  ///      Native ETH positions (Currency.unwrap == address(0)) are rejected at position-add time by
-  ///      _validateVaultToken, so this function is never called for native-currency pools.
-  function collectFees(address posm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external override {
-    IPositionManager pm = IPositionManager(posm);
-    (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
-    address token0 = Currency.unwrap(poolKey.currency0);
-    address token1 = Currency.unwrap(poolKey.currency1);
-
-    uint256 before0 = IERC20(token0).balanceOf(address(this));
-    uint256 before1 = IERC20(token1).balanceOf(address(this));
-
-    // DECREASE_LIQUIDITY(0x01) with liquidity=0 syncs fee growth and creates a collectible delta.
-    // CLOSE_CURRENCY(0x12) sweeps the positive delta (accumulated fees) to address(this).
-    bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x12), uint8(0x12));
-    bytes[] memory collectParams = new bytes[](3);
-    collectParams[0] = abi.encode(tokenId, uint128(0), uint256(0), uint256(0), bytes(""));
-    collectParams[1] = abi.encode(poolKey.currency0);
-    collectParams[2] = abi.encode(poolKey.currency1);
-    pm.modifyLiquidities(abi.encode(actions, collectParams), block.timestamp);
-
-    uint256 collected0 = IERC20(token0).balanceOf(address(this)) - before0;
-    uint256 collected1 = IERC20(token1).balanceOf(address(this)) - before1;
-    if (collected0 == 0 && collected1 == 0) return;
-
-    ICommon.FeeConfig memory fc = SharedStrategyFeeConfig.performanceFeeConfig(vaultOwnerFeeBasisPoint);
-    _applyFees(token0, collected0, token1, collected1, fc);
-  }
-
-  /// @dev V3/Aerodrome route fees through `LpFeeTaker.takeFees`, which encapsulates approval + split.
-  ///      V4 reimplements the split inline because V4Utils integration with LpFeeTaker does not exist:
-  ///      the V4 PositionManager uses Permit2 approvals and its own settlement flow, making the
-  ///      LpFeeTaker approval-then-call pattern incompatible. Any future fee-policy change must be
-  ///      applied here in addition to LpFeeTaker. Gas fee is intentionally omitted (exits handle it
-  ///      via V4UtilsRouter's `gasFeeX64`; pre-collect is perf/platform only).
-  function _applyFees(address token0, uint256 amount0, address token1, uint256 amount1, ICommon.FeeConfig memory fc) private {
-    if (fc.platformFeeBasisPoint > 0 && fc.platformFeeRecipient != address(0)) {
-      uint256 fee0 = FullMath.mulDiv(amount0, fc.platformFeeBasisPoint, 10_000);
-      uint256 fee1 = FullMath.mulDiv(amount1, fc.platformFeeBasisPoint, 10_000);
-      if (fee0 > 0) IERC20(token0).safeTransfer(fc.platformFeeRecipient, fee0);
-      if (fee1 > 0) IERC20(token1).safeTransfer(fc.platformFeeRecipient, fee1);
-    }
-    if (fc.vaultOwnerFeeBasisPoint > 0 && fc.vaultOwner != address(0)) {
-      uint256 fee0 = FullMath.mulDiv(amount0, fc.vaultOwnerFeeBasisPoint, 10_000);
-      uint256 fee1 = FullMath.mulDiv(amount1, fc.vaultOwnerFeeBasisPoint, 10_000);
-      if (fee0 > 0) IERC20(token0).safeTransfer(fc.vaultOwner, fee0);
-      if (fee1 > 0) IERC20(token1).safeTransfer(fc.vaultOwner, fee1);
-    }
+  ///      Native-currency pool amounts are accounted against the vault's configured WETH token.
+  function collectFees(
+    address posm,
+    uint256 tokenId,
+    uint16 /* vaultOwnerFeeBasisPoint */
+  )
+    external
+    override
+  {
+    SharedV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev Decreases liquidity proportionally via V4UtilsRouter DECREASE_AND_SWAP (no swap).
-  ///      Tokens are swept back to the vault (address(this) in delegatecall context) by V4Utils.
-  ///      The NFT is returned to the vault by V4Utils after the decrease regardless of exit type.
-  ///      Fees on accumulated LP income are handled in collectFees (pre-collect) — not charged here
-  ///      on principal, to match V3/Aerodrome which only takes gas fees on proportional exits.
+  /// @dev Withdraw exits collect generated LP fees through collectFees() before the vault's idle snapshot.
+  ///      This function only decreases principal natively and never charges platform/owner fees on principal.
   function exitProportional(
     address posm,
     uint256 tokenId,
@@ -407,72 +220,7 @@ contract SharedV4Strategy is ISharedStrategy {
     uint256 minAmount1,
     uint16 /* vaultOwnerFeeBasisPoint */
   ) external override returns (PositionChange[] memory changes) {
-    _requireWhitelistedPosm(posm);
-
-    IPositionManager pm = IPositionManager(posm);
-    uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
-
-    if (posLiquidity == 0) {
-      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
-      changes = new PositionChange[](1);
-      changes[0] = PositionChange(
-        false,
-        posm,
-        tokenId,
-        Currency.unwrap(poolKey.currency0),
-        Currency.unwrap(poolKey.currency1)
-      );
-      return changes;
-    }
-
-    uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
-    if (liquidityToRemove == 0) return new PositionChange[](0);
-
-    bool isFullExit = liquidityToRemove >= posLiquidity;
-
-    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
-      decreaseParams: IV4Utils.DecreaseLiquidityParams({
-        liquidity: liquidityToRemove,
-        deadline: block.timestamp,
-        amount0Min: minAmount0,
-        amount1Min: minAmount1,
-        hookData: ""
-      }),
-      swapParams: new IV4Utils.SwapParams[](0),
-      swapDestToken: address(0),
-      // Fees on accumulated LP income are handled in collectFees (pre-collect before idle snapshot).
-      // Charging protocol/performance fees again on the principal returned here would double-charge
-      // withdrawers relative to V3/Aerodrome, which only takes gas fees on principal exits.
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
-      gasFeeX64: 0
-    });
-
-    IV4Utils.Instructions memory instructions = IV4Utils.Instructions({
-      action: IV4Utils.UtilActions.DECREASE_AND_SWAP,
-      params: abi.encode(decParams)
-    });
-
-    IERC721(posm).approve(v4UtilsRouter, tokenId);
-    IV4UtilsRouter(v4UtilsRouter).execute(posm, abi.encodeCall(IV4Utils.execute, (posm, tokenId, instructions)));
-    // Revoke residual NFT approval — see _execute for rationale.
-    if (_posmNftOwnedByVault(posm, tokenId)) {
-      IERC721(posm).approve(address(0), tokenId);
-    }
-
-    if (isFullExit) {
-      (PoolKey memory poolKey, ) = pm.getPoolAndPositionInfo(tokenId);
-      changes = new PositionChange[](1);
-      changes[0] = PositionChange(
-        false,
-        posm,
-        tokenId,
-        Currency.unwrap(poolKey.currency0),
-        Currency.unwrap(poolKey.currency1)
-      );
-    } else {
-      changes = new PositionChange[](0);
-    }
+    changes = SharedV4StrategyLib.exitProportional(posm, tokenId, shares, totalShares, minAmount0, minAmount1);
   }
 
   /// @inheritdoc ISharedStrategy
@@ -480,115 +228,53 @@ contract SharedV4Strategy is ISharedStrategy {
   ///      and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
   ///      Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
   ///      no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions.
-  function getPositionAmounts(
-    address posm,
-    uint256 tokenId
-  ) external view override returns (uint256 amount0, uint256 amount1) {
-    (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) = _positionAmountsSplit(posm, tokenId);
-    amount0 = principal0 + fees0;
-    amount1 = principal1 + fees1;
+  function getPositionAmounts(address posm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
+    (amount0, amount1) = SharedV4ValuationLib.getPositionAmounts(posm, tokenId);
   }
 
   /// @inheritdoc ISharedStrategy
-  function getPositionTokens(
-    address posm,
-    uint256 tokenId
-  ) external view override returns (address token0, address token1) {
-    (PoolKey memory poolKey, ) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
-    token0 = Currency.unwrap(poolKey.currency0);
-    token1 = Currency.unwrap(poolKey.currency1);
+  /// @dev Native-currency positions require a vault call context so `address(0)` can be mapped
+  ///      to that vault's configured WETH. Direct strategy calls without vault context revert
+  ///      instead of returning `address(0)` as a misleading token address.
+  ///      Also enforces the no-liquidity-hook invariant: reverts with `UnsupportedLiquidityHook` if the
+  ///      pool registers an add/remove-liquidity hook. SharedVault calls `getPositionTokens` on EVERY
+  ///      position-tracking entry (`_applyPositionChanges` and `recoverPosition`, both before
+  ///      `_addPosition`), so hosting the check here re-enforces the gate on recover / CALL_WITH_POSITIONS
+  ///      — not only the strategy mint path — reusing the `poolKey` already read here (no extra call).
+  function getPositionTokens(address posm, uint256 tokenId)
+    external
+    view
+    override
+    returns (address token0, address token1)
+  {
+    (PoolKey memory poolKey,) = IPositionManager(posm).getPoolAndPositionInfo(tokenId);
+    SharedStrategyGuards.requireNoLiquidityHookV4(poolKey.hooks);
+    (token0, token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
   }
 
   /// @inheritdoc ISharedStrategy
-  function getPositionPrincipalAmounts(
-    address posm,
-    uint256 tokenId
-  ) external view override returns (uint256 amount0, uint256 amount1) {
-    (amount0, amount1, , ) = _positionAmountsSplit(posm, tokenId);
+  function getPositionPrincipalAmounts(address posm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
+    (amount0, amount1) = SharedV4ValuationLib.getPositionPrincipalAmounts(posm, tokenId);
   }
 
-  /// @dev See ISharedStrategy.getPositionPrincipalAmounts. V4 splits principal (from liquidity at
-  ///      current sqrtPrice) and uncollected fees (from fee-growth deltas) via the same StateLibrary
-  ///      pattern as `getPositionAmounts`, just returned separately so the vault can pick the correct
-  ///      one for top-ups vs valuation.
-  function _positionAmountsSplit(
-    address posm,
-    uint256 tokenId
-  ) private view returns (uint256 principal0, uint256 principal1, uint256 fees0, uint256 fees1) {
-    IPositionManager pm = IPositionManager(posm);
-    // Use try/catch: getPoolAndPositionInfo reverts for nonexistent tokenIds on some POSM implementations.
-    // Mirrors the try/catch pattern in SharedV3Strategy._positionAmountsSplit so _verifyPositionExit's
-    // staticcall to getPositionAmounts gets amtsOk=true and (0,0) for burned/invalid positions.
-    PoolKey memory poolKey;
-    PositionInfo positionInfo;
-    try pm.getPoolAndPositionInfo(tokenId) returns (PoolKey memory key, PositionInfo info) {
-      poolKey = key;
-      positionInfo = info;
-    } catch {
-      return (0, 0, 0, 0);
-    }
-    uint128 liquidity = pm.getPositionLiquidity(tokenId);
-    int24 tickLower = positionInfo.tickLower();
-    int24 tickUpper = positionInfo.tickUpper();
-
-    IPoolManager manager = pm.poolManager();
-    PoolId poolId = poolKey.toId();
-    (uint160 sqrtPriceX96, , , ) = manager.getSlot0(poolId);
-
-    if (liquidity > 0) {
-      (principal0, principal1) = LiquidityAmounts.getAmountsForLiquidity(
-        sqrtPriceX96,
-        TickMath.getSqrtPriceAtTick(tickLower),
-        TickMath.getSqrtPriceAtTick(tickUpper),
-        liquidity
-      );
-    }
-
-    (fees0, fees1) = _uncollectedFees(pm, manager, poolId, tickLower, tickUpper, tokenId);
-  }
-
-  /// @notice Uncollected fees for a v4 position (mirrors v4utils `FeeMath.getFeesOwed` without test-only imports).
-  function _uncollectedFees(
-    IPositionManager posm,
-    IPoolManager manager,
-    PoolId poolId,
-    int24 tickLower,
-    int24 tickUpper,
-    uint256 tokenId
-  ) private view returns (uint256 fee0, uint256 fee1) {
-    (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) = manager.getPositionInfo(
-      poolId,
-      address(posm),
-      tickLower,
-      tickUpper,
-      bytes32(tokenId)
-    );
-    if (liquidity == 0) return (0, 0);
-
-    (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = manager.getFeeGrowthInside(
-      poolId,
-      tickLower,
-      tickUpper
-    );
-
-    fee0 = uint256(_feeOwed(feeGrowthInside0X128, feeGrowthInside0LastX128, liquidity));
-    fee1 = uint256(_feeOwed(feeGrowthInside1X128, feeGrowthInside1LastX128, liquidity));
-  }
-
-  /// @dev Returns fees owed, matching V4 core's unchecked subtraction pattern.
-  ///      Fee growth values are monotonically increasing accumulators that intentionally wrap
-  ///      around uint256. When feeGrowthInsideX128 < feeGrowthInsideLastX128 the accumulator
-  ///      has wrapped — the correct delta is (type(uint256).max - last + current + 1), which
-  ///      is exactly what `unchecked { current - last }` computes in uint256 arithmetic.
-  function _feeOwed(
-    uint256 feeGrowthInsideX128,
-    uint256 feeGrowthInsideLastX128,
-    uint256 liquidity
-  ) private pure returns (uint128) {
-    if (liquidity == 0) return 0;
-    unchecked {
-      return FullMath.mulDiv(feeGrowthInsideX128 - feeGrowthInsideLastX128, liquidity, FixedPoint128.Q128).toUint128();
-    }
+  /// @inheritdoc ISharedStrategy
+  function getPositionAmountsSplit(address posm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+  {
+    (total0, total1, principal0, principal1) = SharedV4ValuationLib.getPositionAmountsSplit(posm, tokenId);
   }
 
   function _posmNftOwnedByVault(address posm, uint256 id) private view returns (bool) {
@@ -603,40 +289,54 @@ contract SharedV4Strategy is ISharedStrategy {
     require(ISharedVault(address(this)).isVaultToken(token), InvalidPoolTokens());
   }
 
+  function _poolVaultTokens(Currency currency0, Currency currency1)
+    private
+    view
+    returns (address token0, address token1)
+  {
+    token0 = _vaultToken(currency0);
+    token1 = _vaultToken(currency1);
+    require(token0 != token1, InvalidPoolTokens());
+  }
+
+  function _vaultToken(Currency currency) private view returns (address token) {
+    token = Currency.unwrap(currency);
+    if (token == address(0)) token = _contextWeth();
+  }
+
+  function _contextWeth() private view returns (address weth) {
+    if (msg.sender.code.length > 0) {
+      try ISharedVault(msg.sender).weth() returns (address callerWeth) {
+        if (callerWeth != address(0)) return callerWeth;
+      } catch { }
+    }
+    if (address(this).code.length > 0) {
+      try ISharedVault(address(this)).weth() returns (address selfWeth) {
+        if (selfWeth != address(0)) return selfWeth;
+      } catch { }
+    }
+    revert ISharedCommon.InvalidOperation();
+  }
+
   function _requireWhitelistedPosm(address posm) private view {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
   }
 
-  /// @notice Validates calldata passed to `IV4UtilsRouter.execute`.
-  /// @dev Fails closed: the selector MUST be `IV4Utils.execute`. Any other selector is rejected so
-  ///      that unknown functions exposed by V4Utils implementations cannot be invoked after the vault
-  ///      has already approved tokens / NFTs to the router. Inline swaps within `DECREASE_AND_SWAP`
-  ///      are permitted; swap-router and tokenIn/tokenOut validation is performed off-chain.
-  function _validateV4ExecuteCalldataSwapRouters(bytes memory params, address posm, uint256 tokenId) private pure {
-    require(
-      params.length >= 4 && bytes4(params) == IV4Utils.execute.selector,
-      ISharedCommon.InvalidOperation()
-    );
-    bytes memory body = new bytes(params.length - 4);
-    for (uint256 j; j < body.length; ) {
-      body[j] = params[j + 4];
+  /// @dev Validates EVERY listed token unconditionally — including zero-amount entries. The list is
+  ///      vestigial (never used to issue approvals), so this is defense-in-depth: it keeps the entry
+  ///      point honest if a future change ever reads `approveTokens`. Array-length consistency is
+  ///      enforced by the caller before this runs.
+  function _validateApprovalList(address[] memory approveTokens) private view {
+    for (uint256 i; i < approveTokens.length;) {
+      _validateVaultToken(approveTokens[i]);
       unchecked {
-        ++j;
+        i++;
       }
     }
-    (address p, uint256 tid, ) = abi.decode(body, (address, uint256, IV4Utils.Instructions));
-    require(p == posm && tid == tokenId, ISharedCommon.InvalidOperation());
   }
 
-  function _platformFeeX64FromConfig(ISharedConfigManager cm) private view returns (uint64) {
-    uint16 bps = cm.platformFeeBasisPoint();
-    if (bps == 0) return 0;
-    require(bps <= 10_000, ISharedCommon.InvalidFeeBasisPoint());
-    return uint64(FullMath.mulDiv(uint256(bps), _FEE_Q64, 10_000));
-  }
-
-  function _vaultOwnerFeeX64(uint16 basisPoints) private pure returns (uint64) {
-    if (basisPoints == 0) return 0;
-    return uint64(FullMath.mulDiv(uint256(basisPoints), _FEE_Q64, 10_000));
+  function _v4ParamsSelector(bytes memory params) private pure returns (bytes4 selector) {
+    require(params.length >= 4, ISharedCommon.InvalidOperation());
+    selector = bytes4(params);
   }
 }

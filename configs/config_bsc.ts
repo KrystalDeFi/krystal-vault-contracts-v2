@@ -48,7 +48,15 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
 
 const SharedConfig: Record<string, IConfigShared> = {
   bsc_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4SwapPipeline: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -76,11 +84,24 @@ const SharedConfig: Record<string, IConfigShared> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    sharedV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedV4Strategy: {
       enabled: true,
       autoVerifyContract: true,
     },
-    v4NfpmAddresses: ["0x7a4a5c919ae2541aed11041a1aeee68f1287f95b", "0x55f4c8abA71A1e923edC303eb4fEfF14608cC226"],
+    sharedPancakeV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedPancakeV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0x7a4a5c919ae2541aed11041a1aeee68f1287f95b"],
+    pancakeV4NfpmAddresses: ["0x55f4c8abA71A1e923edC303eb4fEfF14608cC226"],
   },
 };
 

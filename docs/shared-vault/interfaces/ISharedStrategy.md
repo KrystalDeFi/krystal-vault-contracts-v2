@@ -10,6 +10,12 @@ error InvalidPoolTokens()
 
 ### PositionChange
 
+_Shared strategies validate pool currencies against SharedVault's ERC20 token set and report
+     `token0`/`token1` here as those vault tokens. Native-currency V4/Pancake pools (a pool currency
+     of `address(0)`) ARE supported: the strategy maps the native currency to the configured WETH
+     vault token and wraps/unwraps around liquidity ops, so the position is tracked against WETH.
+     A pool whose non-native side is not a configured vault token is rejected._
+
 ```solidity
 struct PositionChange {
   bool isAdd;
@@ -35,7 +41,7 @@ _Strategy MUST validate that pool tokens are vault tokens.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) embed fee Q64 on `IV3Utils` structs:        `protocolFeeX64` / `gasFeeX64` on swap-and-mint and swap-and-increase params, and `performanceFeeX64` /        `gasFeeX64` (plus `liquidityFeeX64` when applicable) on `Instructions` for safe NFT transfer.        See each strategy for the exact tuple after the leading `OperationType` word. `SharedV4Strategy` uses a        different layout. |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` and `SharedPancakeV4Strategy` accept protocol-specific V4Utils-compatible        instructions and execute them natively through the relevant PositionManager. Utility fee fields remain        API-controlled; platform and owner fees are read from shared-vault config and vault state. |
 
 #### Return Values
 
@@ -66,13 +72,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 | totalShares | uint256 | Total vault share supply (snapshot before burn) |
 | minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
 | minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for this exit; platform fee from `configManager`. No gas fee on withdraw exits. |
-
-#### Return Values
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| changes | struct ISharedStrategy.PositionChange[] | Empty if partial exit; single removal entry if fully exited |
+| vaultOwnerFeeBasisPoint | uint16 | Deprecated compatibility argument. Implementations must read vault-owner bps from the vault. @return changes Empty if partial exit; single removal entry if fully exited |
 
 ### depositProportional
 
@@ -156,14 +156,12 @@ _Used by SharedVault.recoverPosition to validate operator-supplied token0/token1
 function collectFees(address nfpm, uint256 tokenId, uint16 vaultOwnerFeeBasisPoint) external
 ```
 
-Pre-collect accumulated LP fees into vault idle balance so they are distributed
-        proportionally by share ratio rather than entirely to the next withdrawer.
+Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
 
-_Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot.
-     Implementations should collect fees from the NFPM/POSM and take performance + platform fees
-     via the appropriate fee mechanism. Failures are silently ignored by the vault so that a
-     collect failure never bricks withdrawals — fee distribution falls back to the old (per-withdrawer)
-     behavior._
+_Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance snapshot. Strategy execute
+     paths also call their internal collect logic before mutating an existing position. Implementations
+     should collect fees from the NFPM/POSM and take performance + platform fees via the appropriate
+     fee mechanism._
 
 #### Parameters
 
@@ -171,7 +169,7 @@ _Called via delegatecall from SharedVault.withdraw() BEFORE the idle-balance sna
 | ---- | ---- | ----------- |
 | nfpm | address | NFT Position Manager (or V4 PositionManager) address |
 | tokenId | uint256 | Position NFT ID |
-| vaultOwnerFeeBasisPoint | uint16 | Vault owner bps for performance fee; platform fee from configManager. |
+| vaultOwnerFeeBasisPoint | uint16 | Deprecated compatibility argument. Implementations must read vault-owner bps from the vault. |
 
 ### getPositionPrincipalAmounts
 
@@ -189,9 +187,9 @@ _Returns the token amounts computed purely from the position's in-range liquidit
      (a) consume far less on the "off-ratio" side, leaving dust idle, or
      (b) revert the slippage check when `amount*Min > 0` because the actually consumed amount on the
          binding side falls below the `amount*Min` derived from the desired value.
-     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups,
-     treating uncollected fees as idle vault balance for share-pricing purposes (they are still counted
-     in `getPositionAmounts`, which remains the total-value view).
+     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups.
+     Uncollected fees are treated as idle-like value for share pricing, but only net of platform and
+     vault-owner performance fees; `getPositionAmounts` remains the gross position-value view.
 
      Strategies that cannot meaningfully increase liquidity (e.g. staked / locked positions whose
      `depositProportional` returns silently) MAY return (0, 0); the caller skips the LP top-up and
@@ -210,4 +208,32 @@ _Returns the token amounts computed purely from the position's in-range liquidit
 | ---- | ---- | ----------- |
 | amount0 | uint256 | Principal-only amount of token0 (excludes uncollected fees/rewards) |
 | amount1 | uint256 | Principal-only amount of token1 (excludes uncollected fees/rewards) |
+
+### getPositionAmountsSplit
+
+```solidity
+function getPositionAmountsSplit(address nfpm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+```
+
+Get gross and principal-only token amounts for a tracked LP position in one valuation pass.
+
+_`total*` includes principal plus uncollected fees/rewards. `principal*` excludes uncollected
+     fees/rewards. Callers that need both values should use this function instead of calling
+     `getPositionAmounts` and `getPositionPrincipalAmounts` separately._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT Position Manager address |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| total0 | uint256 | Gross token0 amount in the position |
+| total1 | uint256 | Gross token1 amount in the position |
+| principal0 | uint256 | Principal-only token0 amount |
+| principal1 | uint256 | Principal-only token1 amount |
 

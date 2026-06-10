@@ -8,7 +8,7 @@ interface ISharedCommon {
   ///                            operations (e.g., harvest, rebalance-swap) where only vault token balances change.
   ///   CALL                   — direct call to a swap aggregator.
   ///                            action.data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-  ///                            tokenIn/tokenOut must be vault tokens; output balance delta is checked against minAmountOut.
+  ///                            tokenIn/tokenOut must be distinct vault tokens; output balance delta is checked against minAmountOut.
   ///   CALL_WITH_POSITIONS    — direct call to a target that returns PositionChange[].
   ///                            action.data is the raw calldata forwarded to the target.
   ///                            The result is decoded as PositionChange[] and LP positions are tracked accordingly.
@@ -34,7 +34,7 @@ interface ISharedCommon {
   error InvalidStrategy(address strategy);
   error StrategyCallFailed();
   error TransferFailed();
-  error SwapFailed();
+  error SwapFailed(uint256 index);
   error InsufficientShares();
   error InsufficientOutput();
   error NoTokensConfigured();
@@ -45,9 +45,19 @@ interface ISharedCommon {
   error LengthMismatch();
   error InvalidVaultOwnerFeeBasisPoint();
   error InvalidFeeBasisPoint();
+  error InvalidGasFeeX64();
   /// @notice NFPM must implement `IERC721Enumerable` (`tokenOfOwnerByIndex`) to locate the new token after `CHANGE_RANGE`.
   error NfpmEnumerableRequired();
   error InvalidNfpm(address nfpm);
   error InvalidSwapRouter(address swapRouter);
+  error InvalidSwapDataSignature();
+  error SwapDataSignatureExpired();
+  error SwapDataSignatureAlreadyUsed();
   error TooManyPositions();
+  /// @notice A position cannot be tracked because its pool hook intercepts liquidity add or removal
+  ///         (registers before/after{Add,Remove}Liquidity). Such hooks may require non-empty
+  ///         hookData, which the permissionless deposit/withdraw/adjust paths pass as empty bytes —
+  ///         a remove-hook would freeze withdrawals, an add-hook would freeze deposits. Minting into
+  ///         them is refused so empty hookData is always safe on every permissionless path.
+  error UnsupportedLiquidityHook();
 }

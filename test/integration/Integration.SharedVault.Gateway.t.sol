@@ -16,7 +16,8 @@ import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedCon
 import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
-// ─── Mock swap router ─────────────────────────────────────────────────────────
+// ─── Mock swap router
+// ─────────────────────────────────────────────────────────
 
 /// @dev Simulates an external swap aggregator for Gateway integration tests.
 ///      The gateway approves this contract for tokenIn before calling it with opaque swapData.
@@ -32,7 +33,79 @@ contract MockGatewaySwapRouter {
   }
 }
 
-// ─── Test contract ────────────────────────────────────────────────────────────
+contract GatewayIntegrationMockERC20 {
+  string public name;
+  string public symbol;
+  uint8 public immutable decimals;
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  constructor(string memory _name, string memory _symbol, uint8 _decimals) {
+    name = _name;
+    symbol = _symbol;
+    decimals = _decimals;
+  }
+
+  function mint(address to, uint256 amount) external {
+    balanceOf[to] += amount;
+  }
+
+  function approve(address spender, uint256 amount) external returns (bool) {
+    allowance[msg.sender][spender] = amount;
+    return true;
+  }
+
+  function transfer(address to, uint256 amount) public virtual returns (bool) {
+    require(balanceOf[msg.sender] >= amount, "BAL");
+    balanceOf[msg.sender] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) public virtual returns (bool) {
+    require(balanceOf[from] >= amount, "BAL");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "ALLOW");
+      allowance[from][msg.sender] -= amount;
+    }
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount;
+    return true;
+  }
+}
+
+contract GatewayIntegrationFotToken is GatewayIntegrationMockERC20 {
+  uint256 public immutable feeBps;
+
+  constructor(uint256 _feeBps) GatewayIntegrationMockERC20("Gateway Integration FOT", "GIFOT", 18) {
+    feeBps = _feeBps;
+  }
+
+  function transfer(address to, uint256 amount) public override returns (bool) {
+    _transferWithFee(msg.sender, to, amount);
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+    require(balanceOf[from] >= amount, "BAL");
+    if (allowance[from][msg.sender] != type(uint256).max) {
+      require(allowance[from][msg.sender] >= amount, "ALLOW");
+      allowance[from][msg.sender] -= amount;
+    }
+    _transferWithFee(from, to, amount);
+    return true;
+  }
+
+  function _transferWithFee(address from, address to, uint256 amount) internal {
+    require(balanceOf[from] >= amount, "BAL");
+    uint256 fee = (amount * feeBps) / 10_000;
+    balanceOf[from] -= amount;
+    balanceOf[to] += amount - fee;
+  }
+}
+
+// ─── Test contract
+// ────────────────────────────────────────────────────────────
 
 contract SharedVaultGatewayIntegrationTest is TestCommon {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
@@ -65,7 +138,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     vm.startPrank(vaultOwner);
 
     lpFeeTaker = new LpFeeTaker();
-    v3Strategy = new SharedV3Strategy(V3_UTILS, address(lpFeeTaker));
+    v3Strategy = new SharedV3Strategy(V3_UTILS);
 
     address[] memory targets = new address[](1);
     targets[0] = address(v3Strategy);
@@ -74,7 +147,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     configManager = new SharedConfigManager();
     // No swap routers needed in configManager — the gateway has its own independent swapRouter
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0));
+    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
@@ -126,6 +199,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -154,10 +228,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     vm.startPrank(player);
     IERC20(WETH).approve(address(gateway), wethIn);
 
-    bytes memory swapCalldata = abi.encodeCall(
-      MockGatewaySwapRouter.swap,
-      (WETH, USDC, wethForSwap, usdcOut)
-    );
+    bytes memory swapCalldata = abi.encodeCall(MockGatewaySwapRouter.swap, (WETH, USDC, wethForSwap, usdcOut));
 
     // Pull all 1 WETH upfront, then swap 0.5 WETH → USDC (the other 0.5 deposited directly).
     SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](1);
@@ -165,11 +236,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams({
-      tokenIn: WETH,
-      amountIn: wethForSwap,
-      tokenOut: USDC,
-      amountOutMin: 0,
-      swapData: swapCalldata
+      tokenIn: WETH, amountIn: wethForSwap, tokenOut: USDC, amountOutMin: 0, swapData: swapCalldata
     });
 
     address[] memory sweepTokens = new address[](2);
@@ -183,6 +250,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: sweepTokens
     });
 
@@ -208,10 +276,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     vm.startPrank(player);
     IERC20(WETH).approve(address(gateway), wethIn + 0.5 ether);
 
-    bytes memory swapCalldata = abi.encodeCall(
-      MockGatewaySwapRouter.swap,
-      (WETH, USDC, wethIn, usdcOut)
-    );
+    bytes memory swapCalldata = abi.encodeCall(MockGatewaySwapRouter.swap, (WETH, USDC, wethIn, usdcOut));
 
     // Pull all WETH upfront (0.5 to keep + 0.5 to swap = 1 ether), then swap 0.5 WETH → USDC.
     SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](1);
@@ -219,11 +284,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams({
-      tokenIn: WETH,
-      amountIn: wethIn,
-      tokenOut: USDC,
-      amountOutMin: 0,
-      swapData: swapCalldata
+      tokenIn: WETH, amountIn: wethIn, tokenOut: USDC, amountOutMin: 0, swapData: swapCalldata
     });
 
     uint256[4] memory minDepositAmounts;
@@ -235,6 +296,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: swaps,
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -259,7 +321,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
 
     // Approve gateway for shares
     IERC20(address(vault)).approve(address(gateway), shares);
@@ -312,7 +374,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     vm.stopPrank();
 
     // Preview how much USDC the player will receive on withdraw
@@ -326,10 +388,8 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     vm.startPrank(player);
     IERC20(address(vault)).approve(address(gateway), shares);
 
-    bytes memory swapCalldata = abi.encodeCall(
-      MockGatewaySwapRouter.swap,
-      (USDC, WETH, expectedUsdc, expectedWethFromSwap)
-    );
+    bytes memory swapCalldata =
+      abi.encodeCall(MockGatewaySwapRouter.swap, (USDC, WETH, expectedUsdc, expectedWethFromSwap));
 
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
     swaps[0] = SharedVaultGateway.SwapParams({
@@ -378,7 +438,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(WETH).approve(address(vault), wethDeposit);
     IERC20(USDC).approve(address(vault), usdcDeposit);
     uint256[4] memory depositAmounts = [wethDeposit, usdcDeposit, uint256(0), 0];
-    uint256 shares = vault.deposit(depositAmounts, 0);
+    uint256 shares = vault.deposit(depositAmounts, 0, 0);
     IERC20(address(vault)).approve(address(gateway), shares);
 
     // Bad calldata that will cause the router to revert
@@ -426,6 +486,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: [uint256(0), 0, 0, 0],
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
@@ -460,12 +521,84 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       swaps: new SharedVaultGateway.SwapParams[](0),
       minDepositAmounts: minDepositAmounts,
       slippageBps: 0,
+      minShares: 0,
       sweepTokens: new address[](0)
     });
 
     vm.expectEmit(true, true, false, false, address(gateway));
-    emit SharedVaultGateway.SwapAndDeposit(address(vault), player, 0 /* shares checked separately */);
+    emit SharedVaultGateway.SwapAndDeposit(
+      address(vault),
+      player,
+      0 /* shares checked separately */
+    );
     gateway.swapAndDeposit(params);
     vm.stopPrank();
+  }
+
+  function test_swapAndDeposit_feeOnTransferVaultToken_keepsGatewayStateless() public {
+    GatewayIntegrationFotToken fot = new GatewayIntegrationFotToken(200);
+    GatewayIntegrationMockERC20 paired = new GatewayIntegrationMockERC20("Gateway Pair", "GPAIR", 18);
+    SharedVault fotVault = new SharedVault();
+
+    fot.mint(address(this), 100e18);
+    paired.mint(address(this), 100e18);
+    fot.transfer(address(fotVault), 100e18);
+    paired.transfer(address(fotVault), 100e18);
+
+    SharedConfigManager localConfig = new SharedConfigManager();
+    localConfig.initialize(
+      address(this), new address[](0), new address[](0), feeRecipient, 0, new address[](0), new address[](0), new address[](0)
+    );
+
+    address[4] memory vaultTokens = [address(fot), address(paired), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    fotVault.initialize(
+      "Gateway-FOT-Integration",
+      vaultTokens,
+      initialAmounts,
+      vaultOwner,
+      vaultOwner,
+      address(localConfig),
+      address(0),
+      0
+    );
+
+    address player = makeAddr("fotGatewayPlayer");
+    fot.mint(player, 50e18);
+    paired.mint(player, 50e18);
+
+    vm.startPrank(player);
+    IERC20(address(fot)).approve(address(gateway), type(uint256).max);
+    IERC20(address(paired)).approve(address(gateway), type(uint256).max);
+
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](2);
+    inputs[0] = SharedVaultGateway.InputToken({ token: address(fot), amount: 50e18 });
+    inputs[1] = SharedVaultGateway.InputToken({ token: address(paired), amount: 50e18 });
+
+    address[] memory sweepTokens = new address[](2);
+    sweepTokens[0] = address(fot);
+    sweepTokens[1] = address(paired);
+
+    uint256 fotBefore = fot.balanceOf(address(fotVault));
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(fotVault)),
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: sweepTokens
+    });
+
+    uint256 shares = gateway.swapAndDeposit(params);
+    vm.stopPrank();
+
+    assertGt(shares, 0, "gateway FOT deposit mints shares");
+    assertEq(fotVault.balanceOf(player), shares, "shares minted to player");
+    assertEq(
+      fot.balanceOf(address(fotVault)) - fotBefore, (49e18 * 9800) / 10_000, "vault balance reflects actual FOT receipt"
+    );
+    assertEq(fot.balanceOf(address(gateway)), 0, "gateway has no FOT residue");
+    assertEq(paired.balanceOf(address(gateway)), 0, "gateway has no paired residue");
   }
 }

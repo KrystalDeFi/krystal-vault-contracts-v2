@@ -38,6 +38,12 @@ event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted)
 event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted)
 ```
 
+### WhitelistSignersUpdated
+
+```solidity
+event WhitelistSignersUpdated(address[] signers, bool isWhitelisted)
+```
+
 ### VaultPausedUpdated
 
 ```solidity
@@ -54,6 +60,12 @@ event MaxPositionsUpdated(uint16 maxPositions)
 
 ```solidity
 event MinTokenPrecisionUpdated(uint8 precision)
+```
+
+### MaxGasFeeX64Updated
+
+```solidity
+event MaxGasFeeX64Updated(uint64 maxGasFeeX64)
 ```
 
 ### isVaultPaused
@@ -74,12 +86,30 @@ function feeRecipient() external view returns (address)
 function platformFeeBasisPoint() external view returns (uint16)
 ```
 
-Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are
+settled.
 
 ### setPlatformFeeBasisPoint
 
 ```solidity
 function setPlatformFeeBasisPoint(uint16 basisPoints) external
+```
+
+### maxGasFeeX64
+
+```solidity
+function maxGasFeeX64() external view returns (uint64)
+```
+
+Maximum executor gas-fee fraction accepted from shared strategy calldata.
+
+_Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just below 100%.
+     Default is 30%; the config owner can lower it to 0 to disable discretionary strategy gas fees._
+
+### setMaxGasFeeX64
+
+```solidity
+function setMaxGasFeeX64(uint64 maxGasFeeX64) external
 ```
 
 ### isWhitelistedTarget
@@ -129,6 +159,27 @@ function isWhitelistedSwapRouter(address swapRouter) external view returns (bool
 ```solidity
 function setWhitelistSwapRouters(address[] swapRouters, bool isWhitelisted) external
 ```
+
+### isWhitelistedSigner
+
+```solidity
+function isWhitelistedSigner(address signer) external view returns (bool)
+```
+
+Backend signers allowed to authorize off-chain validated shared-vault swap payloads.
+
+_A whitelisted signer is a slippage/router-policy authority for operator swap paths.
+     Treat signer keys as hot privileged keys: monitor them and de-whitelist immediately on compromise._
+
+### setWhitelistSigners
+
+```solidity
+function setWhitelistSigners(address[] signers, bool isWhitelisted) external
+```
+
+Updates backend signers allowed to authorize shared-vault swap payloads.
+
+_See `isWhitelistedSigner` for the signer key-management trust assumption._
 
 ### setVaultPaused
 

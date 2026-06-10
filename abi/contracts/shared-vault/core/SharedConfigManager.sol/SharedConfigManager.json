@@ -83,6 +83,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint64",
+        "name": "maxGasFeeX64",
+        "type": "uint64"
+      }
+    ],
+    "name": "MaxGasFeeX64Updated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint16",
         "name": "maxPositions",
         "type": "uint16"
@@ -193,6 +206,25 @@
       {
         "indexed": false,
         "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "WhitelistSignersUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address[]",
         "name": "swapRouters",
         "type": "address[]"
       },
@@ -274,6 +306,11 @@
         "internalType": "address[]",
         "name": "_whitelistSwapRouters",
         "type": "address[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_whitelistSigners",
+        "type": "address[]"
       }
     ],
     "name": "initialize",
@@ -336,6 +373,25 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "signer",
+        "type": "address"
+      }
+    ],
+    "name": "isWhitelistedSigner",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "swapRouter",
         "type": "address"
       }
@@ -365,6 +421,19 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxGasFeeX64",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -438,6 +507,19 @@
       }
     ],
     "name": "setFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "_maxGasFeeX64",
+        "type": "uint64"
+      }
+    ],
+    "name": "setMaxGasFeeX64",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -534,6 +616,24 @@
     "inputs": [
       {
         "internalType": "address[]",
+        "name": "signers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool",
+        "name": "_isWhitelisted",
+        "type": "bool"
+      }
+    ],
+    "name": "setWhitelistSigners",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
         "name": "swapRouters",
         "type": "address[]"
       },
@@ -607,6 +707,25 @@
       }
     ],
     "name": "whitelistedNfpms",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "whitelistedSigners",
     "outputs": [
       {
         "internalType": "bool",

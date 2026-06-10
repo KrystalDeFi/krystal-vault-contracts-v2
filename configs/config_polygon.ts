@@ -38,7 +38,15 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
 
 const SharedConfig: Record<string, IConfigShared> = {
   polygon_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4SwapPipeline: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -63,6 +71,10 @@ const SharedConfig: Record<string, IConfigShared> = {
       autoVerifyContract: true,
     },
     sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4StrategyLib: {
       enabled: true,
       autoVerifyContract: true,
     },

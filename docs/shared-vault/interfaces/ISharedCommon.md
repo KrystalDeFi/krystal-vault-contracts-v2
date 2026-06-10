@@ -10,7 +10,7 @@ Call discipline for vault execution.
                            operations (e.g., harvest, rebalance-swap) where only vault token balances change.
   CALL                   — direct call to a swap aggregator.
                            action.data must be abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-                           tokenIn/tokenOut must be vault tokens; output balance delta is checked against minAmountOut.
+                           tokenIn/tokenOut must be distinct vault tokens; output balance delta is checked against minAmountOut.
   CALL_WITH_POSITIONS    — direct call to a target that returns PositionChange[].
                            action.data is the raw calldata forwarded to the target.
                            The result is decoded as PositionChange[] and LP positions are tracked accordingly.
@@ -92,7 +92,7 @@ error TransferFailed()
 ### SwapFailed
 
 ```solidity
-error SwapFailed()
+error SwapFailed(uint256 index)
 ```
 
 ### InsufficientShares
@@ -155,6 +155,12 @@ error InvalidVaultOwnerFeeBasisPoint()
 error InvalidFeeBasisPoint()
 ```
 
+### InvalidGasFeeX64
+
+```solidity
+error InvalidGasFeeX64()
+```
+
 ### NfpmEnumerableRequired
 
 ```solidity
@@ -175,9 +181,39 @@ error InvalidNfpm(address nfpm)
 error InvalidSwapRouter(address swapRouter)
 ```
 
+### InvalidSwapDataSignature
+
+```solidity
+error InvalidSwapDataSignature()
+```
+
+### SwapDataSignatureExpired
+
+```solidity
+error SwapDataSignatureExpired()
+```
+
+### SwapDataSignatureAlreadyUsed
+
+```solidity
+error SwapDataSignatureAlreadyUsed()
+```
+
 ### TooManyPositions
 
 ```solidity
 error TooManyPositions()
 ```
+
+### UnsupportedLiquidityHook
+
+```solidity
+error UnsupportedLiquidityHook()
+```
+
+A position cannot be tracked because its pool hook intercepts liquidity add or removal
+        (registers before/after{Add,Remove}Liquidity). Such hooks may require non-empty
+        hookData, which the permissionless deposit/withdraw/adjust paths pass as empty bytes —
+        a remove-hook would freeze withdrawals, an add-hook would freeze deposits. Minting into
+        them is refused so empty hookData is always safe on every permissionless path.
 

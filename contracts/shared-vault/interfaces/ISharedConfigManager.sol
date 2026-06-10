@@ -8,18 +8,28 @@ interface ISharedConfigManager {
   event WhitelistCallersUpdated(address[] callers, bool isWhitelisted);
   event WhitelistNfpmsUpdated(address[] nfpms, bool isWhitelisted);
   event WhitelistSwapRoutersUpdated(address[] swapRouters, bool isWhitelisted);
+  event WhitelistSignersUpdated(address[] signers, bool isWhitelisted);
   event VaultPausedUpdated(bool isVaultPaused);
   event MaxPositionsUpdated(uint16 maxPositions);
   event MinTokenPrecisionUpdated(uint8 precision);
+  event MaxGasFeeX64Updated(uint64 maxGasFeeX64);
 
   function isVaultPaused() external view returns (bool);
 
   function feeRecipient() external view returns (address);
 
-  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+  /// @notice Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are
+  /// settled.
   function platformFeeBasisPoint() external view returns (uint16);
 
   function setPlatformFeeBasisPoint(uint16 basisPoints) external;
+
+  /// @notice Maximum executor gas-fee fraction accepted from shared strategy calldata.
+  /// @dev Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just below 100%.
+  ///      Default is 30%; the config owner can lower it to 0 to disable discretionary strategy gas fees.
+  function maxGasFeeX64() external view returns (uint64);
+
+  function setMaxGasFeeX64(uint64 maxGasFeeX64) external;
 
   // Target whitelist (for strategy delegatecalls and swap aggregator calls)
   function isWhitelistedTarget(address target) external view returns (bool);
@@ -40,6 +50,15 @@ interface ISharedConfigManager {
   function isWhitelistedSwapRouter(address swapRouter) external view returns (bool);
 
   function setWhitelistSwapRouters(address[] calldata swapRouters, bool isWhitelisted) external;
+
+  /// @notice Backend signers allowed to authorize off-chain validated shared-vault swap payloads.
+  /// @dev A whitelisted signer is a slippage/router-policy authority for operator swap paths.
+  ///      Treat signer keys as hot privileged keys: monitor them and de-whitelist immediately on compromise.
+  function isWhitelistedSigner(address signer) external view returns (bool);
+
+  /// @notice Updates backend signers allowed to authorize shared-vault swap payloads.
+  /// @dev See `isWhitelistedSigner` for the signer key-management trust assumption.
+  function setWhitelistSigners(address[] calldata signers, bool isWhitelisted) external;
 
   function setVaultPaused(bool _isVaultPaused) external;
 

@@ -74,7 +74,10 @@ Emitted when the operator recovers a previously dropped position back into track
 
 ### Position
 
-_Tracked LP position_
+_Tracked LP position
+     Vault token slots are ERC20 addresses; `address(0)` means an unused slot. Native-currency
+     V4/Pancake pools that use `address(0)` as a currency are unsupported. Use wrapped-native
+     ERC20 pools instead._
 
 ```solidity
 struct Position {
@@ -120,7 +123,7 @@ function initialize(string name, address[4] _tokens, uint256[4] initialAmounts, 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
@@ -133,16 +136,18 @@ Deposit tokens and receive shares. Send ETH via msg.value to auto-wrap to WETH
 | ---- | ---- | ----------- |
 | amounts | uint256[4] |  |
 | slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%) applied to each LP        position's proportional deposit: amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000).        Must be ≤ 10000. Pass 0 to skip the amountMin floor. |
+| minShares | uint256 | Minimum shares the deposit must mint, else the call reverts with `InsufficientShares`.        This is the share-price slippage guard: `slippageBps` only bounds the per-position LP-add ratio,        NOT the shares-per-value rate. Shares are computed against the vault's total balances, whose LP        portion is valued at the pools' spot price and is therefore manipulable within a block (deposit        sandwich). Derive `minShares` from `previewDeposit` minus an acceptable tolerance. Pass 0 to skip. |
 
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) external payable returns (uint256 shares)
 ```
 
 Deposit tokens from the caller and mint shares to `receiver`.
 
-_Preserves gateway/account attribution while the caller supplies the tokens._
+_Preserves gateway/account attribution while the caller supplies the tokens. `minShares` is the
+     share-price slippage guard — see the other `deposit` overload._
 
 ### withdraw
 
@@ -170,7 +175,9 @@ function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address ac
 
 Burn `account` shares and withdraw proportional tokens to the caller.
 
-_If caller is not `account`, the caller must have sufficient share allowance._
+_If caller is not `account`, the caller must have sufficient share allowance.
+     `account` only selects whose shares are burned; proceeds are sent to `msg.sender`, not
+     to `account`._
 
 ### execute
 
@@ -180,7 +187,7 @@ function execute(struct ISharedVault.Action[] actions) external
 
 Execute one or more actions: strategy delegatecalls (LP) and/or direct swap calls.
         For strategy actions the vault tracks LP position changes.
-        For swap actions the vault validates tokenIn/tokenOut are vault tokens and checks
+        For swap actions the vault validates tokenIn/tokenOut are distinct vault tokens and checks
         that the output meets minAmountOut.
 
 ### getTokens
@@ -200,6 +207,20 @@ function getIdleBalances() external view returns (uint256[4])
 ```solidity
 function getTotalBalances() external view returns (uint256[4])
 ```
+
+Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
+
+_Reports the NET value owned by shareholders, not gross LP value. For each tracked position the
+     uncollected-fee portion is reduced by the platform fee and then the vault-owner fee (mirroring
+     `SharedStrategyFeeConfig.performanceFeeConfig`; the combined rate is clamped to 10000 bps).
+     LP principal and idle balances are never fee-charged. This matches the realized `withdraw()`
+     flow, which collects fees first so the proportional idle distribution is already net-of-fee.
+     Integrator notes:
+     - Share price is `totalSupply() / getTotalBalances()`. Because `configManager.platformFeeBasisPoint()`
+       is read live (never cached), changing the platform fee instantly reprices every vault's shares:
+       existing depositors' per-share value moves the moment the fee changes.
+     - This same net figure feeds `previewDeposit`, `getMinDepositAmounts`, and the gateway's deposit
+       ratio math, so dashboards and valuation tooling should expect the net (lower) number, not gross._
 
 ### getPositionCount
 

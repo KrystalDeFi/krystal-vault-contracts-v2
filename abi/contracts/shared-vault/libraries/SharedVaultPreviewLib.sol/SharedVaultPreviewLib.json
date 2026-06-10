@@ -12,6 +12,72 @@
   {
     "inputs": [
       {
+        "internalType": "uint256[4]",
+        "name": "idleBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpm",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "token0",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token1",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ISharedVault.Position[]",
+        "name": "positions",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "computeTotalBalances",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "balances",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "currentTotalSupply",
         "type": "uint256"

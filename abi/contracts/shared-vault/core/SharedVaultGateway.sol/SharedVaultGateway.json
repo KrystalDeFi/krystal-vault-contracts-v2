@@ -11,6 +11,11 @@
   },
   {
     "inputs": [],
+    "name": "ConflictingWethInput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EnforcedPause",
     "type": "error"
   },
@@ -22,6 +27,17 @@
   {
     "inputs": [],
     "name": "ExpectedPause",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "IdenticalSwapTokens",
     "type": "error"
   },
   {
@@ -124,6 +140,17 @@
       }
     ],
     "name": "SwapFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "count",
+        "type": "uint256"
+      }
+    ],
+    "name": "TooManySwaps",
     "type": "error"
   },
   {
@@ -257,6 +284,19 @@
     ],
     "name": "WithdrawAndSwap",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_SWAPS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -407,6 +447,11 @@
             "internalType": "uint16",
             "name": "slippageBps",
             "type": "uint16"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minShares",
+            "type": "uint256"
           },
           {
             "internalType": "address[]",

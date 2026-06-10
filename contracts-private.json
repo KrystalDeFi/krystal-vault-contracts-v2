@@ -48,6 +48,13 @@
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
+  "hyperevm_mainnet": {
+    "privateConfigManager": "0x60ccde74106f78db4428c9af6f9b165dbc8fb5d7",
+    "privateVault": "0xc746cb128fd33f447c389e510efc12eb39d33362",
+    "privateVaultFactory": "0xb7166204401cb23dafe02c4aae0a254a4d329adb",
+    "privateVaultAutomator": "0xd5bb424d9732bc8423cbb3444a70d8f85f86cf18",
+    "v3UtilsStrategy": "0x13a4a7d8540c6fca95b46d736ec78bc1d0877b57"
+  },
   "polygon_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",

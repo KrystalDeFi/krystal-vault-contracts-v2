@@ -2,6 +2,12 @@
 
 ## SharedConfigManager
 
+### DEFAULT_MAX_GAS_FEE_X64
+
+```solidity
+uint64 DEFAULT_MAX_GAS_FEE_X64
+```
+
 ### whitelistedTargets
 
 ```solidity
@@ -26,6 +32,12 @@ mapping(address => bool) whitelistedNfpms
 mapping(address => bool) whitelistedSwapRouters
 ```
 
+### whitelistedSigners
+
+```solidity
+mapping(address => bool) whitelistedSigners
+```
+
 ### isVaultPaused
 
 ```solidity
@@ -44,7 +56,8 @@ address feeRecipient
 uint16 platformFeeBasisPoint
 ```
 
-Platform fee on LP performance collections (basis points), sent to `feeRecipient` via `LpFeeTaker` on exit.
+Platform fee on LP performance collections (basis points), sent to `feeRecipient` when LP fees are
+settled.
 
 ### maxPositions
 
@@ -84,10 +97,21 @@ Decimal-place precision that defines the protocol-wide dust floor.
 
         A value of 0 disables the floor (only ceiling rounding remains active).
 
+### maxGasFeeX64
+
+```solidity
+uint64 maxGasFeeX64
+```
+
+Maximum executor gas-fee fraction accepted from shared strategy calldata.
+
+_Q64 fixed point: 2**64 is 100%, but the uint64 field can represent up to just below 100%.
+     Default is 30%; the config owner can lower it to 0 to disable discretionary strategy gas fees._
+
 ### initialize
 
 ```solidity
-function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, uint16 _platformFeeBasisPoint, address[] _whitelistNfpms, address[] _whitelistSwapRouters) public
+function initialize(address _owner, address[] _whitelistTargets, address[] _whitelistCallers, address _feeRecipient, uint16 _platformFeeBasisPoint, address[] _whitelistNfpms, address[] _whitelistSwapRouters, address[] _whitelistSigners) public
 ```
 
 One-time initializer. Argument order is intentional; pass-by-position callers must
@@ -99,6 +123,7 @@ One-time initializer. Argument order is intentional; pass-by-position callers mu
         5. _platformFeeBasisPoint  — platform fee in basis points (≤ 10 000)
         6. _whitelistNfpms         — NFT position managers to whitelist
         7. _whitelistSwapRouters   — swap routers/aggregators to whitelist
+        8. _whitelistSigners       — backend signers to whitelist
 
 ### setWhitelistTargets
 
@@ -148,6 +173,23 @@ function setWhitelistSwapRouters(address[] swapRouters, bool _isWhitelisted) ext
 function isWhitelistedSwapRouter(address swapRouter) external view returns (bool)
 ```
 
+### setWhitelistSigners
+
+```solidity
+function setWhitelistSigners(address[] signers, bool _isWhitelisted) external
+```
+
+### isWhitelistedSigner
+
+```solidity
+function isWhitelistedSigner(address signer) external view returns (bool)
+```
+
+Backend signers allowed to authorize off-chain validated shared-vault swap payloads.
+
+_A whitelisted signer is a slippage/router-policy authority for operator swap paths.
+     Treat signer keys as hot privileged keys: monitor them and de-whitelist immediately on compromise._
+
 ### setVaultPaused
 
 ```solidity
@@ -166,6 +208,12 @@ function setFeeRecipient(address newFeeRecipient) external
 function setPlatformFeeBasisPoint(uint16 basisPoints) external
 ```
 
+### setMaxGasFeeX64
+
+```solidity
+function setMaxGasFeeX64(uint64 _maxGasFeeX64) external
+```
+
 ### setMaxPositions
 
 ```solidity
@@ -178,7 +226,9 @@ function setMaxPositions(uint16 _maxPositions) external
 function setMinTokenPrecision(uint8 precision) external
 ```
 
-Set the dust-floor precision level.
-        5 → 0.00001 of any token (default).
-        0 → floor disabled (ceiling rounding still prevents the dilution attack).
+Set the per-token deposit precision floor (see `SharedVaultPreviewLib._minTokenAmt`):
+        the floored slice is `10**(decimals - precision)` per token, `1` when `precision >=
+        decimals`, or disabled when `precision == 0`. No upper bound is enforced on purpose — any
+        `precision >= a token's decimals` simply collapses to a 1-wei floor (the safe minimum); it
+        can never raise the floor unboundedly or brick deposits.
 

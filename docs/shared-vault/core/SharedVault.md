@@ -166,12 +166,12 @@ Initializes the shared vault
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and receive shares.
 
-_Share ratio is based on TOTAL balances (idle + LP positions valued by strategies).
+_Share ratio is based on TOTAL shareholder-owned balances (idle + LP principal + net LP fees).
      Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
      Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
      minting shares so a malicious depositor cannot receive a refund callback between balance
@@ -180,7 +180,7 @@ _Share ratio is based on TOTAL balances (idle + LP positions valued by strategie
 ### deposit
 
 ```solidity
-function deposit(uint256[4] amounts, uint16 slippageBps, address receiver) external payable returns (uint256 shares)
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) external payable returns (uint256 shares)
 ```
 
 Deposit tokens proportionally and mint shares to `receiver`.
@@ -188,7 +188,7 @@ Deposit tokens proportionally and mint shares to `receiver`.
 ### _deposit
 
 ```solidity
-function _deposit(uint256[4] amounts, uint16 slippageBps, address receiver) internal returns (uint256 shares)
+function _deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) internal returns (uint256 shares)
 ```
 
 ### _measureActualPulled
@@ -280,10 +280,11 @@ _Push proportional slices into tracked LP positions; no-op on first deposit or e
      by the current tick, so mixing fee balances (whose ratio is set by historical swap flow, not
      the range) into the desired amounts would either leak into idle silently (slippageBps == 0)
      or revert via `amount*Min` (slippageBps > 0). Uncollected fees are therefore effectively
-     treated as idle: they still count toward `_getTotalBalances` for share pricing, but they do
-     not participate in the LP top-up. The depositor's proportional share of those fees remains
-     in the vault as a slightly higher idle reserve (or gets collected and proportionally returned
-     on the next `exitProportional`).
+     treated as idle: their shareholder-owned value still counts toward `_getTotalBalances` for
+     share pricing, net of platform/vault-owner performance fees, but they do not participate in
+     the LP top-up. The depositor's proportional share of those net fees remains in the vault as
+     a slightly higher idle reserve (or gets collected and proportionally returned on the next
+     `exitProportional`).
 
      **Single binding share**: minimum-precision floors can intentionally make one token's pulled
      amount larger than its proportional share. For in-range positions, clamp the LP top-up to the
@@ -326,6 +327,9 @@ function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address ac
 
 Burn `account` shares and withdraw proportional tokens to the caller.
 
+_`account` only selects whose shares are burned. When called via allowance, output tokens
+     and any unwrapped native ETH are sent to `_msgSender()`, not to `account`._
+
 ### _withdraw
 
 ```solidity
@@ -344,9 +348,17 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          Result is PositionChange[]: LP positions are tracked.
                          New position entries (isAdd) require token0/token1 to be vault tokens.
                          Token-only operations (harvest, swap-reward) return an empty array.
-  CALL                 — direct call to a swap aggregator.
+  CALL                 — direct call to a swap aggregator (target must be a whitelisted swap router).
                          action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
-                         tokenIn/tokenOut must be vault tokens; output delta checked against minAmountOut.
+                         Trust boundary for the opaque `swapCalldata` (W-4): it is NOT executed on
+                         trust — it must carry a whitelisted-signer signature
+                         (`SharedSwapDataSignature`) binding chainId/vault/router/tokenIn/tokenOut/
+                         amountIn/minAmountOut/keccak(swapData); tokenIn/tokenOut must be distinct
+                         vault tokens; the router allowance is scoped to exactly `amountIn` and reset
+                         to 0 after the call; and the realized tokenOut delta INTO the vault must be
+                         >= minAmountOut. The residual trust is only that the (governance-)whitelisted
+                         router and signer behave — a compromised signer signing minAmountOut == 0 is
+                         the boundary. Funds cannot be redirected to a non-vault recipient profitably.
   CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
                          action.data is forwarded as raw calldata; result is decoded as PositionChange[].
                          The target is stored as pos.strategy and will be delegatecalled via
@@ -354,6 +366,12 @@ Execute one or more actions atomically. See ISharedCommon.CallType for full sema
                          No token pre-approval or balance check is performed on this path:
                          the external contract manages its own token transfers (unlike CALL,
                          where the vault is the initiator and owns the approval flow).
+
+### _verifySignedSwapData
+
+```solidity
+function _verifySignedSwapData(address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) internal returns (bytes swapData)
+```
 
 ### _applyPositionChanges
 
@@ -383,6 +401,20 @@ function getIdleBalances() external view returns (uint256[4])
 ```solidity
 function getTotalBalances() external view returns (uint256[4])
 ```
+
+Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
+
+_Reports the NET value owned by shareholders, not gross LP value. For each tracked position the
+     uncollected-fee portion is reduced by the platform fee and then the vault-owner fee (mirroring
+     `SharedStrategyFeeConfig.performanceFeeConfig`; the combined rate is clamped to 10000 bps).
+     LP principal and idle balances are never fee-charged. This matches the realized `withdraw()`
+     flow, which collects fees first so the proportional idle distribution is already net-of-fee.
+     Integrator notes:
+     - Share price is `totalSupply() / getTotalBalances()`. Because `configManager.platformFeeBasisPoint()`
+       is read live (never cached), changing the platform fee instantly reprices every vault's shares:
+       existing depositors' per-share value moves the moment the fee changes.
+     - This same net figure feeds `previewDeposit`, `getMinDepositAmounts`, and the gateway's deposit
+       ratio math, so dashboards and valuation tooling should expect the net (lower) number, not gross._
 
 ### getPositionCount
 
@@ -415,7 +447,12 @@ _Returns the proportional share of (idle + LP principal + (1 − feeRate) × unc
      vault-owner basis points are clamped to 10000 (silent platform clamp) and applied only to the
      uncollected-fees portion of each tracked position. Principal exits incur no perf/platform fee
      (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
-     Callers should still apply a slippage margin for AMM price impact at exit time._
+     **Estimate, not exact (W-7)**: this is a close UPPER BOUND on what `withdraw` actually
+     transfers and can exceed it by a few wei per token per position. `previewWithdraw` divides once
+     over (idle + spot-valued LP), whereas `withdraw` floors the idle slice separately and then adds
+     the tokens actually returned by removing `floor(liquidity·shares/supply)` (a second layer of AMM
+     rounding). Always apply a slippage margin; do NOT pass `previewWithdraw()` verbatim as
+     `minAmounts`, or a 1-wei shortfall can trigger `InsufficientOutput`._
 
 ### getMinDepositAmounts
 
@@ -605,7 +642,11 @@ function _getIdleBalances() internal view returns (uint256[4] balances)
 function _getTotalBalances() internal view returns (uint256[4] balances)
 ```
 
-Total balances including idle tokens + LP position amounts valued by strategies
+Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
+
+_Net of platform and vault-owner performance fees on the uncollected-fee portion (live read of
+     `configManager.platformFeeBasisPoint()`, so it reprices instantly when the platform fee changes).
+     See `ISharedVault.getTotalBalances` for the full integrator-facing semantics._
 
 ### receive
 
