@@ -467,6 +467,31 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(ISharedVault(address(otherVault)), ops, encoded, sig);
   }
 
+  /// @dev Characterization: user orders are validated against the TARGET vault's owner, not bound to
+  ///      a specific vault — one order signed by an owner of two vaults authorizes operator execution
+  ///      on both. The (trusted) operator role is the boundary that keeps actions faithful to the
+  ///      order's intent; if vault-scoping is ever added to the order digest, this test must change.
+  function test_executeWithUserOrder_sameOwnerSecondVault_orderValidOnBoth() public {
+    SharedVault secondVault = new SharedVault();
+    tokenA.mint(address(this), 200e18);
+    tokenB.mint(address(this), 200e18);
+    tokenA.transfer(address(secondVault), 100e18);
+    tokenB.transfer(address(secondVault), 100e18);
+    address[4] memory vt = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory am = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
+    secondVault.initialize("SameOwner2", vt, am, VAULT_OWNER, address(0), address(configManager), address(0), 0);
+    vm.stopPrank();
+
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.startPrank(OPERATOR);
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+    automator.executeWithUserOrder(ISharedVault(address(secondVault)), ops, encoded, sig);
+    vm.stopPrank();
+  }
+
   function test_executeWithUserOrder_fail_nonOperator() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));

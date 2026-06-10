@@ -200,6 +200,22 @@ contract SwapPathVaultHarness {
     changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
   }
 
+  /// @dev Mirrors SharedVault._withdraw's exit delegatecall so exitProportional can be driven directly.
+  function exitStrategy(address strategy, address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares)
+    external
+    returns (ISharedStrategy.PositionChange[] memory changes)
+  {
+    (bool ok, bytes memory result) = strategy.delegatecall(
+      abi.encodeCall(ISharedStrategy.exitProportional, (_nfpm, tokenId, shares, totalShares, 0, 0, 0))
+    );
+    if (!ok) {
+      assembly {
+        revert(add(result, 32), mload(result))
+      }
+    }
+    changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+  }
+
   function verifySignedSwapData(address, address, address, uint256, uint256, bytes calldata)
     external
     pure
@@ -810,6 +826,25 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     vm.prank(automator);
     vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Dust shares: when floor(posLiquidity * shares / totalShares) == 0 the strategy must not
+  ///      touch the position at all — no liquidity decrease, no collect, no PositionChange — so the
+  ///      vault's withdraw pays such a withdrawer from idle balances only and the position stays
+  ///      tracked for the remaining holders. Twin of SharedV3StrategySwapPath's test.
+  function test_exitProportional_dustShares_leavesPositionUntouched() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000); // would be released IF a decrease ran — it must not
+
+    // 1 share of 10_000_000: liquidityToRemove = floor(1_000_000 / 10_000_000) = 0
+    ISharedStrategy.PositionChange[] memory changes =
+      vault.exitStrategy(address(strategy), address(nfpm), TOKEN_ID, 1, 10_000_000);
+
+    assertEq(changes.length, 0, "no position change for dust shares");
+    assertEq(nfpm.liquidity(), 1_000_000, "liquidity untouched");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 released");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 released");
   }
 
   function _mintData(IV3Utils.SwapAndMintParams memory params) internal pure returns (bytes memory) {

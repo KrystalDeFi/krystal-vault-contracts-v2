@@ -361,6 +361,7 @@ contract SharedVaultForkFuzzer {
   bool public v4SecurityFiredAtLeastOnce;
   bool public v4SuccessChecked;
   bool public v4NativeSuccessChecked;
+  bool public v4FullExitChecked;
 
   SharedPancakeV4Strategy public localPancakeV4Strategy;
   ISharedVault public pancakeV4ThreeTokenVault;
@@ -368,6 +369,7 @@ contract SharedVaultForkFuzzer {
   bool public pancakeV4SecurityFiredAtLeastOnce;
   bool public pancakeV4SuccessChecked;
   bool public pancakeV4NativeSuccessChecked;
+  bool public pancakeV4FullExitChecked;
 
   // ─── Aerodrome (Slipstream) harness ────────────────────────────────────────
   // Locally-compiled SharedAerodromeStrategy driven against the REAL Base
@@ -1362,6 +1364,77 @@ contract SharedVaultForkFuzzer {
     assert(address(successVault).balance == 0);
   }
 
+  /// @dev Drives collectFees + exitProportional (DECREASE_LIQUIDITY/TAKE_PAIR via the local
+  ///      SharedV4StrategyLib) against the REAL Uniswap V4 position manager: a partial withdraw must
+  ///      decrease liquidity proportionally while keeping the position tracked; a subsequent full
+  ///      withdraw must drain liquidity to zero, untrack the position, and burn all shares.
+  function fork_v4_partial_then_full_owner_exit_removes_local_position() external {
+    if (v4FullExitChecked) return;
+    v4FullExitChecked = true;
+    _ensureV4Harness();
+
+    (ForkV4MockERC20 token0, ForkV4MockERC20 token1) = _deploySortedForkV4TokenPair();
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(token0)),
+      currency1: Currency.wrap(address(token1)),
+      fee: V4_LP_FEE,
+      tickSpacing: V4_TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    IPositionManager(BASE_UNISWAP_V4_POSM).initializePool(key, SQRT_PRICE_1_1);
+
+    SharedVault exitVault =
+      _newLocalV4Vault(address(token0), address(token1), address(localV4Strategy), BASE_UNISWAP_V4_POSM);
+    uint256 mintedId = IPositionManager(BASE_UNISWAP_V4_POSM).nextTokenId();
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_UNISWAP_V4_POSM,
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _executeLocalV4(
+      exitVault,
+      address(localV4Strategy),
+      _v4ExecuteData(BASE_UNISWAP_V4_POSM, 0, abi.encodeCall(IV4Utils.swapAndMint, (mintParams)))
+    );
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterMint = IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterMint > 0);
+
+    uint256[4] memory mins;
+    uint256 shares = exitVault.balanceOf(address(this));
+
+    // Partial: half the shares → proportional decrease, position stays tracked.
+    uint256[4] memory gotPartial = exitVault.withdraw(shares / 2, mins, false);
+    assert(gotPartial[0] > 0 || gotPartial[1] > 0);
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterPartial = IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterPartial > 0 && liquidityAfterPartial < liquidityAfterMint);
+
+    // Full: remaining shares → position drained, untracked, supply zero.
+    uint256[4] memory gotFull = exitVault.withdraw(exitVault.balanceOf(address(this)), mins, false);
+    assert(gotFull[0] > 0 || gotFull[1] > 0);
+    assert(exitVault.totalSupply() == 0);
+    assert(exitVault.getPositionCount() == 0);
+    assert(IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId) == 0);
+  }
+
   function fork_pancake_v4_swapAndMint_rejects_non_pool_input_token(uint64 gasFeeSeed) external {
     _ensurePancakeV4Harness();
 
@@ -1500,6 +1573,78 @@ contract SharedVaultForkFuzzer {
     assert(tracked0 == BASE_WETH);
     assert(tracked1 == address(token1));
     assert(address(successVault).balance == 0);
+  }
+
+  /// @dev Pancake twin of fork_v4_partial_then_full_owner_exit_removes_local_position: drives
+  ///      collectFees + exitProportional through the local SharedPancakeV4StrategyLib against the
+  ///      REAL Pancake Infinity CL position manager.
+  function fork_pancake_v4_partial_then_full_owner_exit_removes_local_position() external {
+    if (pancakeV4FullExitChecked) return;
+    pancakeV4FullExitChecked = true;
+    _ensurePancakeV4Harness();
+
+    (ForkV4MockERC20 token0, ForkV4MockERC20 token1) = _deploySortedForkV4TokenPair();
+    address poolManager = address(ICLPositionManager(BASE_PANCAKE_V4_POSM).clPoolManager());
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(token0)),
+      currency1: PancakeCurrency.wrap(address(token1)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(poolManager),
+      fee: V4_LP_FEE,
+      parameters: _pancakeClParameters(V4_TICK_SPACING)
+    });
+    ICLPoolManager(poolManager).initialize(key, SQRT_PRICE_1_1);
+
+    SharedVault exitVault =
+      _newLocalV4Vault(address(token0), address(token1), address(localPancakeV4Strategy), BASE_PANCAKE_V4_POSM);
+    uint256 mintedId = ICLPositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token1)), amount: 0.25 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _executeLocalV4(
+      exitVault,
+      address(localPancakeV4Strategy),
+      _pancakeV4ExecuteData(BASE_PANCAKE_V4_POSM, 0, abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams)))
+    );
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterMint = ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterMint > 0);
+
+    uint256[4] memory mins;
+    uint256 shares = exitVault.balanceOf(address(this));
+
+    // Partial: half the shares → proportional decrease, position stays tracked.
+    uint256[4] memory gotPartial = exitVault.withdraw(shares / 2, mins, false);
+    assert(gotPartial[0] > 0 || gotPartial[1] > 0);
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterPartial = ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterPartial > 0 && liquidityAfterPartial < liquidityAfterMint);
+
+    // Full: remaining shares → position drained, untracked, supply zero.
+    uint256[4] memory gotFull = exitVault.withdraw(exitVault.balanceOf(address(this)), mins, false);
+    assert(gotFull[0] > 0 || gotFull[1] > 0);
+    assert(exitVault.totalSupply() == 0);
+    assert(exitVault.getPositionCount() == 0);
+    assert(ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId) == 0);
   }
 
   function _ensureV4Harness() internal {

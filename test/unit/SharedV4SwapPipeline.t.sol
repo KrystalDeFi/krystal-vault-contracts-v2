@@ -305,6 +305,26 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(token1.balanceOf(address(harness)), finalOut, "harness holds the final output");
   }
 
+  /// @dev A self-swap hop (tokenIn == tokenOut) passes reachability (both sides are pool tokens) but
+  ///      must fail `_swap`'s explicit guard with InvalidOperation BEFORE signature verification —
+  ///      otherwise the output-delta accounting would double-count the unchanged balance. Unsigned
+  ///      swapData proves the guard fires first.
+  function test_execute_rejectsIdenticalTokenHop() public {
+    token0.mint(address(harness), 1 ether);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 1 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0,
+      swapData: hex"01" // never verified — the identical-token guard precedes signature checking
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    harness.execute(address(router), address(token0), address(token1), 1 ether, 0, swaps);
+  }
+
   function _signedSwapData(
     address tokenIn,
     address tokenOut,

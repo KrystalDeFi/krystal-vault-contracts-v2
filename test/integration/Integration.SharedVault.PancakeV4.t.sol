@@ -553,6 +553,26 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 0, "full Pancake V4 withdraw removes tracked position");
   }
 
+  /// @dev Twin of the V4 integration test: a real native-currency Pancake V4 position cannot be
+  ///      recovered with token0 == address(0) — recoverPosition's vault-token check rejects it.
+  function test_recoverPosition_rejectsNativeCurrencyPoolFromRealPancakeV4PositionManager() public {
+    PoolKey memory nativeKey = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token0)),
+      hooks: IHooks(address(0)),
+      poolManager: IPoolManager(address(poolManager)),
+      fee: LP_FEE,
+      parameters: _clParameters(TICK_SPACING)
+    });
+    poolManager.initialize(nativeKey, SQRT_PRICE_1_1);
+
+    vm.deal(address(this), 10 ether);
+    uint256 nativeTokenId = _mintNativePositionToOperator(nativeKey, 10 ether);
+
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.recoverPosition(BASE_PANCAKE_V4_POSM, nativeTokenId, address(strategy), address(0), address(token0));
+  }
+
   function test_execute_forwardsMultiHopDecreaseAndSwapPayloadWithRealPancakeV4PositionManager() public {
     uint256 token1Before = token1.balanceOf(address(vault));
     bytes memory hop0SwapData =
@@ -1137,6 +1157,29 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     mintedTokenId = posm.nextTokenId();
     posm.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1);
     assertEq(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(mintedTokenId), address(this), "operator owns minted V4 position");
+  }
+
+  /// @dev Native-currency variant: currency0 is native ETH (settled via msg.value + SWEEP refund),
+  ///      so only currency1 needs Permit2 approval. Mirrors the V4 integration helper.
+  function _mintNativePositionToOperator(PoolKey memory key, uint256 nativeValue)
+    internal
+    returns (uint256 mintedTokenId)
+  {
+    _approveCurrencyForPosm(Currency.unwrap(key.currency1));
+
+    bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d), uint8(0x14)); // CL_MINT_POSITION, SETTLE_PAIR, SWEEP
+    bytes[] memory params = new bytes[](3);
+    params[0] = abi.encode(
+      key, TICK_LOWER, TICK_UPPER, INITIAL_LIQUIDITY, MAX_TOKEN_IN, MAX_TOKEN_IN, address(this), bytes("")
+    );
+    params[1] = abi.encode(Currency.unwrap(key.currency0), Currency.unwrap(key.currency1));
+    params[2] = abi.encode(Currency.wrap(address(0)), address(this));
+
+    mintedTokenId = posm.nextTokenId();
+    posm.modifyLiquidities{ value: nativeValue }(abi.encode(actions, params), block.timestamp + 1);
+    assertEq(
+      IERC721(BASE_PANCAKE_V4_POSM).ownerOf(mintedTokenId), address(this), "operator owns minted native position"
+    );
   }
 
   function _approveCurrencyForPosm(address token) internal {

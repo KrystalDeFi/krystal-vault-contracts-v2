@@ -1693,6 +1693,116 @@ contract MockAerodromeInvertedOrderingNfpm {
   }
 }
 
+/// @dev Aerodrome NFPM mock whose `mint(MintParams)` produces a replacement NFT WITHOUT assigning
+///      ownership to the caller — twin of MockBurnWithoutReturnNfpm (V3-shaped) for the CHANGE_RANGE
+///      replacement-not-owned security check, with Aerodrome's int24 tickSpacing shapes.
+contract MockAerodromeBurnWithoutReturnNfpm {
+  struct MintParams {
+    address token0;
+    address token1;
+    int24 tickSpacing;
+    int24 tickLower;
+    int24 tickUpper;
+    uint256 amount0Desired;
+    uint256 amount1Desired;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    address recipient;
+    uint256 deadline;
+    uint160 sqrtPriceX96;
+  }
+
+  struct DecreaseLiquidityParams {
+    uint256 tokenId;
+    uint128 liquidity;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    uint256 deadline;
+  }
+
+  struct CollectParams {
+    uint256 tokenId;
+    address recipient;
+    uint128 amount0Max;
+    uint128 amount1Max;
+  }
+
+  address public immutable token0;
+  address public immutable token1;
+  uint256 private _nextNewId;
+
+  mapping(address => uint256[]) private _ownedTokens;
+  mapping(uint256 => address) public ownerOf;
+  mapping(uint256 => uint128) private _liquidity;
+
+  constructor(address _t0, address _t1, uint256 startNextId) {
+    token0 = _t0;
+    token1 = _t1;
+    _nextNewId = startNextId;
+  }
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+    _liquidity[tokenId] = 1000;
+    _ownedTokens[to].push(tokenId);
+  }
+
+  function balanceOf(address owner) external view returns (uint256) {
+    return _ownedTokens[owner].length;
+  }
+
+  function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+    return _ownedTokens[owner][index];
+  }
+
+  function supportsInterface(bytes4 id) external pure returns (bool) {
+    return id == 0x780e9d63;
+  }
+
+  function approve(address, uint256) external { }
+
+  function factory() external view returns (address) {
+    return address(this);
+  }
+
+  function getPool(address, address, int24) external pure returns (address) {
+    return address(0);
+  }
+
+  function collect(CollectParams calldata) external pure returns (uint256 amount0, uint256 amount1) {
+    return (0, 0);
+  }
+
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+    external
+    returns (uint256 amount0, uint256 amount1)
+  {
+    _liquidity[params.tokenId] = 0;
+    return (0, 0);
+  }
+
+  /// @dev Mints a replacement NFT but never assigns ownership — the vault's _applyPositionChanges
+  ///      ownerOf check must reject tracking it.
+  function mint(MintParams calldata)
+    external
+    payable
+    returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+  {
+    tokenId = _nextNewId++;
+    _liquidity[tokenId] = 0;
+    return (tokenId, 0, 0, 0);
+  }
+
+  /// @dev Aerodrome positions() uses int24 tickSpacing at index 4.
+  function positions(uint256 tokenId)
+    external
+    view
+    returns (uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128)
+  {
+    return (0, address(0), token0, token1, 60, 0, 0, _liquidity[tokenId], 0, 0, 0, 0);
+  }
+}
+
 /// @dev NFPM whose transferFrom silently no-ops — used to verify recoverPosition checks actual ownership.
 contract MockSilentTransferNfpm {
   mapping(uint256 => address) public ownerOf;
@@ -2620,6 +2730,24 @@ contract RejectEthWithdrawer {
   }
 }
 
+/// @dev Deposits with excess msg.value but rejects the native-ETH refund, forcing the
+///      `TransferFailed` branch after the shares are minted (refund-after-mint ordering).
+contract RejectRefundDepositor {
+  function doDeposit(SharedVault _vault, address tokenA_, uint256 amountA, uint256 ethAmount)
+    external
+    payable
+    returns (uint256 shares)
+  {
+    MockERC20(tokenA_).approve(address(_vault), type(uint256).max);
+    uint256[4] memory amounts = [amountA, ethAmount, uint256(0), uint256(0)];
+    shares = _vault.deposit{ value: ethAmount }(amounts, 0, 0);
+  }
+
+  receive() external payable {
+    revert("no refund");
+  }
+}
+
 contract SharedVaultTest is TestCommon {
   event FeeCollected(
     address indexed vaultAddress,
@@ -2882,7 +3010,44 @@ contract SharedVaultTest is TestCommon {
     vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
   }
 
+  /// @notice A nonzero initialAmount for a token slot that is not configured (tokens[i] == address(0))
+  ///         must revert: the factory would have skipped the transfer for that slot, so minting
+  ///         INITIAL_SHARES against it would credit the first depositor for tokens that never arrived.
+  function test_initialize_fail_amount_on_empty_token_slot() public {
+    SharedVault vault2 = new SharedVault();
+    tokenA.transfer(address(vault2), 10e18);
+    tokenB.transfer(address(vault2), 10e18);
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(10e18), uint256(10e18), uint256(5), uint256(0)];
+
+    vm.expectRevert(ISharedCommon.InvalidToken.selector);
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, address(0), address(configManager), address(0), 0);
+  }
+
   // ==================== Deposit Tests ====================
+
+  /// @notice First deposit with a nonzero amount on an unconfigured slot reverts InvalidToken
+  ///         (`_firstDepositTransfers`); contrast with subsequent deposits, which silently ignore
+  ///         empty-slot amounts — see test_deposit_subsequent_ignores_amount_on_empty_slot.
+  function test_deposit_first_fail_amount_on_empty_token_slot() public {
+    SharedVault vault2 = new SharedVault();
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
+    vault2.initialize("Test", tokens, amounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0);
+    vm.stopPrank();
+
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault2), type(uint256).max);
+    tokenB.approve(address(vault2), type(uint256).max);
+
+    uint256[4] memory depositAmounts = [uint256(50e18), uint256(100e18), uint256(5), uint256(0)];
+    vm.expectRevert(ISharedCommon.InvalidToken.selector);
+    vault2.deposit(depositAmounts, 0, 0);
+    vm.stopPrank();
+  }
 
   function test_deposit_first() public {
     // Create a fresh vault with no initial deposit
@@ -3182,6 +3347,18 @@ contract SharedVaultTest is TestCommon {
     vm.startPrank(DEPOSITOR);
     vm.expectRevert(ISharedCommon.InsufficientShares.selector);
     vault.withdraw(1, minAmounts, false);
+    vm.stopPrank();
+  }
+
+  /// @notice Burning zero shares reverts even for a holder with a positive balance — pins the
+  ///         `shares > 0` clause of the withdraw guard separately from the balance clause above.
+  function test_withdraw_fail_zero_shares() public {
+    uint256[4] memory minAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    assertGt(vault.balanceOf(VAULT_OWNER), 0, "owner must hold shares for this test");
+    vm.startPrank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InsufficientShares.selector);
+    vault.withdraw(0, minAmounts, false);
     vm.stopPrank();
   }
 
@@ -3710,6 +3887,15 @@ contract SharedVaultTest is TestCommon {
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.execute(actions);
     vm.stopPrank();
+  }
+
+  function test_transfer_ownership_fail_zero_address() public {
+    vm.startPrank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    vault.transferOwnership(address(0));
+    vm.stopPrank();
+
+    assertEq(vault.vaultOwner(), VAULT_OWNER, "owner unchanged after rejected transfer");
   }
 
   function test_transfer_ownership() public {
@@ -5206,6 +5392,160 @@ contract SharedVaultTest is TestCommon {
     v.execute(actions);
   }
 
+  function test_pancake_v4_collectFees_uses_config_manager_platform_fee() public {
+    configManager.setPlatformFeeBasisPoint(0);
+
+    SharedVaultCollectHarness v = new SharedVaultCollectHarness();
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize(
+      "PancakeV4ConfigPlatformFee", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(configManager), address(0), 500
+    );
+
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    posm.setCollectFees(tokenId, 1000, 2000);
+
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    uint256 platformABefore = tokenA.balanceOf(address(this));
+    uint256 platformBBefore = tokenB.balanceOf(address(this));
+    uint256 ownerABefore = tokenA.balanceOf(VAULT_OWNER);
+    uint256 ownerBBefore = tokenB.balanceOf(VAULT_OWNER);
+
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenA), 50);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenB), 100);
+
+    v.collectWithStrategy(address(pancakeStrat), address(posm), tokenId);
+
+    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 0, "config platform tokenA fee");
+    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 0, "config platform tokenB fee");
+    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 50, "owner tokenA fee");
+    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 100, "owner tokenB fee");
+    assertEq(tokenA.balanceOf(address(v)), 950, "vault keeps tokenA net fees");
+    assertEq(tokenB.balanceOf(address(v)), 1900, "vault keeps tokenB net fees");
+  }
+
+  function test_pancake_v4_execute_compound_collects_generated_fees_and_routes_gas_to_fee_collector() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    posm.setLiquidity(tokenId, 100);
+    posm.setCollectFees(tokenId, 1000, 2000);
+
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0), new address[](0)
+    );
+    cm.setMaxGasFeeX64(uint64(1 << 62));
+
+    SharedVaultCollectHarness v = new SharedVaultCollectHarness();
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4ExecuteCollect", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 500);
+    posm.setOwner(tokenId, address(v));
+    _trackViaCwp(v, cm, address(posm), tokenId, address(tokenA), address(tokenB));
+
+    IPancakeV4Utils.CompoundFeesParams memory compoundParams = IPancakeV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: uint64(1 << 62)
+    });
+    IPancakeV4Utils.Instructions memory instructions =
+      IPancakeV4Utils.Instructions({ action: IPancakeV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
+    bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (address(posm), tokenId, instructions));
+    bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    uint256 platformABefore = tokenA.balanceOf(address(this));
+    uint256 platformBBefore = tokenB.balanceOf(address(this));
+    uint256 ownerABefore = tokenA.balanceOf(VAULT_OWNER);
+    uint256 ownerBBefore = tokenB.balanceOf(VAULT_OWNER);
+    uint256 vaultABefore = tokenA.balanceOf(address(v));
+    uint256 vaultBBefore = tokenB.balanceOf(address(v));
+
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.PLATFORM, address(this), address(tokenA), 100);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.PLATFORM, address(this), address(tokenB), 200);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenA), 50);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.OWNER, VAULT_OWNER, address(tokenB), 100);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenA), 250);
+    vm.expectEmit(true, true, true, true, address(v));
+    emit FeeCollected(address(v), IFeeTaker.FeeType.GAS, address(this), address(tokenB), 500);
+
+    vm.prank(VAULT_OWNER);
+    v.executeWithStrategy(address(pancakeStrat), stratData);
+
+    assertEq(tokenA.balanceOf(address(this)) - platformABefore, 350, "platform tokenA fee plus gas");
+    assertEq(tokenB.balanceOf(address(this)) - platformBBefore, 700, "platform tokenB fee plus gas");
+    assertEq(tokenA.balanceOf(VAULT_OWNER) - ownerABefore, 50, "owner tokenA fee");
+    assertEq(tokenB.balanceOf(VAULT_OWNER) - ownerBBefore, 100, "owner tokenB fee");
+    assertEq(tokenA.balanceOf(address(v)) - vaultABefore, 600, "vault keeps tokenA net generated fees");
+    assertEq(tokenB.balanceOf(address(v)) - vaultBBefore, 1200, "vault keeps tokenB net generated fees");
+  }
+
+  function test_pancake_v4_execute_revertsWhenGasFeeExceedsDefaultConfigCap() public {
+    SharedConfigManager cm = new SharedConfigManager();
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    posm.setLiquidity(tokenId, 100);
+    posm.setCollectFees(tokenId, 1000, 0);
+
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 1000, nfpms, new address[](0), new address[](0)
+    );
+
+    SharedVaultCollectHarness v = new SharedVaultCollectHarness();
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4FeeCap", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 500);
+    posm.setOwner(tokenId, address(v));
+    _trackViaCwp(v, cm, address(posm), tokenId, address(tokenA), address(tokenB));
+
+    IPancakeV4Utils.CompoundFeesParams memory compoundParams = IPancakeV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: type(uint64).max
+    });
+    IPancakeV4Utils.Instructions memory instructions =
+      IPancakeV4Utils.Instructions({ action: IPancakeV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) });
+    bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (address(posm), tokenId, instructions));
+    bytes memory innerData = abi.encode(address(posm), tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    vm.prank(OPERATOR);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    v.executeWithStrategy(address(pancakeStrat), stratData);
+  }
+
   /// @notice The vault owner fee is set exactly once in `initialize` and persists thereafter.
   ///         Depositors must be able to trust that the fee they saw at deposit time is the
   ///         same fee applied on every subsequent withdrawal.
@@ -5557,6 +5897,53 @@ contract SharedVaultTest is TestCommon {
     assertEq(DEPOSITOR.balance, 40e18);
     // Vault received only 40e18 WETH (not 80e18)
     assertEq(mockWeth.balanceOf(address(wethVault)), 140e18);
+  }
+
+  /// @notice A depositor that rejects the excess-ETH refund reverts the whole deposit with
+  ///         TransferFailed — the refund is mandatory, not best-effort, so a failed send can
+  ///         never strand the depositor's excess ETH inside the vault.
+  function test_deposit_eth_excess_refund_reverts_when_depositor_rejects_eth() public {
+    SharedVault wethVault = _setupWethVault();
+
+    RejectRefundDepositor depositor = new RejectRefundDepositor();
+    tokenA.mint(address(depositor), 40e18);
+    vm.deal(address(this), 80e18);
+
+    // Same shape as test_deposit_eth_excess_refund: tokenA binds at 40%, so 40e18 of the
+    // 80e18 sent ETH must be refunded — but the depositor's receive() rejects it.
+    vm.expectRevert(ISharedCommon.TransferFailed.selector);
+    depositor.doDeposit{ value: 80e18 }(wethVault, address(tokenA), 40e18, 80e18);
+  }
+
+  /// @notice Characterization: a subsequent deposit passing a nonzero amount for an UNCONFIGURED
+  ///         token slot silently ignores that slot (no pull, no extra shares) — asymmetric with the
+  ///         first-deposit path, which reverts InvalidToken (`_firstDepositTransfers`). Pins the
+  ///         current behavior so a change to either side is a conscious decision.
+  function test_deposit_subsequent_ignores_amount_on_empty_slot() public {
+    SharedVault wethVault = _setupWethVault();
+    // wethVault: tokens = [tokenA, WETH, 0, 0] with 100e18 / 100e18 and supply > 0.
+
+    tokenA.mint(DEPOSITOR, 10e18);
+    vm.deal(address(this), 10e18);
+    mockWeth.deposit{ value: 10e18 }();
+    mockWeth.transfer(DEPOSITOR, 10e18);
+
+    uint256[4] memory cleanAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    uint256 expectedShares = wethVault.previewDeposit(cleanAmounts);
+
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(wethVault), type(uint256).max);
+    mockWeth.approve(address(wethVault), type(uint256).max);
+
+    // Junk value in the unconfigured slot 2: nothing exists to pull there, deposit must succeed
+    // with shares identical to the clean amounts.
+    uint256[4] memory junkSlotAmounts = [uint256(10e18), uint256(10e18), uint256(7e18), uint256(0)];
+    uint256 shares = wethVault.deposit(junkSlotAmounts, 0, 0);
+    vm.stopPrank();
+
+    assertEq(shares, expectedShares, "empty-slot amount must not affect shares");
+    assertEq(tokenA.balanceOf(DEPOSITOR), 0, "tokenA pulled per ratio");
+    assertEq(mockWeth.balanceOf(DEPOSITOR), 0, "WETH pulled per ratio");
   }
 
   /// @notice Sending ETH when no WETH token is configured in the vault reverts
@@ -7689,6 +8076,51 @@ contract SharedVaultTest is TestCommon {
     aerov.execute(actions);
 
     _assertTrackedIds(aerov, tokenId, 777);
+  }
+
+  /// @notice Aerodrome CHANGE_RANGE reverts if the replacement NFT returned by mint is not owned
+  ///         by the vault (twin of the V3 test above — the strategies fork the same flow).
+  function test_security_aerodromeChangeRange_revertsWhenReplacementNftNotOwnedByVault() public {
+    SharedAerodromeStrategy aerostrat = new SharedAerodromeStrategy(address(0xAAAA));
+
+    SharedConfigManager aerocm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(aerostrat);
+    aerocm.initialize(
+      address(this), targets, new address[](0), address(this), 0, new address[](0), new address[](0), new address[](0)
+    );
+
+    // NFPM that mints a new token but never assigns it to the vault.
+    MockAerodromeBurnWithoutReturnNfpm burnNfpm =
+      new MockAerodromeBurnWithoutReturnNfpm(address(tokenA), address(tokenB), 888);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(burnNfpm);
+    aerocm.setWhitelistNfpms(nfpms, true);
+
+    SharedVault aerov = new SharedVault();
+    tokenA.mint(address(aerov), 100e18);
+    tokenB.mint(address(aerov), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    aerov.initialize("AeroVault2", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(aerocm), address(0), 0);
+
+    uint256 tokenId = 42;
+    burnNfpm.mint(address(aerov), tokenId);
+    _trackViaCwp(aerov, aerocm, address(burnNfpm), tokenId, address(tokenA), address(tokenB));
+
+    IV3Utils.Instructions memory instructions;
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+
+    bytes memory innerData = abi.encode(address(burnNfpm), tokenId, instructions);
+    bytes memory stratData =
+      bytes.concat(abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(aerostrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    aerov.execute(actions);
   }
 
   /// @notice Issue 4: native SharedV4Strategy execution must not leave a dangling NFT approval

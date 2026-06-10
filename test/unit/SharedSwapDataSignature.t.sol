@@ -53,6 +53,20 @@ contract SharedSwapDataSignatureConfigHarness {
   }
 }
 
+/// @dev Minimal EIP-1271 wallet: approves exactly one digest. Models a multisig/smart-wallet
+///      backend signer, which SignatureChecker.isValidSignatureNow supports alongside EOAs.
+contract SharedSwapDataSignature1271Signer {
+  bytes32 internal approvedDigest;
+
+  function approveDigest(bytes32 digest) external {
+    approvedDigest = digest;
+  }
+
+  function isValidSignature(bytes32 digest, bytes memory) external view returns (bytes4) {
+    return digest == approvedDigest ? bytes4(0x1626ba7e) : bytes4(0);
+  }
+}
+
 contract SharedSwapDataSignatureTest is Test {
   uint256 internal constant SIGNER_PK = 0xA11CE;
 
@@ -300,6 +314,55 @@ contract SharedSwapDataSignatureTest is Test {
       harness.hash(address(0xA), address(0xE), address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether,
       hex"1234", deadline, bytes32("nonce")),
       "signer not bound"
+    );
+  }
+
+  /// @dev Whitelisted signers may be smart-contract wallets: `SignatureChecker.isValidSignatureNow`
+  ///      falls back to EIP-1271 for contract signers, so a multisig backend signer must verify the
+  ///      same way an EOA does — and a digest the wallet has NOT approved must be rejected.
+  function test_verify_supportsEip1271ContractSigner() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    SharedSwapDataSignature1271Signer wallet = new SharedSwapDataSignature1271Signer();
+    config.setSigner(address(wallet), true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+    bytes memory rawSwapData = hex"1234";
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32("eip1271-nonce");
+
+    bytes32 digest = caller.hash(
+      expectedVault, address(wallet), swapRouter, address(0xC), address(0xD), 1 ether, 0.9 ether, rawSwapData,
+      deadline, nonce
+    );
+    wallet.approveDigest(digest);
+
+    // EIP-1271 wallets validate by digest; the envelope's signature bytes are opaque to the wallet.
+    bytes memory signedSwapData =
+      abi.encode(rawSwapData, expectedVault, deadline, address(wallet), nonce, bytes(hex"00"));
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+    assertEq(decoded, rawSwapData, "contract-wallet signer verifies via EIP-1271");
+  }
+
+  function test_verify_rejectsEip1271SignerThatDoesNotApproveDigest() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    SharedSwapDataSignature1271Signer wallet = new SharedSwapDataSignature1271Signer();
+    config.setSigner(address(wallet), true);
+
+    // Wallet never approves this digest — verification must fail even though the signer is whitelisted.
+    bytes memory signedSwapData = abi.encode(
+      bytes(hex"1234"), address(0xA), block.timestamp + 1 hours, address(wallet), bytes32("unapproved"),
+      bytes(hex"00")
+    );
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), address(0xA), address(0xB), address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
     );
   }
 

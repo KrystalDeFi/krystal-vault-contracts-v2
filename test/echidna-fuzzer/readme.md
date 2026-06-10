@@ -14,7 +14,7 @@ Private/public vault harnesses:
 ./run-echidna-test.sh VaultFuzzerSoloPlayer
 ```
 
-Shared-vault mock harness (`Fuzzer.sharedVault.sol`, config: `config.yaml`). Covers idle/multi-token/LP/WETH/precision vaults, a fee-bearing vault (10% platform + 5% vault-owner on collected LP rewards, including previewWithdraw-vs-withdraw parity), FOT / no-return tokens, gateway zaps, deposit→withdraw no-profit roundtrips, and share-conservation / positive-backing invariants:
+Shared-vault mock harness (`Fuzzer.sharedVault.sol`, config: `config.yaml`). Covers idle/multi-token/LP/WETH/precision vaults — the LP vault tracks TWO positions so deposits/withdraws iterate the positions array (including the swap-with-last removal reload) — a fee-bearing vault (10% platform + 5% vault-owner on collected LP rewards, including previewWithdraw-vs-withdraw parity), FOT / no-return tokens, gateway zaps, deposit→withdraw no-profit roundtrips, operator dropPosition/recoverPosition round-trips, and share-conservation / positive-backing invariants:
 
 ```sh
 echidna test/echidna-fuzzer/Fuzzer.sharedVault.sol \
@@ -22,7 +22,7 @@ echidna test/echidna-fuzzer/Fuzzer.sharedVault.sol \
   --contract SharedVaultFuzzer
 ```
 
-Shared-vault fork harness (`Fuzzer.sharedVaultFork.sol`, config: `config.sharedVaultFork.yaml`). Drives the real Base deployments: SharedV3Strategy proxy + Uniswap V3 NFPM, locally-compiled V4 / PancakeV4 / Aerodrome strategies against the real position managers. `ECHIDNA_RPC_URL` must point at Base; keep `--rpc-block` aligned with `BASE_FORK_BLOCK` in the harness:
+Shared-vault fork harness (`Fuzzer.sharedVaultFork.sol`, config: `config.sharedVaultFork.yaml`). Drives the real Base deployments: SharedV3Strategy proxy + Uniswap V3 NFPM, locally-compiled V4 / PancakeV4 / Aerodrome strategies against the real position managers — including mint AND partial-then-full owner exits (collectFees + exitProportional) for V4/Pancake. `ECHIDNA_RPC_URL` must point at Base; keep `--rpc-block` aligned with `BASE_FORK_BLOCK` in the harness:
 
 ```sh
 echidna test/echidna-fuzzer/Fuzzer.sharedVaultFork.sol \

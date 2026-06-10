@@ -615,6 +615,47 @@ contract SharedV3StrategySwapPathTest is Test {
   }
 
   // -------------------------------------------------------------------------
+  // COMPOUND_FEES with targetToken == address(0) performs NO swap, so a
+  // caller-supplied amountOut*Min would otherwise be silently ignored.
+  // _swapForCompound must reject it, mirroring _swapForWithdraw — twins of the
+  // SharedAerodromeStrategySwapPath tests.
+  // -------------------------------------------------------------------------
+
+  function test_compound_revertsWhenNoSwapTargetButAmountOut0MinSet() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions(); // COMPOUND_FEES, targetToken == address(0)
+    instructions.amountOut0Min = 1; // stale slippage bound that no swap will honor
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_compound_revertsWhenNoSwapTargetButAmountOut1MinSet() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.amountOut1Min = 1;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  // -------------------------------------------------------------------------
   // Mint/increase-side signed-amount guards (_swapAndPrepareAmounts /
   // _swapAndPrepareIncreaseAmounts). The withdraw-side `amount >= amountIn`
   // guard has twins above; these pin the mirrored guards on the add paths.

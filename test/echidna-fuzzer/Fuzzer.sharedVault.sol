@@ -490,6 +490,7 @@ contract SharedVaultFuzzer {
   FuzzLpPool public lpPool;
   FuzzERC721 public lpNfpm;
   FuzzLpStrategy public lpStrategy;
+  FuzzLpStrategy public lpStrategy2;
   SharedFuzzPlayer public lpPlayer;
 
   SharedVault public wethVault;
@@ -776,6 +777,7 @@ contract SharedVaultFuzzer {
     uint256 supplyBefore = lpVault.totalSupply();
     uint256 posBefore = lpVault.getPositionCount();
     (uint256 principal0Before, uint256 principal1Before) = lpPool.getPrincipal(address(lpNfpm), 1);
+    (uint256 p2Principal0Before, uint256 p2Principal1Before) = lpPool.getPrincipal(address(lpNfpm), 2);
 
     try lpPlayer.deposit(amounts, 100) returns (uint256 shares) {
       assert(preview > 0);
@@ -785,10 +787,41 @@ contract SharedVaultFuzzer {
       (uint256 principal0After, uint256 principal1After) = lpPool.getPrincipal(address(lpNfpm), 1);
       assert(principal0After >= principal0Before);
       assert(principal1After >= principal1Before);
+      (uint256 p2Principal0After, uint256 p2Principal1After) = lpPool.getPrincipal(address(lpNfpm), 2);
+      assert(p2Principal0After >= p2Principal0Before);
+      assert(p2Principal1After >= p2Principal1Before);
     } catch {
       assert(preview == 0);
     }
 
+    _assertLpShareConservation();
+    _assertPositiveBacking(lpVault);
+  }
+
+  /// @dev Operator emergency flows: dropPosition must untrack the position and hand the NFT to the
+  ///      operator without burning shares; recoverPosition must re-track it and pull the NFT back.
+  ///      The vault must stay backed and share-conserving through the round trip. The harness is both
+  ///      vault owner and operator, so both legs run in one call and external state is fully restored.
+  function lp_drop_and_recover_position_keeps_vault_backed(uint256 posSeed) external {
+    uint256 count = lpVault.getPositionCount();
+    if (count == 0) return;
+
+    uint256 idx = posSeed % count;
+    (address strategy, address nfpm, uint256 tokenId, address token0, address token1) = lpVault.getPosition(idx);
+    uint256 supplyBefore = lpVault.totalSupply();
+
+    lpVault.dropPosition(nfpm, tokenId);
+    assert(lpVault.getPositionCount() == count - 1);
+    // Operator is set (this harness), so the NFT must have been transferred out to it.
+    assert(FuzzERC721(nfpm).ownerOf(tokenId) == address(this));
+    assert(lpVault.totalSupply() == supplyBefore);
+    _assertLpShareConservation();
+    _assertPositiveBacking(lpVault);
+
+    lpVault.recoverPosition(nfpm, tokenId, strategy, token0, token1);
+    assert(lpVault.getPositionCount() == count);
+    assert(FuzzERC721(nfpm).ownerOf(tokenId) == address(lpVault));
+    assert(lpVault.totalSupply() == supplyBefore);
     _assertLpShareConservation();
     _assertPositiveBacking(lpVault);
   }
@@ -803,10 +836,11 @@ contract SharedVaultFuzzer {
     uint256 supplyBefore = lpVault.totalSupply();
     uint256[4] memory mins;
 
+    uint256 tolerance = lpVault.getPositionCount();
     try lpPlayer.withdraw(shares, mins, false) returns (uint256[4] memory got) {
       assert(_hasAnyOutput(got));
-      assert(_withinOneUnit(got[0], preview[0]));
-      assert(_withinOneUnit(got[1], preview[1]));
+      assert(_withinUnits(got[0], preview[0], tolerance));
+      assert(_withinUnits(got[1], preview[1], tolerance));
       assert(lpVault.totalSupply() == supplyBefore - shares);
     } catch (bytes memory reason) {
       assert(_isAcceptablePreviewedWithdrawRevert(reason));
@@ -816,6 +850,9 @@ contract SharedVaultFuzzer {
     _assertPositiveBacking(lpVault);
   }
 
+  /// @dev Two tracked positions so the full exit walks SharedVault._withdraw's swap-with-last loop:
+  ///      removing index 0 swaps the last position into its slot, which must then be processed at the
+  ///      SAME index (the `!removed → don't advance p` branch) — with one position that branch is dead.
   function lp_owner_full_exit_removes_position() external {
     if (fullLpExitChecked) return;
     fullLpExitChecked = true;
@@ -826,7 +863,9 @@ contract SharedVaultFuzzer {
     FuzzERC721 nfpm = new FuzzERC721();
     FuzzLpPool pool = new FuzzLpPool();
     FuzzLpStrategy strategy = new FuzzLpStrategy(pool, address(nfpm), 99, address(t0), address(t1));
+    FuzzLpStrategy strategy2 = new FuzzLpStrategy(pool, address(nfpm), 100, address(t0), address(t1));
     _whitelist(cm, address(strategy), address(nfpm));
+    _whitelist(cm, address(strategy2), address(nfpm));
 
     SharedVault v = new SharedVault();
     t0.mint(address(v), 100e18);
@@ -836,14 +875,20 @@ contract SharedVaultFuzzer {
     v.initialize("FullExit", toks, init, address(this), address(this), address(cm), address(0), 0);
 
     nfpm.mint(address(v), 99);
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    nfpm.mint(address(v), 100);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action({
       target: address(strategy),
       data: abi.encode(uint256(50e18), uint256(50e18)),
       callType: ISharedCommon.CallType.DELEGATECALL
     });
+    actions[1] = ISharedVault.Action({
+      target: address(strategy2),
+      data: abi.encode(uint256(25e18), uint256(10e18)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
     v.execute(actions);
-    assert(v.getPositionCount() == 1);
+    assert(v.getPositionCount() == 2);
 
     uint256 shares = v.balanceOf(address(this));
     uint256[4] memory mins;
@@ -1612,11 +1657,22 @@ contract SharedVaultFuzzer {
     uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
     lpVault.initialize("LpShared", toks, init, address(this), address(this), address(cm), address(0), 0);
 
+    // Two tracked positions so deposits/withdraws iterate the positions array (including the
+    // swap-with-last removal reload in SharedVault._withdraw) instead of a single-entry loop.
+    lpStrategy2 = new FuzzLpStrategy(lpPool, address(lpNfpm), 2, address(lpA), address(lpB));
+    _whitelist(cm, address(lpStrategy2), address(lpNfpm));
+
     lpNfpm.mint(address(lpVault), 1);
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    lpNfpm.mint(address(lpVault), 2);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
     actions[0] = ISharedVault.Action({
       target: address(lpStrategy),
       data: abi.encode(uint256(50e18), uint256(50e18)),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    actions[1] = ISharedVault.Action({
+      target: address(lpStrategy2),
+      data: abi.encode(uint256(20e18), uint256(10e18)),
       callType: ISharedCommon.CallType.DELEGATECALL
     });
     lpVault.execute(actions);
@@ -1874,6 +1930,13 @@ contract SharedVaultFuzzer {
 
   function _withinOneUnit(uint256 actual, uint256 expected) internal pure returns (bool) {
     return actual >= expected ? actual - expected <= 1 : expected - actual <= 1;
+  }
+
+  /// @dev Preview divides once over (idle + ΣLP) while withdraw floors the idle slice and each
+  ///      position's exit separately, so the realized amount can fall short of preview by up to one
+  ///      wei per floor — i.e. the tracked position count (W-7 upper-bound semantics).
+  function _withinUnits(uint256 actual, uint256 expected, uint256 tolerance) internal pure returns (bool) {
+    return actual >= expected ? actual - expected <= tolerance : expected - actual <= tolerance;
   }
 
   /// @dev In these closed mock states, non-dust previews are expected to withdraw.

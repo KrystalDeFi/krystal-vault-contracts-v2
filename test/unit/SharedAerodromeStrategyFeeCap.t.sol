@@ -81,6 +81,8 @@ contract AeroFeeCapNfpm {
   uint256 public collectAmount1;
   uint256 public increased0;
   uint256 public increased1;
+  uint256 public collectCalls;
+  mapping(uint256 => address) internal owners;
 
   constructor(address _factory, address _token0, address _token1) {
     factory = _factory;
@@ -91,6 +93,14 @@ contract AeroFeeCapNfpm {
   function setCollectFees(uint256 amount0, uint256 amount1) external {
     collectAmount0 = amount0;
     collectAmount1 = amount1;
+  }
+
+  function setOwner(uint256 tokenId, address owner) external {
+    owners[tokenId] = owner;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    return owners[tokenId];
   }
 
   // Aerodrome positions(): note int24 tickSpacing at index 4 (vs V3's uint24 fee).
@@ -120,6 +130,7 @@ contract AeroFeeCapNfpm {
   function collect(
     INonfungiblePositionManager.CollectParams calldata params
   ) external returns (uint256 amount0, uint256 amount1) {
+    collectCalls++;
     amount0 = collectAmount0;
     amount1 = collectAmount1;
     collectAmount0 = 0;
@@ -254,6 +265,54 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     token1.mint(address(vault), 20_000);
 
     strategy = new SharedAerodromeStrategy(address(0xCAFE));
+  }
+
+  /// @dev Twin of test_v3_swapAndIncrease_does_not_collect_generated_fees: SWAP_AND_INCREASE adds
+  ///      principal only — it must NOT sweep the position's accrued fees into the vault, or the
+  ///      executor could bypass the platform/owner performance-fee settlement on those fees.
+  function test_aerodrome_swapAndIncrease_does_not_collect_generated_fees() public {
+    nfpm.setCollectFees(1_000, 2_000);
+    nfpm.setOwner(1, address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      tokenId: 1,
+      amount0: 100,
+      amount1: 200,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = address(token0);
+    approveTokens[1] = address(token1);
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = 100;
+    approveAmounts[1] = 200;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, approveTokens, approveAmounts, uint256(0))
+    );
+
+    vault.executeStrategy(address(strategy), data);
+
+    assertEq(nfpm.collectCalls(), 0, "increase must leave generated fees on the position");
+    assertEq(nfpm.increased0(), 100, "token0 principal increased");
+    assertEq(nfpm.increased1(), 200, "token1 principal increased");
   }
 
   /// @dev Unified clamp model (parity with the V4/Pancake libs): stacking a gas fee on top of platform +

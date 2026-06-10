@@ -476,6 +476,46 @@ contract SharedStrategyFeeAccrualTest is Test {
     assertEq(amount1, principal1 + STORED_OWED1, "Aerodrome pending=0, only stored owed");
   }
 
+  /// @dev Twin of test_v3_getPositionAmounts_out_of_range_no_new_pending: the Aerodrome strategy forks
+  ///      the V3 fee-growth math, so an out-of-range position must likewise report only stored owed.
+  function test_aerodrome_getPositionAmounts_out_of_range_no_new_pending() public {
+    // Position above current tick: currentTick < tickLower → no new fees accruing.
+    // fgInside = 0 when out of range (above), stored owed is still returned.
+    int24 tLow = 200;
+    int24 tHigh = 400;
+    int24 curTick = 0; // below range
+    uint160 sqrtPrice = SQRT_PRICE_TICK0;
+
+    MockAerodromePool pool = new MockAerodromePool(sqrtPrice, curTick, FG0_GLOBAL, FG1_GLOBAL);
+    // For tick >= curTick (tickLower=200 > curTick=0):
+    //   fgBelow = fgGlobal - lowerFgOutside; with lowerFgOutside=0 → fgBelow = fgGlobal
+    //   fgAbove = upperFgOutside = 0
+    //   fgInside = fgGlobal - fgGlobal - 0 = 0
+    // fgInsideLast=0 and fgInside=0 → delta=0 → pending=0
+    MockAerodromeFactory factory = new MockAerodromeFactory(address(pool));
+
+    address nfpm = address(new MockAerodromeNfpmWithFees(
+      address(factory),
+      address(0x1111),
+      address(0x2222),
+      1e18,
+      tLow,
+      tHigh,
+      0,           // fgInsideLast=0
+      0,
+      STORED_OWED0,
+      STORED_OWED1
+    ));
+
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    // Out of range: principal for the in-range token is non-zero, but no NEW pending fees
+    assertEq(amount0, principal0 + STORED_OWED0, "out-of-range: only stored owed0, no new pending");
+    assertEq(amount1, principal1 + STORED_OWED1, "out-of-range: only stored owed1, no new pending");
+  }
+
   /// @dev F7 twin-parity with test_v3_getPositionAmounts_pending_above_uint128_not_truncated: the
   ///      Aerodrome strategy shares the V3 valuation math fork, so pending fees above uint128 must be
   ///      reported in full there too (no silent uint128 wrap inside the unchecked accumulation).

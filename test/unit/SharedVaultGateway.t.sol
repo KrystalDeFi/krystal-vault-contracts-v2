@@ -1665,6 +1665,39 @@ contract SharedVaultGatewayTest is TestCommon {
     assertEq(tC.balanceOf(address(gateway)), 0, "gateway has no tokenC residue");
   }
 
+  /// @notice The revert arm of the zero-ratio-slot branch tested above: a live vault cannot accept
+  ///         deposits into a configured slot whose current total balance is zero, so a nonzero
+  ///         `minDepositAmounts` floor on that slot is unsatisfiable by construction and must revert
+  ///         InsufficientPostSwapBalance(slot) instead of silently keeping the delta as sweepable dust.
+  function test_swapAndDeposit_revertsWhenMinSetOnZeroRatioSlot() public {
+    (SharedVault zeroVault, GatewayMockERC20 tA, GatewayMockERC20 tB, GatewayMockERC20 tC) =
+      _setupZeroBalanceSlotGatewayVault();
+
+    tA.mint(ALICE, 1e15);
+    tB.mint(ALICE, 840_707);
+    tC.mint(ALICE, 1_000);
+    vm.startPrank(ALICE);
+    tA.approve(address(gateway), type(uint256).max);
+    tB.approve(address(gateway), type(uint256).max);
+    tC.approve(address(gateway), type(uint256).max);
+    vm.stopPrank();
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(zeroVault)),
+      inputs: _inputs3(address(tA), 1e15, address(tB), 840_707, address(tC), 1_000),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      // Slot 2 (tC) has zero vault ratio — demanding a minimum there is unsatisfiable.
+      minDepositAmounts: [uint256(0), uint256(0), uint256(1), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(SharedVaultGateway.InsufficientPostSwapBalance.selector, 2));
+    gateway.swapAndDeposit(params);
+  }
+
   function test_withdrawAndSwap_forwardsBelowPrecisionFloorVaultDust() public {
     (SharedVault dustVault, GatewayMockERC20 tA, GatewayMockERC20 tB) = _setupEightDecimalGatewayVault();
 
