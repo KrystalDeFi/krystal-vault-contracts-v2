@@ -435,6 +435,20 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
+  /// @dev Twin of test_executeWithAgentAllowance_fail_paused: both operator entrypoints share the
+  ///      whenNotPaused gate, so the user-order path must be blocked while the automator is paused.
+  function test_executeWithUserOrder_fail_paused() public {
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.prank(ADMIN);
+    automator.pause();
+
+    vm.prank(OPERATOR);
+    vm.expectRevert();
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+  }
+
   /// @dev executeWithUserOrder does not mark signatures consumed; replay is allowed until cancelOrder
   function test_executeWithUserOrder_replayable() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();

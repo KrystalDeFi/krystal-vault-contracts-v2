@@ -426,6 +426,20 @@ contract SharedV4SwapPipelineTest is Test {
     harness.execute(address(router), address(token0), address(token1), 1 ether, 0, swaps);
   }
 
+  /// @dev The router-whitelist check is gated on `swaps.length > 0` — a zero-swap call must skip it
+  ///      entirely (no configManager read) and pass the input amounts through untouched. Pins the
+  ///      lazy-validation contract: strategies may thread ANY router address when no hop runs.
+  function test_execute_skipsRouterWhitelistWhenNoSwaps() public {
+    address unWhitelistedRouter = address(0xBAD);
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](0);
+
+    (uint256 total0, uint256 total1) =
+      harness.execute(unWhitelistedRouter, address(token0), address(token1), 3 ether, 7 ether, swaps);
+
+    assertEq(total0, 3 ether, "amount0 passes through untouched");
+    assertEq(total1, 7 ether, "amount1 passes through untouched");
+  }
+
   function _signedSwapData(
     address tokenIn,
     address tokenOut,

@@ -8,7 +8,9 @@ Coverage lives in three layers; the checklist below this section is the legacy p
   (`SharedVaultGateway.t.sol`), factory/automator/config-manager, strategy swap paths and signed-amount
   guards for the V3/Aerodrome twins (`SharedV3StrategySwapPath.t.sol` / `SharedAerodromeStrategySwapPath.t.sol`
   — keep these mirrored, the strategies are forks), valuation fee-accrual parity across V3/Aerodrome/V4/Pancake
-  (`SharedStrategyFeeAccrual*.t.sol`), hook gates, swap-data signature binding, the V4 swap pipeline,
+  (`SharedStrategyFeeAccrual*.t.sol`), hook gates, swap-data signature binding (incl. chain-id replay),
+  the V4 swap pipeline and its Pancake normalization twin (`SharedV4SwapPipeline.t.sol` /
+  `SharedPancakeV4SwapPipeline.t.sol` — keep these mirrored too),
   and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`).
 * **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol
   (V3/Sushi/Pancake V3, Aerodrome, Uniswap V4, Pancake V4), multi-protocol vaults, gateway, automator,

@@ -9309,4 +9309,120 @@ contract SharedVaultTest is TestCommon {
     assertEq(totals[0], 160e18); // 100 idle + 30 + 20 + 10
     assertEq(totals[1], 160e18);
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Position-tracking bookkeeping: swap-with-last reindex in _removePosition
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// @dev Removing a non-last position swaps the LAST entry into its slot and remaps positionIndex.
+  ///      This pins the bookkeeping: after dropping index 0, the old last position must be readable
+  ///      at index 0 AND removable via its (nfpm, tokenId) key — a stale positionIndex would either
+  ///      revert the second drop or remove the wrong slot. Finally, the dropped key itself must be
+  ///      fully deleted (re-drop reverts InvalidOperation).
+  function test_dropPosition_swapWithLast_reindexesAndKeepsIntegrity() public {
+    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 100e18);
+    tokenB.mint(address(v), 100e18);
+    v.initialize("SwapLast", toks, init, VAULT_OWNER, OPERATOR, address(configManager), address(0), 0);
+
+    MockFeeAccrualStrategy strat = new MockFeeAccrualStrategy();
+    MockERC721 nft = new MockERC721();
+    nft.mint(address(v), 1);
+    nft.mint(address(v), 2);
+    nft.mint(address(v), 3);
+    address[] memory ts = new address[](1);
+    ts[0] = address(strat);
+    configManager.setWhitelistTargets(ts, true);
+    address[] memory ns = new address[](1);
+    ns[0] = address(nft);
+    configManager.setWhitelistNfpms(ns, true);
+    strat.register(address(nft), 1, address(tokenA), address(tokenB), 30e18, 30e18, 0, 0);
+    strat.register(address(nft), 2, address(tokenA), address(tokenB), 20e18, 20e18, 0, 0);
+    strat.register(address(nft), 3, address(tokenA), address(tokenB), 10e18, 10e18, 0, 0);
+
+    for (uint256 id = 1; id <= 3; id++) {
+      ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+      actions[0] = ISharedVault.Action({
+        target: address(strat),
+        data: abi.encode(address(nft), id, address(tokenA), address(tokenB)),
+        callType: ISharedCommon.CallType.DELEGATECALL
+      });
+      vm.prank(VAULT_OWNER);
+      v.execute(actions);
+    }
+    assertEq(v.getPositionCount(), 3);
+    (,, uint256 id0,,) = v.getPosition(0);
+    (,, uint256 id1,,) = v.getPosition(1);
+    (,, uint256 id2,,) = v.getPosition(2);
+    assertEq(id0, 1);
+    assertEq(id1, 2);
+    assertEq(id2, 3);
+
+    // Drop the FIRST position: the last entry (tokenId 3) must be swapped into index 0.
+    vm.prank(VAULT_OWNER);
+    v.dropPosition(address(nft), 1);
+    assertEq(v.getPositionCount(), 2);
+    assertEq(nft.ownerOf(1), OPERATOR, "dropped NFT handed to operator");
+    (,, id0,,) = v.getPosition(0);
+    (,, id1,,) = v.getPosition(1);
+    assertEq(id0, 3, "last position swapped into the freed slot");
+    assertEq(id1, 2, "middle position untouched");
+
+    // Drop the MOVED position via its key: only works if positionIndex was remapped on the swap.
+    vm.prank(VAULT_OWNER);
+    v.dropPosition(address(nft), 3);
+    assertEq(v.getPositionCount(), 1);
+    (,, id0,,) = v.getPosition(0);
+    assertEq(id0, 2, "remaining position compacted to index 0");
+
+    // The dropped key must be fully deleted: re-dropping tokenId 1 reverts InvalidOperation.
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    v.dropPosition(address(nft), 1);
+
+    // Valuation reflects only the surviving position (idle 100 + LP 20).
+    uint256[4] memory totals = v.getTotalBalances();
+    assertEq(totals[0], 120e18);
+    assertEq(totals[1], 120e18);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // View / interface surface: getPosition bounds, ERC165, plain ETH receive
+  // ════════════════════════════════════════════════════════════════════════════
+
+  function test_getPosition_outOfBounds_reverts() public {
+    assertEq(vault.getPositionCount(), 0);
+    // Solidity array bounds panic 0x32 — there is intentionally no custom require in getPosition.
+    vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x32));
+    vault.getPosition(0);
+
+    vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x32));
+    vault.getPosition(type(uint256).max);
+  }
+
+  /// @dev The vault inherits ERC1155Holder, so ERC165 introspection must report IERC165 and
+  ///      IERC1155Receiver (the IDs operators/marketplaces probe before safeTransferFrom) and
+  ///      reject the universal-invalid id 0xffffffff.
+  function test_supportsInterface_reportsErc165AndErc1155Receiver() public view {
+    assertTrue(vault.supportsInterface(0x01ffc9a7), "IERC165");
+    assertTrue(vault.supportsInterface(0x4e2312e0), "IERC1155Receiver");
+    assertFalse(vault.supportsInterface(0xffffffff), "universal invalid id");
+  }
+
+  /// @dev receive() must accept plain ETH (refund dust, NFPM unwraps); the operator can then recover
+  ///      it via sweepNativeToken. Pins the only way ETH enters outside deposit's msg.value path.
+  function test_receive_acceptsPlainEthAndOperatorCanSweep() public {
+    vm.deal(address(this), 1 ether);
+    (bool ok,) = address(vault).call{ value: 1 ether }("");
+    assertTrue(ok, "plain ETH transfer accepted by receive()");
+    assertEq(address(vault).balance, 1 ether);
+
+    address recipient = makeAddr("ethSweepRecipient");
+    vm.prank(VAULT_OWNER); // fixture operator
+    vault.sweepNativeToken(1 ether, recipient);
+    assertEq(recipient.balance, 1 ether, "operator swept the received ETH");
+    assertEq(address(vault).balance, 0);
+  }
 }

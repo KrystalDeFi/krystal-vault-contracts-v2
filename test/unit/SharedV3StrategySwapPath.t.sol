@@ -70,6 +70,9 @@ contract SwapV3Nfpm {
   uint256 public mintCalls;
   uint256 public nextMintId = 777;
   address public positionOwner;
+  uint256 public increased0;
+  uint256 public increased1;
+  bool public positionsReverts;
 
   constructor(SwapV3Token _token0, SwapV3Token _token1) {
     token0 = _token0;
@@ -101,12 +104,33 @@ contract SwapV3Nfpm {
     principalOut1 = amount1;
   }
 
+  /// @dev Simulates a burned/nonexistent tokenId: the real NFPM's positions() reverts for those, and
+  ///      the strategy's valuation try/catch must absorb it.
+  function setPositionsRevert(bool reverts) external {
+    positionsReverts = reverts;
+  }
+
   function positions(uint256)
     external
     view
     returns (uint96, address, address, address, uint24, int24, int24, uint128, uint256, uint256, uint128, uint128)
   {
+    require(!positionsReverts, "Invalid token ID");
     return (0, address(0), address(token0), address(token1), uint24(500), int24(-60), int24(60), liquidity, 0, 0, 0, 0);
+  }
+
+  function increaseLiquidity(INFPM.IncreaseLiquidityParams calldata params)
+    external
+    returns (uint128 addedLiquidity, uint256 amount0, uint256 amount1)
+  {
+    amount0 = params.amount0Desired;
+    amount1 = params.amount1Desired;
+    if (amount0 > 0) token0.transferFrom(msg.sender, address(this), amount0);
+    if (amount1 > 0) token1.transferFrom(msg.sender, address(this), amount1);
+    increased0 += amount0;
+    increased1 += amount1;
+    addedLiquidity = uint128(amount0 + amount1);
+    liquidity += addedLiquidity;
   }
 
   function collect(INFPM.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
@@ -881,5 +905,205 @@ contract SharedV3StrategySwapPathTest is Test {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // COMPOUND_FEES with a swap target: the collected-fee swap leg and its two
+  // guards (budget floor + target-side stale minOut). Mirrored in
+  // SharedAerodromeStrategySwapPath.t.sol (fork twins).
+  // -------------------------------------------------------------------------
+
+  /// @dev Happy path: collected fees are perf-fee'd (platform 10% + owner 5%), the token0 remainder is
+  ///      swapped toward the token1 target with signed swapData0, and the combined token1 total is
+  ///      compounded into the position via increaseLiquidity. No position change is reported.
+  function test_compound_withSwapTarget_swapsAndIncreasesLiquidity() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    // Net after platform 10% (100/200) + owner 5% (50/100): 850 token0, 1700 token1.
+    uint256 netFees0 = 850;
+    uint256 swapOut = 800;
+    bytes memory swapData0 =
+      abi.encodeCall(SwapV3Router.swap, (address(token0), address(token1), netFees0, swapOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = netFees0;
+    instructions.amountOut0Min = swapOut;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), netFees0, swapOut, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), data);
+
+    assertEq(changes.length, 0, "compound keeps the tracked position");
+    assertEq(token0.balanceOf(platformRecipient), 100, "platform fee token0");
+    assertEq(token1.balanceOf(platformRecipient), 200, "platform fee token1");
+    assertEq(token0.balanceOf(vaultOwner), 50, "owner fee token0");
+    assertEq(token1.balanceOf(vaultOwner), 100, "owner fee token1");
+    assertEq(token0.balanceOf(address(router)), netFees0, "router pulled the full net token0 fees");
+    assertEq(nfpm.increased0(), 0, "nothing left on the token0 side");
+    assertEq(nfpm.increased1(), 1700 + swapOut, "token1 fees + swap output compounded");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 residue");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 residue");
+    assertEq(nfpm.liquidity(), 1_000_000 + 1700 + swapOut, "liquidity grew by the compounded amount");
+  }
+
+  /// @dev Budget floor: with targetToken == token1 the swap draws from the collected token0 fees, so
+  ///      `amountIn0` may not exceed the net collected amount — the swap must not reach past this
+  ///      operation's proceeds into other pooled vault balances.
+  function test_compound_revertsWhenSwapBudgetExceedsCollectedFees() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000); // net token0 after fees: 850
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = 851; // one over the net collected budget
+    instructions.swapData0 = hex"01"; // never reached — budget check precedes the swap
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Target-side stale minOut: with targetToken == token1 no swap produces token1 "output", so a
+  ///      nonzero amountOut1Min could never be honored and must revert instead of being ignored
+  ///      (compound twin of the WITHDRAW_AND_COLLECT_AND_SWAP target-side guard).
+  function test_compound_revertsWhenTargetSideHasMinOut() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountOut1Min = 1; // stale floor on the target side
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  // -------------------------------------------------------------------------
+  // F3 input gas-fee skim on SWAP_AND_MINT / SWAP_AND_INCREASE (uniform with
+  // the V4/Pancake strategies). Mirrored in the Aerodrome twin suite.
+  // -------------------------------------------------------------------------
+
+  /// @dev params.gasFeeX64 > 0 skims the Q64 fraction of BOTH input amounts to the config fee
+  ///      recipient before the mint consumes the remainder.
+  function test_swapAndMint_takesInputGasFeeBeforeMint() public {
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64(1 << 62); // 25% in Q64 — under the 30% default config cap
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), _mintData(params));
+
+    // 25% of each input goes to the fee recipient (cm.feeRecipient == platformRecipient).
+    assertEq(token0.balanceOf(platformRecipient), 250, "gas fee skimmed from token0 input");
+    assertEq(token1.balanceOf(platformRecipient), 500, "gas fee skimmed from token1 input");
+    // The mint consumed the net remainder.
+    assertEq(token0.balanceOf(address(nfpm)), 750, "mint consumed net token0");
+    assertEq(token1.balanceOf(address(nfpm)), 1500, "mint consumed net token1");
+    assertEq(changes.length, 1, "new position tracked");
+    assertTrue(changes[0].isAdd, "position added");
+  }
+
+  /// @dev The mint-path gas fee is validated against the shared config cap (default 30%): an
+  ///      over-cap fee must revert InvalidGasFeeX64 before any token movement.
+  function test_swapAndMint_revertsWhenGasFeeExceedsConfigCap() public {
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64((uint256(2) << 64) / 5); // 40% > 30% default cap
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Same F3 skim on the SWAP_AND_INCREASE input side.
+  function test_swapAndIncrease_takesInputGasFeeBeforeIncrease() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.setPositionOwner(address(vault));
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64(1 << 62); // 25%
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedV3Strategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), data);
+
+    assertEq(changes.length, 0, "increase reports no position change");
+    assertEq(token0.balanceOf(platformRecipient), 250, "gas fee skimmed from token0 input");
+    assertEq(token1.balanceOf(platformRecipient), 500, "gas fee skimmed from token1 input");
+    assertEq(nfpm.increased0(), 750, "net token0 added to the position");
+    assertEq(nfpm.increased1(), 1500, "net token1 added to the position");
+  }
+
+  // -------------------------------------------------------------------------
+  // exitProportional zero-liquidity early exit + burned-NFT valuation zeros.
+  // Mirrored in the Aerodrome twin suite.
+  // -------------------------------------------------------------------------
+
+  /// @dev A tracked position whose liquidity is already zero must exit as a pure removal change —
+  ///      withdraw flows untrack it instead of reverting in the NFPM on a zero-liquidity decrease.
+  function test_exitProportional_zeroLiquidityPosition_returnsRemovalChange() public {
+    nfpm.setLiquidity(0);
+
+    ISharedStrategy.PositionChange[] memory changes =
+      vault.exitStrategy(address(strategy), address(nfpm), TOKEN_ID, 5, 10);
+
+    assertEq(changes.length, 1, "single change");
+    assertEq(changes[0].isAdd, false, "removal change");
+    assertEq(changes[0].tokenId, TOKEN_ID, "untracked tokenId");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 released");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 released");
+  }
+
+  /// @dev positions() reverts for burned/nonexistent tokenIds on the real NFPM. The valuation
+  ///      try/catch must absorb that and report zero value — a revert here would brick
+  ///      getTotalBalances (and with it deposits/withdrawals) for the whole vault.
+  function test_getPositionAmounts_returnsZerosForBurnedNft() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.setPositionsRevert(true);
+
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(address(nfpm), TOKEN_ID);
+    assertEq(amount0, 0, "burned NFT values to zero (amount0)");
+    assertEq(amount1, 0, "burned NFT values to zero (amount1)");
+
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(address(nfpm), TOKEN_ID);
+    assertEq(principal0, 0, "burned NFT principal zero (token0)");
+    assertEq(principal1, 0, "burned NFT principal zero (token1)");
+
+    (uint256 t0, uint256 t1, uint256 p0, uint256 p1) = strategy.getPositionAmountsSplit(address(nfpm), TOKEN_ID);
+    assertEq(t0 + t1 + p0 + p1, 0, "burned NFT split values to zero");
   }
 }

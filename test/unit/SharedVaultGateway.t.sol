@@ -2873,4 +2873,199 @@ contract SharedVaultGatewayTest is TestCommon {
     vm.expectRevert("ZeroAddress");
     gateway.sweepERC20(tokens, amounts);
   }
+
+  function test_withdrawable_sweepERC721_owner_succeeds() public {
+    GatewayMockERC721 nft = new GatewayMockERC721();
+    nft.mint(address(gateway), 42);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 42;
+
+    gateway.sweepERC721(tokens, tokenIds);
+
+    assertEq(nft.ownerOf(42), address(this), "owner received the swept NFT");
+  }
+
+  function test_withdrawable_sweepERC721_non_owner_reverts() public {
+    GatewayMockERC721 nft = new GatewayMockERC721();
+    nft.mint(address(gateway), 42);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(nft);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 42;
+
+    vm.prank(ALICE);
+    vm.expectRevert();
+    gateway.sweepERC721(tokens, tokenIds);
+  }
+
+  function test_withdrawable_sweepERC1155_owner_succeeds() public {
+    GatewayMockERC1155 multi = new GatewayMockERC1155();
+    multi.mint(address(gateway), 7, 10);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(multi);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 7;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 10;
+
+    gateway.sweepERC1155(tokens, tokenIds, amounts);
+
+    assertEq(multi.balanceOf(address(this), 7), 10, "owner received the swept ERC1155 balance");
+    assertEq(multi.balanceOf(address(gateway), 7), 0, "gateway holds nothing after sweep");
+  }
+
+  function test_withdrawable_sweepERC1155_non_owner_reverts() public {
+    GatewayMockERC1155 multi = new GatewayMockERC1155();
+    multi.mint(address(gateway), 7, 10);
+
+    address[] memory tokens = new address[](1);
+    tokens[0] = address(multi);
+    uint256[] memory tokenIds = new uint256[](1);
+    tokenIds[0] = 7;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 10;
+
+    vm.prank(ALICE);
+    vm.expectRevert();
+    gateway.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
+  // ==================== Input validation / lifecycle gaps ====================
+
+  /// @notice _pullInputTokens requires every declared input token to be a real ERC20 address —
+  ///         address(0) is never valid (native ETH travels via msg.value, not inputs[]).
+  function test_swapAndDeposit_revertsOnZeroAddressInputToken() public {
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](1);
+    inputs[0] = SharedVaultGateway.InputToken({ token: address(0), amount: 1e18 });
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: inputs,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(SharedVaultGateway.ZeroAddress.selector);
+    gateway.swapAndDeposit(params);
+  }
+
+  /// @notice Accept-side of the MAX_SWAPS boundary: exactly MAX_SWAPS entries must pass the batch
+  ///         limit (the revert side at MAX_SWAPS + 1 is covered by
+  ///         test_swapAndDeposit_revertsWhenSwapBatchExceedsPracticalBound). All-zero entries are
+  ///         no-op skips (empty swapData with amountOutMin == 0), so the deposit completes.
+  function test_swapAndDeposit_acceptsExactlyMaxSwapsNoOpEntries() public {
+    tokenA.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapParams[] memory noOpSwaps = new SharedVaultGateway.SwapParams[](100);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(
+        address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18
+      ),
+      swaps: noOpSwaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    assertEq(noOpSwaps.length, gateway.MAX_SWAPS(), "boundary test must use exactly MAX_SWAPS entries");
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+    assertGt(shares, 0, "deposit with exactly MAX_SWAPS no-op entries succeeds");
+  }
+
+  function test_initialize_revertsWhenCalledTwice() public {
+    vm.expectRevert();
+    gateway.initialize(address(this), address(router), address(mockWeth));
+  }
+
+  /// @notice _sweepNative must revert loudly (EthTransferFailed) when the recipient rejects native
+  ///         ETH — silently keeping the user's unwrapped withdrawal in the gateway would strand funds.
+  function test_withdrawAndSwap_revertsWhenEthRecipientRejectsNativeSweep() public {
+    (SharedVault wethVault, uint256 aliceShares) = _setupWethVault();
+
+    GatewayEthRejector rejector = new GatewayEthRejector(gateway);
+    vm.prank(ALICE);
+    wethVault.transfer(address(rejector), aliceShares);
+    rejector.approveShares(address(wethVault));
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(wethVault)),
+      shares: aliceShares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: true,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    vm.expectRevert(SharedVaultGateway.EthTransferFailed.selector);
+    rejector.callWithdrawAndSwap(params);
+  }
+}
+
+/// @dev Minimal ERC721 for Withdrawable sweep tests on the gateway instance.
+contract GatewayMockERC721 {
+  mapping(uint256 => address) public ownerOf;
+
+  function mint(address to, uint256 tokenId) external {
+    ownerOf[tokenId] = to;
+  }
+
+  function safeTransferFrom(address from, address to, uint256 tokenId) external {
+    require(ownerOf[tokenId] == from, "not owner");
+    ownerOf[tokenId] = to;
+  }
+}
+
+/// @dev Minimal ERC1155 for Withdrawable sweep tests on the gateway instance.
+contract GatewayMockERC1155 {
+  mapping(uint256 => mapping(address => uint256)) internal balances;
+
+  function mint(address to, uint256 id, uint256 amount) external {
+    balances[id][to] += amount;
+  }
+
+  function balanceOf(address account, uint256 id) external view returns (uint256) {
+    return balances[id][account];
+  }
+
+  function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata) external {
+    balances[id][from] -= amount;
+    balances[id][to] += amount;
+  }
+}
+
+/// @dev Share-holding caller with NO receive function: any native ETH sent to it fails, which is
+///      exactly what test_withdrawAndSwap_revertsWhenEthRecipientRejectsNativeSweep needs to force
+///      the gateway's _sweepNative EthTransferFailed branch.
+contract GatewayEthRejector {
+  SharedVaultGateway internal immutable gateway;
+
+  constructor(SharedVaultGateway _gateway) {
+    gateway = _gateway;
+  }
+
+  function approveShares(address shareToken) external {
+    IERC20(shareToken).approve(address(gateway), type(uint256).max);
+  }
+
+  function callWithdrawAndSwap(SharedVaultGateway.WithdrawAndSwapParams memory params) external {
+    gateway.withdrawAndSwap(params);
+  }
 }

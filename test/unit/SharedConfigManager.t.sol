@@ -565,4 +565,47 @@ contract SharedConfigManagerTest is TestCommon {
     assertEq(configManager.maxPositions(), 3);
     vm.stopPrank();
   }
+
+  // ============ minTokenPrecision ============
+
+  function test_initialize_defaultMinTokenPrecisionIs5() public view {
+    assertEq(configManager.minTokenPrecision(), 5);
+  }
+
+  function test_setMinTokenPrecision_updatesValue() public {
+    vm.prank(OWNER);
+    configManager.setMinTokenPrecision(3);
+
+    assertEq(configManager.minTokenPrecision(), 3);
+  }
+
+  /// @dev precision == 0 disables the deposit dust floor entirely (SharedVaultPreviewLib._minTokenAmt
+  ///      returns 0); the setter must accept it.
+  function test_setMinTokenPrecision_allowsZero() public {
+    vm.prank(OWNER);
+    configManager.setMinTokenPrecision(0);
+
+    assertEq(configManager.minTokenPrecision(), 0);
+  }
+
+  /// @dev No upper bound by design: precision >= a token's decimals collapses to a 1-wei floor.
+  function test_setMinTokenPrecision_allowsMaxValue() public {
+    vm.prank(OWNER);
+    configManager.setMinTokenPrecision(type(uint8).max);
+
+    assertEq(configManager.minTokenPrecision(), type(uint8).max);
+  }
+
+  function test_setMinTokenPrecision_emitsEvent() public {
+    vm.prank(OWNER);
+    vm.expectEmit(false, false, false, true, address(configManager));
+    emit ISharedConfigManager.MinTokenPrecisionUpdated(7);
+    configManager.setMinTokenPrecision(7);
+  }
+
+  function test_setMinTokenPrecision_revertsForNonOwner() public {
+    vm.prank(NON_OWNER);
+    vm.expectRevert();
+    configManager.setMinTokenPrecision(3);
+  }
 }

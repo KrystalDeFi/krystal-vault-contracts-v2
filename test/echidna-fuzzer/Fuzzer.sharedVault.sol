@@ -161,6 +161,26 @@ contract FuzzERC721 {
   }
 }
 
+/// @dev Minimal ERC1155 surface for SharedVault.sweepERC1155 (balanceOf + safeTransferFrom; no
+///      receiver callback so any recipient works).
+contract FuzzERC1155 {
+  mapping(uint256 => mapping(address => uint256)) internal balances;
+
+  function mint(address to, uint256 id, uint256 amount) external {
+    balances[id][to] += amount;
+  }
+
+  function balanceOf(address account, uint256 id) external view returns (uint256) {
+    return balances[id][account];
+  }
+
+  function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes calldata) external {
+    require(balances[id][from] >= amount, "1155 balance");
+    balances[id][from] -= amount;
+    balances[id][to] += amount;
+  }
+}
+
 contract SharedFuzzPlayer {
   SharedVault public vault;
 
@@ -177,17 +197,53 @@ contract SharedFuzzPlayer {
     return vault.deposit{ value: msg.value }(amounts, slippageBps, 0);
   }
 
+  /// @dev Receiver overload: shares mint to `receiver` while this player pays the tokens.
+  function depositTo(uint256[4] memory amounts, uint16 slippageBps, address receiver)
+    external
+    payable
+    returns (uint256 shares)
+  {
+    return vault.deposit{ value: msg.value }(amounts, slippageBps, 0, receiver);
+  }
+
   function withdraw(uint256 shares, uint256[4] memory mins, bool unwrap) external returns (uint256[4] memory amounts) {
     return vault.withdraw(shares, mins, unwrap);
+  }
+
+  /// @dev Vault shares are plain ERC20 — players can move them between each other mid-sequence.
+  function transferShares(address to, uint256 amount) external {
+    require(vault.transfer(to, amount), "share transfer failed");
+  }
+
+  /// @dev Passthrough so the harness can probe the player's onlyAuthorized standing on the vault.
+  function executeActions(ISharedVault.Action[] memory actions) external {
+    vault.execute(actions);
+  }
+
+  /// @dev Passthrough so a player that became vaultOwner can hand ownership back.
+  function transferVaultOwnership(address newOwner) external {
+    vault.transferOwnership(newOwner);
   }
 }
 
 contract SharedDelegatedWithdrawer {
+  /// @dev Must accept native ETH: withdrawForUnwrap receives the unwrapped WETH slot as ETH.
+  receive() external payable { }
+
   function withdrawFor(SharedVault vault, uint256 shares, uint256[4] memory mins, address account)
     external
     returns (uint256[4] memory amounts)
   {
     return vault.withdraw(shares, mins, false, account);
+  }
+
+  /// @dev Account-overload with unwrap=true: burns `account`'s shares via allowance and receives the
+  ///      WETH slot as native ETH (output always pays the CALLER, never `account`).
+  function withdrawForUnwrap(SharedVault vault, uint256 shares, uint256[4] memory mins, address account)
+    external
+    returns (uint256[4] memory amounts)
+  {
+    return vault.withdraw(shares, mins, true, account);
   }
 }
 
@@ -533,6 +589,10 @@ contract SharedVaultFuzzer {
   bool public callTypeChecked;
   bool public delegatedWithdrawChecked;
   bool public gatewayFotChecked;
+
+  /// @dev Lazily-created junk assets for the operator sweep handlers (never vault tokens).
+  FuzzERC20 internal sweepJunkToken;
+  FuzzERC1155 internal sweepJunk1155;
 
   constructor() payable {
     swapRouter = new FuzzSwapRouter();
@@ -962,6 +1022,279 @@ contract SharedVaultFuzzer {
     assert(t1.balanceOf(ownerRecipient) == ownerFee1);
     assert(t0.balanceOf(address(v)) == vault0Before + reward0 - platformFee0 - ownerFee0);
     assert(t1.balanceOf(address(v)) == vault1Before + reward1 - platformFee1 - ownerFee1);
+  }
+
+  // -------------------------------------------------------------------------
+  // Share movement, roles, ownership, operator sweeps, pause isolation
+  // -------------------------------------------------------------------------
+
+  /// @dev Moving shares between players must conserve totalSupply and total backing exactly — a
+  ///      transfer is a pure relabeling of claims, never value creation/destruction.
+  function idle_share_transfer_conserves_supply(uint8 fromIdx, uint8 toIdx, uint256 amountSeed) external {
+    fromIdx = fromIdx % 3;
+    toIdx = toIdx % 3;
+    if (fromIdx == toIdx) return;
+    uint256 bal = idleVault.balanceOf(address(idlePlayers[fromIdx]));
+    if (bal == 0) return;
+
+    uint256 amount = _sharesFromSeed(bal, amountSeed);
+    uint256 supplyBefore = idleVault.totalSupply();
+    uint256 toBefore = idleVault.balanceOf(address(idlePlayers[toIdx]));
+    uint256[4] memory totalsBefore = idleVault.getTotalBalances();
+
+    idlePlayers[fromIdx].transferShares(address(idlePlayers[toIdx]), amount);
+
+    assert(idleVault.totalSupply() == supplyBefore);
+    assert(idleVault.balanceOf(address(idlePlayers[fromIdx])) == bal - amount);
+    assert(idleVault.balanceOf(address(idlePlayers[toIdx])) == toBefore + amount);
+    uint256[4] memory totalsAfter = idleVault.getTotalBalances();
+    assert(totalsAfter[0] == totalsBefore[0] && totalsAfter[1] == totalsBefore[1]);
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev deposit(amounts, bps, minShares, receiver): shares mint to the receiver while the payer's
+  ///      own share balance stays untouched — preview parity and conservation must hold as for the
+  ///      self-deposit path.
+  function idle_deposit_to_receiver_mints_to_receiver(uint8 idx, uint8 receiverIdx, uint256 amountA, uint256 amountB)
+    external
+  {
+    idx = idx % 3;
+    receiverIdx = receiverIdx % 3;
+    if (receiverIdx == idx) return; // the self path is idle_deposit's job
+    amountA = _bound(amountA, 0, MAX_18);
+    amountB = _bound(amountB, 0, MAX_18 * 2);
+
+    uint256[4] memory amounts = [amountA, amountB, uint256(0), uint256(0)];
+    uint256 preview = idleVault.previewDeposit(amounts);
+    uint256 supplyBefore = idleVault.totalSupply();
+    uint256 payerBefore = idleVault.balanceOf(address(idlePlayers[idx]));
+    uint256 receiverBefore = idleVault.balanceOf(address(idlePlayers[receiverIdx]));
+
+    try idlePlayers[idx].depositTo(amounts, 0, address(idlePlayers[receiverIdx])) returns (uint256 shares) {
+      assert(preview > 0);
+      assert(shares == preview);
+      assert(idleVault.totalSupply() == supplyBefore + shares);
+      assert(idleVault.balanceOf(address(idlePlayers[receiverIdx])) == receiverBefore + shares);
+      assert(idleVault.balanceOf(address(idlePlayers[idx])) == payerBefore);
+    } catch {
+      assert(preview == 0);
+    }
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev grantAdminRole/revokeAdminRole round trip: a player is unauthorized for execute() before the
+  ///      grant, authorized while admin (empty batch no-op), and unauthorized again after the revoke.
+  ///      State is fully restored, so this composes with every other handler.
+  function idle_admin_role_grant_revoke_roundtrip() external {
+    SharedFuzzPlayer adminPlayer = idlePlayers[0];
+    ISharedVault.Action[] memory noActions = new ISharedVault.Action[](0);
+
+    try adminPlayer.executeActions(noActions) {
+      assert(false); // not yet authorized
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.Unauthorized.selector);
+    }
+
+    idleVault.grantAdminRole(address(adminPlayer));
+    adminPlayer.executeActions(noActions); // authorized: empty batch passes the gate and no-ops
+
+    idleVault.revokeAdminRole(address(adminPlayer));
+    try adminPlayer.executeActions(noActions) {
+      assert(false); // revoked
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.Unauthorized.selector);
+    }
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev transferOwnership round trip: the old owner loses owner-gated rights the moment ownership
+  ///      moves, and the new owner can hand it back. Restores state before returning.
+  function idle_transfer_ownership_roundtrip() external {
+    assert(idleVault.vaultOwner() == address(this));
+    SharedFuzzPlayer newOwner = idlePlayers[1];
+
+    idleVault.transferOwnership(address(newOwner));
+    assert(idleVault.vaultOwner() == address(newOwner));
+
+    try idleVault.grantAdminRole(address(this)) {
+      assert(false); // old owner must be locked out
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.Unauthorized.selector);
+    }
+
+    newOwner.transferVaultOwnership(address(this));
+    assert(idleVault.vaultOwner() == address(this));
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev Operator sweeps can NEVER touch vault tokens (CannotSweepVaultToken), and sweeping junk
+  ///      tokens leaves vault-token backing and supply exactly unchanged.
+  function idle_sweep_vault_token_guard_and_junk_sweep(uint256 amt) external {
+    amt = _bound(amt, 1, MAX_18);
+
+    address[] memory toks = new address[](1);
+    uint256[] memory amts = new uint256[](1);
+    toks[0] = address(idleA);
+    amts[0] = 1;
+    try idleVault.sweepTokens(toks, amts, address(this)) {
+      assert(false);
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.CannotSweepVaultToken.selector);
+    }
+
+    if (address(sweepJunkToken) == address(0)) sweepJunkToken = new FuzzERC20("SweepJunk", "SJK", 18);
+    sweepJunkToken.mint(address(idleVault), amt);
+    uint256 aBefore = idleA.balanceOf(address(idleVault));
+    uint256 bBefore = idleB.balanceOf(address(idleVault));
+    uint256 mineBefore = sweepJunkToken.balanceOf(address(this));
+    uint256 supplyBefore = idleVault.totalSupply();
+
+    toks[0] = address(sweepJunkToken);
+    amts[0] = amt;
+    idleVault.sweepTokens(toks, amts, address(this));
+
+    assert(sweepJunkToken.balanceOf(address(this)) == mineBefore + amt);
+    assert(sweepJunkToken.balanceOf(address(idleVault)) == 0);
+    assert(idleA.balanceOf(address(idleVault)) == aBefore);
+    assert(idleB.balanceOf(address(idleVault)) == bBefore);
+    assert(idleVault.totalSupply() == supplyBefore);
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev sweepERC1155 transfers the held balance and clamps an over-ask to the actual balance.
+  function idle_sweep_erc1155_clamps_to_balance(uint256 amt) external {
+    amt = _bound(amt, 1, MAX_18);
+    if (address(sweepJunk1155) == address(0)) sweepJunk1155 = new FuzzERC1155();
+
+    sweepJunk1155.mint(address(idleVault), 1, amt);
+    uint256 vaultBal = sweepJunk1155.balanceOf(address(idleVault), 1);
+    uint256 mineBefore = sweepJunk1155.balanceOf(address(this), 1);
+
+    idleVault.sweepERC1155(address(sweepJunk1155), 1, vaultBal + 5, address(this)); // over-ask clamps
+
+    assert(sweepJunk1155.balanceOf(address(this), 1) == mineBefore + vaultBal);
+    assert(sweepJunk1155.balanceOf(address(idleVault), 1) == 0);
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
+  /// @dev Tracked-position NFTs are guarded against sweepERC721; junk NFTs sweep out freely and
+  ///      tracking stays intact.
+  function lp_sweep_erc721_guards_tracked_position(uint256 junkSeed) external {
+    uint256 junkId = 1000 + (junkSeed % 1000); // ids 1 and 2 are the tracked positions
+
+    try lpVault.sweepERC721(address(lpNfpm), 1, address(this)) {
+      assert(false); // tracked position must be unsweepable
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.CannotSweepVaultToken.selector);
+    }
+
+    uint256 posBefore = lpVault.getPositionCount();
+    lpNfpm.mint(address(lpVault), junkId);
+    lpVault.sweepERC721(address(lpNfpm), junkId, address(this));
+    assert(lpNfpm.ownerOf(junkId) == address(this));
+    assert(lpVault.getPositionCount() == posBefore);
+
+    _assertLpShareConservation();
+    _assertPositiveBacking(lpVault);
+  }
+
+  /// @dev Plain ETH transfers must be accepted by receive(), and the operator can recover exactly
+  ///      that amount via sweepNativeToken without touching shares or token backing.
+  function weth_plain_eth_receive_and_native_sweep(uint256 amt) external {
+    amt = _bound(amt, 1, 1 ether);
+    if (address(this).balance < amt) return;
+    uint256 vaultEthBefore = address(wethVault).balance;
+    uint256 supplyBefore = wethVault.totalSupply();
+
+    (bool ok,) = address(wethVault).call{ value: amt }("");
+    assert(ok);
+    assert(address(wethVault).balance == vaultEthBefore + amt);
+
+    wethVault.sweepNativeToken(amt, address(this));
+    assert(address(wethVault).balance == vaultEthBefore);
+    assert(wethVault.totalSupply() == supplyBefore);
+    _assertPositiveBacking(wethVault);
+  }
+
+  /// @dev Account-overload withdraw with unwrap=true via allowance: the delegated withdrawer (caller)
+  ///      receives the WETH slot as native ETH, the account's shares burn, and the finite allowance is
+  ///      fully consumed.
+  function weth_delegated_withdraw_unwrap_pays_native(uint256 shareSeed) external {
+    uint256 bal = wethVault.balanceOf(address(this));
+    if (bal == 0) return;
+    uint256 shares = _sharesFromSeed(bal, shareSeed);
+    uint256[4] memory preview = wethVault.previewWithdraw(shares);
+    if (!_hasNonDustOutput(preview)) return;
+
+    // No top-up needed: every WETH unit is ETH-backed by construction (the seed in _setupWethVault is
+    // a real deposit and nothing calls weth.mint), so unwrap can always pay out — see
+    // assert_weth_mock_fully_backed. A local shortfall top-up here would also be WRONG: it consumed
+    // the buffer other handlers' unwraps relied on when the seed was unbacked.
+    wethVault.approve(address(delegatedWithdrawer), shares);
+    uint256 supplyBefore = wethVault.totalSupply();
+    uint256 ethBefore = address(delegatedWithdrawer).balance;
+    uint256 tokABefore = wethTokenA.balanceOf(address(delegatedWithdrawer));
+    uint256[4] memory mins;
+
+    try delegatedWithdrawer.withdrawForUnwrap(wethVault, shares, mins, address(this)) returns (uint256[4] memory got) {
+      assert(got[0] == preview[0]);
+      assert(got[1] == preview[1]);
+      assert(wethVault.totalSupply() == supplyBefore - shares);
+      assert(wethTokenA.balanceOf(address(delegatedWithdrawer)) == tokABefore + got[0]);
+      assert(address(delegatedWithdrawer).balance == ethBefore + got[1]);
+      assert(wethVault.allowance(address(this), address(delegatedWithdrawer)) == 0);
+    } catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+      wethVault.approve(address(delegatedWithdrawer), 0); // clear the stale allowance
+    }
+
+    _assertPositiveBacking(wethVault);
+  }
+
+  /// @dev Pause isolation: a LOCAL pause on one vault blocks that vault's deposits but must not leak
+  ///      into any other vault sharing the same config manager (only the GLOBAL config pause does).
+  function pause_isolation_localIdlePause_doesNotBlockMultiVault(uint256 amountA) external {
+    amountA = _bound(amountA, 1e13, MAX_18);
+    uint256[4] memory totals = multiVault.getTotalBalances();
+    if (totals[0] == 0 || totals[1] == 0 || totals[2] == 0 || totals[3] == 0) return;
+
+    uint256[4] memory amounts;
+    amounts[0] = amountA;
+    amounts[1] = _ceilMulDiv(amountA, totals[1], totals[0]);
+    amounts[2] = _ceilMulDiv(amountA, totals[2], totals[0]);
+    amounts[3] = _ceilMulDiv(amountA, totals[3], totals[0]);
+    if (amounts[1] > MAX_18 || amounts[2] > MAX_6 || amounts[3] > MAX_8) return;
+    uint256 preview = multiVault.previewDeposit(amounts);
+    if (preview == 0) return;
+
+    idleVault.setPaused(true);
+
+    uint256[4] memory idleAmounts = [uint256(1e18), uint256(2e18), uint256(0), uint256(0)];
+    try idlePlayers[0].deposit(idleAmounts, 0) returns (uint256) {
+      assert(false); // the locally-paused vault is blocked
+    } catch (bytes memory reason) {
+      assert(_revertSelector(reason) == ISharedCommon.VaultPaused.selector);
+    }
+
+    try multiPlayers[0].deposit(amounts, 0) returns (uint256 shares) {
+      assert(shares == preview); // the sibling vault is untouched by the local pause
+    } catch {
+      assert(false);
+    }
+
+    idleVault.setPaused(false);
+    _assertIdleShareConservation();
+    _assertMultiShareConservation();
+    _assertPositiveBacking(multiVault);
   }
 
   // -------------------------------------------------------------------------
@@ -1589,6 +1922,13 @@ contract SharedVaultFuzzer {
     _assertPositiveBacking(feeVault);
   }
 
+  /// @dev Harness-economics invariant: the WETH mock must stay exactly ETH-backed (deposit is the only
+  ///      credit path — the seed is a real deposit and nothing calls weth.mint). Guarantees unwrap-style
+  ///      withdrawals can never fail with a spurious mock insolvency ("ETH transfer failed").
+  function assert_weth_mock_fully_backed() public view {
+    assert(address(weth).balance == weth.totalSupply());
+  }
+
   // -------------------------------------------------------------------------
   // Setup
   // -------------------------------------------------------------------------
@@ -1692,7 +2032,14 @@ contract SharedVaultFuzzer {
     wethVault = new SharedVault();
 
     wethTokenA.mint(address(wethVault), 100e18);
-    weth.mint(address(wethVault), 100 ether);
+    // Seed the vault's WETH through a REAL deposit so every WETH unit is backed by ETH in the mock.
+    // `weth.mint(...)` would create unbacked WETH: unwrap-style withdrawals pay real ETH out of the
+    // mock, so an unbacked seed makes FuzzWETH9.withdraw insolvent once players' claims on the seeded
+    // slice exceed the natively-deposited buffer — a harness artifact that surfaces as a spurious
+    // "ETH transfer failed" assertion (found by a weth_native_deposit_withdraw +
+    // weth_delegated_withdraw_unwrap_pays_native sequence), not a vault bug.
+    weth.deposit{ value: 100 ether }();
+    weth.transfer(address(wethVault), 100 ether);
 
     address[4] memory toks = [address(wethTokenA), address(weth), address(0), address(0)];
     uint256[4] memory init = [uint256(100e18), uint256(100 ether), uint256(0), uint256(0)];

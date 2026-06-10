@@ -70,6 +70,10 @@ contract SharedSwapDataSignature1271Signer {
 contract SharedSwapDataSignatureTest is Test {
   uint256 internal constant SIGNER_PK = 0xA11CE;
 
+  /// @dev Storage (not a stack local): with via-ir the optimizer rematerializes CHAINID at the use
+  ///      site, so a cached `uint256 local = block.chainid` silently reads the post-vm.chainId value.
+  uint256 internal savedChainId;
+
   function test_storageSlot_matchesDocumentedNamespaceHash() public {
     bytes32 expected = keccak256("krystal.shared-vault.swap-data-signature.storage");
     assertEq(new SharedSwapDataSignatureHarness().storageSlot(), expected);
@@ -253,6 +257,81 @@ contract SharedSwapDataSignatureTest is Test {
       ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
       0.9 ether, expired
     );
+  }
+
+  /// @dev The digest embeds block.chainid (SharedSwapDataSignature.hash line 1: `block.chainid`), so the
+  ///      same tuple must produce a DIFFERENT digest on a different chain — the binding that makes
+  ///      cross-chain signature replay impossible.
+  function test_hash_bindsChainId() public {
+    SharedSwapDataSignatureHarness harness = new SharedSwapDataSignatureHarness();
+
+    bytes32 baseDigest = harness.hash(
+      address(0xA),
+      vm.addr(SIGNER_PK),
+      address(0xB),
+      address(0xC),
+      address(0xD),
+      1 ether,
+      0.9 ether,
+      hex"1234",
+      block.timestamp + 1 hours,
+      bytes32("nonce")
+    );
+
+    savedChainId = block.chainid;
+    vm.chainId(savedChainId + 1);
+    bytes32 otherChainDigest = harness.hash(
+      address(0xA),
+      vm.addr(SIGNER_PK),
+      address(0xB),
+      address(0xC),
+      address(0xD),
+      1 ether,
+      0.9 ether,
+      hex"1234",
+      block.timestamp + 1 hours,
+      bytes32("nonce")
+    );
+    vm.chainId(savedChainId);
+
+    assertNotEq(baseDigest, otherChainDigest, "digest must differ across chain ids");
+  }
+
+  /// @dev End-to-end cross-chain replay: an envelope signed against chain A's digest must NOT verify on
+  ///      chain B. The envelope ABI carries no explicit chain field — the chain id only lives inside the
+  ///      signed digest — so on chain B `verify` reconstructs a different digest and the signature check
+  ///      fails with InvalidSwapDataSignature.
+  function test_verify_rejectsCrossChainReplay() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+
+    // Signed against the CURRENT chain id.
+    bytes memory signedSwapData = _signSwapData(
+      caller, expectedVault, signer, swapRouter, address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      block.timestamp + 1 hours, bytes32("cross-chain-nonce")
+    );
+
+    // Replayed on a different chain: digest reconstruction diverges, signature no longer matches.
+    savedChainId = block.chainid;
+    vm.chainId(savedChainId + 1);
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+    vm.chainId(savedChainId);
+
+    // Back on the home chain the very same envelope verifies — proving the only blocker was the chain id.
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+    assertEq(decoded, hex"1234", "same envelope verifies on the chain it was signed for");
   }
 
   /// @dev Completes the digest-binding coverage of test_hash_bindsVaultAndDeadline: every remaining
