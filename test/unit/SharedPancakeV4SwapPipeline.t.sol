@@ -31,10 +31,16 @@ contract SharedPancakeV4SwapPipelineTestToken is ERC20 {
 contract SharedPancakeV4SwapPipelineConfigManager {
   address public router;
   address public signer;
+  uint64 public maxGasFeeX64 = type(uint64).max;
+  address public feeRecipient;
 
   constructor(address _router, address _signer) {
     router = _router;
     signer = _signer;
+  }
+
+  function setFeeRecipient(address _feeRecipient) external {
+    feeRecipient = _feeRecipient;
   }
 
   function isWhitelistedSwapRouter(address account) external view returns (bool) {
@@ -57,10 +63,15 @@ contract SharedPancakeV4SwapPipelineRouter {
 contract SharedPancakeV4SwapPipelineHarness {
   address public immutable weth;
   ISharedConfigManager public immutable configManager;
+  mapping(address => bool) public isVaultToken;
 
   constructor(address _configManager, address _weth) {
     configManager = ISharedConfigManager(_configManager);
     weth = _weth;
+  }
+
+  function setVaultToken(address token, bool allowed) external {
+    isVaultToken[token] = allowed;
   }
 
   function executePancake(
@@ -73,6 +84,17 @@ contract SharedPancakeV4SwapPipelineHarness {
   ) external returns (uint256 total0, uint256 total1) {
     return SharedV4SwapPipeline.executePancake(swapRouter, token0, token1, amount0, amount1, swapParams);
   }
+
+  function executePancakeWithInputs(
+    address swapRouter,
+    address token0,
+    address token1,
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputTokens,
+    uint64 gasFeeX64,
+    ISharedPancakeV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1) {
+    return SharedV4SwapPipeline.executePancakeWithInputs(swapRouter, token0, token1, inputTokens, gasFeeX64, swapParams);
+  }
 }
 
 contract SharedPancakeV4SwapPipelineTest is Test {
@@ -82,6 +104,7 @@ contract SharedPancakeV4SwapPipelineTest is Test {
   SharedPancakeV4SwapPipelineTestToken internal token1;
   SharedPancakeV4SwapPipelineRouter internal router;
   SharedPancakeV4SwapPipelineHarness internal harness;
+  SharedPancakeV4SwapPipelineConfigManager internal configManager;
   address internal signer;
   uint256 internal nonce;
 
@@ -90,9 +113,10 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     token0 = new SharedPancakeV4SwapPipelineTestToken("Token 0", "TK0");
     token1 = new SharedPancakeV4SwapPipelineTestToken("Token 1", "TK1");
     router = new SharedPancakeV4SwapPipelineRouter();
-    SharedPancakeV4SwapPipelineConfigManager configManager =
-      new SharedPancakeV4SwapPipelineConfigManager(address(router), signer);
+    configManager = new SharedPancakeV4SwapPipelineConfigManager(address(router), signer);
     harness = new SharedPancakeV4SwapPipelineHarness(address(configManager), address(token0));
+    harness.setVaultToken(address(token0), true);
+    harness.setVaultToken(address(token1), true);
   }
 
   // -------------------------------------------------------------------------
@@ -458,6 +482,216 @@ contract SharedPancakeV4SwapPipelineTest is Test {
 
     assertEq(total0, 3 ether, "amount0 passes through untouched");
     assertEq(total1, 7 ether, "amount1 passes through untouched");
+  }
+
+  // -------------------------------------------------------------------------
+  // executePancakeWithInputs: twin-parity coverage of executeWithInputs (input
+  // folding, the input gas-fee skim, and the seeded ledger for non-pool
+  // vault-token inputs). Mirrors the executeWithInputs block in
+  // SharedV4SwapPipeline.t.sol.
+  // -------------------------------------------------------------------------
+
+  /// @dev Twin of test_executeWithInputs_poolTokenInputsFoldIntoTotals.
+  function test_executePancakeWithInputs_poolTokenInputsFoldIntoTotals() public {
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](3);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 3 ether });
+    inputs[1] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 7 ether });
+    inputs[2] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(0xDEAD)), amount: 0 });
+
+    (uint256 total0, uint256 total1) = harness.executePancakeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedPancakeV4Utils.SwapParams[](0)
+    );
+
+    assertEq(total0, 3 ether, "token0 input folded into total0");
+    assertEq(total1, 7 ether, "token1 input folded into total1");
+  }
+
+  /// @dev Twin of test_executeWithInputs_nonPoolVaultTokenInput_swapsIntoPoolTokens.
+  function test_executePancakeWithInputs_nonPoolVaultTokenInput_swapsIntoPoolTokens() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 6 ether);
+    token1.mint(address(router), 4 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token1), uint256(4 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hop0Data)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 4 ether,
+      swapData: _signedSwapData(address(tokenX), address(token1), 4 ether, 4 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 6 ether, "tokenX->token0 output credited to total0");
+    assertEq(total1, 4 ether, "tokenX->token1 output credited to total1");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "seeded input fully consumed");
+    assertEq(token0.balanceOf(address(harness)), 6 ether, "harness holds the token0 output");
+    assertEq(token1.balanceOf(address(harness)), 4 ether, "harness holds the token1 output");
+  }
+
+  /// @dev Twin of test_executeWithInputs_mergesDuplicateInputEntries.
+  function test_executePancakeWithInputs_mergesDuplicateInputEntries() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 10 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(10 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 4 ether });
+    inputs[1] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 6 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 10 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 10 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 10 ether, 10 ether, hopData)
+    });
+
+    (uint256 total0,) =
+      harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 10 ether, "merged duplicate seeds spent through one hop");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "combined seed fully consumed");
+  }
+
+  /// @dev Twin of test_executeWithInputs_revertsWhenInputHasNoConsumingHop.
+  function test_executePancakeWithInputs_revertsWhenInputHasNoConsumingHop() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dangling", "DGL");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executePancakeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedPancakeV4Utils.SwapParams[](0)
+    );
+  }
+
+  /// @dev Twin of test_executeWithInputs_revertsWhenInputNotFullyConsumed.
+  function test_executePancakeWithInputs_revertsWhenInputNotFullyConsumed() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 6 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether, // leaves 4 ether of the seed unconsumed
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hopData)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+  }
+
+  /// @dev Twin of test_executeWithInputs_revertsWhenHopOverdrawsSeededBudget.
+  function test_executePancakeWithInputs_revertsWhenHopOverdrawsSeededBudget() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 20 ether);
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 11 ether, // exceeds the 10 ether seed
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached — the budget check precedes signature verification
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+  }
+
+  /// @dev Twin of test_executeWithInputs_rejectsNonVaultTokenInput.
+  function test_executePancakeWithInputs_rejectsNonVaultTokenInput() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Rogue", "RGE");
+    tokenX.mint(address(harness), 10 ether);
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executePancakeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedPancakeV4Utils.SwapParams[](0)
+    );
+  }
+
+  /// @dev Twin of test_executeWithInputs_skimsGasFeeThenRequiresExactRemainderConsumption.
+  function test_executePancakeWithInputs_skimsGasFeeThenRequiresExactRemainderConsumption() public {
+    address gasFeeRecipient = makeAddr("gasFeeRecipient");
+    configManager.setFeeRecipient(gasFeeRecipient);
+
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 8 ether);
+    token0.mint(address(router), 6 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 8 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether, // = 8 ether minus the 25% skim
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hopData)
+    });
+
+    (uint256 total0,) = harness.executePancakeWithInputs(
+      address(router),
+      address(token0),
+      address(token1),
+      inputs,
+      uint64(uint256(0x10000000000000000) / 4), // 25%
+      swaps
+    );
+
+    assertEq(tokenX.balanceOf(gasFeeRecipient), 2 ether, "25% input gas fee skimmed to the recipient");
+    assertEq(total0, 6 ether, "post-fee remainder swapped into total0");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "post-fee remainder fully consumed");
   }
 
   function _signedSwapData(

@@ -683,102 +683,9 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     vault.execute(actions);
   }
 
-  // ===========================================================================
-  // Security regression: gas-fee siphon via non-pool input tokens.
-  //
-  // Mirrors the Uniswap V4 regression in Integration.SharedVault.V4.t.sol. Before the fix in
-  // `SharedPancakeV4StrategyLib._validateV4InputTokens`, an authorized executor could attach a
-  // non-pool vault token inside `SwapAndMintParams.inputTokens` with a nonzero `gasFeeX64` and
-  // have `_takeInputGasFeesAndGetPoolAmounts` skim `amount * gasFeeX64 / Q64` of that token before
-  // the per-entry currency check — the remainder then dropped silently from
-  // the LP accounting. After the fix, every positive-amount input must match `currency0` or
-  // `currency1`, so the path reverts with `InvalidPoolTokens()` before any fee transfer.
-  // ===========================================================================
-
-  function test_swapAndMint_rejectsNonPoolInputToken_preventsGasFeeSiphon() public {
-    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
-    hopToken.mint(address(threeTokenVault), 1 ether);
-
-    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](3);
-    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
-    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
-    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
-
-    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
-      posm: BASE_PANCAKE_V4_POSM,
-      poolKey: poolKey,
-      mintParams: IPancakeV4Utils.MintParams({
-        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
-      }),
-      swapParams: new IPancakeV4Utils.SwapParams[](0),
-      inputTokens: inputs,
-      sweepTokens: new Currency[](0),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
-      gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
-    });
-
-    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
-    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
-
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
-
-    uint256 hopBefore = hopToken.balanceOf(address(threeTokenVault));
-    uint256 attackerHopBefore = hopToken.balanceOf(vaultOwner);
-
-    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
-    vm.prank(vaultOwner);
-    threeTokenVault.execute(actions);
-
-    assertEq(hopToken.balanceOf(address(threeTokenVault)), hopBefore, "vault hopToken untouched");
-    assertEq(hopToken.balanceOf(vaultOwner), attackerHopBefore, "executor received no hopToken");
-  }
-
-  function test_swapAndIncrease_rejectsNonPoolInputToken_preventsGasFeeSiphon() public {
-    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
-
-    uint256 idForIncrease = _mintPositionToOperator(poolKey);
-    IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForIncrease);
-    threeTokenVault.recoverPosition(
-      BASE_PANCAKE_V4_POSM, idForIncrease, address(strategy), address(token0), address(token1)
-    );
-
-    hopToken.mint(address(threeTokenVault), 1 ether);
-
-    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](3);
-    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
-    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
-    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
-
-    IPancakeV4Utils.SwapAndIncreaseParams memory incParams = IPancakeV4Utils.SwapAndIncreaseParams({
-      posm: BASE_PANCAKE_V4_POSM,
-      tokenId: idForIncrease,
-      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
-        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
-      }),
-      swapParams: new IPancakeV4Utils.SwapParams[](0),
-      inputTokens: inputs,
-      sweepTokens: new Currency[](0),
-      protocolFeeX64: 0,
-      performanceFeeX64: 0,
-      gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
-    });
-
-    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndIncrease, (incParams));
-    bytes memory innerData =
-      abi.encode(BASE_PANCAKE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
-    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
-
-    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
-    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
-
-    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
-    vm.prank(vaultOwner);
-    threeTokenVault.execute(actions);
-  }
+  // The gas-fee-siphon regression coverage (dangling non-pool inputs must revert via the swap
+  // pipeline's exact-consumption ledger) and the supported hop-funded mint/increase flows live
+  // in the "Non-pool input tokens" block further down, mirroring Integration.SharedVault.V4.t.sol.
 
   // ===========================================================================
   // Gap coverage: dispatch guards, slippage floors, revert-safe valuation, and the
@@ -1043,6 +950,341 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertEq(t1, address(token1), "token1 resolved");
   }
 
+  // ===========================================================================
+  // Non-pool input tokens (twin of the Integration.SharedVault.V4 block).
+  //
+  // Funding a mint/increase from a non-pool VAULT token is supported: the swap
+  // pipeline seeds it as a tracked ledger balance that signed hops must consume
+  // down to EXACTLY zero. A dangling input (no consuming hop) reverts the whole
+  // operation — including any already-skimmed input gas fee — which is the
+  // gas-fee-siphon regression guard.
+  // ===========================================================================
+
+  function test_swapAndMint_rejectsDanglingNonPoolInputToken_preventsGasFeeSiphon() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+
+    hopToken.mint(address(threeTokenVault), 1 ether);
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](3);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
+    // The exploit row: a non-pool vault token with NO swap hop consuming it.
+    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      // 10% — within the configured `maxGasFeeX64` cap (30%), so the fee-cap check cannot mask
+      // the dangle: the skim itself executes and only the ledger check can (and must) catch it.
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 10)
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    uint256 hopBefore = hopToken.balanceOf(address(threeTokenVault));
+    uint256 attackerHopBefore = hopToken.balanceOf(vaultOwner);
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertEq(hopToken.balanceOf(address(threeTokenVault)), hopBefore, "vault hopToken untouched");
+    assertEq(hopToken.balanceOf(vaultOwner), attackerHopBefore, "executor received no hopToken");
+  }
+
+  function test_swapAndIncrease_rejectsDanglingNonPoolInputToken_preventsGasFeeSiphon() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+
+    uint256 idForIncrease = _mintPositionToOperator(poolKey);
+    IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForIncrease);
+    threeTokenVault.recoverPosition(
+      BASE_PANCAKE_V4_POSM, idForIncrease, address(strategy), address(token0), address(token1)
+    );
+
+    hopToken.mint(address(threeTokenVault), 1 ether);
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](3);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
+    inputs[2] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    IPancakeV4Utils.SwapAndIncreaseParams memory incParams = IPancakeV4Utils.SwapAndIncreaseParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      tokenId: idForIncrease,
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 10)
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndIncrease, (incParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+  }
+
+  /// @dev A token that is not on the vault's token list at all must still be rejected outright as an
+  ///      input. Uses the setUp two-token vault, where `hopToken` is NOT a vault token.
+  function test_swapAndMint_rejectsNonVaultInputToken() public {
+    hopToken.mint(address(vault), 1 ether);
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    _expectRevertExecute(
+      bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData),
+      ISharedStrategy.InvalidPoolTokens.selector
+    );
+  }
+
+  function test_swapAndMint_fromNonPoolVaultTokenInput_swapsViaSignedHopsAndMints() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    bytes memory hop0Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.5 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.5 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertEq(threeTokenVault.getPositionCount(), 1, "hop-funded Pancake V4 position tracked");
+    assertEq(
+      IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore), address(threeTokenVault), "three-token vault owns new NFT"
+    );
+    assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "minted liquidity is non-zero");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
+    assertEq(hopToken.balanceOf(address(swapRouter)), 1 ether, "router consumed the full hop input");
+  }
+
+  function test_swapAndIncrease_fromNonPoolVaultTokenInput_swapsViaSignedHopsAndIncreases() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+    uint256 idForIncrease = _mintPositionToOperator(poolKey);
+    IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForIncrease);
+    threeTokenVault.recoverPosition(
+      BASE_PANCAKE_V4_POSM, idForIncrease, address(strategy), address(token0), address(token1)
+    );
+    uint128 liquidityBefore = posm.getPositionLiquidity(idForIncrease);
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    bytes memory hop0Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.5 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.5 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IPancakeV4Utils.SwapAndIncreaseParams memory incParams = IPancakeV4Utils.SwapAndIncreaseParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      tokenId: idForIncrease,
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndIncrease, (incParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertGt(posm.getPositionLiquidity(idForIncrease), liquidityBefore, "hop-funded increase grew liquidity");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
+    assertEq(hopToken.balanceOf(address(swapRouter)), 1 ether, "router consumed the full hop input");
+  }
+
+  /// @dev Gas-fee interplay on the supported flow (twin of the V4 test): the 25% rate (Q64/4) is
+  ///      dyadic so the skim is exact and the hops are signed for the exact 0.75 ether remainder
+  ///      (a truncating rate like Q64/10 leaves a 1-wei dangle that the ledger rightly rejects).
+  function test_swapAndMint_fromNonPoolVaultTokenInput_skimsGasFeeThenRequiresFullConsumption() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    bytes memory hop0Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](2);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.375 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.375 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.375 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.375 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 4) // 25%, dyadic => exact skim
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertEq(IERC721(BASE_PANCAKE_V4_POSM).ownerOf(nextIdBefore), address(threeTokenVault), "hop-funded mint succeeded");
+    assertEq(hopToken.balanceOf(feeRecipient), 0.25 ether, "gas fee skimmed from the hop input");
+    assertEq(hopToken.balanceOf(address(swapRouter)), 0.75 ether, "post-fee remainder fully swapped");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
+  }
+
   /// @dev Minimal valid mint params (zero floor) reused by dispatch-guard tests whose revert fires
   ///      before the params body is decoded.
   function _minimalMintParams() internal view returns (IPancakeV4Utils.SwapAndMintParams memory) {
@@ -1071,10 +1313,23 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     uint256 amountOutMin,
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
+    return _signedSwapDataForVault(address(vault), tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData);
+  }
+
+  /// @dev Same digest construction as `_signedSwapData` but bound to an explicit vault address, for
+  ///      tests that execute against a vault other than the setUp `vault` (e.g. the three-token vault).
+  function _signedSwapDataForVault(
+    address signedVault,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
     bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
-      address(vault),
+      signedVault,
       swapDataSigner,
       address(swapRouter),
       tokenIn,
@@ -1086,7 +1341,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
-    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, signedVault, deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {
@@ -1119,6 +1374,10 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     donateRouter.donate(poolKey, amount0, amount1, "");
   }
 
+  /// @dev Builds a fresh `SharedVault` whose `vaultTokens` list contains `hopToken` in addition to
+  ///      the pool's `token0` / `token1` — the staging ground for both the dangling-input regression
+  ///      tests and the supported hop-funded mint/increase flows. Reuses the existing
+  ///      `configManager`, `strategy`, and `poolKey` from the parent `setUp`.
   function _deployThreeTokenPancakeV4Vault() internal returns (SharedVault threeTokenVault) {
     threeTokenVault = new SharedVault();
     token0.mint(address(threeTokenVault), 10 ether);
@@ -1169,7 +1428,8 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
   {
     _approveCurrencyForPosm(Currency.unwrap(key.currency1));
 
-    bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d), uint8(0x14)); // CL_MINT_POSITION, SETTLE_PAIR, SWEEP
+    bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d), uint8(0x14)); // CL_MINT_POSITION, SETTLE_PAIR,
+    // SWEEP
     bytes[] memory params = new bytes[](3);
     params[0] = abi.encode(
       key, TICK_LOWER, TICK_UPPER, INITIAL_LIQUIDITY, MAX_TOKEN_IN, MAX_TOKEN_IN, address(this), bytes("")

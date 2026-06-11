@@ -234,6 +234,11 @@ library SharedPancakeV4StrategyLib {
     }
   }
 
+  // Input-token validation, the input gas-fee skim, and the non-pool-input ledger (the "fund the
+  // LP from a third vault token" flow) all live in `SharedV4SwapPipeline.executePancakeWithInputs`
+  // — the single audited input/swap boundary shared with the Uniswap V4 twin. Keeping them out of
+  // this library also preserves its EIP-170 headroom.
+
   function _executeSwapAndMint(address swapRouter, address posm, ISharedPancakeV4Utils.SwapAndMintParams memory params)
     private
   {
@@ -245,13 +250,9 @@ library SharedPancakeV4StrategyLib {
       ISharedCommon.InvalidOperation()
     );
     (address token0, address token1) = _validatePoolVaultTokens(params.poolKey.currency0, params.poolKey.currency1);
-    _validateV4InputTokens(params.inputTokens, params.poolKey.currency0, params.poolKey.currency1);
-
-    (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
-      params.poolKey.currency0, params.poolKey.currency1, params.inputTokens, params.gasFeeX64
+    (uint256 amount0, uint256 amount1) = SharedV4SwapPipeline.executePancakeWithInputs(
+      swapRouter, token0, token1, params.inputTokens, params.gasFeeX64, params.swapParams
     );
-    (amount0, amount1) =
-      SharedV4SwapPipeline.executePancake(swapRouter, token0, token1, amount0, amount1, params.swapParams);
     _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
   }
 
@@ -266,12 +267,9 @@ library SharedPancakeV4StrategyLib {
     ICLPositionManager pm = ICLPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     (address token0, address token1) = _validatePoolVaultTokens(poolKey.currency0, poolKey.currency1);
-    _validateV4InputTokens(params.inputTokens, poolKey.currency0, poolKey.currency1);
-
-    (uint256 amount0, uint256 amount1) =
-      _takeInputGasFeesAndGetPoolAmounts(poolKey.currency0, poolKey.currency1, params.inputTokens, params.gasFeeX64);
-    (amount0, amount1) =
-      SharedV4SwapPipeline.executePancake(swapRouter, token0, token1, amount0, amount1, params.swapParams);
+    (uint256 amount0, uint256 amount1) = SharedV4SwapPipeline.executePancakeWithInputs(
+      swapRouter, token0, token1, params.inputTokens, params.gasFeeX64, params.swapParams
+    );
     _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
   }
 
@@ -615,68 +613,6 @@ library SharedPancakeV4StrategyLib {
 
   function _requireWhitelistedPosm(address posm) private view {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
-  }
-
-  /// @dev Every positive-amount input must be both a vault token AND one of the pool currencies.
-  ///      The currency match is essential: without it, an authorized executor could include a
-  ///      non-pool vault token (e.g. DAI in a WETH/USDC mint) with a nonzero `gasFeeX64` and have
-  ///      `_takeInputGasFeesAndGetPoolAmounts` siphon `amount * gasFeeX64 / Q64` of that token before
-  ///      validation while the remainder dangles unused (never folded into `amount0`/`amount1`).
-  ///      Zero-amount entries are tolerated (they're a no-op for both fee and pool accounting).
-  function _validateV4InputTokens(
-    ISharedPancakeV4Utils.InputTokenParams[] memory inputTokens,
-    Currency currency0,
-    Currency currency1
-  ) private view {
-    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
-    for (uint256 i; i < inputTokens.length;) {
-      if (inputTokens[i].amount > 0) {
-        address token = _vaultToken(inputTokens[i].token);
-        _validateVaultToken(token);
-        require(token == poolToken0 || token == poolToken1, ISharedStrategy.InvalidPoolTokens());
-      }
-      unchecked {
-        i++;
-      }
-    }
-  }
-
-  function _takeInputGasFeesAndGetPoolAmounts(
-    Currency currency0,
-    Currency currency1,
-    ISharedPancakeV4Utils.InputTokenParams[] memory inputTokens,
-    uint64 gasFeeX64
-  ) private returns (uint256 amount0, uint256 amount1) {
-    address gasFeeRecipient;
-    if (gasFeeX64 > 0) (gasFeeX64, gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
-    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
-    for (uint256 i; i < inputTokens.length;) {
-      uint256 amount = inputTokens[i].amount;
-      address token = _vaultToken(inputTokens[i].token);
-      if (amount > 0 && gasFeeX64 > 0) {
-        amount -= _applySingleTokenGasFee(token, amount, gasFeeX64, gasFeeRecipient);
-      }
-      if (token == poolToken0) amount0 += amount;
-      else if (token == poolToken1) amount1 += amount;
-      unchecked {
-        i++;
-      }
-    }
-  }
-
-  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64, address gasFeeRecipient)
-    private
-    returns (uint256 gasFee)
-  {
-    ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
-      vaultOwnerFeeBasisPoint: 0,
-      vaultOwner: address(0),
-      platformFeeBasisPoint: 0,
-      platformFeeRecipient: address(0),
-      gasFeeX64: gasFeeX64,
-      gasFeeRecipient: gasFeeRecipient
-    });
-    (gasFee,) = SharedStrategyFees.applyFees(token, amount, address(0), 0, gasOnly);
   }
 
   function _v4ParamsSelector(bytes memory params) internal pure returns (bytes4 selector) {

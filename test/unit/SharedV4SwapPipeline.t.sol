@@ -31,10 +31,16 @@ contract SharedV4SwapPipelineBalanceTrapToken {
 contract SharedV4SwapPipelineConfigManager {
   address public router;
   address public signer;
+  uint64 public maxGasFeeX64 = type(uint64).max;
+  address public feeRecipient;
 
   constructor(address _router, address _signer) {
     router = _router;
     signer = _signer;
+  }
+
+  function setFeeRecipient(address _feeRecipient) external {
+    feeRecipient = _feeRecipient;
   }
 
   function isWhitelistedSwapRouter(address account) external view returns (bool) {
@@ -57,10 +63,15 @@ contract SharedV4SwapPipelineRouter {
 contract SharedV4SwapPipelineHarness {
   address public immutable weth;
   ISharedConfigManager public immutable configManager;
+  mapping(address => bool) public isVaultToken;
 
   constructor(address _configManager, address _weth) {
     configManager = ISharedConfigManager(_configManager);
     weth = _weth;
+  }
+
+  function setVaultToken(address token, bool allowed) external {
+    isVaultToken[token] = allowed;
   }
 
   function execute(
@@ -73,6 +84,17 @@ contract SharedV4SwapPipelineHarness {
   ) external returns (uint256 total0, uint256 total1) {
     return SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, swapParams);
   }
+
+  function executeWithInputs(
+    address swapRouter,
+    address token0,
+    address token1,
+    ISharedV4Utils.InputTokenParams[] memory inputTokens,
+    uint64 gasFeeX64,
+    ISharedV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1) {
+    return SharedV4SwapPipeline.executeWithInputs(swapRouter, token0, token1, inputTokens, gasFeeX64, swapParams);
+  }
 }
 
 contract SharedV4SwapPipelineTest is Test {
@@ -82,6 +104,7 @@ contract SharedV4SwapPipelineTest is Test {
   SharedV4SwapPipelineTestToken internal token1;
   SharedV4SwapPipelineRouter internal router;
   SharedV4SwapPipelineHarness internal harness;
+  SharedV4SwapPipelineConfigManager internal configManager;
   address internal signer;
   uint256 internal nonce;
 
@@ -90,8 +113,10 @@ contract SharedV4SwapPipelineTest is Test {
     token0 = new SharedV4SwapPipelineTestToken("Token 0", "TK0");
     token1 = new SharedV4SwapPipelineTestToken("Token 1", "TK1");
     router = new SharedV4SwapPipelineRouter();
-    SharedV4SwapPipelineConfigManager configManager = new SharedV4SwapPipelineConfigManager(address(router), signer);
+    configManager = new SharedV4SwapPipelineConfigManager(address(router), signer);
     harness = new SharedV4SwapPipelineHarness(address(configManager), address(token0));
+    harness.setVaultToken(address(token0), true);
+    harness.setVaultToken(address(token1), true);
   }
 
   // -------------------------------------------------------------------------
@@ -481,6 +506,224 @@ contract SharedV4SwapPipelineTest is Test {
 
     assertEq(total0, 3 ether, "amount0 passes through untouched");
     assertEq(total1, 7 ether, "amount1 passes through untouched");
+  }
+
+  // -------------------------------------------------------------------------
+  // executeWithInputs: input folding, the input gas-fee skim, and the seeded
+  // ledger for non-pool vault-token inputs ("fund the LP from a third vault
+  // token", V3/Aerodrome swapSourceToken parity). The ledger's exact-zero end
+  // check is the anti-siphon guard: a declared input that signed hops do not
+  // fully convert into pool tokens reverts the whole run, gas fee included.
+  // -------------------------------------------------------------------------
+
+  /// @dev Pool-token inputs fold straight into the totals (the original swap-and-mint folding, now
+  ///      hosted in the pipeline). Zero-amount entries are tolerated even for unknown tokens.
+  function test_executeWithInputs_poolTokenInputsFoldIntoTotals() public {
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](3);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 3 ether });
+    inputs[1] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 7 ether });
+    inputs[2] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(0xDEAD)), amount: 0 });
+
+    (uint256 total0, uint256 total1) = harness.executeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedV4Utils.SwapParams[](0)
+    );
+
+    assertEq(total0, 3 ether, "token0 input folded into total0");
+    assertEq(total1, 7 ether, "token1 input folded into total1");
+  }
+
+  /// @dev The supported third-token flow: a non-pool VAULT token input seeds the ledger and signed
+  ///      hops convert all of it into the pool tokens, which the caller receives in the totals.
+  function test_executeWithInputs_nonPoolVaultTokenInput_swapsIntoPoolTokens() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 6 ether);
+    token1.mint(address(router), 4 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token1), uint256(4 ether)));
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](2);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hop0Data)
+    });
+    swaps[1] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 4 ether,
+      swapData: _signedSwapData(address(tokenX), address(token1), 4 ether, 4 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.executeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 6 ether, "tokenX->token0 output credited to total0");
+    assertEq(total1, 4 ether, "tokenX->token1 output credited to total1");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "seeded input fully consumed");
+    assertEq(token0.balanceOf(address(harness)), 6 ether, "harness holds the token0 output");
+    assertEq(token1.balanceOf(address(harness)), 4 ether, "harness holds the token1 output");
+  }
+
+  /// @dev Duplicate entries of the same non-pool input merge into one ledger seed; the hops may
+  ///      consume the combined budget.
+  function test_executeWithInputs_mergesDuplicateInputEntries() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 10 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(10 ether)));
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](2);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 4 ether });
+    inputs[1] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 6 ether });
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 10 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 10 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 10 ether, 10 ether, hopData)
+    });
+
+    (uint256 total0,) = harness.executeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 10 ether, "merged duplicate seeds spent through one hop");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "combined seed fully consumed");
+  }
+
+  /// @dev A non-pool input with NO consuming hop leaves a non-zero ledger seed — the run must revert
+  ///      InvalidAmount. This (not an upfront pool-token check) is the gas-fee-siphon guard.
+  function test_executeWithInputs_revertsWhenInputHasNoConsumingHop() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Dangling", "DGL");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedV4Utils.SwapParams[](0)
+    );
+  }
+
+  /// @dev Partial consumption of a seeded input must fail the final ledger check, mirroring the
+  ///      chain-intermediate rule.
+  function test_executeWithInputs_revertsWhenInputNotFullyConsumed() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 6 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether, // leaves 4 ether of the seed unconsumed
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hopData)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+  }
+
+  /// @dev A hop cannot overdraw its seeded budget: the signed amountIn must be covered by the
+  ///      declared input, enforced BEFORE signature verification or any router call.
+  function test_executeWithInputs_revertsWhenHopOverdrawsSeededBudget() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 20 ether);
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 11 ether, // exceeds the 10 ether seed
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached — the budget check precedes signature verification
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+  }
+
+  /// @dev Inputs must be vault tokens — full consumption through hops does not legitimize a token
+  ///      outside the vault's configured list.
+  function test_executeWithInputs_rejectsNonVaultTokenInput() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Rogue", "RGE");
+    tokenX.mint(address(harness), 10 ether);
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executeWithInputs(
+      address(router), address(token0), address(token1), inputs, 0, new ISharedV4Utils.SwapParams[](0)
+    );
+  }
+
+  /// @dev The input gas fee applies to the DECLARED amounts (pool and non-pool alike); the post-fee
+  ///      remainder of a non-pool input is what the ledger requires the hops to consume exactly.
+  function test_executeWithInputs_skimsGasFeeThenRequiresExactRemainderConsumption() public {
+    address gasFeeRecipient = makeAddr("gasFeeRecipient");
+    configManager.setFeeRecipient(gasFeeRecipient);
+
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 8 ether);
+    token0.mint(address(router), 6 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+
+    ISharedV4Utils.InputTokenParams[] memory inputs = new ISharedV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 8 ether });
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether, // = 8 ether minus the 25% skim
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hopData)
+    });
+
+    (uint256 total0,) = harness.executeWithInputs(
+      address(router),
+      address(token0),
+      address(token1),
+      inputs,
+      uint64(uint256(0x10000000000000000) / 4), // 25%
+      swaps
+    );
+
+    assertEq(tokenX.balanceOf(gasFeeRecipient), 2 ether, "25% input gas fee skimmed to the recipient");
+    assertEq(total0, 6 ether, "post-fee remainder swapped into total0");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "post-fee remainder fully consumed");
   }
 
   function _signedSwapData(

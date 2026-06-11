@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidGasFeeX64",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidOperation",
     "type": "error"
   },
@@ -38,6 +43,17 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "index",
         "type": "uint256"
@@ -45,5 +61,42 @@
     ],
     "name": "SwapFailed",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vaultAddress",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum IFeeTaker.FeeType",
+        "name": "feeType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeCollected",
+    "type": "event"
   }
 ]

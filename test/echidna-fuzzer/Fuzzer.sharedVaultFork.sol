@@ -287,8 +287,9 @@ contract SharedVaultForkFuzzer {
   address internal constant BASE_SHARED_VAULT_FACTORY = 0xB20B4517a17b8f9d1806906920071FACA0c3bd26;
   address internal constant BASE_SHARED_V3_STRATEGY_PROXY = 0xC2CbEfac9423030333466c8B52B6FF4e85304a8c;
   // Uniswap V4 PositionManager on Base. Used as the `posm` in V4 strategy calls.
-  // We don't need this pool to exist on the fork — the security regression handler
-  // exercises the `_validateV4InputTokens` gate which fires before any V4 PM call.
+  // We don't need this pool to exist on the fork — the security regression handler's
+  // bait reverts inside SharedV4SwapPipeline.executeWithInputs (gas-fee cap or the
+  // exact-consumption input ledger) before any V4 PM call.
   address internal constant BASE_UNISWAP_V4_POSM = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
   address internal constant BASE_PANCAKE_V4_POSM = 0x55f4c8abA71A1e923edC303eb4fEfF14608cC226;
   // Aerodrome Slipstream NonfungiblePositionManager on Base (same constant as TestCommon's
@@ -345,17 +346,17 @@ contract SharedVaultForkFuzzer {
   // ─── V4 security-regression harness
   // ──────────────────────────────────────────
   // The Uniswap V4 strategy here is a freshly-deployed `SharedV4Strategy` linked
-  // against the locally-compiled `SharedV4StrategyLib` (which carries the
-  // `_validateV4InputTokens` currency-match fix). It is whitelisted into the
+  // against the locally-compiled `SharedV4StrategyLib` (whose input handling routes
+  // through SharedV4SwapPipeline's exact-consumption ledger). It is whitelisted into the
   // production `SharedConfigManager` so the fork vault can `execute` against it
   // via DELEGATECALL — exactly mirroring how the real deployed V4 strategy proxy
   // is invoked, but with patched bytecode.
   SharedV4Strategy public localV4Strategy;
   /// @dev Vault with THREE configured tokens: WETH (currency0 of the test pool),
   ///      USDC (currency1), and DAI (the "bait" non-pool vault token). Without a
-  ///      third vault token the gas-fee siphon exploit can't even be staged —
-  ///      `_validateVaultToken(DAI)` would short-circuit before the buggy
-  ///      `_takeInputGasFeesAndGetPoolAmounts` step is reached.
+  ///      third vault token the gas-fee siphon exploit can't even be staged — the
+  ///      pipeline's vault-token check on inputs would short-circuit before the
+  ///      gas-fee skim is reached.
   ISharedVault public v4ThreeTokenVault;
   bool public v4HarnessReady;
   bool public v4SecurityFiredAtLeastOnce;
@@ -1198,25 +1199,27 @@ contract SharedVaultForkFuzzer {
   // The Uniswap V4 strategy library used to validate `inputTokens[i]` only as
   // "must be a configured vault token". A malicious-but-authorized executor could
   // therefore include e.g. DAI inside a WETH/USDC `swapAndMint` with a nonzero
-  // `gasFeeX64` and have `_takeInputGasFeesAndGetPoolAmounts` siphon
-  // `amount * gasFeeX64 / Q64` of that DAI to `msg.sender` BEFORE the per-entry
-  // currency match — the remainder then silently dropped from LP accounting.
+  // `gasFeeX64` and have the input gas-fee skim siphon `amount * gasFeeX64 / Q64`
+  // of that DAI to `msg.sender` while the remainder silently dropped from LP
+  // accounting.
   //
-  // After the fix in `SharedV4StrategyLib._validateV4InputTokens`, every
-  // positive-amount entry must equal `currency0` or `currency1`. The handler
-  // below builds exactly that exploit shape against a freshly deployed
-  // (patched-lib-linked) `SharedV4Strategy` and asserts the call reverts with
-  // `InvalidPoolTokens` AND that no vault DAI was siphoned to msg.sender.
+  // Today non-pool VAULT-token inputs are a supported funding source, but they are
+  // seeded into SharedV4SwapPipeline's intermediate ledger, which must net to
+  // EXACTLY zero through signed swap hops. The bait below carries NO swap hops, so
+  // the DAI entry always dangles: the call must revert (gas-fee cap `InvalidGasFeeX64`
+  // above `maxGasFeeX64`, otherwise the ledger's `InvalidAmount`) AND no vault DAI
+  // may move to msg.sender — the skim rolls back with the revert.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  /// @notice Property: SwapAndMint with a non-pool vault token in `inputTokens`
-  ///         reverts at the validator gate AND moves zero DAI out of the vault.
+  /// @notice Property: SwapAndMint with a DANGLING non-pool vault token in
+  ///         `inputTokens` (no consuming swap hop) reverts AND moves zero DAI
+  ///         out of the vault.
   /// @dev    The pool itself (WETH/USDC V4) does not need to exist on the fork
-  ///         for this to pass — `_validateV4InputTokens` fires before any V4 PM
-  ///         call. We sweep `gasFeeSeed` across the full uint64 space so Echidna
-  ///         can probe both small and near-100% fee rates; any non-zero rate
-  ///         used to cause a siphon, so reverting under all of them proves the
-  ///         fix isn't bypassable via fee-rate edge cases.
+  ///         for this to pass — the bait reverts inside the swap pipeline's input
+  ///         handling before any V4 PM call. We sweep `gasFeeSeed` across the full
+  ///         uint64 space so Echidna can probe both small and near-100% fee rates;
+  ///         any non-zero rate used to cause a siphon, so reverting under all of
+  ///         them proves the guard isn't bypassable via fee-rate edge cases.
   function fork_v4_swapAndMint_rejects_non_pool_input_token(uint64 gasFeeSeed) external {
     _ensureV4Harness();
 
@@ -1821,8 +1824,10 @@ contract SharedVaultForkFuzzer {
 
   /// @dev Builds the encoded action calldata for a `SwapAndMint` whose third
   ///      `inputTokens` entry is DAI — a vault token that is NOT one of the pool
-  ///      currencies. Pre-fix this would have siphoned `daiAmount * gasFeeX64 / Q64`
-  ///      DAI to `msg.sender`; post-fix it must revert at `_validateV4InputTokens`.
+  ///      currencies, with NO swap hop consuming it. Pre-fix this would have
+  ///      siphoned `daiAmount * gasFeeX64 / Q64` DAI to `msg.sender`; today the
+  ///      dangling DAI seed must fail the pipeline's exact-consumption ledger
+  ///      (or the gas-fee cap) and revert the whole call.
   function _v4SwapAndMintBaitCalldata(uint64 gasFeeX64) internal view returns (bytes memory) {
     (address c0, address c1) = BASE_WETH < BASE_USDC ? (BASE_WETH, BASE_USDC) : (BASE_USDC, BASE_WETH);
 
