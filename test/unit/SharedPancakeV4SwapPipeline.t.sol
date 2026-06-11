@@ -162,6 +162,33 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     assertEq(token1.balanceOf(address(harness)), amountOut, "harness received the swap output");
   }
 
+  /// @dev Twin of test_execute_emitsSwapEventPerHopWithRealizedDeltas: the shared `_swap` hop emits
+  ///      one Swap event with realized deltas. The pipeline declares it as ISharedV4Utils.Swap, but
+  ///      ISharedPancakeV4Utils.Swap has the identical signature, so the topic0 matches — one decoder
+  ///      serves both protocol entries.
+  function test_executePancake_emitsSwapEventPerHopWithRealizedDeltas() public {
+    uint256 amountIn = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), amountIn);
+    token1.mint(address(router), amountOut);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: amountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), amountIn, amountOut, rawSwapData)
+    });
+
+    vm.expectEmit(true, true, true, true, address(harness));
+    emit ISharedPancakeV4Utils.Swap(address(token0), address(token1), amountIn, amountOut);
+    harness.executePancake(address(router), address(token0), address(token1), amountIn, 0, swaps);
+  }
+
   function test_executePancake_rejectsSignatureBoundToComputedBalance() public {
     uint256 runtimeAmount = 10.5 ether;
     uint256 signedAmountIn = 10 ether;

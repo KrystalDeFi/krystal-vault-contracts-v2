@@ -367,6 +367,117 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].token1, address(token1), "change token1");
   }
 
+  // -------------------------------------------------------------------------
+  // v3utils-parity action events. The strategy executes under delegatecall, so
+  // every event surfaces at the vault (harness) address. Payloads are checked
+  // exactly: the mock NFPM reports liquidity = amount0 + amount1 and consumes
+  // the full desired amounts. Twin: SharedV3StrategySwapPath.t.sol.
+  // -------------------------------------------------------------------------
+
+  function test_actionEvents_swapAndMint_emitsSwapAndMint() public {
+    token0.mint(address(vault), 600);
+    token1.mint(address(vault), 700);
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 600;
+    params.amount1 = 700;
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.SwapAndMint(address(nfpm), 777, uint128(1300), 600, 700);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  function test_actionEvents_swapAndIncrease_emitsSwapAndIncreaseLiquidity() public {
+    nfpm.setPositionOwner(address(vault));
+    token0.mint(address(vault), 400);
+    token1.mint(address(vault), 500);
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.amount0 = 400;
+    params.amount1 = 500;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.SwapAndIncreaseLiquidity(address(nfpm), TOKEN_ID, uint128(900), 400, 500);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev v3utils parity: CompoundFees reports the liquidity ADDED by the compound and the net
+  ///      (post platform/owner skim) amounts pushed into the position: 10% platform + 5% owner
+  ///      of (1000, 2000) collected fees leaves (850, 1700).
+  function test_actionEvents_compound_emitsCompoundFees() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions(); // COMPOUND_FEES, no swap target
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.CompoundFees(address(nfpm), TOKEN_ID, uint128(2550), 850, 1700);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_actionEvents_changeRange_emitsChangeRange() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+    instructions.liquidity = 0; // sentinel: remove the full position liquidity
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    // Old position fully decreased to (1000, 2000); the re-mint consumes both and reports the new id.
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.ChangeRange(address(nfpm), TOKEN_ID, 777, 3000, 1000, 2000);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev `amount` is this operation's proceeds in targetToken: kept token1 principal (2000) plus the
+  ///      token0 -> token1 swap output (900). Nothing is transferred out — proceeds stay vault-idle.
+  function test_actionEvents_withdraw_emitsWithdrawAndCollectAndSwap() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    uint256 amountIn0 = 1000;
+    uint256 amountOut = 900;
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), amountIn0, amountOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = amountIn0;
+    instructions.amountOut0Min = 800;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn0, 800, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.WithdrawAndCollectAndSwap(address(nfpm), TOKEN_ID, address(token1), 2900);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
   /// @dev The swap must consume the signer-authorized `instructions.amountIn0` — NOT the on-chain
   ///      computed principal+fees `amount0`. The backend folds withdraw-liquidity slippage into amountIn0,
   ///      so it is intentionally smaller than the realized principal, and the SwapDataSignature digest is

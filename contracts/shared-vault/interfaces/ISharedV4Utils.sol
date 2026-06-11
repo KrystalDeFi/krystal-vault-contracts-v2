@@ -5,6 +5,32 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 interface ISharedV4Utils {
+  // Action events — byte-compatible with v4utils `IV4Utils` so existing decoders work unchanged.
+  // Emitted by SharedV4StrategyLib / SharedV4SwapPipeline under delegatecall from SharedVault,
+  // so the logs surface at the vault address.
+  event Swap(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+  event SwapAndMint(address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1);
+  event SwapAndIncrease(
+    address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1
+  );
+  /// @dev `token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it
+  ///      (0 when `swapDestToken` is not a pool token). Unlike v4utils nothing is swept — the
+  ///      proceeds stay idle in the vault.
+  event DecreaseAndSwap(
+    address indexed posm, uint256 indexed tokenId, uint128 liquidity, Currency token, uint256 amount
+  );
+  event AdjustRange(
+    address indexed posm,
+    uint256 indexed tokenId,
+    uint256 newTokenId,
+    uint256 newLiquidity,
+    uint256 token0Added,
+    uint256 token1Added
+  );
+  event CompoundFees(
+    address indexed posm, uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1
+  );
+
   enum UtilActions {
     ADJUST_RANGE,
     DECREASE_AND_SWAP,
@@ -65,8 +91,9 @@ interface ISharedV4Utils {
   // SharedV4StrategyLib never reads them; performance fees come exclusively from
   // `performanceFeeConfig()`.
   // ABI compatibility note: `sweepTokens` and `swapDestToken` mirror legacy V4Utils payload
-  // shapes but SharedV4StrategyLib does NOT read them. They do not trigger on-chain sweeping
-  // or select a swap destination in the shared strategy; pool-token balances remain idle in
+  // shapes. `sweepTokens` is never read. `swapDestToken` is read ONLY to label the
+  // `DecreaseAndSwap` event (no transfer semantics). Neither triggers on-chain sweeping or
+  // selects a swap destination in the shared strategy; pool-token balances remain idle in
   // the vault, and non-pool intermediates must net to zero through SharedV4SwapPipeline.
 
   struct SwapAndMintParams {
@@ -98,7 +125,7 @@ interface ISharedV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
-    // Unread by SharedV4StrategyLib; retained only for ABI-compatible V4Utils payloads.
+    // Read only to label the DecreaseAndSwap event; no transfer/sweep semantics.
     Currency swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;

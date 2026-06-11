@@ -6,6 +6,40 @@ Aerodrome CL LP operations for SharedVault with token validation and position tr
         Uses Aerodrome's tickSpacing-based pool lookup (ICLFactory.getPool(address,address,int24))
         instead of Uniswap V3's fee-based lookup — the only structural difference from SharedV3Strategy.
 
+### SwapAndMint
+
+```solidity
+event SwapAndMint(address nfpm, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### SwapAndIncreaseLiquidity
+
+```solidity
+event SwapAndIncreaseLiquidity(address nfpm, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### CompoundFees
+
+```solidity
+event CompoundFees(address nfpm, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### ChangeRange
+
+```solidity
+event ChangeRange(address nfpm, uint256 tokenId, uint256 newTokenId, uint256 newLiquidity, uint256 token0Added, uint256 token1Added)
+```
+
+### WithdrawAndCollectAndSwap
+
+```solidity
+event WithdrawAndCollectAndSwap(address nfpm, uint256 tokenId, address token, uint256 amount)
+```
+
+_`token`/`amount` report `instructions.targetToken` and this operation's proceeds in it
+     (0 when no target token is set). Unlike v3utils nothing is transferred out — the
+     proceeds stay idle in the vault._
+
 ### swapRouter
 
 ```solidity

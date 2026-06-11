@@ -3548,6 +3548,42 @@ contract SharedVaultTest is TestCommon {
     vm.stopPrank();
   }
 
+  /// @dev DELEGATECALL actions surface the strategy's raw return data (the encoded PositionChange[])
+  ///      as `result` in VaultExecute. The vault here was initialized by VAULT_OWNER, so VAULT_OWNER
+  ///      is the `vaultFactory` topic.
+  function test_execute_emits_vaultExecute_with_strategy_result() public {
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    bytes memory data = abi.encode(uint256(42));
+    actions[0] = ISharedVault.Action(address(mockStrategy), data, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.VaultExecute(
+      VAULT_OWNER, address(mockStrategy), data, abi.encode(new ISharedStrategy.PositionChange[](0))
+    );
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions);
+  }
+
+  /// @dev Swap CALL actions surface `abi.encode(amountOut)` as the VaultExecute result —
+  ///      MockSwapTarget.swap is 1:1, so amountOut equals the 10e18 input.
+  function test_execute_swap_emits_vaultExecute_with_amountOut() public {
+    tokenB.mint(address(swapTarget), 10e18);
+
+    vm.startPrank(VAULT_OWNER);
+    bytes memory swapCalldata = abi.encodeCall(MockSwapTarget.swap, (address(tokenA), address(tokenB), 10e18));
+    swapCalldata =
+      _signedSwapData(address(vault), address(swapTarget), address(tokenA), address(tokenB), 10e18, 9e18, swapCalldata);
+    bytes memory actionData = abi.encode(address(tokenA), address(tokenB), 10e18, 9e18, swapCalldata);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(swapTarget), actionData, ISharedCommon.CallType.CALL);
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.VaultExecute(VAULT_OWNER, address(swapTarget), actionData, abi.encode(uint256(10e18)));
+    vault.execute(actions);
+    vm.stopPrank();
+  }
+
   function test_execute_does_not_precollect_all_tracked_positions_at_vault_level() public {
     (SharedVault v, MockPreCollectStrategy strategy, MockERC721 nfpm) = _newPreCollectVault();
 

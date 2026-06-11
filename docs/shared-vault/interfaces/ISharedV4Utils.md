@@ -2,6 +2,46 @@
 
 ## ISharedV4Utils
 
+### Swap
+
+```solidity
+event Swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut)
+```
+
+### SwapAndMint
+
+```solidity
+event SwapAndMint(address posm, uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### SwapAndIncrease
+
+```solidity
+event SwapAndIncrease(address posm, uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### DecreaseAndSwap
+
+```solidity
+event DecreaseAndSwap(address posm, uint256 tokenId, uint128 liquidity, Currency token, uint256 amount)
+```
+
+_`token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it
+     (0 when `swapDestToken` is not a pool token). Unlike v4utils nothing is swept — the
+     proceeds stay idle in the vault._
+
+### AdjustRange
+
+```solidity
+event AdjustRange(address posm, uint256 tokenId, uint256 newTokenId, uint256 newLiquidity, uint256 token0Added, uint256 token1Added)
+```
+
+### CompoundFees
+
+```solidity
+event CompoundFees(address posm, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+```
+
 ### UtilActions
 
 ```solidity

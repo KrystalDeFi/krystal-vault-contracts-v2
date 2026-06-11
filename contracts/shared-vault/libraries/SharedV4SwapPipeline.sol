@@ -463,5 +463,9 @@ library SharedV4SwapPipeline {
     amountInDelta = balanceInBefore - balanceInAfter;
     amountOutDelta = balanceOutAfter - balanceOutBefore;
     require(amountOutDelta >= amountOutMin, ISharedCommon.InsufficientOutput());
+    // One event per executed hop (no-op hops return above). ISharedPancakeV4Utils.Swap has the
+    // same signature, so this single emit serves both the Uniswap V4 and Pancake entry points
+    // with an identical topic0.
+    emit ISharedV4Utils.Swap(tokenIn, tokenOut, amountInDelta, amountOutDelta);
   }
 }

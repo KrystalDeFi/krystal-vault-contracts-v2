@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "../interfaces/ISharedCommon.sol";
 import "../interfaces/ISharedConfigManager.sol";
@@ -180,6 +181,64 @@ library SharedVaultPreviewLib {
       unchecked {
         i++;
       }
+    }
+  }
+
+  /// @notice Validation for tracking a new LP position, hosted here (moved out of SharedVault)
+  ///         purely to keep SharedVault under the EIP-170 deploy-size limit.
+  /// @dev Delegatecalled from SharedVault, so `address(this)` is the vault. Reverts (bubbling the
+  ///      same custom errors, in the same order, SharedVault used inline) when the position must
+  ///      not be tracked:
+  ///      - `probeStrategy`: probe `getPositionAmounts` to confirm the target can value the
+  ///        position before it is tracked (CALL_WITH_POSITIONS targets only).
+  ///      - Canonical token pair via `getPositionTokens`: a buggy target can report any vault-token
+  ///        pair but `_getTotalBalances()` would attribute LP value to the wrong assets,
+  ///        mispricing shares.
+  ///      - `vaultTokens`: the vault's own `isVaultToken[token0] && isVaultToken[token1]` verdict,
+  ///        passed in (this library cannot read vault storage) so the check keeps its original
+  ///        position before the ownership probe.
+  ///      - NFT ownership: an unowned position would misprice shares.
+  function validatePositionAdd(
+    address strategy,
+    address nfpm,
+    uint256 tokenId,
+    address token0,
+    address token1,
+    bool probeStrategy,
+    bool vaultTokens
+  ) external view {
+    if (probeStrategy) {
+      (bool ok, bytes memory probeData) =
+        strategy.staticcall(abi.encodeCall(ISharedStrategy.getPositionAmounts, (nfpm, tokenId)));
+      require(ok && probeData.length >= 64, ISharedCommon.InvalidTarget(strategy));
+    }
+    (bool tokensOk, bytes memory tokensData) =
+      strategy.staticcall(abi.encodeCall(ISharedStrategy.getPositionTokens, (nfpm, tokenId)));
+    require(tokensOk && tokensData.length >= 64, ISharedCommon.InvalidTarget(strategy));
+    (address canonToken0, address canonToken1) = abi.decode(tokensData, (address, address));
+    require(canonToken0 == token0 && canonToken1 == token1, ISharedCommon.TokenNotConfigured());
+    require(vaultTokens, ISharedCommon.TokenNotConfigured());
+    (bool ownsNft, bytes memory ownerData) = nfpm.staticcall(abi.encodeCall(IERC721.ownerOf, (tokenId)));
+    require(
+      ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this),
+      ISharedCommon.InvalidOperation()
+    );
+  }
+
+  /// @notice Before untracking a position, verify it is truly exited. If the vault still holds the
+  ///         NFT, require the strategy reports zero amounts — a non-zero value means a live LP
+  ///         position would be untracked, understating TVL and enabling mispriced
+  ///         deposits/withdrawals.
+  /// @dev Delegatecalled from SharedVault (`address(this)` is the vault); hosted here to keep
+  ///      SharedVault under the EIP-170 deploy-size limit.
+  function verifyPositionExit(address strategy, address nfpm, uint256 tokenId) external view {
+    (bool callOk, bytes memory ownerData) = nfpm.staticcall(abi.encodeCall(IERC721.ownerOf, (tokenId)));
+    if (callOk && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this)) {
+      (bool amtsOk, bytes memory amtsData) =
+        strategy.staticcall(abi.encodeCall(ISharedStrategy.getPositionAmounts, (nfpm, tokenId)));
+      require(amtsOk && amtsData.length >= 64, ISharedCommon.InvalidOperation());
+      (uint256 a0, uint256 a1) = abi.decode(amtsData, (uint256, uint256));
+      require(a0 == 0 && a1 == 0, ISharedCommon.InvalidOperation());
     }
   }
 

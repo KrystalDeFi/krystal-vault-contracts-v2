@@ -161,6 +161,33 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(token1.balanceOf(address(harness)), amountOut, "harness received the swap output");
   }
 
+  /// @dev v4utils parity: every executed hop emits Swap(tokenIn, tokenOut, amountInDelta, amountOutDelta)
+  ///      with the REALIZED balance deltas. Under delegatecall the log surfaces at the vault (here: the
+  ///      harness). No-op hops (amountIn == 0 / empty swapData) emit nothing — pinned by the existing
+  ///      skip tests recording no Swap logs.
+  function test_execute_emitsSwapEventPerHopWithRealizedDeltas() public {
+    uint256 amountIn = 10 ether;
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), amountIn);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: amountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      swapData: _signedSwapData(address(token0), address(token1), amountIn, amountOut, rawSwapData)
+    });
+
+    vm.expectEmit(true, true, true, true, address(harness));
+    emit ISharedV4Utils.Swap(address(token0), address(token1), amountIn, amountOut);
+    harness.execute(address(router), address(token0), address(token1), amountIn, 0, swaps);
+  }
+
   /// @dev A signature over the computed runtime balance (the old resolved-amount behavior) must NOT
   ///      verify when `swapParam.amountIn` differs — proves the digest is reconstructed from the
   ///      param amount, not from whatever the vault happens to hold.
