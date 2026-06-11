@@ -28,6 +28,14 @@ contract SharedPancakeV4SwapPipelineTestToken is ERC20 {
   }
 }
 
+contract SharedPancakeV4SwapPipelineBalanceTrapToken {
+  error BalanceOfCalled();
+
+  function balanceOf(address) external pure returns (uint256) {
+    revert BalanceOfCalled();
+  }
+}
+
 contract SharedPancakeV4SwapPipelineConfigManager {
   address public router;
   address public signer;
@@ -293,6 +301,28 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     harness.executePancake(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
   }
 
+  /// @dev Twin of test_execute_rejectsBadSignatureBeforeBalanceSnapshots: an invalid signature must
+  ///      surface from `SharedSwapDataSignature.verify` BEFORE the pipeline reads any token balance.
+  ///      The trap token reverts on `balanceOf`, so if the snapshots ran first the revert would be
+  ///      BalanceOfCalled instead of InvalidSwapDataSignature.
+  function test_executePancake_rejectsBadSignatureBeforeBalanceSnapshots() public {
+    SharedPancakeV4SwapPipelineBalanceTrapToken trapToken = new SharedPancakeV4SwapPipelineBalanceTrapToken();
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(trapToken), address(token1), uint256(1 ether)));
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(trapToken)),
+      amountIn: 1 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: abi.encode(rawSwapData, address(harness), block.timestamp + 1 hours, signer, bytes32("bad"), bytes(""))
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    harness.executePancake(address(router), address(trapToken), address(token1), 1 ether, 0, swaps);
+  }
+
   // -------------------------------------------------------------------------
   // Reachability guards and the intermediate virtual ledger via the Pancake
   // normalization (twins of the V4 entry tests).
@@ -482,6 +512,26 @@ contract SharedPancakeV4SwapPipelineTest is Test {
 
     assertEq(total0, 3 ether, "amount0 passes through untouched");
     assertEq(total1, 7 ether, "amount1 passes through untouched");
+  }
+
+  /// @dev Twin of test_execute_revertsWhenSwapRouterNotWhitelisted: a non-empty swap list must
+  ///      revert InvalidSwapRouter(router) for a de-whitelisted router BEFORE any hop processing —
+  ///      the config-manager whitelist is the live kill-switch for a compromised aggregator.
+  function test_executePancake_revertsWhenSwapRouterNotWhitelisted() public {
+    address unWhitelistedRouter = address(0xBAD);
+    token0.mint(address(harness), 1 ether);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 1 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached — the router whitelist check precedes the hop loop
+    });
+
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidSwapRouter.selector, unWhitelistedRouter));
+    harness.executePancake(unWhitelistedRouter, address(token0), address(token1), 1 ether, 0, swaps);
   }
 
   // -------------------------------------------------------------------------

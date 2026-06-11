@@ -2681,6 +2681,93 @@ contract MockResidualPositionStrategy is MockSharedStrategySplitFallback {
   function collectFees(address, uint256, uint16) external override { }
 }
 
+/// @dev Like MockLPExitStrategy but mirrors the REAL strategies' full-exit semantics: when the
+///      proportional exit empties the position, exitProportional reports PositionChange(isAdd=false)
+///      so SharedVault._withdraw untracks it mid-loop (swap-with-last + reload). MockLPExitStrategy
+///      intentionally never reports removals, so this twin is what exercises that loop at unit level.
+contract MockLPFullExitStrategy is MockSharedStrategySplitFallback {
+  address public immutable lpPool;
+
+  constructor(address _lpPool) {
+    lpPool = _lpPool;
+  }
+
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address token0, address token1, uint256 amount0, uint256 amount1) =
+      abi.decode(data, (address, uint256, address, address, uint256, uint256));
+
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, nfpm, tokenId, token0, token1);
+  }
+
+  function exitProportional(
+    address nfpm,
+    uint256 tokenId,
+    uint256 shares,
+    uint256 totalShares,
+    uint256,
+    uint256,
+    uint16
+  ) external override returns (PositionChange[] memory changes) {
+    MockLPPool(lpPool).exit(nfpm, tokenId, shares, totalShares, address(this));
+    (uint256 remaining0, uint256 remaining1) = MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+    if (remaining0 == 0 && remaining1 == 0) {
+      bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+      (address token0, address token1,,) = MockLPPool(lpPool).lps(key);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(false, nfpm, tokenId, token0, token1);
+    } else {
+      changes = new PositionChange[](0);
+    }
+  }
+
+  function getPositionAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionPrincipalAmounts(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (uint256 amount0, uint256 amount1)
+  {
+    return MockLPPool(lpPool).getAmounts(nfpm, tokenId);
+  }
+
+  function getPositionTokens(address nfpm, uint256 tokenId)
+    external
+    view
+    override
+    returns (address token0, address token1)
+  {
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (token0, token1,,) = MockLPPool(lpPool).lps(key);
+  }
+
+  function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
+    external
+    override
+  {
+    if (amount0 == 0 && amount1 == 0) return;
+    bytes32 key = keccak256(abi.encodePacked(nfpm, tokenId));
+    (address token0, address token1,,) = MockLPPool(lpPool).lps(key);
+    if (amount0 > 0) IERC20(token0).transfer(lpPool, amount0);
+    if (amount1 > 0) IERC20(token1).transfer(lpPool, amount1);
+    MockLPPool(lpPool).deposit(nfpm, tokenId, token0, token1, amount0, amount1);
+  }
+
+  function collectFees(address, uint256, uint16) external override { }
+}
+
 /// @dev Extracts the 4-byte selector from raw revert data.
 abstract contract RevertSelectorRecorder {
   bytes4 public reentryRevertSelector;
@@ -9638,5 +9725,325 @@ contract SharedVaultTest is TestCommon {
     vault.sweepNativeToken(1 ether, recipient);
     assertEq(recipient.balance, 1 ether, "operator swept the received ETH");
     assertEq(address(vault).balance, 0);
+  }
+
+  // ==================== Gap-fill: first-deposit ETH, zero-amount deposit, preview at zero supply ====================
+
+  /// @dev First-deposit path with native ETH (supply == 0). Every other ETH deposit test runs the
+  ///      SUBSEQUENT path; this pins `_firstDepositTransfers` + `_wrapWethDeposit` together: the wrap
+  ///      satisfies the FOT guard (`actualPulled[wi] > 0`), the fixed INITIAL_SHARES are minted, and
+  ///      msg.value is consumed in full (first deposits transfer the full declared amounts, so the
+  ///      excess-refund branch cannot arm — `amounts[wi] == msg.value` is already enforced upfront).
+  function test_deposit_eth_first_deposit_wraps_and_mints_initial_shares() public {
+    SharedVault freshVault = new SharedVault();
+    address[4] memory wvTokens = [address(tokenA), address(mockWeth), address(0), address(0)];
+    uint256[4] memory zeroAmounts;
+    vm.prank(VAULT_OWNER);
+    freshVault.initialize(
+      "EmptyWethVault", wvTokens, zeroAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(mockWeth), 0
+    );
+    assertEq(freshVault.totalSupply(), 0, "no shares before the first deposit");
+
+    tokenA.mint(DEPOSITOR, 50e18);
+    vm.deal(DEPOSITOR, 50e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(freshVault), type(uint256).max);
+    uint256[4] memory amounts = [uint256(50e18), uint256(50e18), uint256(0), uint256(0)];
+    uint256 shares = freshVault.deposit{ value: 50e18 }(amounts, 0, 0);
+    vm.stopPrank();
+
+    assertEq(shares, TEST_INITIAL_SHARES, "first deposit mints the fixed share count");
+    assertEq(freshVault.balanceOf(DEPOSITOR), TEST_INITIAL_SHARES);
+    assertEq(mockWeth.balanceOf(address(freshVault)), 50e18, "msg.value wrapped 1:1 to WETH");
+    assertEq(tokenA.balanceOf(address(freshVault)), 50e18, "ERC20 leg pulled via transferFrom");
+    assertEq(DEPOSITOR.balance, 0, "first deposit consumes msg.value in full; no refund branch");
+  }
+
+  /// @dev A subsequent deposit with all-zero amounts has no binding token: `subsequentDepositTransfers`
+  ///      must revert InvalidAmount instead of minting zero shares or dividing by zero.
+  function test_deposit_subsequent_all_zero_amounts_reverts() public {
+    uint256[4] memory zeroAmounts;
+
+    vm.prank(DEPOSITOR);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.deposit(zeroAmounts, 0, 0);
+  }
+
+  /// @dev previewWithdraw on a vault with zero supply must return all-zero amounts (the lib's
+  ///      `currentTotalSupply == 0` early return), never divide by zero — integrators preview before
+  ///      the first deposit exists.
+  function test_previewWithdraw_returnsZerosWhenSupplyZero() public {
+    SharedVault freshVault = new SharedVault();
+    address[4] memory vTokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory zeroAmounts;
+    vm.prank(VAULT_OWNER);
+    freshVault.initialize(
+      "EmptyPreviewVault", vTokens, zeroAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
+    );
+
+    uint256[4] memory preview = freshVault.previewWithdraw(TEST_INITIAL_SHARES);
+
+    for (uint256 i; i < 4; i++) {
+      assertEq(preview[i], 0, "zero-supply preview must be all zeros");
+    }
+  }
+
+  // ==================== Gap-fill: _withdraw removal-reload loop with two tracked positions ====================
+
+  /// @dev Two tracked positions, single holder, full withdraw. Pins SharedVault._withdraw's
+  ///      removal-reload loop: each full exit removes positions[p] via swap-with-last, so the loop
+  ///      must NOT advance p after a removal or the swapped-in position would be skipped — stranding
+  ///      its liquidity in the pool while the withdrawer's shares burn. MockLPExitStrategy never
+  ///      reports removals, so MockLPFullExitStrategy (real full-exit semantics) is required here;
+  ///      the echidna LP vault is the randomized counterpart of this deterministic pin.
+  function test_withdraw_all_two_lp_positions_exits_and_untracks_both() public {
+    MockLPPool lpPool = new MockLPPool();
+    MockLPFullExitStrategy lpStrategy = new MockLPFullExitStrategy(address(lpPool));
+    MockERC721 lpNfpm = new MockERC721();
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(lpStrategy);
+    address[] memory nfpmsLp = new address[](1);
+    nfpmsLp[0] = address(lpNfpm);
+    cm.initialize(
+      address(this), targets, new address[](0), address(this), 0, nfpmsLp, new address[](0), new address[](0)
+    );
+
+    SharedVault v = new SharedVault();
+    MockERC20 tA = new MockERC20("Token A", "A");
+    MockERC20 tB = new MockERC20("Token B", "B");
+    tA.mint(address(v), 100e18);
+    tB.mint(address(v), 100e18);
+    address[4] memory vtokens = [address(tA), address(tB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("TwoLpVault", vtokens, initAmounts, VAULT_OWNER, address(0), address(cm), address(0), 0);
+
+    // Track two positions: 30e18/30e18 into tokenId 1 and 20e18/20e18 into tokenId 2.
+    lpNfpm.mint(address(v), 1);
+    lpNfpm.mint(address(v), 2);
+    vm.startPrank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](2);
+    actions[0] = ISharedVault.Action(
+      address(lpStrategy),
+      abi.encode(address(lpNfpm), uint256(1), address(tA), address(tB), uint256(30e18), uint256(30e18)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    actions[1] = ISharedVault.Action(
+      address(lpStrategy),
+      abi.encode(address(lpNfpm), uint256(2), address(tA), address(tB), uint256(20e18), uint256(20e18)),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    v.execute(actions);
+    vm.stopPrank();
+
+    assertEq(v.getPositionCount(), 2, "two tracked positions");
+    assertEq(tA.balanceOf(address(v)), 50e18, "idle A after both LP adds");
+
+    uint256 allShares = v.balanceOf(VAULT_OWNER);
+    assertEq(allShares, v.totalSupply(), "single holder owns the full supply");
+
+    uint256[4] memory minAmounts;
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory amounts = v.withdraw(allShares, minAmounts, false);
+
+    // 50e18 idle + 30e18 (position 1) + 20e18 (position 2) per token — BOTH exits credited.
+    assertEq(amounts[0], 100e18, "token A: idle slice + both LP exits");
+    assertEq(amounts[1], 100e18, "token B: idle slice + both LP exits");
+    assertEq(v.getPositionCount(), 0, "both positions untracked via the removal-reload loop");
+    assertEq(v.totalSupply(), 0, "all shares burned");
+    assertEq(tA.balanceOf(address(v)), 0, "vault fully drained of token A");
+    assertEq(tB.balanceOf(address(v)), 0, "vault fully drained of token B");
+  }
+
+  // ==================== Gap-fill: position-tracking guards ====================
+
+  /// @dev CALL_WITH_POSITIONS twin of test_recoverPosition_revertsIfNfpmNotWhitelisted: a CWP target
+  ///      reporting a position on a non-whitelisted NFPM must be rejected by _addPosition's whitelist
+  ///      guard. All earlier checks pass deliberately (probe, canonical tokens, vault tokens, NFT
+  ///      ownership) so the revert is specifically InvalidNfpm.
+  function test_execute_call_with_positions_revertsWhenNfpmNotWhitelisted() public {
+    MockERC721 rogueNfpm = new MockERC721(); // never whitelisted in the config manager
+    uint256 tokenId = 7;
+    rogueNfpm.mint(address(vault), tokenId);
+
+    bytes memory callData = abi.encodeCall(
+      MockDirectPositionCreator.createPosition, (address(rogueNfpm), tokenId, address(tokenA), address(tokenB))
+    );
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(directCreator), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidNfpm.selector, address(rogueNfpm)));
+    vault.execute(actions);
+
+    assertEq(vault.getPositionCount(), 0, "rogue-NFPM position must not be tracked");
+  }
+
+  /// @dev Canonical-order branch of recoverPosition's token validation: both passed tokens ARE vault
+  ///      tokens (so the isVaultToken require passes) but their ORDER disagrees with the strategy's
+  ///      canonical (token0, token1) report. The `actualToken0 == token0 && actualToken1 == token1`
+  ///      require must reject the swapped pair — tracking it would attribute LP value to the wrong
+  ///      slots in _getTotalBalances and misprice shares.
+  function test_recoverPosition_revertsWhenStrategyReportsSwappedTokenOrder() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+
+    vm.prank(VAULT_OWNER);
+    vault.dropPosition(address(mockNfpm), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    mockNfpm.approve(address(vault), tokenId);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.TokenNotConfigured.selector);
+    vault.recoverPosition(address(mockNfpm), tokenId, address(brokenStrat), address(tokenB), address(tokenA));
+  }
+
+  // ==================== Gap-fill: V4/Pancake zero-liquidity exit untracks on withdraw ====================
+
+  /// @dev V4 twin of test_exitProportional_zeroLiquidityPosition_returnsRemovalChange (V3/Aerodrome):
+  ///      SharedV4StrategyLib.exitProportional's `posLiquidity == 0` branch must report a removal so
+  ///      withdraw untracks a drained position instead of carrying it forever (every later deposit
+  ///      and withdraw would keep iterating it).
+  function test_v4_withdraw_untracksZeroLiquidityPosition() public {
+    MockV4PositionManager posm = new MockV4PositionManager(100);
+    SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(v4strat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("V4ZeroLiq", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(tokenA)),
+      currency1: Currency.wrap(address(tokenB)),
+      fee: 3000,
+      tickSpacing: 60,
+      hooks: IHooks(address(0))
+    });
+
+    V4TestInputTokenParams[] memory inputTokens = new V4TestInputTokenParams[](2);
+    inputTokens[0] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = V4TestInputTokenParams({ token: Currency.wrap(address(tokenB)), amount: 1e18 });
+
+    V4TestSwapAndMintParams memory mintParams = V4TestSwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(v4strat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+    assertEq(v.getPositionCount(), 1, "minted V4 position tracked");
+
+    // Drain the position to zero liquidity out-of-band (e.g. a prior op left it empty).
+    posm.setLiquidity(100, 0);
+
+    uint256 half = v.balanceOf(VAULT_OWNER) / 2;
+    uint256[4] memory minAmounts;
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory amounts = v.withdraw(half, minAmounts, false);
+
+    assertEq(v.getPositionCount(), 0, "empty V4 position untracked by the zero-liquidity exit branch");
+    assertEq(amounts[0], 5e18, "withdraw output is the idle slice only");
+    assertEq(amounts[1], 5e18, "withdraw output is the idle slice only");
+  }
+
+  /// @dev Pancake twin of test_v4_withdraw_untracksZeroLiquidityPosition (the strategy libs are forks).
+  function test_pancake_v4_withdraw_untracksZeroLiquidityPosition() public {
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeZeroLiq", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(tokenA)),
+      currency1: PancakeCurrency.wrap(address(tokenB)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(address(posm.poolManager())),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    v.execute(actions);
+    assertEq(v.getPositionCount(), 1, "minted Pancake V4 position tracked");
+
+    // Drain the position to zero liquidity out-of-band (e.g. a prior op left it empty).
+    posm.setLiquidity(100, 0);
+
+    uint256 half = v.balanceOf(VAULT_OWNER) / 2;
+    uint256[4] memory minAmounts;
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory amounts = v.withdraw(half, minAmounts, false);
+
+    assertEq(v.getPositionCount(), 0, "empty Pancake position untracked by the zero-liquidity exit branch");
+    assertEq(amounts[0], 5e18, "withdraw output is the idle slice only");
+    assertEq(amounts[1], 5e18, "withdraw output is the idle slice only");
   }
 }

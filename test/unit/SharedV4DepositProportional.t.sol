@@ -234,4 +234,16 @@ contract SharedV4DepositProportionalTest is Test {
     assertEq(token0.balanceOf(address(vault)), 100e18, "no-op");
     assertEq(token1.balanceOf(address(vault)), 100e18, "no-op");
   }
+
+  /// @dev Amounts above uint128.max must revert InvalidAmount instead of silently truncating when the
+  ///      lib downcasts into the POSM's uint128 increase params (either side of the pair).
+  function test_depositProportional_revertsWhenAmountExceedsUint128() public {
+    uint256 oversized = uint256(type(uint128).max) + 1;
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.depositProportional(address(strategy), address(posm), TOKEN_ID, oversized, 1e18, 0);
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.depositProportional(address(strategy), address(posm), TOKEN_ID, 1e18, oversized, 0);
+  }
 }

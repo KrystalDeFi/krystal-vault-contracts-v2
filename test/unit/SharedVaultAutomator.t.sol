@@ -378,6 +378,29 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
+  /// @dev Boundary pin for the expiry comparison: `expirationTime >= block.timestamp` means an
+  ///      allowance expiring exactly NOW is still valid (inclusive bound). The fail_expired test
+  ///      covers `now - 1`; this covers `now` so a future drift to a strict `>` comparison fails CI.
+  function test_executeWithAgentAllowance_expiryAtCurrentTimestamp_isValid() public {
+    _nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
+      vault: address(vault),
+      signatureTime: uint64(block.timestamp),
+      expirationTime: uint64(block.timestamp) // expires exactly now — still valid (>= semantics)
+    });
+    bytes memory encoded = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
+    bytes32 digest = automator.hashTypedDataV4(structHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.prank(OPERATOR);
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
+    // No revert = the inclusive expiry boundary holds.
+  }
+
   function test_executeWithAgentAllowance_fail_wrongSigner() public {
     uint256 wrongKey = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF;
     _nonce++;

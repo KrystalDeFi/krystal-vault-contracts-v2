@@ -508,6 +508,60 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(total1, 7 ether, "amount1 passes through untouched");
   }
 
+  /// @dev Negative twin of the skip test: the moment the swap list is non-empty, the top-level
+  ///      router must be whitelisted — the run reverts InvalidSwapRouter(router) BEFORE any hop
+  ///      processing (the hop here carries junk swapData that would fail signature decoding if
+  ///      reached). This is the live kill-switch: de-whitelisting a compromised aggregator in the
+  ///      config manager must block every pipeline swap without redeploying strategies (parity with
+  ///      the V3/Aerodrome `revertsWhenSwapRouterDeWhitelisted` rule).
+  function test_execute_revertsWhenSwapRouterNotWhitelisted() public {
+    address unWhitelistedRouter = address(0xBAD);
+    token0.mint(address(harness), 1 ether);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 1 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached — the router whitelist check precedes the hop loop
+    });
+
+    vm.expectRevert(abi.encodeWithSelector(ISharedCommon.InvalidSwapRouter.selector, unWhitelistedRouter));
+    harness.execute(unWhitelistedRouter, address(token0), address(token1), 1 ether, 0, swaps);
+  }
+
+  /// @dev Native-currency normalization (twin of test_executePancake_nativeCurrencyInputNormalizesToWeth):
+  ///      a hop declaring `tokenIn = Currency(address(0))` must be mapped to the vault's WETH BEFORE
+  ///      anything else — the signature digest is built over the normalized token (weth == token0 in
+  ///      this harness) and the hop draws from the token0 totals, proving `_normalizeV4` runs first.
+  function test_execute_nativeCurrencyInputNormalizesToWeth() public {
+    uint256 amountIn = 4 ether;
+    uint256 amountOut = 3 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(token1), amountOut));
+
+    token0.mint(address(harness), amountIn);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(0)), // native — must normalize to weth == token0
+      amountIn: amountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      // Digest is signed over the NORMALIZED token (weth/token0), proving normalization runs first.
+      swapData: _signedSwapData(address(token0), address(token1), amountIn, amountOut, rawSwapData)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.execute(address(router), address(token0), address(token1), amountIn, 0, swaps);
+
+    assertEq(total0, 0, "native hop drew from the token0 (weth) totals");
+    assertEq(total1, amountOut, "output credited to total1");
+    assertEq(token0.balanceOf(address(router)), amountIn, "router pulled the normalized weth amount");
+  }
+
   // -------------------------------------------------------------------------
   // executeWithInputs: input folding, the input gas-fee skim, and the seeded
   // ledger for non-pool vault-token inputs ("fund the LP from a third vault
