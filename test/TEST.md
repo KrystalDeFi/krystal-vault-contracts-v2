@@ -13,6 +13,11 @@ Coverage lives in three layers; the checklist below this section is the legacy p
   `SharedPancakeV4SwapPipeline.t.sol` — keep these mirrored too),
   the V4/Pancake depositProportional slippage floor (`SharedV4DepositProportional.t.sol` /
   `SharedPancakeV4DepositProportional.t.sol` — mirrored twins),
+  the V4/Pancake valuation libraries (`SharedV4ValuationLib.t.sol` / `SharedPancakeV4ValuationLib.t.sol`
+  — mirrored twins: burned-token try/catch fallback, principal/fee split, F7 wrapped-fee-growth
+  no-revert, the non-wrapping `hasCollectableFeesForFailedCollect` gate, and the out-of-range
+  fee-growth-inside decomposition; the V4 file mocks the PoolManager at the storage-slot level so
+  `StateLibrary`'s extsload slot math is exercised for real),
   and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`, incl. the
   previewWithdraw owner-bps pre-clamp pin).
 * **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol

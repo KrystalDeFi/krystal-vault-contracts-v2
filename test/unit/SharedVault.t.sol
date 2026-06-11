@@ -3978,6 +3978,56 @@ contract SharedVaultTest is TestCommon {
     assertEq(mockERC1155.balanceOf(address(vault), 1), 50);
   }
 
+  /// @dev `sweepTokens` clamps each requested amount to the held balance (SharedVault.sweepTokens),
+  ///      so an over-ask sweeps everything available instead of reverting on SafeERC20 transfer.
+  function test_sweep_tokens_capsAmountToBalance() public {
+    tokenE.mint(address(vault), 100e18);
+
+    address[] memory sweepTokens_ = new address[](1);
+    sweepTokens_[0] = address(tokenE);
+    uint256[] memory sweepAmounts = new uint256[](1);
+    sweepAmounts[0] = 250e18; // more than held
+
+    vm.prank(VAULT_OWNER);
+    vault.sweepTokens(sweepTokens_, sweepAmounts, OPERATOR);
+
+    assertEq(tokenE.balanceOf(OPERATOR), 100e18, "over-ask clamped to the full held balance");
+    assertEq(tokenE.balanceOf(address(vault)), 0);
+  }
+
+  /// @dev `sweepNativeToken` clamps `amount` to `address(this).balance` instead of letting the
+  ///      value call revert on insufficient balance.
+  function test_sweep_native_token_capsAmountToBalance() public {
+    vm.deal(address(vault), 1 ether);
+    uint256 balanceBefore = OPERATOR.balance;
+
+    vm.prank(VAULT_OWNER);
+    vault.sweepNativeToken(5 ether, OPERATOR);
+
+    assertEq(OPERATOR.balance - balanceBefore, 1 ether, "over-ask clamped to the vault's ETH balance");
+    assertEq(address(vault).balance, 0);
+  }
+
+  /// @dev `sweepERC1155` clamps `amount` to the held balance — an operator requesting more than the
+  ///      vault holds sweeps what exists rather than reverting in the 1155 transfer.
+  function test_sweep_erc1155_capsAmountToBalance() public {
+    mockERC1155.mint(address(vault), 7, 10);
+
+    vm.prank(VAULT_OWNER);
+    vault.sweepERC1155(address(mockERC1155), 7, 1_000, OPERATOR);
+
+    assertEq(mockERC1155.balanceOf(OPERATOR, 7), 10, "over-ask clamped to the held 1155 balance");
+    assertEq(mockERC1155.balanceOf(address(vault), 7), 0);
+  }
+
+  function test_sweep_erc1155_fail_non_operator() public {
+    mockERC1155.mint(address(vault), 1, 100);
+
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.sweepERC1155(address(mockERC1155), 1, 100, NON_AUTHORIZED);
+  }
+
   // ==================== Role Tests ====================
 
   function test_grant_revoke_admin() public {

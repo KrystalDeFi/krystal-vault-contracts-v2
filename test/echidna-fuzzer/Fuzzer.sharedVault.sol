@@ -1978,6 +1978,26 @@ contract SharedVaultFuzzer {
     assert(address(weth).balance == weth.totalSupply());
   }
 
+  /// @dev Position-tracking bounds for the position-bearing vaults: the tracked-position array must
+  ///      never exceed the config cap (deposit/withdraw/valuation loops iterate it, so an over-cap
+  ///      array is an OOG griefing surface), and every tracked position must reference
+  ///      vault-configured tokens — an off-pair entry would let `_getTotalBalances` attribute LP
+  ///      value to assets depositors cannot withdraw, mispricing shares.
+  function assert_position_tracking_consistent() public view {
+    _assertPositionTrackingConsistent(lpVault);
+    _assertPositionTrackingConsistent(feeVault);
+  }
+
+  function _assertPositionTrackingConsistent(SharedVault v) internal view {
+    uint256 count = v.getPositionCount();
+    assert(count <= v.configManager().maxPositions());
+    for (uint256 i; i < count; i++) {
+      (,,, address token0, address token1) = v.getPosition(i);
+      assert(v.isVaultToken(token0));
+      assert(v.isVaultToken(token1));
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Setup
   // -------------------------------------------------------------------------

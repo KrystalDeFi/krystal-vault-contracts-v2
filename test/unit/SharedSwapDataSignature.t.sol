@@ -464,6 +464,69 @@ contract SharedSwapDataSignatureTest is Test {
     );
   }
 
+  /// @dev The signer whitelist (SharedSwapDataSignature.verify: `configManager.isWhitelistedSigner`)
+  ///      is the authorization root for operator swaps: a perfectly valid signature from a
+  ///      NON-whitelisted key must be rejected — and with InvalidSwapDataSignature, before any
+  ///      digest computation or replay-state write.
+  function test_verify_rejectsUnwhitelistedSigner() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    // signer deliberately NOT whitelisted
+
+    bytes memory signedSwapData = _signSwapData(
+      caller, address(0xA), signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      block.timestamp + 1 hours, bytes32("unwhitelisted-signer")
+    );
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), address(0xA), address(0xB), address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+
+    // Whitelisting the signer afterwards makes the very same envelope verify — the only blocker
+    // was the whitelist, not the signature itself.
+    config.setSigner(signer, true);
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), address(0xA), address(0xB), address(0xC), address(0xD), 1 ether,
+      0.9 ether, signedSwapData
+    );
+    assertEq(decoded, hex"1234");
+  }
+
+  /// @dev Verify-level cross-VAULT replay (complements the hash-level binding test): an envelope
+  ///      signed for vault A presented by vault B fails the `envelope.vault == expectedVault` check
+  ///      (SharedSwapDataSignature.verify line 1) — before the deadline, whitelist, and signature
+  ///      checks ever run.
+  function test_verify_rejectsEnvelopeVaultMismatch() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address vaultA = address(0xA);
+    address vaultB = address(0xB0B);
+
+    bytes memory signedForVaultA = _signSwapData(
+      caller, vaultA, signer, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether, hex"1234",
+      block.timestamp + 1 hours, bytes32("cross-vault-nonce")
+    );
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), vaultB, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether,
+      signedForVaultA
+    );
+
+    // Sanity: the same envelope verifies for the vault it was actually signed for.
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), vaultA, address(0xB), address(0xC), address(0xD), 1 ether, 0.9 ether,
+      signedForVaultA
+    );
+    assertEq(decoded, hex"1234");
+  }
+
   function _signSwapData(
     SharedSwapDataSignatureHarness harness,
     address vault,
