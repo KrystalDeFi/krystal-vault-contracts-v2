@@ -553,6 +553,47 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 0, "full Pancake V4 withdraw removes tracked position");
   }
 
+  /// @notice Twin of the V4 MED-2 round-trip conservation pin: a deposit immediately followed by
+  ///         withdrawing all the minted shares — same block / same price, against the REAL Pancake
+  ///         Infinity CLPositionManager — must NEVER return more of either token than was deposited
+  ///         (no value creation, no dilution of existing holders), and must return all but
+  ///         AMM/rounding dust (so the no-profit bound is tight, not vacuously satisfied by silently
+  ///         losing value). Pinned separately from V4 because infinity-core's liquidity/amount
+  ///         rounding is an independent implementation.
+  function test_depositWithdraw_roundTrip_neverProfits_withRealPancakeV4PositionManager() public {
+    token0.mint(depositor, 100 ether);
+    token1.mint(depositor, 100 ether);
+
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = token0.balanceOf(depositor);
+    uint256 t1Before = token1.balanceOf(depositor);
+
+    uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amounts, 50, 0); // 0.5% LP-add slippage tolerance
+    assertGt(shares, 0, "deposit minted shares");
+
+    uint256 t0In = t0Before - token0.balanceOf(depositor);
+    uint256 t1In = t1Before - token1.balanceOf(depositor);
+    assertGt(t0In, 0, "token0 actually deposited");
+    assertGt(t1In, 0, "token1 actually deposited");
+
+    uint256[4] memory mins;
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+    vm.stopPrank();
+
+    // No profit: an instant round-trip cannot return more of either token than went in — rounding and
+    // the vault's floor-in-its-favor can only reduce the return.
+    assertLe(got[0], t0In, "round-trip token0 out <= in (no profit)");
+    assertLe(got[1], t1In, "round-trip token1 out <= in (no profit)");
+
+    // Not a value sink: returns all but dust (< 0.5% + a few wei), so the no-profit bound is tight.
+    assertGe(got[0] + t0In / 200 + 5, t0In, "round-trip token0 loss is only dust");
+    assertGe(got[1] + t1In / 200 + 5, t1In, "round-trip token1 loss is only dust");
+  }
+
   /// @dev Twin of the V4 integration test: a real native-currency Pancake V4 position cannot be
   ///      recovered with token0 == address(0) — recoverPosition's vault-token check rejects it.
   function test_recoverPosition_rejectsNativeCurrencyPoolFromRealPancakeV4PositionManager() public {
