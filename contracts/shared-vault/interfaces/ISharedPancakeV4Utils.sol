@@ -9,6 +9,10 @@ interface ISharedPancakeV4Utils {
   // unchanged. Emitted by SharedPancakeV4StrategyLib / SharedV4SwapPipeline under delegatecall
   // from SharedVault, so the logs surface at the vault address.
   event Swap(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+  /// @dev The amount fields on SwapAndMint / SwapAndIncrease / AdjustRange / CompoundFees report the
+  ///      amounts CONSUMED by the realized liquidity, quoted at the execution price (v4utils parity).
+  ///      For imbalanced or out-of-range adds the non-limiting side's remainder stays idle in the
+  ///      vault and is NOT reported.
   event SwapAndMint(address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1);
   event SwapAndIncrease(
     address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1

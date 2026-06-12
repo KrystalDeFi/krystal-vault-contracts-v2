@@ -14,6 +14,11 @@ event Swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOu
 event SwapAndMint(address posm, uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1)
 ```
 
+_The amount fields on SwapAndMint / SwapAndIncrease / AdjustRange / CompoundFees report the
+     amounts CONSUMED by the realized liquidity, quoted at the execution price (v4utils parity).
+     For imbalanced or out-of-range adds the non-limiting side's remainder stays idle in the
+     vault and is NOT reported._
+
 ### SwapAndIncrease
 
 ```solidity

@@ -236,6 +236,14 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     );
   }
 
+  /// @dev Mirrors the lib's consumed-amounts quote: getAmountsForLiquidity over the realized
+  ///      liquidity at the execution price. The round-trip never exceeds the supplied amounts.
+  function _quotedAmounts(uint128 liquidity) internal pure returns (uint256 amount0, uint256 amount1) {
+    return LiquidityAmounts.getAmountsForLiquidity(
+      SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(-60), TickMath.getSqrtPriceAtTick(60), liquidity
+    );
+  }
+
   function _poolKey() internal view returns (PoolKey memory key) {
     key.currency0 = Currency.wrap(address(token0));
     key.currency1 = Currency.wrap(address(token1));
@@ -269,10 +277,10 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     p.sweepTokens = new Currency[](0);
 
     uint256 expectedTokenId = posm.nextTokenId();
+    uint128 expectedLiquidity = _quotedLiquidity(amount0, amount1);
+    (uint256 used0, uint256 used1) = _quotedAmounts(expectedLiquidity);
     vm.expectEmit(true, true, true, true, address(harness));
-    emit ISharedPancakeV4Utils.SwapAndMint(
-      address(posm), expectedTokenId, _quotedLiquidity(amount0, amount1), amount0, amount1
-    );
+    emit ISharedPancakeV4Utils.SwapAndMint(address(posm), expectedTokenId, expectedLiquidity, used0, used1);
     harness.swapAndMint(address(posm), abi.encodeCall(ISharedPancakeV4Utils.swapAndMint, (p)));
   }
 
@@ -287,16 +295,20 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     p.inputTokens = _inputs(amount0, amount1);
     p.sweepTokens = new Currency[](0);
 
+    uint128 expectedLiquidity = _quotedLiquidity(amount0, amount1);
+    (uint256 used0, uint256 used1) = _quotedAmounts(expectedLiquidity);
+    // The supply is imbalanced: token0 limits the liquidity, so part of the offered token1 stays
+    // idle and must NOT be reported by the event.
+    assertLt(used1, amount1, "imbalanced increase must consume less token1 than offered");
     vm.expectEmit(true, true, true, true, address(harness));
-    emit ISharedPancakeV4Utils.SwapAndIncrease(
-      address(posm), TOKEN_ID, _quotedLiquidity(amount0, amount1), amount0, amount1
-    );
+    emit ISharedPancakeV4Utils.SwapAndIncrease(address(posm), TOKEN_ID, expectedLiquidity, used0, used1);
     harness.swapAndIncrease(address(posm), TOKEN_ID, abi.encodeCall(ISharedPancakeV4Utils.swapAndIncrease, (p)));
   }
 
   /// @dev v4utils parity: CompoundFees reports the position's TOTAL liquidity after the compound
-  ///      (the mock's INCREASE is a no-op, so it stays at the staged 5_000) and the net collected
-  ///      fee amounts pushed into the increase (zero performance fees configured).
+  ///      (the mock's INCREASE is a no-op, so it stays at the staged 5_000) and the amounts the
+  ///      added liquidity consumes, quoted at the execution price (zero performance fees
+  ///      configured, so the full collected fees feed the increase quote).
   function test_pancake_compound_emitsCompoundFees() public {
     posm.setLiquidity(5000);
     posm.stageFees(1e18, 2e18);
@@ -306,8 +318,10 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     p.swapParams = new ISharedPancakeV4Utils.SwapParams[](0);
     p.increaseParams = ISharedPancakeV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: 0 });
 
+    (uint256 used0, uint256 used1) = _quotedAmounts(_quotedLiquidity(1e18, 2e18));
+    assertLt(used1, 2e18, "imbalanced compound must consume less token1 than collected");
     vm.expectEmit(true, true, true, true, address(harness));
-    emit ISharedPancakeV4Utils.CompoundFees(address(posm), TOKEN_ID, 5000, 1e18, 2e18);
+    emit ISharedPancakeV4Utils.CompoundFees(address(posm), TOKEN_ID, 5000, used0, used1);
     harness.executeInstruction(
       address(posm),
       TOKEN_ID,
@@ -374,10 +388,10 @@ contract SharedPancakeV4StrategyEventsTest is Test {
       ISharedPancakeV4Utils.MintParams({ tickLower: -60, tickUpper: 60, minLiquidity: 0, hookData: "", deadline: 0 });
 
     uint256 expectedNewTokenId = posm.nextTokenId();
+    uint128 expectedLiquidity = _quotedLiquidity(3e18, 4e18);
+    (uint256 used0, uint256 used1) = _quotedAmounts(expectedLiquidity);
     vm.expectEmit(true, true, true, true, address(harness));
-    emit ISharedPancakeV4Utils.AdjustRange(
-      address(posm), TOKEN_ID, expectedNewTokenId, _quotedLiquidity(3e18, 4e18), 3e18, 4e18
-    );
+    emit ISharedPancakeV4Utils.AdjustRange(address(posm), TOKEN_ID, expectedNewTokenId, expectedLiquidity, used0, used1);
     harness.executeInstruction(
       address(posm),
       TOKEN_ID,
@@ -385,5 +399,56 @@ contract SharedPancakeV4StrategyEventsTest is Test {
         action: ISharedPancakeV4Utils.UtilActions.ADJUST_RANGE, params: abi.encode(p)
       })
     );
+  }
+
+  /// @dev Regression (review finding): the event must report the amounts CONSUMED by the minted
+  ///      liquidity, not the post-swap amounts OFFERED to the POSM. token0 limits this supply, so
+  ///      most of the offered token1 stays idle and must not appear in the event.
+  function test_pancake_swapAndMint_imbalancedSupply_reportsConsumedNotOffered() public {
+    uint256 offered0 = 1e18;
+    uint256 offered1 = 5e18;
+    ISharedPancakeV4Utils.SwapAndMintParams memory p;
+    p.posm = address(posm);
+    p.poolKey = _poolKey();
+    p.mintParams =
+      ISharedPancakeV4Utils.MintParams({ tickLower: -60, tickUpper: 60, minLiquidity: 0, hookData: "", deadline: 0 });
+    p.swapParams = new ISharedPancakeV4Utils.SwapParams[](0);
+    p.inputTokens = _inputs(offered0, offered1);
+    p.sweepTokens = new Currency[](0);
+
+    uint128 expectedLiquidity = _quotedLiquidity(offered0, offered1);
+    (uint256 used0, uint256 used1) = _quotedAmounts(expectedLiquidity);
+    assertLt(used1, offered1, "the non-limiting side must not be reported in full");
+
+    vm.expectEmit(true, true, true, true, address(harness));
+    emit ISharedPancakeV4Utils.SwapAndMint(address(posm), posm.nextTokenId(), expectedLiquidity, used0, used1);
+    harness.swapAndMint(address(posm), abi.encodeCall(ISharedPancakeV4Utils.swapAndMint, (p)));
+  }
+
+  /// @dev Below-range mint ([60, 120] with the pool at tick 0): the position is entirely token0,
+  ///      so the offered token1 is never consumed and the event must report amount1 == 0.
+  function test_pancake_swapAndMint_belowRange_reportsZeroToken1() public {
+    uint256 offered0 = 2e18;
+    uint256 offered1 = 3e18;
+    ISharedPancakeV4Utils.SwapAndMintParams memory p;
+    p.posm = address(posm);
+    p.poolKey = _poolKey();
+    p.mintParams =
+      ISharedPancakeV4Utils.MintParams({ tickLower: 60, tickUpper: 120, minLiquidity: 0, hookData: "", deadline: 0 });
+    p.swapParams = new ISharedPancakeV4Utils.SwapParams[](0);
+    p.inputTokens = _inputs(offered0, offered1);
+    p.sweepTokens = new Currency[](0);
+
+    uint128 expectedLiquidity = LiquidityAmounts.getLiquidityForAmounts(
+      SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(60), TickMath.getSqrtPriceAtTick(120), offered0, offered1
+    );
+    (uint256 used0, uint256 used1) = LiquidityAmounts.getAmountsForLiquidity(
+      SQRT_PRICE_1_1, TickMath.getSqrtPriceAtTick(60), TickMath.getSqrtPriceAtTick(120), expectedLiquidity
+    );
+    assertEq(used1, 0, "below-range mint consumes no token1");
+
+    vm.expectEmit(true, true, true, true, address(harness));
+    emit ISharedPancakeV4Utils.SwapAndMint(address(posm), posm.nextTokenId(), expectedLiquidity, used0, used1);
+    harness.swapAndMint(address(posm), abi.encodeCall(ISharedPancakeV4Utils.swapAndMint, (p)));
   }
 }
