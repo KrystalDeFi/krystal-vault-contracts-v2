@@ -196,6 +196,61 @@ contract MockAggregatorRouter {
   }
 }
 
+/// @notice Malicious swap router that re-enters the gateway during its swap callback (LOW: reentrancy).
+///         The gateway calls an opaque, owner-configured router mid-flow (and unwraps WETH), so the
+///         `nonReentrant` guard is the only thing standing between a misbehaving router and a reentrant
+///         deposit/withdraw. This router attempts a reentrant `swapAndDeposit` and records the revert
+///         SELECTOR so the test can prove it was the guard (`ReentrancyGuardReentrantCall`) that fired,
+///         not some incidental revert — then completes a normal 1:1 swap so the OUTER call still succeeds.
+contract ReentrantSwapRouter {
+  SharedVaultGateway public gateway;
+  ISharedVault public targetVault;
+  bool public armed;
+  bool public reentryAttempted;
+  bytes4 public reentryErrSelector;
+
+  function configure(SharedVaultGateway _gateway, ISharedVault _vault) external {
+    gateway = _gateway;
+    targetVault = _vault;
+    armed = true;
+  }
+
+  function _attemptReentry() internal {
+    if (!armed || reentryAttempted) return;
+    reentryAttempted = true;
+    SharedVaultGateway.SwapAndDepositParams memory p = SharedVaultGateway.SwapAndDepositParams({
+      vault: targetVault,
+      inputs: new SharedVaultGateway.InputToken[](0),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+    try gateway.swapAndDeposit(p) returns (uint256) {
+      reentryErrSelector = bytes4(0); // reentry SUCCEEDED → guard FAILED
+    } catch (bytes memory err) {
+      bytes4 sel;
+      if (err.length >= 4) {
+        assembly {
+          sel := mload(add(err, 0x20))
+        }
+      }
+      reentryErrSelector = sel;
+    }
+  }
+
+  function swapAll(address tokenIn, address tokenOut) external {
+    _attemptReentry();
+    uint256 amountIn = GatewayMockERC20(tokenIn).allowance(msg.sender, address(this));
+    uint256 bal = GatewayMockERC20(tokenIn).balanceOf(msg.sender);
+    if (amountIn > bal) amountIn = bal;
+    if (amountIn == 0) return;
+    GatewayMockERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+    GatewayMockERC20(tokenOut).transfer(msg.sender, amountIn); // 1:1 payout
+  }
+}
+
 // ==================== Test Contract ====================
 
 contract SharedVaultGatewayTest is TestCommon {
@@ -986,6 +1041,106 @@ contract SharedVaultGatewayTest is TestCommon {
 
     vm.prank(ALICE);
     shares = gateway.swapAndDeposit(params);
+  }
+
+  /// @notice HIGH-2 regression (boundary): the gateway must forward `minWithdrawAmounts` verbatim to
+  ///         `vault.withdraw`. At exactly the receivable per-slot amount the call SUCCEEDS — proving the
+  ///         guard is a real floor, not an always-revert. Pairs with the trip test below.
+  /// @dev This vault holds no LP positions, so `previewWithdraw` is exact (no AMM rounding slack), and
+  ///      the per-slot amounts below are precisely what `withdraw` returns.
+  function test_withdrawAndSwap_forwardsMinWithdrawAmounts_succeedsAtBoundary() public {
+    uint256 shares = _depositForAlice();
+    uint256[4] memory exact = vault.previewWithdraw(shares);
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: exact,
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256[4] memory amounts = gateway.withdrawAndSwap(params);
+
+    for (uint256 i; i < 4; i++) {
+      assertEq(amounts[i], exact[i], "received exactly the floor amount");
+    }
+    assertEq(vault.balanceOf(ALICE), 0, "all shares burned");
+  }
+
+  /// @notice HIGH-2 regression (trip): a `minWithdrawAmounts` floor ABOVE what `withdraw` can return must
+  ///         revert the whole gateway call with the vault's `InsufficientOutput`. This is the only test
+  ///         that proves the zap-out slippage guard is enforced end-to-end: a regression that dropped or
+  ///         zeroed `minWithdrawAmounts` on the way to `vault.withdraw` would silently make it pass.
+  ///         The revert must roll back fully — no shares burned, nothing stranded in the gateway.
+  function test_withdrawAndSwap_forwardsMinWithdrawAmounts_revertsBelowMinimum() public {
+    uint256 shares = _depositForAlice();
+    uint256 aliceSharesBefore = vault.balanceOf(ALICE);
+
+    // One wei above the exact (idle-only) receivable on slot 0 — unreachable, must revert.
+    uint256[4] memory tooHigh = vault.previewWithdraw(shares);
+    tooHigh[0] += 1;
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: tooHigh,
+      unwrapOnWithdraw: false,
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    gateway.withdrawAndSwap(params);
+
+    assertEq(vault.balanceOf(ALICE), aliceSharesBefore, "shares not burned on revert");
+    assertEq(tokenA.balanceOf(address(gateway)), 0, "no tokenA stranded in gateway on revert");
+  }
+
+  /// @notice LOW (reentrancy): a malicious router that re-enters the gateway during its swap callback must
+  ///         be stopped by the `nonReentrant` guard. The OUTER withdrawAndSwap still completes; the INNER
+  ///         reentrant `swapAndDeposit` must revert SPECIFICALLY with `ReentrancyGuardReentrantCall` (not
+  ///         the empty-params `InsufficientShares` path), proving the guard — not an incidental revert —
+  ///         is what blocked it.
+  function test_withdrawAndSwap_reentrantRouter_blockedByNonReentrantGuard() public {
+    uint256 shares = _depositForAlice();
+
+    ReentrantSwapRouter evilRouter = new ReentrantSwapRouter();
+    evilRouter.configure(gateway, ISharedVault(address(vault)));
+    tokenB.mint(address(evilRouter), 1_000e18); // payout liquidity for the tokenA -> tokenB leg
+    gateway.setSwapRouter(address(evilRouter)); // owner == address(this)
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 0, // full withdrawn balance
+      tokenOut: address(tokenB),
+      amountOutMin: 0,
+      swapData: _buildSwapAllCalldata(address(tokenA), address(tokenB))
+    });
+
+    SharedVaultGateway.WithdrawAndSwapParams memory params = SharedVaultGateway.WithdrawAndSwapParams({
+      vault: ISharedVault(address(vault)),
+      shares: shares,
+      minWithdrawAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      unwrapOnWithdraw: false,
+      swaps: swaps,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    gateway.withdrawAndSwap(params); // OUTER call succeeds despite the reentrancy attempt
+
+    assertTrue(evilRouter.reentryAttempted(), "router must have attempted reentry");
+    assertEq(
+      evilRouter.reentryErrSelector(),
+      bytes4(keccak256("ReentrancyGuardReentrantCall()")),
+      "inner reentry must be blocked by the nonReentrant guard, not an incidental revert"
+    );
+    assertEq(vault.balanceOf(ALICE), 0, "outer withdraw completed and shares burned");
   }
 
   function test_withdrawAndSwap_no_swaps() public {

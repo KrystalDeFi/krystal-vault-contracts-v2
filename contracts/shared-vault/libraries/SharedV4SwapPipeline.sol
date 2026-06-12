@@ -50,7 +50,7 @@ library SharedV4SwapPipeline {
     uint256 amount1,
     ISharedV4Utils.SwapParams[] memory swapParams
   ) external returns (uint256 total0, uint256 total1) {
-    return _run(
+    (total0, total1,) = _run(
       swapRouter,
       token0,
       token1,
@@ -58,6 +58,7 @@ library SharedV4SwapPipeline {
       amount1,
       new address[](0),
       new uint256[](0),
+      address(0),
       _normalizeV4(swapParams, ISharedVault(address(this)).weth())
     );
   }
@@ -70,6 +71,36 @@ library SharedV4SwapPipeline {
     uint256 amount1,
     ISharedPancakeV4Utils.SwapParams[] memory swapParams
   ) external returns (uint256 total0, uint256 total1) {
+    (total0, total1,) = _run(
+      swapRouter,
+      token0,
+      token1,
+      amount0,
+      amount1,
+      new address[](0),
+      new uint256[](0),
+      address(0),
+      _normalizePancake(swapParams, ISharedVault(address(this)).weth())
+    );
+  }
+
+  /// @dev `execute` variant for the decrease-and-swap exit path: `destToken` (already mapped to its
+  ///      vault token; address(0) = none) additionally authorizes hops to output to it TERMINALLY,
+  ///      provided it is a vault token that is not one of the pool tokens. The dest's remaining
+  ///      ledger balance is exempt from the exact-zero end check — those proceeds stay idle in the
+  ///      vault (fully share-priced) and are returned as `destOut` for event reporting. Every other
+  ///      non-pool intermediate must still net to zero, and a dest outside the vault token list
+  ///      authorizes nothing (hops to it stay unreachable). This is the V4-side twin of the
+  ///      V3/Aerodrome `_swapForWithdraw` vault-token `targetToken` flow.
+  function executeToDest(
+    address swapRouter,
+    address token0,
+    address token1,
+    uint256 amount0,
+    uint256 amount1,
+    address destToken,
+    ISharedV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1, uint256 destOut) {
     return _run(
       swapRouter,
       token0,
@@ -78,6 +109,30 @@ library SharedV4SwapPipeline {
       amount1,
       new address[](0),
       new uint256[](0),
+      destToken,
+      _normalizeV4(swapParams, ISharedVault(address(this)).weth())
+    );
+  }
+
+  /// @dev Pancake twin of `executeToDest` (infinity-core Currency normalization).
+  function executePancakeToDest(
+    address swapRouter,
+    address token0,
+    address token1,
+    uint256 amount0,
+    uint256 amount1,
+    address destToken,
+    ISharedPancakeV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1, uint256 destOut) {
+    return _run(
+      swapRouter,
+      token0,
+      token1,
+      amount0,
+      amount1,
+      new address[](0),
+      new uint256[](0),
+      destToken,
       _normalizePancake(swapParams, ISharedVault(address(this)).weth())
     );
   }
@@ -190,7 +245,7 @@ library SharedV4SwapPipeline {
   ) private returns (uint256 total0, uint256 total1) {
     (uint256 amount0, uint256 amount1, address[] memory seedTokens, uint256[] memory seedAmounts) =
       _takeInputGasFeesAndSplit(token0, token1, inputs, gasFeeX64);
-    return _run(swapRouter, token0, token1, amount0, amount1, seedTokens, seedAmounts, swaps);
+    (total0, total1,) = _run(swapRouter, token0, token1, amount0, amount1, seedTokens, seedAmounts, address(0), swaps);
   }
 
   /// @dev Validates each positive-amount input as a vault token, skims the (cap-validated) input gas
@@ -260,7 +315,9 @@ library SharedV4SwapPipeline {
   ///      balance (chain outputs and seeded non-pool inputs alike), executes the swap, and books the
   ///      deltas. After the loop every intermediate balance must net to zero (no token left
   ///      stranded) — for seeded inputs this is what forces the full declared amount into the pool
-  ///      currencies.
+  ///      currencies. The single exception is `destToken` (when it is a non-pool VAULT token): hops
+  ///      may output to it terminally, its remaining balance is tolerated (idle, share-priced vault
+  ///      funds) and returned as `destOut`.
   ///
   ///      Trust boundary: `swapData` is opaque calldata executed only against `swapRouter`. This
   ///      pipeline does not parse or re-check any downstream router/adapter target embedded inside
@@ -282,15 +339,24 @@ library SharedV4SwapPipeline {
     uint256 amount1,
     address[] memory seedTokens,
     uint256[] memory seedAmounts,
+    address destToken,
     Swap[] memory swaps
-  ) private returns (uint256 total0, uint256 total1) {
+  ) private returns (uint256 total0, uint256 total1, uint256 destOut) {
     total0 = amount0;
     total1 = amount1;
 
     ISharedConfigManager configManager;
+    address allowedDest;
     if (swaps.length > 0) {
       configManager = ISharedVault(address(this)).configManager();
       require(configManager.isWhitelistedSwapRouter(swapRouter), ISharedCommon.InvalidSwapRouter(swapRouter));
+      // The terminal-output allowance activates only for an explicitly declared non-pool VAULT
+      // token; anything else (zero, pool token, unknown token) leaves the strict pool-only rules
+      // in force. Resolved lazily so dest-less and no-swap runs never pay the isVaultToken read.
+      if (
+        destToken != address(0) && destToken != token0 && destToken != token1
+          && ISharedVault(address(this)).isVaultToken(destToken)
+      ) allowedDest = destToken;
     }
 
     uint256 intCount = seedTokens.length;
@@ -308,7 +374,7 @@ library SharedV4SwapPipeline {
       Swap memory swapParam = swaps[i];
       require(
         _isSwapInputAllowed(token0, token1, swapParam.tokenIn, swaps, i, seedTokens)
-          && _isSwapOutputAllowed(token0, token1, swapParam.tokenOut, swaps, i),
+          && _isSwapOutputAllowed(token0, token1, swapParam.tokenOut, swaps, i, allowedDest),
         ISharedStrategy.InvalidPoolTokens()
       );
 
@@ -372,7 +438,9 @@ library SharedV4SwapPipeline {
     }
 
     for (uint256 j; j < intCount;) {
-      require(intBalances[j] == 0, ISharedCommon.InvalidAmount());
+      // Ledger entries are never address(0), so when no dest is allowed nothing matches here.
+      if (intTokens[j] == allowedDest) destOut = intBalances[j];
+      else require(intBalances[j] == 0, ISharedCommon.InvalidAmount());
       unchecked {
         j++;
       }
@@ -414,13 +482,19 @@ library SharedV4SwapPipeline {
     return false;
   }
 
-  function _isSwapOutputAllowed(address token0, address token1, address tokenOut, Swap[] memory swaps, uint256 index)
-    private
-    pure
-    returns (bool)
-  {
+  /// @dev A hop may output to a pool token, the (pre-validated) allowed dest token, or a token some
+  ///      LATER hop consumes. Anything else would strand value outside the run's accounting.
+  function _isSwapOutputAllowed(
+    address token0,
+    address token1,
+    address tokenOut,
+    Swap[] memory swaps,
+    uint256 index,
+    address allowedDest
+  ) private pure returns (bool) {
     if (tokenOut == token0 || tokenOut == token1) return true;
     if (tokenOut == address(0)) return false;
+    if (tokenOut == allowedDest) return true;
     for (uint256 i = index + 1; i < swaps.length;) {
       if (swaps[i].tokenIn == tokenOut) return true;
       unchecked {

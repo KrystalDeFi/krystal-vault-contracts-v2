@@ -44,6 +44,29 @@ function execute(address swapRouter, address token0, address token1, uint256 amo
 function executePancake(address swapRouter, address token0, address token1, uint256 amount0, uint256 amount1, struct ISharedPancakeV4Utils.SwapParams[] swapParams) external returns (uint256 total0, uint256 total1)
 ```
 
+### executeToDest
+
+```solidity
+function executeToDest(address swapRouter, address token0, address token1, uint256 amount0, uint256 amount1, address destToken, struct ISharedV4Utils.SwapParams[] swapParams) external returns (uint256 total0, uint256 total1, uint256 destOut)
+```
+
+_`execute` variant for the decrease-and-swap exit path: `destToken` (already mapped to its
+     vault token; address(0) = none) additionally authorizes hops to output to it TERMINALLY,
+     provided it is a vault token that is not one of the pool tokens. The dest's remaining
+     ledger balance is exempt from the exact-zero end check — those proceeds stay idle in the
+     vault (fully share-priced) and are returned as `destOut` for event reporting. Every other
+     non-pool intermediate must still net to zero, and a dest outside the vault token list
+     authorizes nothing (hops to it stay unreachable). This is the V4-side twin of the
+     V3/Aerodrome `_swapForWithdraw` vault-token `targetToken` flow._
+
+### executePancakeToDest
+
+```solidity
+function executePancakeToDest(address swapRouter, address token0, address token1, uint256 amount0, uint256 amount1, address destToken, struct ISharedPancakeV4Utils.SwapParams[] swapParams) external returns (uint256 total0, uint256 total1, uint256 destOut)
+```
+
+_Pancake twin of `executeToDest` (infinity-core Currency normalization)._
+
 ### executeWithInputs
 
 ```solidity

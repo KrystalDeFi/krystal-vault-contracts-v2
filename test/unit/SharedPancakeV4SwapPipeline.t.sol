@@ -103,6 +103,19 @@ contract SharedPancakeV4SwapPipelineHarness {
   ) external returns (uint256 total0, uint256 total1) {
     return SharedV4SwapPipeline.executePancakeWithInputs(swapRouter, token0, token1, inputTokens, gasFeeX64, swapParams);
   }
+
+  function executePancakeToDest(
+    address swapRouter,
+    address token0,
+    address token1,
+    uint256 amount0,
+    uint256 amount1,
+    address destToken,
+    ISharedPancakeV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1, uint256 destOut) {
+    return
+      SharedV4SwapPipeline.executePancakeToDest(swapRouter, token0, token1, amount0, amount1, destToken, swapParams);
+  }
 }
 
 contract SharedPancakeV4SwapPipelineTest is Test {
@@ -334,8 +347,9 @@ contract SharedPancakeV4SwapPipelineTest is Test {
   ///      BalanceOfCalled instead of InvalidSwapDataSignature.
   function test_executePancake_rejectsBadSignatureBeforeBalanceSnapshots() public {
     SharedPancakeV4SwapPipelineBalanceTrapToken trapToken = new SharedPancakeV4SwapPipelineBalanceTrapToken();
-    bytes memory rawSwapData =
-      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(trapToken), address(token1), uint256(1 ether)));
+    bytes memory rawSwapData = abi.encodeCall(
+      SharedPancakeV4SwapPipelineRouter.swapAll, (address(trapToken), address(token1), uint256(1 ether))
+    );
 
     ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
     swaps[0] = ISharedPancakeV4Utils.SwapParams({
@@ -769,6 +783,170 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     assertEq(tokenX.balanceOf(gasFeeRecipient), 2 ether, "25% input gas fee skimmed to the recipient");
     assertEq(total0, 6 ether, "post-fee remainder swapped into total0");
     assertEq(tokenX.balanceOf(address(harness)), 0, "post-fee remainder fully consumed");
+  }
+
+  // -------------------------------------------------------------------------
+  // executePancakeToDest: twin-parity coverage of executeToDest (the
+  // decrease-and-swap exit variant). Mirrors the executeToDest block in
+  // SharedV4SwapPipeline.t.sol.
+  // -------------------------------------------------------------------------
+
+  /// @dev Twin of test_executeToDest_terminalOutputToVaultDest_leavesRemainderAndReportsIt.
+  function test_executePancakeToDest_terminalOutputToVaultDest_leavesRemainderAndReportsIt() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dest", "DST");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenX.mint(address(router), 5 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(token0), address(tokenX), uint256(5 ether)));
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenX), 4 ether, 5 ether, hopData)
+    });
+
+    (uint256 total0, uint256 total1, uint256 destOut) = harness.executePancakeToDest(
+      address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps
+    );
+
+    assertEq(total0, 6 ether, "token0 budget reduced by the hop");
+    assertEq(total1, 0, "token1 untouched");
+    assertEq(destOut, 5 ether, "terminal dest proceeds reported");
+    assertEq(tokenX.balanceOf(address(harness)), 5 ether, "dest proceeds stay with the vault");
+  }
+
+  /// @dev Twin of test_executeToDest_destChainPartiallyConsumed_remainderTolerated.
+  function test_executePancakeToDest_destChainPartiallyConsumed_remainderTolerated() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dest", "DST");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenX.mint(address(router), 5 ether);
+    token1.mint(address(router), 1 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(token0), address(tokenX), uint256(5 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token1), uint256(1 ether)));
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenX), 4 ether, 5 ether, hop0Data)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 2 ether, // consumes part of the dest output; the 3 ether remainder is tolerated
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: _signedSwapData(address(tokenX), address(token1), 2 ether, 1 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1, uint256 destOut) = harness.executePancakeToDest(
+      address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps
+    );
+
+    assertEq(total0, 6 ether, "token0 budget reduced by hop 1");
+    assertEq(total1, 1 ether, "hop 2 output credited to total1");
+    assertEq(destOut, 3 ether, "only the unconsumed dest remainder reported");
+    assertEq(tokenX.balanceOf(address(harness)), 3 ether, "dest remainder stays with the vault");
+  }
+
+  /// @dev Twin of test_executeToDest_otherIntermediateStillMustNetToZero.
+  function test_executePancakeToDest_otherIntermediateStillMustNetToZero() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dest", "DST");
+    SharedPancakeV4SwapPipelineTestToken tokenY = new SharedPancakeV4SwapPipelineTestToken("Intermediate", "INT");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenY.mint(address(router), 5 ether);
+    token1.mint(address(router), 1 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(token0), address(tokenY), uint256(5 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenY), address(token1), uint256(1 ether)));
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenY)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenY), 4 ether, 5 ether, hop0Data)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenY)),
+      amountIn: 2 ether, // leaves 3 ether of the NON-dest intermediate stranded
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: _signedSwapData(address(tokenY), address(token1), 2 ether, 1 ether, hop1Data)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executePancakeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+  }
+
+  /// @dev Twin of test_executeToDest_nonVaultDest_terminalHopRejected.
+  function test_executePancakeToDest_nonVaultDest_terminalHopRejected() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Rogue", "RGE");
+    token0.mint(address(harness), 10 ether);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executePancakeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+  }
+
+  /// @dev Twin of test_executeToDest_zeroDest_behavesLikeExecute.
+  function test_executePancakeToDest_zeroDest_behavesLikeExecute() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Stranded", "TKX");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executePancakeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(0), swaps);
+  }
+
+  /// @dev Twin of test_executeToDest_poolTokenDest_noSpecialAllowance.
+  function test_executePancakeToDest_poolTokenDest_noSpecialAllowance() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Stranded", "TKX");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](1);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executePancakeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(token1), swaps);
   }
 
   function _signedSwapData(

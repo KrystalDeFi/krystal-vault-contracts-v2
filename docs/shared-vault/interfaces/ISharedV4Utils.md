@@ -31,9 +31,10 @@ event SwapAndIncrease(address posm, uint256 tokenId, uint256 liquidity, uint256 
 event DecreaseAndSwap(address posm, uint256 tokenId, uint128 liquidity, Currency token, uint256 amount)
 ```
 
-_`token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it
-     (0 when `swapDestToken` is not a pool token). Unlike v4utils nothing is swept — the
-     proceeds stay idle in the vault._
+_`token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it.
+     For a pool-token dest that is the post-swap total; for a non-pool VAULT-token dest it is
+     the terminal swap output left idle by the pipeline; otherwise 0 (no allowance, nothing
+     can flow there). Unlike v4utils nothing is swept — proceeds stay idle in the vault._
 
 ### AdjustRange
 

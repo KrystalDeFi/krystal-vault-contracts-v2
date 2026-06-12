@@ -683,6 +683,160 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     vault.execute(actions);
   }
 
+  // ===========================================================================
+  // DECREASE_AND_SWAP into a non-pool VAULT token (`swapDestToken`) — twin of the
+  // Integration.SharedVault.V4 block: declaring `swapDestToken = C` lets signed
+  // hops output to C terminally; C's remainder is exempt from the ledger's
+  // exact-zero rule and stays idle (share-priced) in the vault.
+  // ===========================================================================
+
+  function test_decreaseAndSwap_toNonPoolVaultTokenDest_swapsProceedsAndReportsThem() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+    uint256 idForDecrease = _mintPositionToOperator(poolKey);
+    IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForDecrease);
+    threeTokenVault.recoverPosition(
+      BASE_PANCAKE_V4_POSM, idForDecrease, address(strategy), address(token0), address(token1)
+    );
+    uint128 liquidityBefore = posm.getPositionLiquidity(idForDecrease);
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    bytes memory hopSwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](1);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData
+      )
+    });
+
+    IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(hopToken)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams)
+    });
+    bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, idForDecrease, instructions));
+
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, idForDecrease, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    // The event must report the dest-token proceeds left idle by the pipeline (no longer 0).
+    vm.expectEmit(true, true, false, true, address(threeTokenVault));
+    emit IPancakeV4Utils.DecreaseAndSwap(
+      BASE_PANCAKE_V4_POSM, idForDecrease, 0.5 ether, Currency.wrap(address(hopToken)), 0.02 ether
+    );
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertLt(posm.getPositionLiquidity(idForDecrease), liquidityBefore, "liquidity decreased");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore + 0.02 ether, "dest proceeds idle in the vault"
+    );
+    assertEq(token0.balanceOf(address(swapRouter)), 0.01 ether, "router pulled the signed token0 amountIn");
+    assertEq(hopToken.allowance(address(threeTokenVault), address(swapRouter)), 0, "no stale router approvals");
+  }
+
+  /// @dev Twin of the V4 pin: a dest outside the vault's token list unlocks nothing.
+  function test_decreaseAndSwap_destNotVaultToken_rejectsTerminalHopToDest() public {
+    bytes memory hopSwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](1);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData)
+    });
+
+    IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(hopToken)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams)
+    });
+    bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, tokenId, instructions));
+
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    _expectRevertExecute(
+      bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData),
+      ISharedStrategy.InvalidPoolTokens.selector
+    );
+  }
+
+  /// @dev Twin of the V4 pin: the dest allowance must be DECLARED — zero dest (resolving to the
+  ///      vault's WETH = `token0`, a pool token) does not unlock terminal non-pool outputs.
+  function test_decreaseAndSwap_zeroDestDoesNotUnlockTerminalNonPoolOutput() public {
+    SharedVault threeTokenVault = _deployThreeTokenPancakeV4Vault();
+    uint256 idForDecrease = _mintPositionToOperator(poolKey);
+    IERC721(BASE_PANCAKE_V4_POSM).approve(address(threeTokenVault), idForDecrease);
+    threeTokenVault.recoverPosition(
+      BASE_PANCAKE_V4_POSM, idForDecrease, address(strategy), address(token0), address(token1)
+    );
+
+    bytes memory hopSwapData =
+      abi.encodeCall(PancakeV4RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IPancakeV4Utils.SwapParams[] memory swaps = new IPancakeV4Utils.SwapParams[](1);
+    swaps[0] = IPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData
+      )
+    });
+
+    IPancakeV4Utils.DecreaseAndSwapParams memory decParams = IPancakeV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IPancakeV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(0)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IPancakeV4Utils.Instructions memory instructions = IPancakeV4Utils.Instructions({
+      action: IPancakeV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams)
+    });
+    bytes memory params = abi.encodeCall(IPancakeV4Utils.execute, (BASE_PANCAKE_V4_POSM, idForDecrease, instructions));
+
+    bytes memory innerData =
+      abi.encode(BASE_PANCAKE_V4_POSM, idForDecrease, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+  }
+
   // The gas-fee-siphon regression coverage (dangling non-pool inputs must revert via the swap
   // pipeline's exact-consumption ledger) and the supported hop-funded mint/increase flows live
   // in the "Non-pool input tokens" block further down, mirroring Integration.SharedVault.V4.t.sol.

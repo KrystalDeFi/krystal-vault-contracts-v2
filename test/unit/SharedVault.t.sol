@@ -1315,6 +1315,45 @@ contract MockCwpFalseRemoveStrategy is MockSharedStrategySplitFallback {
   function collectFees(address, uint256, uint16) external override { }
 }
 
+/// @dev Delegatecall strategy that issues an isAdd=false PositionChange for a position the vault
+///      still owns, with getPositionAmounts REVERTING — verifyPositionExit's valuation staticcall
+///      fails, so the untrack must be rejected: an unverifiable position is treated as live
+///      (fail closed), not as exited. Otherwise a bricked or hostile valuation becomes an untrack
+///      loophole that understates TVL.
+contract MockRevertingAmountsRemoveStrategy is MockSharedStrategySplitFallback {
+  function execute(bytes calldata data) external payable override returns (PositionChange[] memory changes) {
+    (address nfpm, uint256 tokenId, address t0, address t1) = abi.decode(data, (address, uint256, address, address));
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(false, nfpm, tokenId, t0, t1);
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory)
+  {
+    return new PositionChange[](0);
+  }
+
+  // The valuation probe is bricked — verifyPositionExit's staticcall to this must fail.
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    revert("getPositionAmounts: bricked valuation");
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+
+  function collectFees(address, uint256, uint16) external override { }
+}
+
 /// @dev V3 NFPM mock that simulates *inverted* CHANGE_RANGE ordering:
 ///      the old tokenId is returned to the vault BEFORE the new one is minted.
 ///      This triggers the `require(newTokenId != tokenId)` guard in SharedV3Strategy._safeTransferNft.
@@ -4113,6 +4152,103 @@ contract SharedVaultTest is TestCommon {
     vm.expectRevert(ISharedCommon.Unauthorized.selector);
     vault.grantAdminRole(address(0x666));
     vm.stopPrank();
+  }
+
+  /// @notice Off-chain indexers track admin status from SetVaultAdmin — pin the emission (topic0,
+  ///         indexed vaultFactory = the initialize() caller, account, isAdmin flag) on both flips.
+  function test_grant_revoke_admin_emits_events() public {
+    address newAdmin = address(0x999);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.SetVaultAdmin(VAULT_OWNER, newAdmin, true);
+    vault.grantAdminRole(newAdmin);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.SetVaultAdmin(VAULT_OWNER, newAdmin, false);
+    vault.revokeAdminRole(newAdmin);
+  }
+
+  /// @notice setPaused emits the vault-scoped VaultPausedUpdated (alongside OZ's Paused/Unpaused)
+  ///         so monitoring can distinguish a per-vault pause from the config-manager global pause.
+  function test_set_paused_emits_event() public {
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.VaultPausedUpdated(VAULT_OWNER, true);
+    vault.setPaused(true);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.VaultPausedUpdated(VAULT_OWNER, false);
+    vault.setPaused(false);
+  }
+
+  /// @notice VaultOwnerChanged must report the PREVIOUS owner (emitted before the storage write).
+  function test_transfer_ownership_emits_event() public {
+    address newOwner = address(0x777);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit ISharedVault.VaultOwnerChanged(VAULT_OWNER, VAULT_OWNER, newOwner);
+    vault.transferOwnership(newOwner);
+
+    assertEq(vault.vaultOwner(), newOwner);
+  }
+
+  function test_grant_revoke_admin_fail_unauthorized() public {
+    vm.startPrank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.grantAdminRole(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.revokeAdminRole(ADMIN);
+    vm.stopPrank();
+  }
+
+  function test_set_paused_fail_unauthorized() public {
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.setPaused(true);
+  }
+
+  function test_transfer_ownership_fail_unauthorized() public {
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.transferOwnership(NON_AUTHORIZED);
+
+    assertEq(vault.vaultOwner(), VAULT_OWNER, "owner unchanged after rejected transfer");
+  }
+
+  /// @notice Privilege separation: the ADMIN role authorizes execute() only — it must NOT extend
+  ///         to the onlyOwner surface (pause, ownership transfer, role mutation). A compromised
+  ///         admin (e.g. a leaked automator key) cannot escalate to vault takeover.
+  function test_admin_cannot_call_owner_functions() public {
+    vm.startPrank(ADMIN);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.setPaused(true);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.transferOwnership(ADMIN);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.grantAdminRole(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.revokeAdminRole(ADMIN);
+    vm.stopPrank();
+  }
+
+  function test_sweep_native_token_fail_non_operator() public {
+    vm.deal(address(vault), 1 ether);
+
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.sweepNativeToken(1 ether, NON_AUTHORIZED);
+  }
+
+  function test_sweep_erc721_fail_non_operator() public {
+    mockERC721.mint(address(vault), 5);
+
+    vm.prank(NON_AUTHORIZED);
+    vm.expectRevert(ISharedCommon.Unauthorized.selector);
+    vault.sweepERC721(address(mockERC721), 5, NON_AUTHORIZED);
   }
 
   // ==================== Position Strategy Update via execute() Tests ====================
@@ -8903,6 +9039,32 @@ contract SharedVaultTest is TestCommon {
     vm.prank(VAULT_OWNER);
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(cwpFalseRemove), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    vault.execute(actions);
+  }
+
+  /// @notice Issue 8 fail-closed arm: verifyPositionExit must also reject the untrack when the
+  ///         vault still owns the NFT and the strategy's getPositionAmounts staticcall REVERTS.
+  ///         An unverifiable position is treated as live, not as exited — a bricked (or hostile)
+  ///         valuation must not become an untrack loophole that understates TVL. (The legitimate
+  ///         arm — owned NFT + zero amounts → untrack allowed — is pinned by
+  ///         test_execute_call_with_positions_removes_position; the burned-NFT arm passes via the
+  ///         failed ownerOf probe in the full-exit flows.)
+  function test_security_issue8_untrack_failsClosed_whenAmountsProbeReverts() public {
+    MockRevertingAmountsRemoveStrategy bricked = new MockRevertingAmountsRemoveStrategy();
+    address[] memory newTargets = new address[](1);
+    newTargets[0] = address(bricked);
+    configManager.setWhitelistTargets(newTargets, true);
+
+    uint256 tokenId = 77;
+    // Vault must own the NFT so the guard reaches the valuation probe.
+    cwpNfpm.mint(address(vault), tokenId);
+
+    bytes memory execData = abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB));
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(bricked), execData, ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedCommon.InvalidOperation.selector);
     vault.execute(actions);
   }

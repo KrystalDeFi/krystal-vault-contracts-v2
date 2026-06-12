@@ -819,6 +819,47 @@ contract SharedVaultFuzzer {
     } catch { }
   }
 
+  /// @notice LOW: off-ratio deposit fuzzing. Unlike `multi_deposit` (which forces every amount onto the
+  ///         current vault ratio via `_ceilMulDiv`), this feeds FOUR INDEPENDENT random amounts so the
+  ///         basket is almost never on-ratio. The vault must either reject the basket (revert, with state
+  ///         untouched) or mint shares such that EXISTING holders are never diluted: per-token
+  ///         NAV-per-share must not drop. Asserted in the cross-multiplied form so floor rounding can only
+  ///         favor the stayers — the deposit-side dual of `_withdrawPreservesRemainingHolderValue`. This
+  ///         closes the "deposits are always on-ratio" coverage gap noted in the audit.
+  function multi_offRatio_deposit_neverDilutes(uint8 idx, uint256 a0, uint256 a1, uint256 a2, uint256 a3)
+    external
+  {
+    idx = idx % 2;
+    uint256 supplyBefore = multiVault.totalSupply();
+    if (supplyBefore == 0) return; // only meaningful against an existing shareholder base
+
+    uint256[4] memory amounts;
+    amounts[0] = _bound(a0, 0, MAX_18);
+    amounts[1] = _bound(a1, 0, MAX_18);
+    amounts[2] = _bound(a2, 0, MAX_6);
+    amounts[3] = _bound(a3, 0, MAX_8);
+
+    uint256[4] memory totalsBefore = multiVault.getTotalBalances();
+
+    try multiPlayers[idx].deposit(amounts, 0) returns (uint256 shares) {
+      // A successful deposit must mint a positive share amount — never free shares for value, never
+      // shares for nothing.
+      assert(shares > 0);
+      uint256[4] memory totalsAfter = multiVault.getTotalBalances();
+      uint256 supplyAfter = multiVault.totalSupply();
+      // No dilution: totalsAfter[i]/supplyAfter >= totalsBefore[i]/supplyBefore for every token.
+      for (uint256 i; i < 4; i++) {
+        assert(totalsAfter[i] * supplyBefore >= totalsBefore[i] * supplyAfter);
+      }
+    } catch {
+      // Off-ratio / zero-slot / over-cap baskets are allowed to revert; on revert nothing must change.
+      assert(multiVault.totalSupply() == supplyBefore);
+    }
+
+    _assertMultiShareConservation();
+    _assertPositiveBacking(multiVault);
+  }
+
   // -------------------------------------------------------------------------
   // Stateful LP vault
   // -------------------------------------------------------------------------
@@ -1940,6 +1981,95 @@ contract SharedVaultFuzzer {
     _assertPositiveBacking(idleVault);
   }
 
+  /// @dev Mixed-decimals flavor of idle_roundtrip_no_profit: the 18/18/6/8 multi vault exercises
+  ///      the ceil-on-pull / floor-on-split rounding across heterogeneous decimal scales, where a
+  ///      rounding-direction bug would let a depositor round-trip out with MORE of a low-decimals
+  ///      token (1 unit of the 6-decimals token is 1e12x more valuable relative to 18-decimals
+  ///      dust, so per-unit rounding errors that are invisible on the 18/18 idle vault matter here).
+  function multi_roundtrip_no_profit(uint8 idx, uint256 amountA) external {
+    idx = idx % 2;
+    amountA = _bound(amountA, 1e13, MAX_18);
+    SharedFuzzPlayer player = multiPlayers[idx];
+
+    uint256[4] memory totals = multiVault.getTotalBalances();
+    if (totals[0] == 0 || totals[1] == 0 || totals[2] == 0 || totals[3] == 0) return;
+
+    uint256[4] memory amounts;
+    amounts[0] = amountA;
+    amounts[1] = _ceilMulDiv(amountA, totals[1], totals[0]);
+    amounts[2] = _ceilMulDiv(amountA, totals[2], totals[0]);
+    amounts[3] = _ceilMulDiv(amountA, totals[3], totals[0]);
+    if (amounts[1] > MAX_18 || amounts[2] > MAX_6 || amounts[3] > MAX_8) return;
+
+    uint256 balABefore = multiA.balanceOf(address(player));
+    uint256 balBBefore = multiB.balanceOf(address(player));
+    uint256 balCBefore = multiC.balanceOf(address(player));
+    uint256 balDBefore = multiD.balanceOf(address(player));
+    uint256 sharesBefore = multiVault.balanceOf(address(player));
+
+    uint256 minted;
+    try player.deposit(amounts, 0) returns (uint256 shares) {
+      minted = shares;
+    } catch {
+      return; // ratio rejections are covered by multi_deposit's preview assertions
+    }
+    if (minted == 0) return;
+
+    uint256[4] memory mins;
+    try player.withdraw(minted, mins, false) returns (uint256[4] memory) { }
+    catch (bytes memory reason) {
+      assert(_isAcceptablePreviewedWithdrawRevert(reason));
+      return;
+    }
+
+    assert(multiVault.balanceOf(address(player)) == sharesBefore);
+    assert(multiA.balanceOf(address(player)) <= balABefore);
+    assert(multiB.balanceOf(address(player)) <= balBBefore);
+    assert(multiC.balanceOf(address(player)) <= balCBefore);
+    assert(multiD.balanceOf(address(player)) <= balDBefore);
+
+    _assertMultiShareConservation();
+    _assertPositiveBacking(multiVault);
+  }
+
+  // -------------------------------------------------------------------------
+  // Vault-token donation invariant
+  // -------------------------------------------------------------------------
+
+  /// @dev Direct vault-token donations must be pure surplus for existing holders: the donor mints
+  ///      no shares (supply untouched), the donated slot's totals grow by exactly the donation,
+  ///      and every holder's previewWithdraw for every token can only grow — a decrease would mean
+  ///      a donation DILUTED the holders it should enrich. Donations are otherwise absent from the
+  ///      mock sequences, so this also pins that share pricing keeps working off donated
+  ///      (never-deposited) idle balance for the rest of the run.
+  function idle_vault_token_donation_never_dilutes_holders(uint8 idx, uint256 amt, bool donateB) external {
+    idx = idx % 3;
+    amt = _bound(amt, 1, MAX_18);
+    SharedFuzzPlayer player = idlePlayers[idx];
+    uint256 shares = idleVault.balanceOf(address(player));
+    if (shares == 0) return;
+
+    uint256 supplyBefore = idleVault.totalSupply();
+    uint256[4] memory totalsBefore = idleVault.getTotalBalances();
+    uint256[4] memory previewBefore = idleVault.previewWithdraw(shares);
+
+    FuzzERC20 donated = donateB ? idleB : idleA;
+    donated.mint(address(idleVault), amt);
+
+    assert(idleVault.totalSupply() == supplyBefore);
+    uint256[4] memory totalsAfter = idleVault.getTotalBalances();
+    uint256 slot = donateB ? 1 : 0;
+    assert(totalsAfter[slot] == totalsBefore[slot] + amt);
+
+    uint256[4] memory previewAfter = idleVault.previewWithdraw(shares);
+    for (uint256 i; i < 4; i++) {
+      assert(previewAfter[i] >= previewBefore[i]);
+    }
+
+    _assertIdleShareConservation();
+    _assertPositiveBacking(idleVault);
+  }
+
   // Assertion-mode standalone checks. These are deliberately assert-based
   // instead of echidna_* bool properties because config.yaml uses assertion mode.
   function assert_idle_share_conservation() public view {
@@ -2255,6 +2385,7 @@ contract SharedVaultFuzzer {
       sum += idleVault.balanceOf(address(idlePlayers[i]));
     }
     assert(sum == idleVault.totalSupply());
+    _assertIdleSolvency();
   }
 
   function _assertMultiShareConservation() internal view {
@@ -2263,11 +2394,13 @@ contract SharedVaultFuzzer {
       sum += multiVault.balanceOf(address(multiPlayers[i]));
     }
     assert(sum == multiVault.totalSupply());
+    _assertMultiSolvency();
   }
 
   function _assertLpShareConservation() internal view {
     uint256 sum = lpVault.balanceOf(address(this)) + lpVault.balanceOf(address(lpPlayer));
     assert(sum == lpVault.totalSupply());
+    _assertLpSolvency();
   }
 
   function _assertPrecisionShareConservation() internal view {
@@ -2278,12 +2411,75 @@ contract SharedVaultFuzzer {
     uint256 sum = feeVault.balanceOf(address(this)) + feeVault.balanceOf(address(feePlayer))
       + feeVault.balanceOf(FEE_VAULT_OWNER);
     assert(sum == feeVault.totalSupply());
+    _assertFeeSolvency();
   }
 
   function _assertPositiveBacking(SharedVault v) internal view {
     if (v.totalSupply() == 0) return;
     uint256[4] memory totals = v.getTotalBalances();
     assert(totals[0] > 0 || totals[1] > 0 || totals[2] > 0 || totals[3] > 0);
+  }
+
+  /// @notice Aggregate SOLVENCY invariant (MED-2): the vault must be able to honor EVERY shareholder's
+  ///         previewWithdraw simultaneously — the sum of all holders' previewable amounts must never
+  ///         exceed the vault's total balances. This is strictly stronger than `_assertPositiveBacking`
+  ///         (which only checked "some token > 0"); a violation means the vault has promised out more
+  ///         value than it actually holds (true over-issuance / insolvency).
+  /// @dev    `previewWithdraw` is a close UPPER BOUND on the realizable per-holder amount: it floors once
+  ///         over (idle + spot-valued LP) and can exceed the per-position settled amount by a few wei per
+  ///         position (SharedVault W-7). A `getPositionCount() + 1` wei tolerance absorbs that documented
+  ///         rounding so it is not mistaken for insolvency; a genuine over-issuance would exceed totals by
+  ///         a balance-proportional margin, far beyond this tolerance. Vaults with no positions
+  ///         (idle / multi) therefore get an effectively-strict check.
+  function _assertSolvent(SharedVault v, address[] memory holders) internal view {
+    uint256 supply = v.totalSupply();
+    if (supply == 0) return;
+    uint256[4] memory totals = v.getTotalBalances();
+    uint256[4] memory owed;
+    for (uint256 h; h < holders.length; h++) {
+      uint256 bal = v.balanceOf(holders[h]);
+      if (bal == 0) continue;
+      uint256[4] memory pw = v.previewWithdraw(bal);
+      for (uint256 i; i < 4; i++) {
+        owed[i] += pw[i];
+      }
+    }
+    uint256 tol = v.getPositionCount() + 1;
+    for (uint256 i; i < 4; i++) {
+      assert(owed[i] <= totals[i] + tol);
+    }
+  }
+
+  function _assertIdleSolvency() internal view {
+    address[] memory hs = new address[](4);
+    hs[0] = address(this);
+    hs[1] = address(idlePlayers[0]);
+    hs[2] = address(idlePlayers[1]);
+    hs[3] = address(idlePlayers[2]);
+    _assertSolvent(idleVault, hs);
+  }
+
+  function _assertMultiSolvency() internal view {
+    address[] memory hs = new address[](3);
+    hs[0] = address(this);
+    hs[1] = address(multiPlayers[0]);
+    hs[2] = address(multiPlayers[1]);
+    _assertSolvent(multiVault, hs);
+  }
+
+  function _assertLpSolvency() internal view {
+    address[] memory hs = new address[](2);
+    hs[0] = address(this);
+    hs[1] = address(lpPlayer);
+    _assertSolvent(lpVault, hs);
+  }
+
+  function _assertFeeSolvency() internal view {
+    address[] memory hs = new address[](3);
+    hs[0] = address(this);
+    hs[1] = address(feePlayer);
+    hs[2] = FEE_VAULT_OWNER;
+    _assertSolvent(feeVault, hs);
   }
 
   function _sharesFromSeed(uint256 balance, uint256 seed) internal pure returns (uint256 shares) {

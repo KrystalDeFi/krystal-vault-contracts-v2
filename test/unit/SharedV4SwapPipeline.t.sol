@@ -95,6 +95,18 @@ contract SharedV4SwapPipelineHarness {
   ) external returns (uint256 total0, uint256 total1) {
     return SharedV4SwapPipeline.executeWithInputs(swapRouter, token0, token1, inputTokens, gasFeeX64, swapParams);
   }
+
+  function executeToDest(
+    address swapRouter,
+    address token0,
+    address token1,
+    uint256 amount0,
+    uint256 amount1,
+    address destToken,
+    ISharedV4Utils.SwapParams[] memory swapParams
+  ) external returns (uint256 total0, uint256 total1, uint256 destOut) {
+    return SharedV4SwapPipeline.executeToDest(swapRouter, token0, token1, amount0, amount1, destToken, swapParams);
+  }
 }
 
 contract SharedV4SwapPipelineTest is Test {
@@ -805,6 +817,172 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(tokenX.balanceOf(gasFeeRecipient), 2 ether, "25% input gas fee skimmed to the recipient");
     assertEq(total0, 6 ether, "post-fee remainder swapped into total0");
     assertEq(tokenX.balanceOf(address(harness)), 0, "post-fee remainder fully consumed");
+  }
+
+  // -------------------------------------------------------------------------
+  // executeToDest: the decrease-and-swap exit variant. A declared non-pool
+  // VAULT-token dest may receive terminal swap outputs; its remainder is exempt
+  // from the ledger's exact-zero rule and returned as destOut. Everything else
+  // keeps the strict pool-only / must-net-to-zero behavior.
+  // -------------------------------------------------------------------------
+
+  function test_executeToDest_terminalOutputToVaultDest_leavesRemainderAndReportsIt() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Dest", "DST");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenX.mint(address(router), 5 ether);
+
+    bytes memory hopData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(tokenX), uint256(5 ether)));
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenX), 4 ether, 5 ether, hopData)
+    });
+
+    (uint256 total0, uint256 total1, uint256 destOut) =
+      harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+
+    assertEq(total0, 6 ether, "token0 budget reduced by the hop");
+    assertEq(total1, 0, "token1 untouched");
+    assertEq(destOut, 5 ether, "terminal dest proceeds reported");
+    assertEq(tokenX.balanceOf(address(harness)), 5 ether, "dest proceeds stay with the vault");
+  }
+
+  /// @dev The dest may also chain: a later hop can consume part of it, and only the REMAINDER is
+  ///      tolerated/reported.
+  function test_executeToDest_destChainPartiallyConsumed_remainderTolerated() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Dest", "DST");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenX.mint(address(router), 5 ether);
+    token1.mint(address(router), 1 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(tokenX), uint256(5 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenX), address(token1), uint256(1 ether)));
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](2);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenX), 4 ether, 5 ether, hop0Data)
+    });
+    swaps[1] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 2 ether, // consumes part of the dest output; the 3 ether remainder is tolerated
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: _signedSwapData(address(tokenX), address(token1), 2 ether, 1 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1, uint256 destOut) =
+      harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+
+    assertEq(total0, 6 ether, "token0 budget reduced by hop 1");
+    assertEq(total1, 1 ether, "hop 2 output credited to total1");
+    assertEq(destOut, 3 ether, "only the unconsumed dest remainder reported");
+    assertEq(tokenX.balanceOf(address(harness)), 3 ether, "dest remainder stays with the vault");
+  }
+
+  /// @dev The dest exemption is for the dest ONLY: any other intermediate must still net to zero.
+  function test_executeToDest_otherIntermediateStillMustNetToZero() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Dest", "DST");
+    SharedV4SwapPipelineTestToken tokenY = new SharedV4SwapPipelineTestToken("Intermediate", "INT");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenY.mint(address(router), 5 ether);
+    token1.mint(address(router), 1 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(token0), address(tokenY), uint256(5 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapAll, (address(tokenY), address(token1), uint256(1 ether)));
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](2);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenY)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenY), 4 ether, 5 ether, hop0Data)
+    });
+    swaps[1] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenY)),
+      amountIn: 2 ether, // leaves 3 ether of the NON-dest intermediate stranded
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: _signedSwapData(address(tokenY), address(token1), 2 ether, 1 ether, hop1Data)
+    });
+
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+  }
+
+  /// @dev A dest outside the vault token list authorizes nothing — a terminal hop to it is still
+  ///      unreachable (and the reachability check fires before any signature/router work).
+  function test_executeToDest_nonVaultDest_terminalHopRejected() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Rogue", "RGE");
+    token0.mint(address(harness), 10 ether);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps);
+  }
+
+  /// @dev Zero dest keeps executeToDest byte-equivalent to execute: terminal non-pool outputs are
+  ///      rejected.
+  function test_executeToDest_zeroDest_behavesLikeExecute() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Stranded", "TKX");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(0), swaps);
+  }
+
+  /// @dev A pool-token dest grants no extra allowance (it is already a terminal sink via the
+  ///      totals); a terminal hop to some OTHER non-pool token still reverts.
+  function test_executeToDest_poolTokenDest_noSpecialAllowance() public {
+    SharedV4SwapPipelineTestToken tokenX = new SharedV4SwapPipelineTestToken("Stranded", "TKX");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 0,
+      swapData: hex"01" // never reached
+    });
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    harness.executeToDest(address(router), address(token0), address(token1), 10 ether, 0, address(token1), swaps);
   }
 
   function _signedSwapData(

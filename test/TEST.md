@@ -4,11 +4,16 @@
 
 Coverage lives in three layers; the checklist below this section is the legacy private-vault plan.
 
-* **Unit** (`test/unit/Shared*.t.sol`): core vault accounting (`SharedVault.t.sol`), gateway zaps
+* **Unit** (`test/unit/Shared*.t.sol`): core vault accounting (`SharedVault.t.sol`, incl. lifecycle-event
+  emissions — SetVaultAdmin / VaultPausedUpdated / VaultOwnerChanged — owner/admin/operator privilege
+  separation, and the fail-closed untrack guard when a still-owned position's valuation probe reverts),
+  gateway zaps
   (`SharedVaultGateway.t.sol`), factory/automator/config-manager, strategy swap paths and signed-amount
   guards for the V3/Aerodrome twins (`SharedV3StrategySwapPath.t.sol` / `SharedAerodromeStrategySwapPath.t.sol`
   — keep these mirrored, the strategies are forks), valuation fee-accrual parity across V3/Aerodrome/V4/Pancake
-  (`SharedStrategyFeeAccrual*.t.sol`), hook gates, swap-data signature binding (incl. chain-id replay),
+  (`SharedStrategyFeeAccrual*.t.sol`, incl. the proportional-exit decrease→collect principal flow:
+  params forwarded verbatim, principal never perf-fee'd, and the gas-only branch with its
+  zero-principal / zero-recipient skip guards), hook gates, swap-data signature binding (incl. chain-id replay),
   the V4 swap pipeline and its Pancake normalization twin (`SharedV4SwapPipeline.t.sol` /
   `SharedPancakeV4SwapPipeline.t.sol` — keep these mirrored too),
   the V4/Pancake depositProportional slippage floor (`SharedV4DepositProportional.t.sol` /

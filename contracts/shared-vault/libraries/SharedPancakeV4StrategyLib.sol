@@ -310,17 +310,20 @@ library SharedPancakeV4StrategyLib {
       amount0 += principal0;
       amount1 += principal1;
       // Decrease-and-exit leaves the returned token0/token1 totals idle in the vault (nothing is
-      // swept); they are read only to label the DecreaseAndSwap event. The pipeline still enforces
-      // full consumption of any non-pool intermediates through its virtual ledger.
-      (uint256 out0, uint256 out1) =
-        SharedV4SwapPipeline.executePancake(swapRouter, token0, token1, amount0, amount1, decParams.swapParams);
+      // swept). `swapDestToken`, when it names a non-pool VAULT token, additionally authorizes the
+      // hops to output to it terminally (V3/Aerodrome `_swapForWithdraw` targetToken parity); those
+      // proceeds also stay idle and are reported on the event via `destOut`. Every other non-pool
+      // intermediate must still net to zero through the pipeline ledger.
       address destToken = _vaultToken(decParams.swapDestToken);
+      (uint256 out0, uint256 out1, uint256 destOut) = SharedV4SwapPipeline.executePancakeToDest(
+        swapRouter, token0, token1, amount0, amount1, destToken, decParams.swapParams
+      );
       emit ISharedPancakeV4Utils.DecreaseAndSwap(
         posm,
         tokenId,
         decParams.decreaseParams.liquidity,
         decParams.swapDestToken,
-        destToken == token0 ? out0 : destToken == token1 ? out1 : 0
+        destToken == token0 ? out0 : destToken == token1 ? out1 : destOut
       );
     } else if (instructions.action == ISharedPancakeV4Utils.UtilActions.ADJUST_RANGE) {
       ISharedPancakeV4Utils.AdjustRangeParams memory adjustParams =

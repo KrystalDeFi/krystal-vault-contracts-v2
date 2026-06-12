@@ -353,8 +353,8 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     );
   }
 
-  /// @dev A swapDestToken that is not a pool token cannot be measured: `amount` reports 0 (and the
-  ///      action itself must not revert — the field is event-labeling only).
+  /// @dev A swapDestToken outside the vault token list earns no terminal-output allowance and
+  ///      nothing can flow into it, so `amount` reports 0 (and the action itself must not revert).
   function test_pancake_decreaseAndSwap_nonPoolDestToken_reportsZeroAmount() public {
     posm.setLiquidity(1_000_000);
     posm.stagePrincipal(3e18, 4e18);
