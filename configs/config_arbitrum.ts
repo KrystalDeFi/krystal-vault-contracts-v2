@@ -1,4 +1,4 @@
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   arbitrum_mainnet: {
@@ -43,6 +43,56 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     pancakeV3MasterChef: "0x5e09ACf80C0296740eC5d6F643005a4ef8DaA694",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
+  },
+};
+
+const SharedConfig: Record<string, IConfigShared> = {
+  arbitrum_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4SwapPipeline: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0xd88f38f930b7952f2db2432cb002e7abbf3dd869"],
   },
 };
 
@@ -144,5 +194,6 @@ export const ArbitrumConfig: Record<string, IConfig> = {
       "0xF0cBce1942A68BEB3d1b73F0dd86C8DCc363eF49",
     ],
     ...PrivateConfig.arbitrum_mainnet,
+    ...SharedConfig.arbitrum_mainnet,
   },
 };

@@ -1,0 +1,279 @@
+# Solidity API
+
+## SharedV4Strategy
+
+Uniswap V4 LP operations for SharedVault with token validation and position tracking
+
+### swapRouter
+
+```solidity
+address swapRouter
+```
+
+### OperationType
+
+```solidity
+enum OperationType {
+  EXECUTE,
+  EXECUTE_INSTRUCTIONS
+}
+```
+
+### constructor
+
+```solidity
+constructor(address _swapRouter) public
+```
+
+### execute
+
+```solidity
+function execute(bytes data) external payable returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+Execute an LP operation. Called via delegatecall from SharedVault.
+
+_Strategy MUST validate that pool tokens are vault tokens.
+     Since this runs via delegatecall, address(this) is the vault._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| data | bytes | ABI-encoded operation (strategy-specific). V3-style shared strategies (`SharedV3Strategy`,        `SharedAerodromeStrategy`) use `IV3Utils`-compatible structs but execute natively in the strategy.        `SharedV4Strategy` and `SharedPancakeV4Strategy` accept protocol-specific V4Utils-compatible        instructions and execute them natively through the relevant PositionManager. Utility fee fields remain        API-controlled; platform and owner fees are read from shared-vault config and vault state. |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| changes | struct ISharedStrategy.PositionChange[] | Array of position changes (added/removed) |
+
+### _execute
+
+```solidity
+function _execute(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+_`approveTokens` / `approveAmounts` are kept for ABI backward-compatibility but are NOT
+     used for ERC20 approvals. Approvals are issued per-hop inside `SharedV4SwapPipeline._swap`
+     against the immutable `swapRouter` (and to the POSM via Permit2 in `SharedV4StrategyLib`).
+     `approveTokens` is still walked by `_validateApprovalList` to enforce that EVERY entry
+     references a vault-tracked token (including zero-amount entries), preventing operators
+     from listing unrelated tokens through this entry point._
+
+### _executeInstructions
+
+```solidity
+function _executeInstructions(bytes data) internal returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+_Executes the encoded instruction bytes inline against the position; despite the
+     historical name `SAFE_TRANSFER_NFT`, the NFT itself is never transferred — the strategy
+     operates on the position in-place via the shared lib._
+
+### depositProportional
+
+```solidity
+function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
+```
+
+Add a proportional share of tokens to an existing LP position during vault deposit.
+
+_Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the exact
+     amounts required for the computed liquidity through Permit2. Any amount not needed for
+     the current pool/range ratio stays idle in the vault. Permit2 approval is set inline.
+     Slippage is enforced via a per-token consumed-amount floor (NOT a liquidity comparison):
+     the lib quotes `(expected0, expected1) = getAmountsForLiquidity(...)` for the computed
+     liquidity at the pre-call sqrtPrice, measures the amounts ACTUALLY consumed via balance
+     deltas, and reverts unless `used0 >= expected0 * (1 - slippageBps/10000)` and likewise for
+     token1. Quoting the floor from `getAmountsForLiquidity` (not the raw supplied amounts) lets
+     single-sided / out-of-range adds pass without spurious reverts. NOTE: adding CL liquidity
+     does not move the spot price, so within one tx `used == expected`; this floor catches a
+     misbehaving position manager but cannot by itself defeat a CROSS-transaction sandwich —
+     callers must pass a conservative `slippageBps` and derive the deposit ratio externally._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| amount0 | uint256 | Max amount of token0 to add |
+| amount1 | uint256 | Max amount of token1 to add |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
+
+### collectFees
+
+```solidity
+function collectFees(address posm, uint256 tokenId, uint16) external
+```
+
+Collect accumulated LP fees into vault idle balance and settle performance/platform fees.
+
+_Collects accumulated fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR — a zero-liquidity
+     decrease syncs fee growth without touching principal; TAKE_PAIR sweeps accumulated fees
+     to the vault (address(this) in delegatecall context). Performance and platform fees are
+     then applied inline since V4Strategy has no dedicated lpFeeTaker.
+     Native-currency pool amounts are accounted against the vault's configured WETH token._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+|  | uint16 |  |
+
+### exitProportional
+
+```solidity
+function exitProportional(address posm, uint256 tokenId, uint256 shares, uint256 totalShares, uint256 minAmount0, uint256 minAmount1, uint16) external returns (struct ISharedStrategy.PositionChange[] changes)
+```
+
+Exit a proportional share of an LP position during vault withdrawal.
+
+_Withdraw exits collect generated LP fees through collectFees() before the vault's idle snapshot.
+     This function only decreases principal natively and never charges platform/owner fees on principal._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+| shares | uint256 | Withdrawer's share count |
+| totalShares | uint256 | Total vault share supply (snapshot before burn) |
+| minAmount0 | uint256 | Minimum token0 to receive (slippage guard) |
+| minAmount1 | uint256 | Minimum token1 to receive (slippage guard) |
+|  | uint16 |  |
+
+### getPositionAmounts
+
+```solidity
+function getPositionAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
+```
+
+Get token amounts for a tracked LP position (liquidity + uncollected fees)
+
+_Values principal liquidity via `LiquidityAmounts` and current `sqrtPrice` from the v4 PoolManager,
+     and uncollected fees via the same `StateLibrary` + fee-growth pattern as v4utils tests (FeeMath).
+     Same external-call pattern as `SharedV3Strategy` / Aerodrome / Pancake `getPositionAmounts`:
+     no POSM whitelist here; POSM allowlist is enforced on delegatecall paths and when the vault tracks positions._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | Amount of token0 in the position |
+| amount1 | uint256 | Amount of token1 in the position |
+
+### getPositionTokens
+
+```solidity
+function getPositionTokens(address posm, uint256 tokenId) external view returns (address token0, address token1)
+```
+
+Return the canonical token pair for an LP position as recorded on-chain by the NFPM/POSM.
+
+_Native-currency positions require a vault call context so `address(0)` can be mapped
+     to that vault's configured WETH. Direct strategy calls without vault context revert
+     instead of returning `address(0)` as a misleading token address.
+     Also enforces the no-liquidity-hook invariant: reverts with `UnsupportedLiquidityHook` if the
+     pool registers an add/remove-liquidity hook. SharedVault calls `getPositionTokens` on EVERY
+     position-tracking entry (`_applyPositionChanges` and `recoverPosition`, both before
+     `_addPosition`), so hosting the check here re-enforces the gate on recover / CALL_WITH_POSITIONS
+     — not only the strategy mint path — reusing the `poolKey` already read here (no extra call)._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| token0 | address | Canonical pool token0 address |
+| token1 | address | Canonical pool token1 address |
+
+### getPositionPrincipalAmounts
+
+```solidity
+function getPositionPrincipalAmounts(address posm, uint256 tokenId) external view returns (uint256 amount0, uint256 amount1)
+```
+
+Get *principal-only* token amounts for a tracked LP position, excluding uncollected fees/rewards.
+
+_Returns the token amounts computed purely from the position's in-range liquidity at the current price.
+     This is the correct ratio for topping up an existing position via `increaseLiquidity` — uncollected
+     fees live in the NFPM as `tokensOwed*` and accrue in a ratio set by historical swap flow, NOT by
+     the current price range. Mixing them into the top-up desired amounts would make the
+     `amount0Desired : amount1Desired` ratio diverge from the range, so `increaseLiquidity` would either
+     (a) consume far less on the "off-ratio" side, leaving dust idle, or
+     (b) revert the slippage check when `amount*Min > 0` because the actually consumed amount on the
+         binding side falls below the `amount*Min` derived from the desired value.
+     SharedVault uses this function (not `getPositionAmounts`) when scaling per-depositor top-ups.
+     Uncollected fees are treated as idle-like value for share pricing, but only net of platform and
+     vault-owner performance fees; `getPositionAmounts` remains the gross position-value view.
+
+     Strategies that cannot meaningfully increase liquidity (e.g. staked / locked positions whose
+     `depositProportional` returns silently) MAY return (0, 0); the caller skips the LP top-up and
+     leaves tokens as idle._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| amount0 | uint256 | Principal-only amount of token0 (excludes uncollected fees/rewards) |
+| amount1 | uint256 | Principal-only amount of token1 (excludes uncollected fees/rewards) |
+
+### getPositionAmountsSplit
+
+```solidity
+function getPositionAmountsSplit(address posm, uint256 tokenId) external view returns (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1)
+```
+
+Get gross and principal-only token amounts for a tracked LP position in one valuation pass.
+
+_`total*` includes principal plus uncollected fees/rewards. `principal*` excludes uncollected
+     fees/rewards. Callers that need both values should use this function instead of calling
+     `getPositionAmounts` and `getPositionPrincipalAmounts` separately._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| posm | address |  |
+| tokenId | uint256 | Position NFT ID |
+
+#### Return Values
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| total0 | uint256 | Gross token0 amount in the position |
+| total1 | uint256 | Gross token1 amount in the position |
+| principal0 | uint256 | Principal-only token0 amount |
+| principal1 | uint256 | Principal-only token1 amount |
+
+### _validateVaultToken
+
+```solidity
+function _validateVaultToken(address token) internal view
+```
+

@@ -13,6 +13,7 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
+import { StructHash as LpUniV3StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 // Mock strategy contract for testing
@@ -129,6 +130,35 @@ contract MockERC1155 {
   function isApprovedForAll(address, address) external pure returns (bool) {
     return false;
   }
+}
+
+// Mock EIP-1271 multisig wallet — validates ECDSA signatures from a set of approved signers
+contract MockMultisig {
+  bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
+  mapping(address => bool) public isSigner;
+
+  constructor(address _signer) {
+    isSigner[_signer] = true;
+  }
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4) {
+    (uint8 v, bytes32 r, bytes32 s) = _decodeSignature(signature);
+    address recovered = ecrecover(hash, v, r, s);
+    if (isSigner[recovered]) return EIP1271_MAGIC;
+    return bytes4(0xffffffff);
+  }
+
+  function _decodeSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+    require(sig.length == 65, "invalid sig length");
+    assembly {
+      r := mload(add(sig, 32))
+      s := mload(add(sig, 64))
+      v := byte(0, mload(add(sig, 96)))
+    }
+  }
+
+  fallback() external payable {}
+  receive() external payable {}
 }
 
 // Helper contract to expose EIP712 methods for testing
@@ -630,7 +660,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(signature));
+    assertTrue(automator.isOrderCancelled(orderHash));
   }
 
   function test_cancelOrder_success() public {
@@ -646,7 +676,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(signature));
+    assertTrue(automator.isOrderCancelled(orderHash));
   }
 
   function test_cancelOrder_fail_invalidSignature() public {
@@ -676,10 +706,9 @@ contract PrivateVaultAutomatorTest is TestCommon {
   function test_isOrderCancelled_notCancelled() public view {
     // Create automation order
     bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
-    bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
-    // Verify order is not cancelled
-    assertFalse(automator.isOrderCancelled(signature));
+    // Verify order is not cancelled (check by hash, not signature bytes)
+    assertFalse(automator.isOrderCancelled(orderHash));
   }
 
   function test_isOrderCancelled_cancelled() public {
@@ -693,16 +722,16 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(signature));
+    assertTrue(automator.isOrderCancelled(orderHash));
   }
 
   function test_isOrderCancelled_eip712_notCancelled() public view {
     // Test EIP712 isOrderCancelled when not cancelled
     bytes memory abiEncodedOrder = _createEip712Order(address(mockStrategy), 1, block.timestamp + 3600);
-    bytes memory signature = _signEip712Order(abiEncodedOrder, VAULT_OWNER_PRIVATE_KEY);
+    bytes32 orderHash = keccak256(abiEncodedOrder);
 
-    // Verify order is not cancelled
-    assertFalse(automator.isOrderCancelled(signature));
+    // Verify order is not cancelled (check by hash)
+    assertFalse(automator.isOrderCancelled(orderHash));
   }
 
   function test_isOrderCancelled_eip712_cancelled() public {
@@ -719,7 +748,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(signature));
+    assertTrue(automator.isOrderCancelled(orderHash));
   }
 
   // ============ ROLE MANAGEMENT TESTS ============
@@ -934,7 +963,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // 2. Verify order is not cancelled
-    assertFalse(automator.isOrderCancelled(signature));
+    assertFalse(automator.isOrderCancelled(orderHash));
 
     // 3. Operator executes multicall
     (
@@ -960,7 +989,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // 6. Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(signature));
+    assertTrue(automator.isOrderCancelled(orderHash));
 
     // 7. Try to execute again - should fail
     vm.startPrank(OPERATOR);
@@ -1190,4 +1219,87 @@ contract PrivateVaultAutomatorTest is TestCommon {
   // so it cannot receive ERC721/ERC1155 tokens. Sweep tests for these token types
   // are skipped for this contract. The sweep functions are still available
   // in case tokens are sent via other means, but we cannot test them here.
+
+  // ============ Multisig (EIP-1271) vault owner tests ============
+
+  /// @dev Deploy a fresh PrivateVault owned by a multisig contract, reusing the existing config/automator.
+  function _deployMultisigVault() internal returns (PrivateVault msVault, MockMultisig multisig) {
+    multisig = new MockMultisig(VAULT_OWNER);
+    msVault = new PrivateVault();
+    msVault.initialize(address(multisig), address(configManager), "Multisig Vault");
+  }
+
+  function test_multisig_executeWithAgentAllowance_success() public {
+    (PrivateVault msVault, MockMultisig multisig) = _deployMultisigVault();
+
+    // Vault owner is the multisig contract, not an EOA
+    assertEq(msVault.vaultOwner(), address(multisig));
+    assertTrue(address(multisig).code.length > 0);
+
+    // Build and sign AgentAllowance — signed by the EOA that the multisig trusts
+    (bytes memory abiEncodedAllowance, bytes32 hash) = _createAutomationAgentAllowance(address(msVault));
+    bytes memory signature = _signMessage(hash, VAULT_OWNER_PRIVATE_KEY);
+
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
+    targets[0] = address(mockStrategy);
+
+    // Should succeed — SignatureChecker delegates to multisig.isValidSignature
+    vm.startPrank(OPERATOR);
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(msVault)), targets, callValues, data, callTypes, abiEncodedAllowance, signature
+    );
+    vm.stopPrank();
+
+    assertEq(mockStrategy.getValue(), 42);
+  }
+
+  function test_multisig_executeWithUserOrder_success() public {
+    (PrivateVault msVault,) = _deployMultisigVault();
+
+    // Build a properly-encoded LpUniV3StructHash.Order and sign with the trusted EOA key
+    LpUniV3StructHash.Order memory emptyOrder;
+    bytes memory encodedOrder = abi.encode(emptyOrder);
+    bytes32 structHash = LpUniV3StructHash._hash(emptyOrder);
+    bytes32 digest = automator.hashTypedDataV4(structHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_PRIVATE_KEY, digest);
+    bytes memory signature = abi.encodePacked(r, s, v);
+
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
+    targets[0] = address(mockStrategy);
+
+    vm.startPrank(OPERATOR);
+    automator.executeMulticallWithUserOrder(
+      IPrivateVault(address(msVault)), targets, callValues, data, callTypes, encodedOrder, signature
+    );
+    vm.stopPrank();
+
+    assertEq(mockStrategy.getValue(), 42);
+  }
+
+  function test_multisig_cancelOrder_success() public {
+    (, MockMultisig multisig) = _deployMultisigVault();
+
+    // Create a hash and sign with the EOA key that the multisig trusts
+    bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
+    bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
+
+    assertFalse(automator.isOrderCancelled(orderHash));
+
+    // Cancel as the multisig — SignatureChecker.isValidSignatureNow(multisig, hash, sig)
+    // delegates to multisig.isValidSignature, which validates the EOA signature internally
+    vm.prank(address(multisig));
+    automator.cancelOrder(orderHash, signature);
+
+    assertTrue(automator.isOrderCancelled(orderHash));
+  }
 }

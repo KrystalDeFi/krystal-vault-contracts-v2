@@ -1,0 +1,28 @@
+{
+  "base_mainnet": {
+    "sharedConfigManager": "0xf57eeda3acbd359c4891a5c8624c1dab7dd07d98",
+    "sharedSwapDataSignatureLib": "0xd9d9b2516c90ca970c84ac3a8e522a074c7bc4bc",
+    "sharedVaultPreviewLib": "0x3f7fda5f68490b73a22345b5377bd54fab0908a7",
+    "sharedV4SwapPipeline": "0x6f126b2faa4546b8c41abd312e5ded9c2f416e98",
+    "sharedVault": "0xf1280206da1660eee11dd09c14f3eca87d8460e8",
+    "sharedVaultFactory": "0xe54796135c9ff66a487761dfec6921e152a8201e",
+    "sharedV3Strategy": "0x276e44d4f19de5ca38eed269c28bbd6f4a729bbd",
+    "sharedV3StrategyBeacon": "0x5adf766e84666e7a64b79280942f8244e67a906d",
+    "sharedV3StrategyProxy": "0x9579dd933a00c8813bb2eadcb87c8536282b8058",
+    "sharedV4ValuationLib": "0xb8d6d67419cde5d9811847dcdfd9370dd2f1af92",
+    "sharedV4StrategyLib": "0x8c844387ba3bfebe75b21e11a4aa5fdd724b8e1b",
+    "sharedV4Strategy": "0xf1460c32a46ff650c38f968ae9995f41f81fa02e",
+    "sharedV4StrategyBeacon": "0x9f48a1137157d9298bf292db76739b6bb9fb24f7",
+    "sharedV4StrategyProxy": "0x0dd00b899d3dc371cf48b87c05ae026f95003ce5",
+    "sharedPancakeV4ValuationLib": "0xa07c60f7e569071e41fc13b9ac4dc8f2303ad001",
+    "sharedPancakeV4StrategyLib": "0xc3373889f5ac8a2d8cd01ac2e82b974e83fc37fe",
+    "sharedPancakeV4Strategy": "0x288e945e66e184c3f56b3b330ddef03dd98084a6",
+    "sharedPancakeV4StrategyBeacon": "0x8908dae37a83e0e0c757548dad13e6fbdfdc6f34",
+    "sharedPancakeV4StrategyProxy": "0x5ef507c9db13b10b4cd987db0b787372806d8d3e",
+    "sharedAerodromeStrategy": "0x814d57a924da1acf0d32017767087d5c782f2112",
+    "sharedAerodromeBeacon": "0x3b01ccde2dd2932075cabb260e3b45f9257bb3ec",
+    "sharedAerodromeProxy": "0xab1f83c2c31af6ae3d3f610a684c1d5a13e4ea70",
+    "sharedVaultAutomator": "0x0529c7316b40aa183d684a485cdc460f0610aef7",
+    "sharedVaultGateway": "0xb3087802480ee65eb1237af3e413bdf00b7e6e94"
+  }
+}

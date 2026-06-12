@@ -74,7 +74,70 @@ export interface IConfigAerodrome {
   aerodromeGaugeFactories?: AddressLike[];
 }
 
-export interface IConfig extends IConfigPrivate, IConfigAerodrome {
+export interface IConfigShared {
+  sharedSwapDataSignatureLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVaultPreviewLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedV4SwapPipeline?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVault?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVaultFactory?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedConfigManager?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVaultAutomator?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedVaultGateway?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+    /** Aggregator / router the gateway calls for swap calldata; defaults to `swapRouters[0]` on the network. */
+    swapRouter?: AddressLike;
+  };
+  sharedV3Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedV4StrategyLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedV4Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedPancakeV4StrategyLib?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedPancakeV4Strategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  sharedAerodromeStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
+  v4NfpmAddresses?: AddressLike[];
+  pancakeV4NfpmAddresses?: AddressLike[];
+}
+
+export interface IConfig extends IConfigPrivate, IConfigAerodrome, IConfigShared {
   autoVerifyContract?: boolean;
   sleepTime?: number;
   vault: {

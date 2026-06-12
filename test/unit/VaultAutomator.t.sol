@@ -118,6 +118,52 @@ contract MockERC1155 {
   }
 }
 
+// Mock EIP-1271 multisig wallet — validates ECDSA signatures from a set of approved signers
+contract MockMultisig {
+  bytes4 internal constant EIP1271_MAGIC = 0x1626ba7e;
+  mapping(address => bool) public isSigner;
+
+  constructor(address _signer) {
+    isSigner[_signer] = true;
+  }
+
+  function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4) {
+    (uint8 v, bytes32 r, bytes32 s) = _decodeSignature(signature);
+    address recovered = ecrecover(hash, v, r, s);
+    if (isSigner[recovered]) return EIP1271_MAGIC;
+    return bytes4(0xffffffff);
+  }
+
+  function _decodeSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+    require(sig.length == 65, "invalid sig length");
+    assembly {
+      r := mload(add(sig, 32))
+      s := mload(add(sig, 64))
+      v := byte(0, mload(add(sig, 96)))
+    }
+  }
+
+  fallback() external payable {}
+  receive() external payable {}
+}
+
+// Minimal vault stub that returns a custom vaultOwner — used to test multisig signature validation
+// without needing a fully initialised vault or factory interaction.
+contract MockPublicVaultForMultisig {
+  address private _vaultOwner;
+
+  constructor(address owner) {
+    _vaultOwner = owner;
+  }
+
+  function vaultOwner() external view returns (address) {
+    return _vaultOwner;
+  }
+
+  fallback() external payable {}
+  receive() external payable {}
+}
+
 contract VaultAutomatorTest is TestCommon {
   LpUniV3StructHash.Order emptyUserConfig;
 
@@ -507,5 +553,61 @@ contract VaultAutomatorTest is TestCommon {
     vm.prank(USER);
     vm.expectRevert("ZeroAddress");
     vaultAutomatorLpStrategy.sweepERC1155(tokens, tokenIds, amounts);
+  }
+
+  // ============ Multisig (EIP-1271) vault owner tests ============
+
+  /// @dev cancelOrder passes msg.sender directly to SignatureChecker, so calling as the multisig
+  ///      contract proves EIP-1271 validation works without needing a vault.
+  function test_multisig_cancelOrder_success() public {
+    vm.stopBroadcast();
+
+    (address eoa, uint256 eoaKey) = makeAddrAndKey("multisigSigner");
+    MockMultisig multisig = new MockMultisig(eoa);
+
+    // Build a valid LpUniV3StructHash.Order and sign with the EOA that the multisig trusts
+    LpUniV3StructHash.Order memory emptyOrder;
+    bytes memory encoded = abi.encode(emptyOrder);
+    bytes32 digest = vaultAutomatorLpStrategy.hashTypedDataV4(LpUniV3StructHash._hash(emptyOrder));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(eoaKey, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    assertFalse(vaultAutomatorLpStrategy.isOrderCancelled(digest));
+
+    // Cancel as the multisig — SignatureChecker delegates to multisig.isValidSignature
+    vm.prank(address(multisig));
+    vaultAutomatorLpStrategy.cancelOrder(encoded, sig);
+
+    assertTrue(vaultAutomatorLpStrategy.isOrderCancelled(digest));
+  }
+
+  /// @dev executeAllocate reads vault.vaultOwner() to identify who must sign.
+  ///      The mock vault returns a multisig; the call fails at InvalidInstructionType
+  ///      (after signature validation passes), proving the multisig check succeeded.
+  function test_multisig_executeAllocate_signatureValidates() public {
+    vm.stopBroadcast();
+
+    (address eoa, uint256 eoaKey) = makeAddrAndKey("multisigSigner2");
+    MockMultisig multisig = new MockMultisig(eoa);
+    MockPublicVaultForMultisig mockVault = new MockPublicVaultForMultisig(address(multisig));
+
+    // Sign with the EOA key trusted by the multisig
+    LpUniV3StructHash.Order memory emptyOrder;
+    bytes memory encoded = abi.encode(emptyOrder);
+    bytes32 digest = vaultAutomatorLpStrategy.hashTypedDataV4(LpUniV3StructHash._hash(emptyOrder));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(eoaKey, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    AssetLib.Asset[] memory assets = new AssetLib.Asset[](0);
+
+    // An unrecognised instruction type triggers InvalidInstructionType — which comes after
+    // the signature check. If the signature were invalid we'd see InvalidSignature instead.
+    ICommon.Instruction memory instruction = ICommon.Instruction({ instructionType: 0xff, params: "" });
+
+    vm.prank(USER);
+    vm.expectRevert(ICommon.InvalidInstructionType.selector);
+    vaultAutomatorLpStrategy.executeAllocate(
+      IVault(address(mockVault)), assets, lpStrategy, 0, abi.encode(instruction), encoded, sig
+    );
   }
 }

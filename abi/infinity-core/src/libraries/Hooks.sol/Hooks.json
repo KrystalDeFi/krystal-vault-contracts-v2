@@ -1,0 +1,27 @@
+[
+  {
+    "inputs": [],
+    "name": "HookCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "HookConfigValidationError",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "HookDeltaExceedsSwapAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "HookPermissionsValidationError",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidHookResponse",
+    "type": "error"
+  }
+]
