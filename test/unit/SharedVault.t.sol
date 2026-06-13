@@ -971,6 +971,11 @@ contract MockPancakeV4PositionManager {
   mapping(uint256 => PancakeV4PoolKey) private _poolKey;
   mapping(uint256 => uint256) private _collectAmount0;
   mapping(uint256 => uint256) private _collectAmount1;
+  // Optional stray-mint injection: when set, modifyLiquidities mints `_mintOnModify` to
+  // `_mintOnModifyTo` (mirrors MockV4PositionManager.setModifyLiquiditiesMint — drives the Pancake
+  // twin of the issue6b unexpected-mint-with-live-position fail-closed test).
+  uint256 private _mintOnModify;
+  address private _mintOnModifyTo;
 
   constructor(uint256 startNextId) {
     _nextTokenId = startNextId;
@@ -1005,6 +1010,20 @@ contract MockPancakeV4PositionManager {
     });
   }
 
+  /// @dev Override the CL hook-registration bitmap so the no-liquidity-hook gate in
+  ///      getPositionTokens can be exercised (Pancake encodes hook permissions in `parameters`,
+  ///      not the hook address — offsets 2/3 add, 4/5 remove). Call after setPoolInfo.
+  function setParameters(uint256 tokenId, bytes32 params) external {
+    _poolKey[tokenId].parameters = params;
+  }
+
+  /// @dev When set, the next modifyLiquidities mints tokenId=mintId to mintTo (simulating the POSM
+  ///      minting an unexpected vault-owned NFT during a COMPOUND/instruction op).
+  function setModifyLiquiditiesMint(uint256 mintId, address mintTo) external {
+    _mintOnModify = mintId;
+    _mintOnModifyTo = mintTo;
+  }
+
   function setCollectFees(uint256 tokenId, uint256 amount0, uint256 amount1) external {
     _collectAmount0[tokenId] = amount0;
     _collectAmount1[tokenId] = amount1;
@@ -1033,6 +1052,13 @@ contract MockPancakeV4PositionManager {
 
   function modifyLiquidities(bytes calldata data, uint256) external payable {
     (bytes memory actions, bytes[] memory params) = abi.decode(data, (bytes, bytes[]));
+
+    if (_mintOnModifyTo != address(0)) {
+      ownerOf[_mintOnModify] = _mintOnModifyTo;
+      if (_nextTokenId <= _mintOnModify) _nextTokenId = _mintOnModify + 1;
+      _mintOnModifyTo = address(0);
+    }
+
     uint8 action = uint8(actions[0]);
     uint256 tokenId;
 
@@ -1090,6 +1116,72 @@ contract MockPancakeV4PositionManager {
 
   function _positionInfo(int24 tickLower, int24 tickUpper) private pure returns (PancakeV4PositionInfo) {
     return PancakeV4PositionInfo.wrap((uint256(uint24(tickLower)) << 8) | (uint256(uint24(tickUpper)) << 32));
+  }
+}
+
+/// @dev Strategy/target whose execute() reverts with EMPTY return data (bare `revert()`), used to
+///      exercise SharedVault.execute's `result.length == 0 => revert StrategyCallFailed()` arm on
+///      both the DELEGATECALL (line 713) and CALL_WITH_POSITIONS (line 749) branches. All other
+///      tested strategy reverts in execute carry non-empty data (bubbled verbatim via assembly).
+contract MockEmptyRevertStrategy is MockSharedStrategySplitFallback {
+  function execute(bytes calldata) external payable override returns (PositionChange[] memory) {
+    revert(); // empty returndata — distinct from `revert("msg")` / `revert CustomError()`
+  }
+
+  function exitProportional(address, uint256, uint256, uint256, uint256, uint256, uint16)
+    external
+    pure
+    override
+    returns (PositionChange[] memory changes)
+  {
+    changes = new PositionChange[](0);
+  }
+
+  function getPositionAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionPrincipalAmounts(address, uint256) external pure override returns (uint256, uint256) {
+    return (0, 0);
+  }
+
+  function getPositionTokens(address, uint256) external pure override returns (address, address) {
+    return (address(0), address(0));
+  }
+
+  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+
+  function collectFees(address, uint256, uint16) external override { }
+}
+
+/// @dev Pancake CL pool manager whose getSlot0 reports sqrtPriceX96 == 0 (uninitialized pool).
+///      Twin of MockV4ZeroPricePoolManager for the Pancake mint price-guard test.
+contract MockPancakeV4ZeroPricePoolManager {
+  function getSlot0(bytes32)
+    external
+    pure
+    returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)
+  {
+    return (0, 0, 0, 0);
+  }
+}
+
+/// @dev Pancake POSM stub backed by an uninitialized pool; implements only what runs before the
+///      `sqrtPriceX96 != 0` guard in SharedPancakeV4StrategyLib._mintV4WithAmounts: the nextTokenId
+///      snapshot and the clPoolManager pin (F19). Twin of MockV4ZeroPricePositionManager.
+contract MockPancakeV4ZeroPricePositionManager {
+  MockPancakeV4ZeroPricePoolManager public immutable poolManager;
+
+  constructor() {
+    poolManager = new MockPancakeV4ZeroPricePoolManager();
+  }
+
+  function nextTokenId() external pure returns (uint256) {
+    return 100;
+  }
+
+  function clPoolManager() external view returns (address) {
+    return address(poolManager);
   }
 }
 
@@ -5547,6 +5639,69 @@ contract SharedVaultTest is TestCommon {
     v.execute(actions);
   }
 
+  /// @notice Pancake twin of test_v4_execute_swapAndMint_revertsWhenPoolPriceUninitialized: minting
+  ///         into a pool whose getSlot0 reports sqrtPriceX96 == 0 must revert (the price guard in
+  ///         SharedPancakeV4StrategyLib._mintV4WithAmounts:506). poolKey.poolManager is pinned to
+  ///         posm.clPoolManager() so the F19 manager check passes and the price read is reached.
+  function test_pancake_v4_execute_swapAndMint_revertsWhenPoolPriceUninitialized() public {
+    MockPancakeV4ZeroPricePositionManager posm = new MockPancakeV4ZeroPricePositionManager();
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+
+    SharedConfigManager cm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = address(posm);
+    cm.initialize(address(this), targets, new address[](0), address(this), 0, nfpms, new address[](0), new address[](0));
+
+    SharedVault v = new SharedVault();
+    tokenA.mint(address(v), 10e18);
+    tokenB.mint(address(v), 10e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(10e18), uint256(10e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    v.initialize("PancakeV4ZeroPrice", vtokens, initAmounts, VAULT_OWNER, OPERATOR, address(cm), address(0), 0);
+
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(tokenA)),
+      currency1: PancakeCurrency.wrap(address(tokenB)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(posm.clPoolManager()), // pinned → passes F19, reaches price read
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16)
+    });
+
+    IPancakeV4Utils.InputTokenParams[] memory inputTokens = new IPancakeV4Utils.InputTokenParams[](2);
+    inputTokens[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenA)), amount: 1e18 });
+    inputTokens[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(tokenB)), amount: 1e18 });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: address(posm),
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: -60, tickUpper: 60, minLiquidity: 1, hookData: "", deadline: block.timestamp
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputTokens,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory params = abi.encodeWithSelector(IPancakeV4Utils.swapAndMint.selector, mintParams);
+    bytes memory innerData =
+      abi.encode(address(posm), uint256(0), params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
+    v.execute(actions);
+  }
+
   function test_pancake_v4_execute_swapAndMint_nativeCurrency_usesWethVaultTokenAndTracksPosition() public {
     MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
     SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
@@ -7257,6 +7412,41 @@ contract SharedVaultTest is TestCommon {
     vault.recoverPosition(address(hookNfpm), tokenId, address(hookStrat), address(tokenA), address(tokenB));
   }
 
+  /// @notice execute (DELEGATECALL) must normalize an empty-revert from a whitelisted strategy into
+  ///         StrategyCallFailed() (SharedVault.sol:712-713). All other tested strategy reverts in
+  ///         execute carry non-empty data (bubbled verbatim); this pins the empty-data arm.
+  function test_execute_delegatecall_emptyRevert_surfacesStrategyCallFailed() public {
+    MockEmptyRevertStrategy emptyRevert = new MockEmptyRevertStrategy();
+    address[] memory tg = new address[](1);
+    tg[0] = address(emptyRevert);
+    configManager.setWhitelistTargets(tg, true);
+
+    bytes memory execData = abi.encode(uint256(0)); // ignored — the strategy bare-reverts
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(emptyRevert), execData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.StrategyCallFailed.selector);
+    vault.execute(actions);
+  }
+
+  /// @notice execute (CALL_WITH_POSITIONS) must normalize an empty-revert from a whitelisted target
+  ///         into StrategyCallFailed() (SharedVault.sol:748-749) — the empty-data twin of the
+  ///         DELEGATECALL arm above.
+  function test_execute_callWithPositions_emptyRevert_surfacesStrategyCallFailed() public {
+    MockEmptyRevertStrategy emptyRevert = new MockEmptyRevertStrategy();
+    address[] memory tg = new address[](1);
+    tg[0] = address(emptyRevert);
+    configManager.setWhitelistTargets(tg, true);
+
+    bytes memory empty;
+    bytes memory callData = abi.encodeCall(ISharedStrategy.execute, (empty));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(emptyRevert), callData, ISharedCommon.CallType.CALL_WITH_POSITIONS);
+    vm.prank(VAULT_OWNER);
+    vm.expectRevert(ISharedCommon.StrategyCallFailed.selector);
+    vault.execute(actions);
+  }
+
   function test_v4_getPositionTokens_rejectsAddLiquidityHookPool() public {
     SharedV4Strategy v4strat = new SharedV4Strategy(address(new MockV4UtilsRouter()));
     MockV4PositionManager posm = new MockV4PositionManager(2);
@@ -7276,6 +7466,34 @@ contract SharedVaultTest is TestCommon {
     posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
     // No hook (address(0)) → returns the pool's vault-token pair without reverting.
     (address t0, address t1) = v4strat.getPositionTokens(address(posm), tokenId);
+    assertEq(t0, address(tokenA));
+    assertEq(t1, address(tokenB));
+  }
+
+  /// @notice Pancake twin of test_v4_getPositionTokens_rejectsAddLiquidityHookPool: the
+  ///         no-liquidity-hook gate is hosted in SharedPancakeV4Strategy.getPositionTokens (the
+  ///         staticcall every tracking entry makes), reading CL hook bits from poolKey.parameters
+  ///         (not the hook address as in V4). Without this, a regression on the Pancake fork would
+  ///         go uncaught while the byte-identical V4 wiring stays tested.
+  function test_pancake_v4_getPositionTokens_rejectsAddLiquidityHookPool() public {
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    // CL after-add-liquidity registration bit (infinity-core ICLHooks offset 3).
+    posm.setParameters(tokenId, bytes32(uint256(1) << 3));
+    vm.expectRevert(ISharedCommon.UnsupportedLiquidityHook.selector);
+    pancakeStrat.getPositionTokens(address(posm), tokenId);
+  }
+
+  /// @notice Pancake twin of test_v4_getPositionTokens_allowsHooklessPool: a pool with no
+  ///         add/remove-liquidity hook bits returns its vault-token pair without reverting.
+  function test_pancake_v4_getPositionTokens_allowsHooklessPool() public {
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(2);
+    uint256 tokenId = 1;
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB)); // default parameters: only tickSpacing
+    (address t0, address t1) = pancakeStrat.getPositionTokens(address(posm), tokenId);
     assertEq(t0, address(tokenA));
     assertEq(t1, address(tokenB));
   }
@@ -8969,6 +9187,63 @@ contract SharedVaultTest is TestCommon {
     v4v.execute(actions);
   }
 
+  /// @notice Pancake twin of issue6b: SharedPancakeV4Strategy._executeInstructions must fail closed
+  ///         when an instruction op mints an unexpected vault-owned NFT while the original position
+  ///         stays live (non-zero liquidity) — the else-branch guard at SharedPancakeV4Strategy.sol:165.
+  ///         Byte-identical to the V4 guard above, but otherwise only exercised on the V4 fork.
+  function test_security_issue6b_pancakeV4Instructions_unexpectedMintWithLivePosition_reverts() public {
+    SharedPancakeV4Strategy pancakeStrat = new SharedPancakeV4Strategy(address(new MockV4UtilsRouter()));
+    MockPancakeV4PositionManager posm = new MockPancakeV4PositionManager(100);
+
+    SharedConfigManager pcm = new SharedConfigManager();
+    address[] memory targets = new address[](1);
+    targets[0] = address(pancakeStrat);
+    address[] memory posmList = new address[](1);
+    posmList[0] = address(posm);
+    pcm.initialize(
+      address(this), targets, new address[](0), address(this), 0, posmList, new address[](0), new address[](0)
+    );
+
+    SharedVault pv = new SharedVault();
+    tokenA.mint(address(pv), 100e18);
+    tokenB.mint(address(pv), 100e18);
+    address[4] memory vtokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmts = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.prank(VAULT_OWNER);
+    pv.initialize("PancakeV4Vault6b", vtokens, initAmts, VAULT_OWNER, VAULT_OWNER, address(pcm), address(0), 0);
+
+    uint256 tokenId = 7;
+    posm.setOwner(tokenId, address(pv));
+    posm.setLiquidity(tokenId, 1e18); // non-zero → ADJUST_RANGE and full-exit branches NOT taken
+    posm.setPoolInfo(tokenId, address(tokenA), address(tokenB));
+    _trackViaCwp(pv, pcm, address(posm), tokenId, address(tokenA), address(tokenB));
+
+    // POSM mints tokenId=100 to the vault during the COMPOUND's modifyLiquidities (collect) call.
+    // After: nextTokenId=101, ownerOf[100]=vault, liquidity[7]=1e18 -> reaches the else-branch guard.
+    posm.setModifyLiquiditiesMint(100, address(pv));
+
+    IPancakeV4Utils.CompoundFeesParams memory compoundParams = IPancakeV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({ minLiquidity: 0, hookData: "", deadline: block.timestamp }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    bytes memory instruction = abi.encode(
+      IPancakeV4Utils.Instructions({ action: IPancakeV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+    );
+    bytes memory innerData = abi.encode(address(posm), tokenId, instruction);
+    bytes memory stratData =
+      bytes.concat(abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE_INSTRUCTIONS), innerData);
+
+    vm.prank(VAULT_OWNER);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(pancakeStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    pv.execute(actions);
+  }
+
   /// @notice Issue 7: _applyPositionChanges (delegatecall path) must verify canonical token pair
   ///         via getPositionTokens before tracking a new position — mirroring the check already
   ///         present in _applyPositionChangesChecked. A buggy strategy could report any vault-token
@@ -9067,6 +9342,36 @@ contract SharedVaultTest is TestCommon {
     actions[0] = ISharedVault.Action(address(bricked), execData, ISharedCommon.CallType.DELEGATECALL);
     vm.expectRevert(ISharedCommon.InvalidOperation.selector);
     vault.execute(actions);
+  }
+
+  /// @notice Issue 8 permitting arm: verifyPositionExit must ALLOW untracking — and SKIP the
+  ///         getPositionAmounts probe entirely — when the vault no longer owns the NFT
+  ///         (SharedVaultPreviewLib.verifyPositionExit:236, the `ownerOf == address(this)` guard is
+  ///         false). This is the branch that PERMITS untracking; the fail-closed arm (owned NFT +
+  ///         reverting probe) is pinned by test_security_issue8_untrack_failsClosed_whenAmountsProbeReverts.
+  ///         Proven here because the strategy's getPositionAmounts reverts if ever reached.
+  function test_verifyPositionExit_allowsUntrack_whenVaultNoLongerOwnsNft() public {
+    MockRevertingAmountsRemoveStrategy bricked = new MockRevertingAmountsRemoveStrategy();
+    address[] memory tg = new address[](1);
+    tg[0] = address(bricked);
+    configManager.setWhitelistTargets(tg, true);
+
+    uint256 tokenId = 77;
+    _addPositionViaDirectCreator(tokenId); // vault owns cwpNfpm#77 and tracks it
+    uint256 countBefore = vault.getPositionCount();
+
+    // Move the NFT out of the vault: verifyPositionExit's `ownerOf == address(this)` is now false,
+    // so it must short-circuit before staticcalling the (bricked) getPositionAmounts probe.
+    vm.prank(address(vault));
+    cwpNfpm.transferFrom(address(vault), address(0xBEEF), tokenId);
+
+    bytes memory execData = abi.encode(address(cwpNfpm), tokenId, address(tokenA), address(tokenB));
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(bricked), execData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(VAULT_OWNER);
+    vault.execute(actions); // must NOT revert — probe skipped, position untracked
+
+    assertEq(vault.getPositionCount(), countBefore - 1, "position untracked without probing amounts");
   }
 
   /// @notice getMinDepositAmounts reflects total balances including LP position amounts.

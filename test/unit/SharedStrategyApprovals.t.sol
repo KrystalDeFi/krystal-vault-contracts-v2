@@ -55,6 +55,9 @@ contract SpyERC20 {
 contract MockV3Nfpm {
   address public t0;
   address public t1;
+  // Records the last amount{0,1}Min the strategy forwarded, so the slippageBps>0 scaling can be asserted.
+  uint256 public lastAmount0Min;
+  uint256 public lastAmount1Min;
 
   constructor(address _t0, address _t1) { t0 = _t0; t1 = _t1; }
 
@@ -78,6 +81,8 @@ contract MockV3Nfpm {
   function increaseLiquidity(IncreaseLiquidityParams calldata p)
     external returns (uint128 liquidity, uint256 a0, uint256 a1)
   {
+    lastAmount0Min = p.amount0Min;
+    lastAmount1Min = p.amount1Min;
     uint256 half0 = p.amount0Desired / 2;
     uint256 half1 = p.amount1Desired / 2;
     if (half0 > 0) IERC20(t0).transferFrom(msg.sender, address(this), half0);
@@ -92,6 +97,9 @@ contract MockV3Nfpm {
 contract MockAerodromNfpm {
   address public t0;
   address public t1;
+  // Records the last amount{0,1}Min the strategy forwarded, so the slippageBps>0 scaling can be asserted.
+  uint256 public lastAmount0Min;
+  uint256 public lastAmount1Min;
 
   constructor(address _t0, address _t1) { t0 = _t0; t1 = _t1; }
 
@@ -115,6 +123,8 @@ contract MockAerodromNfpm {
   function increaseLiquidity(IncreaseLiquidityParams calldata p)
     external returns (uint128 liquidity, uint256 a0, uint256 a1)
   {
+    lastAmount0Min = p.amount0Min;
+    lastAmount1Min = p.amount1Min;
     uint256 half0 = p.amount0Desired / 2;
     uint256 half1 = p.amount1Desired / 2;
     if (half0 > 0) IERC20(t0).transferFrom(msg.sender, address(this), half0);
@@ -147,6 +157,24 @@ contract StrategyVaultHarness {
   ) external {
     (bool ok, bytes memory err) = strategy.delegatecall(
       abi.encodeCall(ISharedStrategy.depositProportional, (nfpm, tokenId, amount0, amount1, 0))
+    );
+    if (!ok) {
+      assembly { revert(add(err, 32), mload(err)) }
+    }
+  }
+
+  /// @dev Forwards a NON-ZERO slippageBps to depositProportional so the V3/Aerodrome amount-min
+  ///      scaling branch (`if (slippageBps > 0)`) is exercised. callDepositProportional hardcodes 0.
+  function callDepositProportionalWithSlippage(
+    address strategy,
+    address nfpm,
+    uint256 tokenId,
+    uint256 amount0,
+    uint256 amount1,
+    uint16 slippageBps
+  ) external {
+    (bool ok, bytes memory err) = strategy.delegatecall(
+      abi.encodeCall(ISharedStrategy.depositProportional, (nfpm, tokenId, amount0, amount1, slippageBps))
     );
     if (!ok) {
       assembly { revert(add(err, 32), mload(err)) }
@@ -290,6 +318,56 @@ contract SharedStrategyApprovalsTest is Test {
 
     assertEq(tA.allowance(address(vault), address(nfpm)), 0, "token0 approval must be cleared");
     assertEq(tB.allowance(address(vault), address(nfpm)), 0, "token1 approval must be cleared");
+  }
+
+  // -------------------------------------------------------------------------
+  // depositProportional slippageBps > 0 — amount mins scaled and forwarded to the NFPM.
+  // Every other depositProportional test (and all integration deposits) passes slippageBps == 0,
+  // leaving this branch (SharedV3Strategy.sol:871-875 / SharedAerodromeStrategy.sol:1011-1015)
+  // unexercised, while the V4/Pancake siblings have dedicated slippage-floor tests.
+  // -------------------------------------------------------------------------
+
+  function test_v3_depositProportional_slippageBps_forwardsScaledAmountMins() public {
+    tA = new SpyERC20("TA");
+    tB = new SpyERC20("TB");
+    MockV3Nfpm nfpm = new MockV3Nfpm(address(tA), address(tB));
+    cm = _setupConfigManager(address(nfpm));
+    SharedV3Strategy strategy = new SharedV3Strategy(address(1));
+
+    StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));
+    vault.addVaultToken(address(tA));
+    vault.addVaultToken(address(tB));
+
+    uint256 amount = 100e18;
+    tA.mint(address(vault), amount);
+    tB.mint(address(vault), amount);
+
+    // 1% slippage (100 bps): mins = desired * (10000 - 100) / 10000 = 99% of desired.
+    vault.callDepositProportionalWithSlippage(address(strategy), address(nfpm), 1, amount, amount, 100);
+
+    assertEq(nfpm.lastAmount0Min(), amount * 9900 / 10000, "amount0Min scaled by (1 - slippageBps)");
+    assertEq(nfpm.lastAmount1Min(), amount * 9900 / 10000, "amount1Min scaled by (1 - slippageBps)");
+  }
+
+  function test_aerodrome_depositProportional_slippageBps_forwardsScaledAmountMins() public {
+    tA = new SpyERC20("TA");
+    tB = new SpyERC20("TB");
+    MockAerodromNfpm nfpm = new MockAerodromNfpm(address(tA), address(tB));
+    cm = _setupConfigManager(address(nfpm));
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
+
+    StrategyVaultHarness vault = new StrategyVaultHarness(address(cm));
+    vault.addVaultToken(address(tA));
+    vault.addVaultToken(address(tB));
+
+    uint256 amount = 100e18;
+    tA.mint(address(vault), amount);
+    tB.mint(address(vault), amount);
+
+    vault.callDepositProportionalWithSlippage(address(strategy), address(nfpm), 1, amount, amount, 100);
+
+    assertEq(nfpm.lastAmount0Min(), amount * 9900 / 10000, "amount0Min scaled by (1 - slippageBps)");
+    assertEq(nfpm.lastAmount1Min(), amount * 9900 / 10000, "amount1Min scaled by (1 - slippageBps)");
   }
 
   // ===========================================================================

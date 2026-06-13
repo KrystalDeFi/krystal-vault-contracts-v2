@@ -222,6 +222,35 @@ contract SharedV4ValuationLibTest is Test {
     assertEq(total1 - principal1, 2e18, "fees1 = 2*Q128 delta * 1e18 liquidity / Q128");
   }
 
+  /// @dev V4-side divergent-liquidity-snapshot pin. `_positionAmountsSplit` reads liquidity TWICE —
+  ///      POSM-side `getPositionLiquidity` for the PRINCIPAL (line 91) and manager-side
+  ///      `getPositionInfo` liquidity for the FEES (line 116) — as independent reads. (The Pancake
+  ///      twin's F6 fix reads liquidity ONCE precisely so the two can't disagree.) Every other test
+  ///      seeds both sides equally via `_seedPosition`, so this is the only place the divergence is
+  ///      exercised: it documents WHICH read drives WHICH component and will fail if a refactor ever
+  ///      unifies/swaps them. (Test-only — do NOT change the lib; it is near the EIP-170 limit.)
+  function test_getPositionAmountsSplit_posmAndManagerLiquidityDiverge() public {
+    uint128 liqPosm = 1e18; // POSM-side → drives principal
+    uint128 liqManager = 3e18; // manager-side → drives the fee term
+    posm.setLiquidity(TOKEN_ID, liqPosm);
+    manager.setPosition(poolId, address(posm), TICK_LOWER, TICK_UPPER, bytes32(TOKEN_ID), liqManager, 0, 0);
+    // fee-growth-inside delta of exactly Q128 per unit liquidity on token0 (token1 stays flat).
+    manager.setFeeGrowthGlobals(poolId, Q128, 0);
+
+    (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+      SharedV4ValuationLib.getPositionAmountsSplit(address(posm), TOKEN_ID);
+
+    // Principal valued at the POSM-side liquidity, NOT the (larger) manager-side liquidity.
+    (uint256 expectedPrincipal0, uint256 expectedPrincipal1) = _expectedPrincipal(liqPosm);
+    assertEq(principal0, expectedPrincipal0, "principal uses POSM-side getPositionLiquidity");
+    assertEq(principal1, expectedPrincipal1, "principal uses POSM-side getPositionLiquidity");
+    assertEq(principal0, expectedPrincipal0, "sanity: principal != manager-side valuation");
+
+    // Fee term valued at the manager-side liquidity: Q128 delta * liqManager / Q128 == liqManager.
+    assertEq(total0 - principal0, liqManager, "fee term uses manager-side getPositionInfo liquidity");
+    assertEq(total1 - principal1, 0, "no token1 fee growth");
+  }
+
   function test_getPositionPrincipalAmounts_excludesUncollectedFees() public {
     uint128 liquidity = 1e18;
     _seedPosition(liquidity, 0, 0);
