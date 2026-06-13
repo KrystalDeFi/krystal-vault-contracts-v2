@@ -3265,6 +3265,234 @@ contract SharedVaultGatewayTest is TestCommon {
     vm.expectRevert(SharedVaultGateway.EthTransferFailed.selector);
     rejector.callWithdrawAndSwap(params);
   }
+
+  // ==================== Gap coverage: deposit-path anti-siphon / refund / router / snapshot ====================
+
+  /// @notice Deposit-path twin of test_withdrawAndSwap_doesNotSweepPreExistingErc20Balance: a pre-existing
+  ///         ERC20 balance stranded on the gateway must NOT inflate the depositor's shares and must NOT be
+  ///         swept to the depositor — it stays owner-recoverable. This pins that _buildDepositAmounts and
+  ///         the sweep both use per-call balance DELTAS against the pre-pull snapshot baseline.
+  function test_swapAndDeposit_doesNotCreditOrSweepPreExistingErc20Balance() public {
+    // Pre-existing tokenA (a vault token) stranded on the gateway from some prior interaction.
+    uint256 preExistingTokenA = 5e18;
+    tokenA.mint(address(gateway), preExistingTokenA);
+
+    // Alice deposits exact 10%-of-pool proportional amounts. Vault holds no LP positions, so
+    // previewDeposit of ONLY Alice's own amounts is the exact shares the deposit mints.
+    tokenA.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    uint256[4] memory aliceAmounts = [uint256(100e18), uint256(200e18), uint256(50e6), uint256(100e18)];
+    uint256 preview = vault.previewDeposit(aliceAmounts);
+    assertGt(preview, 0, "sanity: proportional deposit previews shares");
+
+    // sweepTokens explicitly lists tokenA to prove even an explicit sweep returns only the call delta.
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs4(address(tokenA), 100e18, address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: _sweepTokensArray(address(tokenA))
+    });
+
+    uint256 aliceTokenABefore = tokenA.balanceOf(ALICE);
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    // (a) Shares equal previewDeposit of ONLY Alice's amounts — the stranded 5e18 did not inflate them.
+    assertEq(shares, preview, "shares from Alice's own amounts only, not inflated by stranded balance");
+    assertEq(vault.balanceOf(ALICE), preview, "shares attributed to the depositor");
+    // (b) Alice is not credited the stranded balance: her tokenA net change is exactly the proportional
+    //     amount consumed by the deposit (100e18 in, 0 swept back — it was fully deposited).
+    assertEq(tokenA.balanceOf(ALICE), aliceTokenABefore - 100e18, "depositor not credited the stranded balance");
+    // (c) The pre-existing balance still sits on the gateway, recoverable by the owner via Withdrawable.
+    assertEq(tokenA.balanceOf(address(gateway)), preExistingTokenA, "pre-existing token remains owner-recoverable");
+  }
+
+  /// @notice Native-ETH deposit twin of test_withdrawAndSwap_revertsWhenEthRecipientRejectsNativeSweep.
+  ///         A caller sends EXCESS native ETH (3 ETH, only 1 swapped); the unused 2 ETH worth of WETH is
+  ///         unwrapped and refunded to the caller via _sweepNative. When the caller rejects native ETH,
+  ///         that refund reverts the whole deposit with EthTransferFailed.
+  function test_swapAndDeposit_revertsWhenEthRecipientRejectsNativeRefund() public {
+    // Mirror of native_eth_excess_returned_as_eth: 1 WETH → 100 tokenA, B/C/D supplied directly.
+    tokenA.mint(address(router), 100e18);
+    router.setRate(address(mockWeth), address(tokenA), 100e18, 1 ether);
+
+    GatewayDepositEthRejector rejector = new GatewayDepositEthRejector(gateway);
+
+    // The rejector must hold and approve B, C, D so the deposit reaches the native-refund step.
+    tokenB.mint(address(rejector), 200e18);
+    tokenC.mint(address(rejector), 50e6);
+    tokenD.mint(address(rejector), 100e18);
+    rejector.approveToken(address(tokenB));
+    rejector.approveToken(address(tokenC));
+    rejector.approveToken(address(tokenD));
+
+    vm.deal(address(rejector), 3 ether);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    // Only 1 WETH is consumed; 2 WETH remain, get unwrapped, and the native refund is sent to the rejector.
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(mockWeth), 0, address(tokenA), 90e18, _buildSwapCalldata(address(mockWeth), address(tokenA), 1 ether)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs3(address(tokenB), 200e18, address(tokenC), 50e6, address(tokenD), 100e18),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.expectRevert(SharedVaultGateway.EthTransferFailed.selector);
+    rejector.callSwapAndDeposit(params, 3 ether);
+  }
+
+  /// @notice Router rotation correctness: existing setSwapRouter tests only assert the stored address/event.
+  ///         Here we deploy a SECOND router, rotate to it, and route a real deposit swap THROUGH it —
+  ///         proving the gateway uses the live `swapRouter` value, not a cached/old one. The old router is
+  ///         left untouched (unfunded, no rates), so a swap that still routed through it would fail.
+  function test_setSwapRouter_thenSwapRoutesThroughNewRouter() public {
+    MockAggregatorRouter newRouter = new MockAggregatorRouter();
+
+    // Fund + configure ONLY the new router. The original `router` is intentionally left empty.
+    tokenA.mint(address(newRouter), 100e18);
+    tokenB.mint(address(newRouter), 200e18);
+    tokenC.mint(address(newRouter), 50e6);
+    tokenD.mint(address(newRouter), 100e18);
+    newRouter.setRate(address(tokenX), address(tokenA), 1, 1);
+    newRouter.setRate(address(tokenX), address(tokenB), 2, 1);
+    newRouter.setRate(address(tokenX), address(tokenC), 50e6, 100e18);
+    newRouter.setRate(address(tokenX), address(tokenD), 1, 1);
+
+    // Rotate the gateway's router.
+    gateway.setSwapRouter(address(newRouter));
+    assertEq(gateway.swapRouter(), address(newRouter), "router rotated");
+
+    // Alice swaps a single tokenX into all four vault tokens (mirror of single_token_to_four).
+    tokenX.mint(ALICE, 400e18);
+    _approveGatewayAll(ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](4);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenX), 100e18, address(tokenA), 90e18, _buildSwapCalldata(address(tokenX), address(tokenA), 100e18)
+    );
+    swaps[1] = SharedVaultGateway.SwapParams(
+      address(tokenX), 100e18, address(tokenB), 180e18, _buildSwapCalldata(address(tokenX), address(tokenB), 100e18)
+    );
+    swaps[2] = SharedVaultGateway.SwapParams(
+      address(tokenX), 100e18, address(tokenC), 45e6, _buildSwapCalldata(address(tokenX), address(tokenC), 100e18)
+    );
+    swaps[3] = SharedVaultGateway.SwapParams(
+      address(tokenX), 100e18, address(tokenD), 90e18, _buildSwapCalldata(address(tokenX), address(tokenD), 100e18)
+    );
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: _inputs1(address(tokenX), 400e18),
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    assertGt(shares, 0, "deposit swap succeeded through the rotated router");
+    assertEq(vault.balanceOf(ALICE), shares, "depositor received the shares");
+    assertEq(tokenX.balanceOf(address(gateway)), 0, "all tokenX consumed via the new router");
+    // The new router received the 400 tokenX and paid out its funded outputs.
+    assertEq(tokenX.balanceOf(address(newRouter)), 400e18, "new router consumed the input");
+    // The OLD router was never touched by the rotated swap.
+    assertEq(tokenX.balanceOf(address(router)), 0, "old router untouched after rotation");
+    assertEq(tokenA.balanceOf(address(router)), 0, "old router output untouched");
+  }
+
+  /// @notice _addSnapshotToken dedup: one token occupies MANY roles at once (input + swap tokenOut +
+  ///         vault token + sweepToken for tokenA; input + swap tokenIn + sweepToken for tokenX). The single
+  ///         pre-pull baseline must be recorded exactly ONCE and reused consistently for both the
+  ///         deposit-delta and the sweep-delta. A pre-existing tokenA balance pins this: if its baseline
+  ///         were double-counted or re-snapshotted post-pull, the deposit amount or the retained balance
+  ///         would be wrong.
+  function test_swapAndDeposit_tokenAppearingInInputsSwapsAndSweep_dedupesSnapshot() public {
+    // Pre-existing tokenA stranded on the gateway — this is the dedup'd baseline under test.
+    uint256 preExistingTokenA = 7e18;
+    tokenA.mint(address(gateway), preExistingTokenA);
+
+    // Router converts tokenX → tokenA 1:1.
+    tokenA.mint(address(router), 50e18);
+    router.setRate(address(tokenX), address(tokenA), 1, 1);
+
+    // Alice supplies 50A directly + 100X (50 of which swaps to 50A → 100A total for the deposit),
+    // plus exact B/C/D for a 10%-of-pool proportional deposit.
+    tokenA.mint(ALICE, 50e18);
+    tokenX.mint(ALICE, 100e18);
+    tokenB.mint(ALICE, 200e18);
+    tokenC.mint(ALICE, 50e6);
+    tokenD.mint(ALICE, 100e18);
+    _approveGatewayAll(ALICE);
+
+    uint256[4] memory depositAmounts = [uint256(100e18), uint256(200e18), uint256(50e6), uint256(100e18)];
+    uint256 preview = vault.previewDeposit(depositAmounts);
+    assertGt(preview, 0, "sanity: proportional deposit previews shares");
+
+    // tokenX (input + swap tokenIn) → 50X to tokenA; 50X remains and is swept.
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams(
+      address(tokenX), 50e18, address(tokenA), 45e18, _buildSwapCalldata(address(tokenX), address(tokenA), 50e18)
+    );
+
+    // tokenA appears as a vault token AND a sweepToken; tokenX appears as a sweepToken. Both also appear
+    // in inputs[] and in the swap (tokenA as tokenOut, tokenX as tokenIn) — every snapshot role exercised.
+    address[] memory sweepTokens = new address[](2);
+    sweepTokens[0] = address(tokenA);
+    sweepTokens[1] = address(tokenX);
+
+    // All five pulled tokens: A (also swap tokenOut / vault token / sweep), X (also swap tokenIn / sweep),
+    // and B/C/D rounding out the proportional deposit.
+    SharedVaultGateway.InputToken[] memory inputs = new SharedVaultGateway.InputToken[](5);
+    inputs[0] = SharedVaultGateway.InputToken(address(tokenA), 50e18);
+    inputs[1] = SharedVaultGateway.InputToken(address(tokenX), 100e18);
+    inputs[2] = SharedVaultGateway.InputToken(address(tokenB), 200e18);
+    inputs[3] = SharedVaultGateway.InputToken(address(tokenC), 50e6);
+    inputs[4] = SharedVaultGateway.InputToken(address(tokenD), 100e18);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(vault)),
+      inputs: inputs,
+      swaps: swaps,
+      minDepositAmounts: [uint256(0), uint256(0), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: sweepTokens
+    });
+
+    uint256 aliceXBefore = tokenX.balanceOf(ALICE);
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    // Shares come from the deposit delta (100A:200B:50C:100D) — the pre-existing 7A is excluded exactly
+    // once, proving the dedup'd single baseline was used for the deposit-amount computation.
+    assertEq(shares, preview, "deposit delta excludes the deduped pre-existing baseline exactly once");
+    assertEq(vault.balanceOf(ALICE), preview, "shares attributed to depositor");
+    // The same dedup'd baseline (7A) is reused for the sweep: gateway retains exactly the pre-existing 7A
+    // (deposit consumed the 100A delta; sweep delta for tokenA is 0). No double-counting either way.
+    assertEq(tokenA.balanceOf(address(gateway)), preExistingTokenA, "pre-existing tokenA baseline retained, not swept");
+    // Leftover tokenX (100 pulled - 50 swapped = 50) swept back to Alice; none stranded.
+    assertEq(tokenX.balanceOf(ALICE), aliceXBefore - 50e18, "unswapped tokenX returned to depositor");
+    assertEq(tokenX.balanceOf(address(gateway)), 0, "no tokenX stranded in gateway");
+  }
 }
 
 /// @dev Minimal ERC721 for Withdrawable sweep tests on the gateway instance.
@@ -3315,5 +3543,25 @@ contract GatewayEthRejector {
 
   function callWithdrawAndSwap(SharedVaultGateway.WithdrawAndSwapParams memory params) external {
     gateway.withdrawAndSwap(params);
+  }
+}
+
+/// @dev Depositor with NO receive/fallback: any native ETH the gateway tries to refund to it fails,
+///      which is exactly what test_swapAndDeposit_revertsWhenEthRecipientRejectsNativeRefund needs to
+///      force the deposit-path _sweepNative EthTransferFailed branch (the native unwrap-refund of excess
+///      ETH supplied via msg.value). Approves vault tokens it holds so the deposit reaches the refund step.
+contract GatewayDepositEthRejector {
+  SharedVaultGateway internal immutable gateway;
+
+  constructor(SharedVaultGateway _gateway) {
+    gateway = _gateway;
+  }
+
+  function approveToken(address token) external {
+    IERC20(token).approve(address(gateway), type(uint256).max);
+  }
+
+  function callSwapAndDeposit(SharedVaultGateway.SwapAndDepositParams memory params, uint256 value) external {
+    gateway.swapAndDeposit{ value: value }(params);
   }
 }

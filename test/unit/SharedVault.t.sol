@@ -3213,6 +3213,36 @@ contract SharedVaultTest is TestCommon {
     assertGt(vault.totalSupply(), 0);
   }
 
+  /// @dev The share token deliberately reuses the user-chosen vault NAME as its SYMBOL (ERC20 init is
+  ///      `__ERC20_init(_name, _name)`), so wallets/explorers display the vault name as the ticker. No
+  ///      other test reads name()/symbol(); a refactor giving the symbol a different value would break
+  ///      this documented UX with zero signal.
+  function test_initialize_reusesNameAsSymbol() public view {
+    assertEq(vault.name(), "Shared Vault", "share token name is the user-chosen vault name");
+    assertEq(vault.symbol(), "Shared Vault", "symbol reuses the name (shown as the share ticker)");
+    assertEq(vault.symbol(), vault.name(), "symbol == name by design");
+  }
+
+  /// @dev initialize emits the first-mint VaultDeposit with msg.sender as the vaultFactory topic, the
+  ///      owner as the account, the RAW initialAmounts (NOT FOT-measured, unlike the deposit() path's
+  ///      actualPulled), and INITIAL_SHARES. Only the gateway path asserted VaultDeposit before — neither
+  ///      the direct deposit() emission nor this initialize first-mint emission was pinned.
+  function test_initialize_emitsVaultDeposit_withInitialAmounts() public {
+    SharedVault v2 = new SharedVault();
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory initAmounts = [uint256(100e18), uint256(200e18), uint256(0), uint256(0)];
+    tokenA.mint(address(this), 100e18);
+    tokenB.mint(address(this), 200e18);
+    tokenA.transfer(address(v2), 100e18);
+    tokenB.transfer(address(v2), 200e18);
+
+    vm.expectEmit(true, true, false, true, address(v2));
+    emit ISharedVault.VaultDeposit(address(this), VAULT_OWNER, initAmounts, TEST_INITIAL_SHARES);
+    v2.initialize(
+      "Init Event Vault", tokens, initAmounts, VAULT_OWNER, VAULT_OWNER, address(configManager), address(0), 0
+    );
+  }
+
   function test_initialize_fail_duplicate_token() public {
     SharedVault vault2 = new SharedVault();
     address[4] memory tokens = [address(tokenA), address(tokenA), address(0), address(0)];
@@ -3529,6 +3559,66 @@ contract SharedVaultTest is TestCommon {
     assertEq(amounts[1], 200e18);
     assertEq(vault.balanceOf(VAULT_OWNER), 0);
     assertEq(vault.totalSupply(), 0);
+  }
+
+  /// @dev Direct deposit() emits VaultDeposit with the initializer as the vaultFactory topic, the
+  ///      receiver as the account, the FOT-safe actualPulled amounts (== supplied for these non-FOT
+  ///      tokens) as data, and the minted share count. Previously only the gateway-routed deposit
+  ///      asserted this event; the plain deposit() emission was unpinned.
+  function test_deposit_emitsVaultDeposit_withActualPulledAmounts() public {
+    uint256[4] memory amounts = [uint256(50e18), uint256(100e18), uint256(0), uint256(0)]; // 100:200 ratio
+    tokenA.mint(DEPOSITOR, 50e18);
+    tokenB.mint(DEPOSITOR, 100e18);
+    vm.startPrank(DEPOSITOR);
+    tokenA.approve(address(vault), type(uint256).max);
+    tokenB.approve(address(vault), type(uint256).max);
+
+    uint256 expectedShares = vault.previewDeposit(amounts);
+
+    vm.expectEmit(true, true, false, true, address(vault));
+    emit ISharedVault.VaultDeposit(VAULT_OWNER, DEPOSITOR, amounts, expectedShares);
+    vault.deposit(amounts, 0, 0);
+    vm.stopPrank();
+
+    assertEq(vault.balanceOf(DEPOSITOR), expectedShares, "depositor received the previewed shares");
+  }
+
+  /// @dev Runnable counterpart to the echidna `idle_transfer_shares_conserves_total` invariant (which
+  ///      the offline forge driver does not drive, and the echidna campaign can't compile here):
+  ///      transferring vault SHARES between holders must let each independently redeem the correct
+  ///      proportional slice, with total underlying conserved (nothing created or destroyed by the
+  ///      transfer). Uses the clean post-init state (10e18 shares backing 100e18 A + 200e18 B, no
+  ///      positions, zero fees) so the proportional math is exact.
+  function test_shareTransfer_conservesProportionalWithdrawAcrossHolders() public {
+    address CAROL = makeAddr("carol");
+    uint256 ownerShares = vault.balanceOf(VAULT_OWNER); // 10e18 from initialize
+    uint256 vaultA = tokenA.balanceOf(address(vault)); // 100e18
+    uint256 vaultB = tokenB.balanceOf(address(vault)); // 200e18
+
+    // VAULT_OWNER hands 40% of its shares to CAROL.
+    uint256 transferred = (ownerShares * 4) / 10;
+    vm.prank(VAULT_OWNER);
+    vault.transfer(CAROL, transferred);
+    assertEq(vault.balanceOf(CAROL), transferred, "CAROL holds the transferred shares");
+    assertEq(vault.balanceOf(VAULT_OWNER), ownerShares - transferred, "owner balance reduced by the transfer");
+
+    uint256[4] memory mins;
+    // CAROL redeems her transferred shares first, then VAULT_OWNER redeems the remainder.
+    vm.prank(CAROL);
+    uint256[4] memory carolOut = vault.withdraw(transferred, mins, false);
+    vm.prank(VAULT_OWNER);
+    uint256[4] memory ownerOut = vault.withdraw(ownerShares - transferred, mins, false);
+
+    // The transferred shares redeem exactly their proportional slice.
+    assertEq(carolOut[0], (vaultA * 4) / 10, "CAROL redeems 40% of tokenA");
+    assertEq(carolOut[1], (vaultB * 4) / 10, "CAROL redeems 40% of tokenB");
+    assertEq(ownerOut[0], (vaultA * 6) / 10, "owner redeems the remaining 60% of tokenA");
+    assertEq(ownerOut[1], (vaultB * 6) / 10, "owner redeems the remaining 60% of tokenB");
+
+    // Total value conserved: the two independent redemptions sum to the vault's entire holdings.
+    assertEq(carolOut[0] + ownerOut[0], vaultA, "tokenA fully and exactly distributed, none created/lost");
+    assertEq(carolOut[1] + ownerOut[1], vaultB, "tokenB fully and exactly distributed, none created/lost");
+    assertEq(vault.totalSupply(), 0, "all shares burned");
   }
 
   function test_withdraw_from_account_spends_finite_allowance_and_pays_caller() public {
@@ -4380,6 +4470,46 @@ contract SharedVaultTest is TestCommon {
     actions[0] = ISharedVault.Action(address(brokenStrat), stratData, ISharedCommon.CallType.DELEGATECALL);
     vm.prank(VAULT_OWNER);
     vault.execute(actions);
+  }
+
+  /// @dev Fail-closed valuation propagation — the invariant SharedVault's deposit path explicitly relies
+  ///      on ("_getTotalBalances above already reverts if such a lingering position's valuation is
+  ///      broken"). A position tracked while its valuation WORKED, whose strategy valuation later BREAKS
+  ///      (lib bug, hostile pool hook, oracle failure), must make share-pricing REVERT — never silently
+  ///      drop that position's value and misprice shares for every holder. Existing reverting-valuation
+  ///      mocks are only used in the tracking-guard (validatePositionAdd) and untrack-guard
+  ///      (verifyPositionExit) paths, never as an ALREADY-tracked position valued during getTotalBalances
+  ///      / deposit. Here a healthy tracked position's valuation probes (both the split and plain getters,
+  ///      covering the fee-on and fee-off branches of computeTotalBalances) are bricked AFTER tracking,
+  ///      and both share-pricing read paths must revert rather than silently mis-value the vault.
+  ///      (Withdraw's fail-closed-on-broken-position behavior is separately covered by the broken-exit
+  ///      tests; withdraw reverts at the exit step for a broken position, so it is not the clean vehicle
+  ///      for isolating the valuation-revert propagation that the deposit-path comment relies on.)
+  function test_getTotalBalances_and_deposit_revertWhenTrackedPositionValuationBricked() public {
+    (MockBrokenExitStrategy brokenStrat, MockERC721 mockNfpm, uint256 tokenId) = _setupVaultWithBrokenStrategy();
+    assertEq(vault.getPositionCount(), 1, "precondition: one tracked position");
+    vault.getTotalBalances(); // sanity: valuation works BEFORE bricking (the position was trackable)
+    (mockNfpm, tokenId);
+
+    bytes memory bricked = abi.encodeWithSignature("ValuationBricked()");
+    vm.mockCallRevert(
+      address(brokenStrat), abi.encodeWithSelector(ISharedStrategy.getPositionAmountsSplit.selector), bricked
+    );
+    vm.mockCallRevert(
+      address(brokenStrat), abi.encodeWithSelector(ISharedStrategy.getPositionAmounts.selector), bricked
+    );
+
+    // getTotalBalances must propagate the broken valuation, not swallow it.
+    vm.expectRevert(bricked);
+    vault.getTotalBalances();
+
+    // deposit prices shares off _getTotalBalances → must fail closed (the deposit-path invariant).
+    tokenA.mint(DEPOSITOR, 10e18);
+    tokenB.mint(DEPOSITOR, 10e18);
+    vm.startPrank(DEPOSITOR);
+    vm.expectRevert(bricked);
+    vault.deposit([uint256(10e18), uint256(10e18), uint256(0), uint256(0)], 0, 0);
+    vm.stopPrank();
   }
 
   // ==================== dropPosition Tests ====================
@@ -6380,6 +6510,39 @@ contract SharedVaultTest is TestCommon {
 
     assertEq(fc.platformFeeBasisPoint, 0, "config disables platform fee");
     assertEq(fc.vaultOwnerFeeBasisPoint, 500, "owner fee remains vault-owned");
+  }
+
+  /// @notice Defense-in-depth: performanceFeeConfig reverts when the vault's own vaultOwnerFeeBasisPoint
+  ///         exceeds 100% (> 10_000 bps), BEFORE the remainder-clamp. Production clamps owner bps
+  ///         upstream so this in-library guard is otherwise unreachable; pinned via the harness so a
+  ///         future simplification dropping it fails. (8000/5001 are accepted-and-clamped above, not
+  ///         reverted — only a value strictly over 10_000 trips this guard.)
+  function test_performance_fee_config_reverts_when_vault_owner_bps_above_10000() public {
+    vm.prank(address(this));
+    configManager.setPlatformFeeBasisPoint(0); // a valid platform bps so the platform guard passes first
+
+    PerformanceFeeConfigHarness harness =
+      new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 10_001);
+
+    vm.expectRevert(ISharedCommon.InvalidVaultOwnerFeeBasisPoint.selector);
+    harness.callPerformanceFeeConfig();
+  }
+
+  /// @notice Defense-in-depth twin: performanceFeeConfig reverts when the config manager reports a
+  ///         platform fee above 100% (> 10_000 bps). SharedConfigManager's setter rejects such values,
+  ///         so this guard is unreachable in production — exercised here by mocking the config read so
+  ///         the guard is pinned against a future regression.
+  function test_performance_fee_config_reverts_when_platform_bps_above_10000() public {
+    PerformanceFeeConfigHarness harness =
+      new PerformanceFeeConfigHarness(address(configManager), address(0xBEEF), 500);
+    vm.mockCall(
+      address(configManager),
+      abi.encodeWithSelector(ISharedConfigManager.platformFeeBasisPoint.selector),
+      abi.encode(uint16(10_001))
+    );
+
+    vm.expectRevert(ISharedCommon.InvalidFeeBasisPoint.selector);
+    harness.callPerformanceFeeConfig();
   }
 
   /// @notice Documented guarantee of the withdraw-exit FeeConfig: proportional exits NEVER charge gas.

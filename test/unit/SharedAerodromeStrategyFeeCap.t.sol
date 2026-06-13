@@ -230,6 +230,7 @@ contract AeroFeeCapVaultHarness {
 }
 
 contract SharedAerodromeStrategyFeeCapTest is Test {
+  uint64 internal constant GAS_FEE_X64_25_PERCENT = uint64(1 << 62);
   uint64 internal constant GAS_FEE_X64_75_PERCENT = uint64(3 << 62);
   // ~90% of the collected amount expressed as a Q64 fraction (0.9 * 2^64).
   uint64 internal constant GAS_FEE_X64_90_PERCENT = uint64((9 * (uint256(1) << 64)) / 10);
@@ -379,6 +380,86 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
 
     vm.prank(automator);
     vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Twin of test_v3_compound_collects_generated_fees_and_routes_gas_to_fee_collector. Fees are
+  ///      settled by SharedStrategyFees (direct transfer, inlined into the strategy running in the
+  ///      vault's delegatecall context), so FeeCollected is emitted from the vault address, in order
+  ///      platform → owner → gas, each token's slice transferred directly (no LpFeeTaker consolidation).
+  ///      This is the only Aerodrome test pinning the COMPOUND_FEES fee-event payload + ordering — the
+  ///      V3/V4/Pancake twins all have it; without it an Aerodrome fee-wiring regression goes uncaught.
+  function test_aerodrome_compound_collects_generated_fees_and_routes_gas_to_fee_collector() public {
+    nfpm.setCollectFees(1_000, 2_000);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), _compoundInstructions(GAS_FEE_X64_25_PERCENT))
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token0), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token1), 200);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token0), 50);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token1), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, platformRecipient, address(token0), 250);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, platformRecipient, address(token1), 500);
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+
+    assertEq(token0.balanceOf(platformRecipient), 350, "token0 platform plus gas fee");
+    assertEq(token1.balanceOf(platformRecipient), 700, "token1 platform plus gas fee");
+    assertEq(token0.balanceOf(vaultOwner), 50, "token0 vault owner fee");
+    assertEq(token1.balanceOf(vaultOwner), 100, "token1 vault owner fee");
+    assertEq(token0.balanceOf(automator), 0, "executor receives no token0 gas fee");
+    assertEq(token1.balanceOf(automator), 0, "executor receives no token1 gas fee");
+    assertEq(nfpm.increased0(), 600, "net token0 generated fees compounded");
+    assertEq(nfpm.increased1(), 1_200, "net token1 generated fees compounded");
+  }
+
+  /// @dev Twin of test_v3_compound_revertsWhenEmptySwapDataHasMinOut: COMPOUND_FEES with a real
+  ///      targetToken but empty swapData and a positive amountOut0Min reaches the _swap empty-data guard
+  ///      (distinct from the no-target stale-minOut guard) and must revert InsufficientOutput.
+  function test_aerodrome_compound_revertsWhenEmptySwapDataHasMinOut() public {
+    nfpm.setCollectFees(1_000, 0);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1;
+    instructions.amountOut0Min = 1;
+    instructions.swapData0 = "";
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Twin of test_v3_compound_revertsWhenTargetTokenIsNotPoolToken: a COMPOUND_FEES targetToken
+  ///      that is neither pool token hits the _swapForCompound pool-token guard and reverts InvalidOperation.
+  function test_aerodrome_compound_revertsWhenTargetTokenIsNotPoolToken() public {
+    nfpm.setCollectFees(1_000, 2_000);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(0xDEAD);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
     vault.executeStrategy(address(strategy), data);
   }
 

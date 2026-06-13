@@ -779,6 +779,35 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.stopPrank();
   }
 
+  /// @dev Multisig (EIP-1271) cancellation of a USER order. The existing multisig cancel test covers only
+  ///      the AgentAllowance path, and the multisig user-order test covers only replay — so the
+  ///      cancel-then-blocked invariant for a user order whose actor is an EIP-1271 vault owner was
+  ///      unpinned. The C-3 cancel key is the actor (here the multisig vaultOwner), so cancelling from
+  ///      the multisig must block a subsequent executeWithUserOrder with OrderCancelled.
+  function test_multisig_executeWithUserOrder_fail_cancelled() public {
+    (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+
+    _nonce++;
+    StructHash.Order memory order;
+    order.chainId = int64(uint64(block.chainid));
+    order.signatureTime = int64(uint64(block.timestamp + _nonce));
+    bytes memory encoded = abi.encode(order);
+    bytes32 digest = msAutomator.hashTypedDataV4(StructHash._hash(encoded));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    // Cancel from the multisig vault owner (validated via EIP-1271), as the allowance-path test does.
+    vm.prank(address(multisig));
+    msAutomator.cancelOrder(digest, sig);
+    assertTrue(msAutomator.isOrderCancelled(address(multisig), digest), "cancellation recorded under the multisig");
+
+    // The operator's subsequent user-order execution is blocked.
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+    vm.prank(OPERATOR);
+    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
+  }
+
   // ============ receive() + sweep (automator inherits Withdrawable) ============
 
   function test_receive_acceptsETH() public {

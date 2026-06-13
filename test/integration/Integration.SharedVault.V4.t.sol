@@ -319,6 +319,92 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(address(nativeVault).balance, 0, "raw native was not left in vault");
   }
 
+  /// @notice Native-currency OUTFLOW wrapping (`_wrapNativeBalanceDelta` success branches in
+  ///         `_collectFees` / `_decreaseV4Principal`, reached on every exit of a native-currency pool).
+  ///         The existing native test only drives ETH INTO a position (mint); this drives it OUT: a full
+  ///         withdraw exits the native position, the real V4 PositionManager returns RAW ETH for the
+  ///         currency0==address(0) side, and the strategy lib MUST wrap that delta to WETH (the vault
+  ///         token) before fee/principal accounting. If the wrap regressed, the raw ETH would be stranded
+  ///         on the vault and mis-accounted — so we assert no raw native remains and the withdrawer is
+  ///         paid in WETH (unwrap=false). Untested for both V4 and its Pancake twin before this.
+  function test_withdrawFull_nativeCurrencyPool_wrapsNativeOnExit_withRealV4PositionManager() public {
+    // --- Set up a native (ETH/token0) pool vault and mint a position into it (mirrors the mint test). ---
+    PoolKey memory nativeKey = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token0)),
+      fee: LP_FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    posm.initializePool(nativeKey, SQRT_PRICE_1_1);
+
+    SharedVault nativeVault = new SharedVault();
+    vm.deal(address(this), 10 ether);
+    IWETH9(BASE_WETH).deposit{ value: 10 ether }();
+    IERC20(BASE_WETH).transfer(address(nativeVault), 10 ether);
+    token0.mint(address(nativeVault), 10 ether);
+    address[4] memory vaultTokens = [BASE_WETH, address(token0), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(10 ether), uint256(10 ether), uint256(0), uint256(0)];
+    nativeVault.initialize(
+      "SharedVault-V4-Native-Exit-Fork",
+      vaultTokens,
+      initialAmounts,
+      vaultOwner,
+      address(this),
+      address(configManager),
+      BASE_WETH,
+      0
+    );
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: nativeKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(strategy),
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_V4_POSM, uint256(0), abi.encodeCall(IV4Utils.swapAndMint, (mintParams)), uint256(0),
+          new address[](0), new uint256[](0)
+        )
+      ),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(vaultOwner);
+    nativeVault.execute(actions);
+    assertEq(nativeVault.getPositionCount(), 1, "native position minted");
+    assertEq(address(nativeVault).balance, 0, "no raw native after mint (baseline)");
+
+    // --- Drive ETH OUT: a full withdraw exits the native position. ---
+    uint256 ownerWethBefore = IERC20(BASE_WETH).balanceOf(vaultOwner);
+    uint256 ownerShares = nativeVault.balanceOf(vaultOwner);
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = nativeVault.withdraw(ownerShares, mins, false);
+
+    // The exit returned raw ETH for the currency0 side; _wrapNativeBalanceDelta must have wrapped it.
+    assertEq(address(nativeVault).balance, 0, "raw native from the position exit was wrapped, not stranded");
+    assertEq(nativeVault.getPositionCount(), 0, "full withdraw removed the native position");
+    assertEq(nativeVault.totalSupply(), 0, "all shares burned");
+    assertGt(got[0], 0, "native (WETH) side returned to the withdrawer");
+    // unwrap=false → the native value is paid as WETH (the vault token), not raw ETH.
+    assertEq(IERC20(BASE_WETH).balanceOf(vaultOwner), ownerWethBefore + got[0], "withdrawer paid in WETH, not raw ETH");
+  }
+
   function test_swapAndMint_rejectsPoolKeyNotInitializedInPositionManagerPoolManager() public {
     PoolKey memory uninitializedKey = PoolKey({
       currency0: poolKey.currency0,

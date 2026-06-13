@@ -90,4 +90,70 @@ contract SharedVaultFuzzerInvariantsTest is Test {
       assertGe(owed[i] + 3, totals[i], "solvency bound is tight (sum of previews ~= totals)");
     }
   }
+
+  /// @notice HIGH-1: the three STANDALONE invariants (`assert_position_tracking_consistent`,
+  ///         `assert_weth_mock_fully_backed`, `assert_all_backed_when_supply_exists`) are asserted by
+  ///         NOTHING offline — the existing driver calls only handlers (which run share-conservation +
+  ///         solvency internally), and the Echidna campaign can't compile here. Under a real Echidna run
+  ///         these fire after every sequence; offline they fired never. Drive a mixed sequence to build
+  ///         state across the position-bearing / weth / precision vaults, then assert all three directly.
+  function test_standalone_invariants_hold_after_sequence() public {
+    fuzzer.idle_deposit(0, 5e18, 5e18);
+    fuzzer.multi_deposit(0, 2e18);
+    fuzzer.lp_deposit(6e18);
+    fuzzer.fee_accrue_rewards(3e18, 2e18);
+    fuzzer.fee_deposit(5e18);
+    fuzzer.precision_direct_deposit_floor(1); // mode 1 = exact deposit → precision vault gains supply
+
+    fuzzer.assert_position_tracking_consistent(); // tracked arrays <= maxPositions, every entry pool-token
+    fuzzer.assert_weth_mock_fully_backed(); // weth.balance == weth.totalSupply()
+    fuzzer.assert_all_backed_when_supply_exists(); // positive backing for every vault with supply
+  }
+
+  /// @notice HIGH-2: `lp_drop_and_recover_position_keeps_vault_backed` is the only fuzz handler that
+  ///         MUTATES the tracked-position array mid-run, and the existing driver never calls it. The LP
+  ///         vault is seeded with positions at construction, so a drop→recover round-trip exercises NFT
+  ///         custody transfer to/from the operator and re-asserts LP solvency / backing across a perturbed
+  ///         positions array. Pair with the tracking-consistency invariant against the reshaped array.
+  function test_lp_drop_recover_keeps_invariants() public {
+    fuzzer.lp_deposit(6e18);
+    fuzzer.lp_drop_and_recover_position_keeps_vault_backed(0);
+    fuzzer.assert_position_tracking_consistent();
+  }
+
+  /// @notice MED-1: the precision vault had NO offline invariant coverage — the existing driver never
+  ///         touches it, so `_assertPrecisionShareConservation` and the precision positive-backing check
+  ///         never ran. Drive the below-floor revert branch, the exact-deposit branch, and the
+  ///         below-floor withdraw-forwarding branch (which interleave a global setMinTokenPrecision flip
+  ///         with deposits/withdraws — a sequence the unit tests don't reproduce), then assert conservation.
+  function test_precision_vault_invariants_under_sequence() public {
+    fuzzer.precision_direct_deposit_floor(0); // below-floor deposit must revert
+    fuzzer.precision_direct_deposit_floor(1); // exact-floor deposit succeeds, harness gains precision shares
+    fuzzer.precision_withdraw_forwards_below_floor(); // withdraw forwards a sub-floor remainder
+    fuzzer.assert_precision_share_conservation();
+  }
+
+  /// @notice MED-2: the value-fairness handlers assert properties NOT implied by share-conservation /
+  ///         solvency, and none are driven offline: donation-never-dilutes (supply untouched, donated slot
+  ///         grows by exactly the donation, every holder's previewWithdraw only grows), deposit→withdraw
+  ///         roundtrip-no-profit (rounding always favors the vault — incl. the mixed-decimals multi vault
+  ///         where rounding-direction bugs surface), and remaining-holder value monotonicity under a
+  ///         withdraw (LP + fee flavors; the fee flavor runs it under nonzero platform+owner fees).
+  function test_value_fairness_invariants() public {
+    // Seed holders so the donation/monotonicity handlers have shares to protect.
+    fuzzer.idle_deposit(0, 5e18, 5e18);
+    fuzzer.idle_deposit(1, 3e18, 3e18);
+    fuzzer.lp_deposit(6e18);
+    fuzzer.fee_accrue_rewards(3e18, 2e18);
+    fuzzer.fee_deposit(5e18);
+
+    fuzzer.idle_vault_token_donation_never_dilutes_holders(0, 1e18, false); // donate tokenA
+    fuzzer.idle_vault_token_donation_never_dilutes_holders(1, 2e18, true); // donate tokenB
+
+    fuzzer.idle_roundtrip_no_profit(2, 4e18, 4e18);
+    fuzzer.multi_roundtrip_no_profit(1, 3e18);
+
+    fuzzer.lp_withdraw_never_dilutes_remaining_holders(4321);
+    fuzzer.fee_withdraw_never_dilutes_remaining_holders(246);
+  }
 }

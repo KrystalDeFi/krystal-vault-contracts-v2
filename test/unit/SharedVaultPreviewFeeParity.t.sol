@@ -140,6 +140,66 @@ contract SharedVaultPreviewFeeParityTest is Test {
     uint256 netViaCollectPath = 1000 - 333 - 666;
     assertEq(amounts[0], netViaCollectPath, "previewWithdraw matches the collect path to the wei");
   }
+
+  /// @dev previewWithdraw's zero-supply short-circuit (SharedVaultPreviewLib: `if (currentTotalSupply
+  ///      == 0) return amounts;`). A vault with no shares outstanding must preview all-zero amounts and
+  ///      NOT reach the per-share slicing, which divides by the supply — without the guard this very
+  ///      input (a position + idle value present, supply 0) would divide by zero and revert. Pinned
+  ///      directly because the public API can't present a zero-supply vault that still holds value
+  ///      (the first deposit always mints INITIAL_SHARES); the sibling previewDeposit zero-supply arm
+  ///      is covered by the first-deposit tests, so this closes the previewWithdraw arm.
+  function test_previewWithdraw_zeroTotalSupply_returnsZeroAmounts() public {
+    ParityPreviewConfigManager cm = new ParityPreviewConfigManager(1000);
+    ParityPreviewSplitStrategy strategy = new ParityPreviewSplitStrategy(5 ether, 3 ether, 7 ether, 2 ether);
+
+    ISharedVault.Position[] memory positions = new ISharedVault.Position[](1);
+    positions[0] = ISharedVault.Position({
+      strategy: address(strategy),
+      nfpm: address(0xAAA1),
+      tokenId: 1,
+      token0: address(0xBBB1),
+      token1: address(0xBBB2)
+    });
+
+    address[4] memory tokens = [address(0xBBB1), address(0xBBB2), address(0), address(0)];
+    uint256[4] memory idle;
+    idle[0] = 9 ether; // idle value present too — none of it may slice out at zero supply
+
+    uint256[4] memory amounts = SharedVaultPreviewLib.previewWithdraw(
+      1, // shares
+      0, // zero total supply -> early return BEFORE any per-share slicing (which would divide by zero)
+      idle,
+      positions,
+      tokens,
+      ISharedConfigManager(address(cm)),
+      500
+    );
+
+    assertEq(amounts[0], 0, "zero-supply vault previews zero token0");
+    assertEq(amounts[1], 0, "zero-supply vault previews zero token1");
+    assertEq(amounts[2], 0, "zero-supply vault previews zero token2");
+    assertEq(amounts[3], 0, "zero-supply vault previews zero token3");
+  }
+
+  /// @dev previewDeposit's first-deposit ALL-ZERO branch (currentTotalSupply == 0 with every amount 0)
+  ///      returns 0 — distinct from the first-deposit NONZERO branch (returns initialShares, covered by
+  ///      the deposit tests) and the subsequent-deposit all-zero revert. Pinned directly because the
+  ///      public API can't present a zero-supply vault; the config manager is never reached on this arm.
+  function test_previewDeposit_returnsZeroForZeroSupplyZeroAmounts() public {
+    uint256[4] memory amounts; // all zero
+    uint256[4] memory totalBalances; // empty vault
+    address[4] memory tokens = [address(0xBBB1), address(0xBBB2), address(0), address(0)];
+
+    uint256 shares = SharedVaultPreviewLib.previewDeposit(
+      amounts,
+      0, // zero total supply (first deposit)
+      totalBalances,
+      tokens,
+      ISharedConfigManager(address(0)), // unreached on the all-zero branch
+      10e18 // initialShares
+    );
+    assertEq(shares, 0, "first-deposit preview of all-zero amounts returns zero shares");
+  }
 }
 
 /// @dev Just enough of ISharedConfigManager for previewWithdraw.

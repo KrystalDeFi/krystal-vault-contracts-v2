@@ -73,6 +73,7 @@ contract PancakeValuationMockPosm {
   mapping(uint256 => uint128) internal _liquidity;
   mapping(uint256 => uint256) internal _lastFeeGrowth0;
   mapping(uint256 => uint256) internal _lastFeeGrowth1;
+  mapping(uint256 => uint128) internal _decoyLiquidity;
 
   constructor(PancakeValuationMockPoolManager manager, PoolKey memory poolKey, int24 tickLower, int24 tickUpper) {
     poolManager = manager;
@@ -97,6 +98,18 @@ contract PancakeValuationMockPosm {
     _liquidity[tokenId] = liquidity;
     _lastFeeGrowth0[tokenId] = lastFeeGrowth0;
     _lastFeeGrowth1[tokenId] = lastFeeGrowth1;
+  }
+
+  function setDecoyLiquidity(uint256 tokenId, uint128 liquidity) external {
+    _decoyLiquidity[tokenId] = liquidity;
+  }
+
+  /// @dev The PRE-F6 principal liquidity source. F6 unified the lib to read liquidity ONCE from
+  ///      `positions()`, so the lib must NOT consult this getter. It is present (and settable to a
+  ///      divergent value) purely so a regression re-introducing the second, independent read becomes
+  ///      observable in `test_getPositionAmountsSplit_principalAndFeesShareSingleLiquidityRead`.
+  function getPositionLiquidity(uint256 tokenId) external view returns (uint128) {
+    return _decoyLiquidity[tokenId];
   }
 
   function getPoolAndPositionInfo(uint256) external view returns (PoolKey memory poolKey, CLPositionInfo info) {
@@ -165,6 +178,19 @@ contract SharedPancakeV4ValuationLibTest is Test {
     (uint256 amount0, uint256 amount1) = SharedPancakeV4ValuationLib.getPositionAmounts(address(posm), TOKEN_ID);
     assertEq(amount0, 0, "burned token values to zero, not a revert");
     assertEq(amount1, 0);
+
+    // Twin parity with SharedV4ValuationLib's burned-token test: ALL THREE getters must tolerate the
+    // reverting lookup, since each routes through the same `_positionAmountsSplit` try/catch.
+    (uint256 principal0, uint256 principal1) =
+      SharedPancakeV4ValuationLib.getPositionPrincipalAmounts(address(posm), TOKEN_ID);
+    assertEq(principal0, 0, "principal getter tolerates the reverting lookup");
+    assertEq(principal1, 0);
+    (uint256 t0, uint256 t1, uint256 p0, uint256 p1) =
+      SharedPancakeV4ValuationLib.getPositionAmountsSplit(address(posm), TOKEN_ID);
+    assertEq(t0, 0, "split total0 tolerates the reverting lookup");
+    assertEq(t1, 0);
+    assertEq(p0, 0);
+    assertEq(p1, 0);
   }
 
   /// @dev Pancake-specific brick-guard: `getPoolAndPositionInfo` returns a ZERO `CLPositionInfo` for an
@@ -214,6 +240,32 @@ contract SharedPancakeV4ValuationLibTest is Test {
     assertEq(principal1, expected1, "principal1 from liquidity at spot price");
     assertEq(total0 - principal0, 1e18, "fees0 = Q128 delta * 1e18 liquidity / Q128");
     assertEq(total1 - principal1, 2e18, "fees1 = 2*Q128 delta * 1e18 liquidity / Q128");
+  }
+
+  /// @dev F6 single-liquidity-read pin — the inverse of the V4 twin's divergent-liquidity test. F6
+  ///      unified the lib to read liquidity ONCE from `positions()` and use that same snapshot for BOTH
+  ///      principal and fees; pre-F6 the principal came from `getPositionLiquidity()` while the fee path
+  ///      independently re-read `positions()`, which could disagree. Here the mock's DECOY
+  ///      `getPositionLiquidity` (the pre-F6 principal source) is set divergent (99e18); both the
+  ///      principal and the fee term must track the single `positions()` liquidity (3e18), proving the
+  ///      decoy is never consulted. A refactor re-splitting the reads fails this test.
+  ///      (Test-only — do NOT change the lib; it is near the EIP-170 limit.)
+  function test_getPositionAmountsSplit_principalAndFeesShareSingleLiquidityRead() public {
+    uint128 liquidity = 3e18; // the single positions() snapshot that must drive BOTH components
+    posm.setPosition(TOKEN_ID, liquidity, 0, 0);
+    posm.setDecoyLiquidity(TOKEN_ID, 99e18); // pre-F6 principal source; must be ignored
+    manager.setFeeGrowthGlobals(Q128, 0); // token0 fee-growth-inside delta == Q128 per unit liquidity
+
+    (uint256 total0, uint256 total1, uint256 principal0, uint256 principal1) =
+      SharedPancakeV4ValuationLib.getPositionAmountsSplit(address(posm), TOKEN_ID);
+
+    // Principal valued at positions().liquidity (3e18), NOT the decoy getPositionLiquidity (99e18).
+    (uint256 expectedPrincipal0, uint256 expectedPrincipal1) = _expectedPrincipal(SQRT_PRICE_1_1, liquidity);
+    assertEq(principal0, expectedPrincipal0, "principal uses the single positions() liquidity, not the decoy");
+    assertEq(principal1, expectedPrincipal1, "principal uses the single positions() liquidity, not the decoy");
+    // Fee term uses the SAME 3e18 snapshot: Q128 delta * 3e18 / Q128 == 3e18 (would differ if it re-read).
+    assertEq(total0 - principal0, 3e18, "fee term uses the same positions() liquidity snapshot");
+    assertEq(total1 - principal1, 0, "no token1 fee growth");
   }
 
   function test_getPositionPrincipalAmounts_excludesUncollectedFees() public {

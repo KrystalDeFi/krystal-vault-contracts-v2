@@ -669,6 +669,94 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     assertEq(tokenX.balanceOf(address(harness)), 0, "combined seed fully consumed");
   }
 
+  /// @dev Twin of test_executeWithInputs_twoDistinctNonPoolInputs_eachSeedConsumedToZero: TWO distinct
+  ///      non-pool inputs seed the ledger simultaneously (seedCount == 2), each converted by its own
+  ///      hop into a different pool token and each netting to exactly zero.
+  function test_executePancakeWithInputs_twoDistinctNonPoolInputs_eachSeedConsumedToZero() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("SourceX", "SRX");
+    SharedPancakeV4SwapPipelineTestToken tokenY = new SharedPancakeV4SwapPipelineTestToken("SourceY", "SRY");
+    harness.setVaultToken(address(tokenX), true);
+    harness.setVaultToken(address(tokenY), true);
+    tokenX.mint(address(harness), 6 ether);
+    tokenY.mint(address(harness), 4 ether);
+    token0.mint(address(router), 6 ether);
+    token1.mint(address(router), 4 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenY), address(token1), uint256(4 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 6 ether });
+    inputs[1] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenY)), amount: 4 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 6 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 6 ether, 6 ether, hop0Data)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenY)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 4 ether,
+      swapData: _signedSwapData(address(tokenY), address(token1), 4 ether, 4 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 6 ether, "tokenX->token0 output credited to total0");
+    assertEq(total1, 4 ether, "tokenY->token1 output credited to total1");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "first seed fully consumed");
+    assertEq(tokenY.balanceOf(address(harness)), 0, "second seed fully consumed");
+  }
+
+  /// @dev Twin of test_executeWithInputs_zeroAmountInHopOnSeededInput_skipsWithoutTouchingLedger: a
+  ///      zero-amountIn no-op hop whose tokenIn is the SEEDED intermediate token must resolve the
+  ///      intermediate, pass the (0 <= tracked) budget check, then short-circuit without touching the
+  ///      router or the seed ledger; a second real hop consumes the full seed so the ledger nets to zero.
+  function test_executePancakeWithInputs_zeroAmountInHopOnSeededInput_skipsWithoutTouchingLedger() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Source", "SRC");
+    harness.setVaultToken(address(tokenX), true);
+    tokenX.mint(address(harness), 10 ether);
+    token0.mint(address(router), 6 ether);
+
+    bytes memory zeroHopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+    bytes memory realHopData =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token0), uint256(6 ether)));
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(tokenX)), amount: 10 ether });
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 0,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0,
+      swapData: _signedSwapData(address(tokenX), address(token0), 10 ether, 0, zeroHopData)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 10 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 6 ether,
+      swapData: _signedSwapData(address(tokenX), address(token0), 10 ether, 6 ether, realHopData)
+    });
+
+    (uint256 total0,) =
+      harness.executePancakeWithInputs(address(router), address(token0), address(token1), inputs, 0, swaps);
+
+    assertEq(total0, 6 ether, "only the real hop produced output; the zero hop was skipped");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "seed consumed only by the real hop, untouched by the skipped one");
+  }
+
   /// @dev Twin of test_executeWithInputs_revertsWhenInputHasNoConsumingHop.
   function test_executePancakeWithInputs_revertsWhenInputHasNoConsumingHop() public {
     SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dangling", "DGL");
@@ -785,6 +873,32 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     assertEq(tokenX.balanceOf(address(harness)), 0, "post-fee remainder fully consumed");
   }
 
+  /// @dev Twin of test_executeWithInputs_skimsGasFeeFromPoolTokenInputThenFolds: the input gas fee
+  ///      applies to POOL-token inputs too, and the POST-fee amount is what folds into the totals.
+  function test_executePancakeWithInputs_skimsGasFeeFromPoolTokenInputThenFolds() public {
+    address gasFeeRecipient = makeAddr("gasFeeRecipient");
+    configManager.setFeeRecipient(gasFeeRecipient);
+
+    token0.mint(address(harness), 8 ether);
+
+    ISharedPancakeV4Utils.InputTokenParams[] memory inputs = new ISharedPancakeV4Utils.InputTokenParams[](1);
+    inputs[0] = ISharedPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 8 ether });
+
+    (uint256 total0, uint256 total1) = harness.executePancakeWithInputs(
+      address(router),
+      address(token0),
+      address(token1),
+      inputs,
+      uint64(uint256(0x10000000000000000) / 4), // 25%
+      new ISharedPancakeV4Utils.SwapParams[](0)
+    );
+
+    assertEq(token0.balanceOf(gasFeeRecipient), 2 ether, "25% gas fee skimmed from the pool-token input");
+    assertEq(total0, 6 ether, "post-fee pool-token input folded into total0");
+    assertEq(total1, 0, "token1 untouched");
+    assertEq(token0.balanceOf(address(harness)), 6 ether, "harness retains the post-fee folded amount");
+  }
+
   // -------------------------------------------------------------------------
   // executePancakeToDest: twin-parity coverage of executeToDest (the
   // decrease-and-swap exit variant). Mirrors the executeToDest block in
@@ -857,6 +971,47 @@ contract SharedPancakeV4SwapPipelineTest is Test {
     assertEq(total1, 1 ether, "hop 2 output credited to total1");
     assertEq(destOut, 3 ether, "only the unconsumed dest remainder reported");
     assertEq(tokenX.balanceOf(address(harness)), 3 ether, "dest remainder stays with the vault");
+  }
+
+  /// @dev Twin of test_executeToDest_destFullyConsumed_reportsZeroDestOut: a later hop consumes the
+  ///      ENTIRE dest output, so the dest entry nets to zero via the allowed-dest exemption branch
+  ///      (destOut = 0, no revert) rather than the strict `else require(... == 0)` arm.
+  function test_executePancakeToDest_destFullyConsumed_reportsZeroDestOut() public {
+    SharedPancakeV4SwapPipelineTestToken tokenX = new SharedPancakeV4SwapPipelineTestToken("Dest", "DST");
+    harness.setVaultToken(address(tokenX), true);
+    token0.mint(address(harness), 10 ether);
+    tokenX.mint(address(router), 5 ether);
+    token1.mint(address(router), 1 ether);
+
+    bytes memory hop0Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(token0), address(tokenX), uint256(5 ether)));
+    bytes memory hop1Data =
+      abi.encodeCall(SharedPancakeV4SwapPipelineRouter.swapAll, (address(tokenX), address(token1), uint256(1 ether)));
+
+    ISharedPancakeV4Utils.SwapParams[] memory swaps = new ISharedPancakeV4Utils.SwapParams[](2);
+    swaps[0] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 4 ether,
+      tokenOut: Currency.wrap(address(tokenX)),
+      amountOutMin: 5 ether,
+      swapData: _signedSwapData(address(token0), address(tokenX), 4 ether, 5 ether, hop0Data)
+    });
+    swaps[1] = ISharedPancakeV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(tokenX)),
+      amountIn: 5 ether, // consumes the ENTIRE dest output
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 1 ether,
+      swapData: _signedSwapData(address(tokenX), address(token1), 5 ether, 1 ether, hop1Data)
+    });
+
+    (uint256 total0, uint256 total1, uint256 destOut) = harness.executePancakeToDest(
+      address(router), address(token0), address(token1), 10 ether, 0, address(tokenX), swaps
+    );
+
+    assertEq(total0, 6 ether, "token0 budget reduced by hop 1");
+    assertEq(total1, 1 ether, "hop 2 output credited to total1");
+    assertEq(destOut, 0, "fully-consumed dest reports zero remainder via the exemption branch (no revert)");
+    assertEq(tokenX.balanceOf(address(harness)), 0, "no dest remainder left");
   }
 
   /// @dev Twin of test_executeToDest_otherIntermediateStillMustNetToZero.

@@ -326,6 +326,88 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertEq(address(nativeVault).balance, 0, "raw native was not left in vault");
   }
 
+  /// @notice Twin of test_withdrawFull_nativeCurrencyPool_wrapsNativeOnExit_withRealV4PositionManager:
+  ///         native-currency OUTFLOW wrapping (`_wrapNativeBalanceDelta` success branches in
+  ///         SharedPancakeV4StrategyLib's `_collectFees` / `_decreaseV4Principal`). The existing native
+  ///         test only drives ETH IN (mint); this fully withdraws so the real Pancake Infinity POSM
+  ///         returns RAW ETH for the currency0==address(0) side on exit, which the lib MUST wrap to WETH
+  ///         before accounting. A regressed wrap would strand raw ETH on the vault.
+  function test_withdrawFull_nativeCurrencyPool_wrapsNativeOnExit_withRealPancakeV4PositionManager() public {
+    PoolKey memory nativeKey = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token0)),
+      hooks: IHooks(address(0)),
+      poolManager: IPoolManager(address(poolManager)),
+      fee: LP_FEE,
+      parameters: _clParameters(TICK_SPACING)
+    });
+    poolManager.initialize(nativeKey, SQRT_PRICE_1_1);
+
+    SharedVault nativeVault = new SharedVault();
+    vm.deal(address(this), 10 ether);
+    IWETH9(BASE_WETH).deposit{ value: 10 ether }();
+    IERC20(BASE_WETH).transfer(address(nativeVault), 10 ether);
+    token0.mint(address(nativeVault), 10 ether);
+    address[4] memory vaultTokens = [BASE_WETH, address(token0), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(10 ether), uint256(10 ether), uint256(0), uint256(0)];
+    nativeVault.initialize(
+      "SharedVault-PancakeV4-Native-Exit-Fork",
+      vaultTokens,
+      initialAmounts,
+      vaultOwner,
+      address(this),
+      address(configManager),
+      BASE_WETH,
+      0
+    );
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: nativeKey,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(strategy),
+      bytes.concat(
+        abi.encode(SharedPancakeV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_PANCAKE_V4_POSM, uint256(0), abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams)), uint256(0),
+          new address[](0), new uint256[](0)
+        )
+      ),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(vaultOwner);
+    nativeVault.execute(actions);
+    assertEq(nativeVault.getPositionCount(), 1, "native position minted");
+    assertEq(address(nativeVault).balance, 0, "no raw native after mint (baseline)");
+
+    // Drive ETH OUT via a full withdraw.
+    uint256 ownerWethBefore = IERC20(BASE_WETH).balanceOf(vaultOwner);
+    uint256 ownerShares = nativeVault.balanceOf(vaultOwner);
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = nativeVault.withdraw(ownerShares, mins, false);
+
+    assertEq(address(nativeVault).balance, 0, "raw native from the position exit was wrapped, not stranded");
+    assertEq(nativeVault.getPositionCount(), 0, "full withdraw removed the native position");
+    assertEq(nativeVault.totalSupply(), 0, "all shares burned");
+    assertGt(got[0], 0, "native (WETH) side returned to the withdrawer");
+    assertEq(IERC20(BASE_WETH).balanceOf(vaultOwner), ownerWethBefore + got[0], "withdrawer paid in WETH, not raw ETH");
+  }
+
   function test_swapAndIncrease_addsLiquidityToTrackedPositionWithRealPancakeV4PositionManager() public {
     uint128 liquidityBefore = posm.getPositionLiquidity(tokenId);
     uint256 countBefore = vault.getPositionCount();

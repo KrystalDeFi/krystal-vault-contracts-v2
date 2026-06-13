@@ -504,6 +504,19 @@ contract SharedConfigManagerTest is TestCommon {
     assertEq(configManager.maxGasFeeX64(), type(uint64).max);
   }
 
+  /// @dev Zero is a load-bearing documented value: ISharedConfigManager says the owner "can lower it to
+  ///      0 to disable discretionary strategy gas fees". The peer setters setPlatformFeeBasisPoint and
+  ///      setMinTokenPrecision both have an explicit allowsZero pin; maxGasFeeX64 was the odd one out.
+  function test_setMaxGasFeeX64_allowsZero() public {
+    vm.prank(OWNER);
+    configManager.setMaxGasFeeX64(uint64(1 << 62)); // start non-zero
+
+    vm.prank(OWNER);
+    configManager.setMaxGasFeeX64(0);
+
+    assertEq(configManager.maxGasFeeX64(), 0, "owner can lower the cap to 0 to disable strategy gas fees");
+  }
+
   function test_setMaxGasFeeX64_emitsEvent() public {
     vm.prank(OWNER);
     vm.expectEmit(false, false, false, true, address(configManager));
