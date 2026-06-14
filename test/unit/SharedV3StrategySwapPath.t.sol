@@ -184,6 +184,15 @@ contract SwapV3Router {
     SwapV3Token(tokenIn).transferFrom(msg.sender, address(this), amountIn);
     SwapV3Token(tokenOut).mint(recipient, amountOut);
   }
+
+  /// @dev Pulls `pull`, which is LESS than the signer-authorized amountIn the strategy approved, so the
+  ///      strategy's MEASURED input delta (`balanceInBefore - balanceInAfter == pull`) diverges from the
+  ///      nominal signed amount. Used to prove `_swapAndPrepareAmounts` books `amount - amountInDelta`
+  ///      (the measured pull), not `amount - amountIn`.
+  function swapPartial(address tokenIn, address tokenOut, uint256 pull, uint256 amountOut) external {
+    SwapV3Token(tokenIn).transferFrom(msg.sender, address(this), pull); // < approved amountIn
+    SwapV3Token(tokenOut).mint(msg.sender, amountOut);
+  }
 }
 
 contract SwapV3VaultHarness {
@@ -889,6 +898,40 @@ contract SharedV3StrategySwapPathTest is Test {
     assertEq(changes.length, 1, "single position change");
     assertEq(changes[0].isAdd, true, "mint tracked");
     assertEq(changes[0].tokenId, 777, "tracked tokenId from the NFPM mint");
+  }
+
+  /// @dev `_swapAndPrepareAmounts` books the swapped pool-token leg at the MEASURED input delta
+  ///      (`total0 = params.amount0 - amountInDelta`), NOT the nominal signed `amountIn1`. Every other
+  ///      swap test approves and pulls the same amount, so amountInDelta == amountIn there and the two
+  ///      are indistinguishable. Here, with swapSourceToken == token0, the router pulls LESS than the
+  ///      signer-authorized amountIn1 (the digest still binds the full amountIn1 and the partial
+  ///      swapData). The correct contract books total0 = amount0 - pull and mints it; a regression
+  ///      booking the nominal amountIn1 would mint amount0 - amountIn1 and strand the unpulled token0.
+  function test_swapAndMint_poolTokenSource_booksMeasuredDeltaNotNominalAmountIn() public {
+    token0.mint(address(vault), 1000);
+
+    uint256 amountIn1 = 600; // signer-authorized token0 -> token1 swap amount (<= amount0 budget)
+    uint256 pull = 400; // router consumes only part of the approval
+    uint256 out1 = 700; // token1 delivered by the router
+    bytes memory swapData1 =
+      abi.encodeCall(SwapV3Router.swapPartial, (address(token0), address(token1), pull, out1));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 1000;
+    params.amountIn1 = amountIn1;
+    params.amountOut1Min = out1;
+    params.swapData1 = _signedSwapData(address(token0), address(token1), amountIn1, out1, swapData1);
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), _mintData(params));
+
+    // Discriminating: total0 booked at amount0 - measured pull (600), so the mint consumes 600 token0 —
+    // NOT amount0 - nominal amountIn1 (400). The unpulled 200 (amountIn1 - pull) is NOT stranded.
+    assertEq(token0.balanceOf(address(nfpm)), 1000 - pull, "mint consumed amount0 - measured pull, not - amountIn1");
+    assertEq(token1.balanceOf(address(nfpm)), out1, "mint consumed the token1 swap output");
+    assertEq(token0.balanceOf(address(router)), pull, "router pulled only the partial amount");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 stranded: 1000 - pull swapped-budget - (1000-pull) minted");
   }
 
   /// @dev Same budget guard on the increase path (_swapAndPrepareIncreaseAmounts).

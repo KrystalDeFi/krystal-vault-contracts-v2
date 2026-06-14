@@ -676,6 +676,75 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     assertGe(got[1] + t1In / 200 + 5, t1In, "round-trip token1 loss is only dust");
   }
 
+  /// @notice P2 twin (independent principal pin) of
+  ///         test_getPositionPrincipal_matchesRealAmountsConsumed_independentOfLibMath. The UNIT
+  ///         valuation tests check the lib's principal against the lib's OWN `getAmountsForLiquidity`
+  ///         call (circular). The ground truth is what the REAL Pancake Infinity CLPositionManager
+  ///         actually pulled at mint. We deposit a balanced pair into the vault's sole tracked position,
+  ///         measure `t0In`/`t1In` consumed by the real POSM, then assert the vault's principal view —
+  ///         `previewWithdraw(shares)` of the deposit's minted shares, same-block (no fees) == the lib's valuation —
+  ///         matches the consumed amounts. Pinned separately from Uniswap V4 because infinity-core's
+  ///         liquidity/amount rounding is an independent implementation.
+  ///
+  ///         Tolerance: 0.5% (`0.005e18`). The deposit uses `slippageBps = 50` (0.5%), so the LP add can
+  ///         leave up to ~0.5% of one side as idle vault balance that `previewWithdraw` re-adds to the
+  ///         lib's principal — so the bound is the file's own deposit slippage budget (the same 0.5% the
+  ///         round-trip pin already proves realistic for this real pool), not a loosened figure.
+  function test_getPositionPrincipal_matchesRealAmountsConsumed_independentOfLibMath() public {
+    token0.mint(depositor, 100 ether);
+    token1.mint(depositor, 100 ether);
+
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = token0.balanceOf(depositor);
+    uint256 t1Before = token1.balanceOf(depositor);
+    uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amounts, 50, 0); // 0.5% LP-add slippage tolerance (same as round-trip pin)
+    vm.stopPrank();
+
+    uint256 t0In = t0Before - token0.balanceOf(depositor); // ground truth: what the real POSM consumed
+    uint256 t1In = t1Before - token1.balanceOf(depositor);
+    assertGt(t0In, 0, "token0 actually consumed by the real pool");
+    assertGt(t1In, 0, "token1 actually consumed by the real pool");
+
+    // previewWithdraw on THIS DEPOSIT's freshly-minted shares (NOT totalSupply — the vault was pre-seeded
+    // in setUp with idle balances + a recovered position held by vaultOwner, so totalSupply values the
+    // whole vault, ~11e18, not the 1e18 deposit). Same-block there are no fees, so the depositor's share
+    // valuation equals the lib's principal view of what they contributed. Index 0/1 == token0/token1.
+    uint256[4] memory pv = vault.previewWithdraw(shares);
+
+    // Independent: the lib's principal must equal what the AMM actually took, within LP-add dust.
+    assertApproxEqRel(pv[0], t0In, 0.005e18, "valuation principal0 != real consumed amount0");
+    assertApproxEqRel(pv[1], t1In, 0.005e18, "valuation principal1 != real consumed amount1");
+  }
+
+  /// @notice P6 (withdraw <= previewWithdraw on a REAL pool) — twin of
+  ///         `Integration.SharedVault.V4.t.sol::test_withdraw_neverExceedsPreview_onRealPool`.
+  ///         The unit suite asserts `received == preview` on lossless mocks, which CONTRADICTS the
+  ///         NatSpec ("preview is a strict upper bound by a few wei"). On a real Pancake Infinity pool
+  ///         the protective direction — realized withdraw NEVER exceeds preview because the vault rounds
+  ///         toward itself — is what must hold. A rounding-direction regression (preview floors while
+  ///         withdraw ceils, or vice-versa) would surface here as `got[i] > preview[i]`. Pinned
+  ///         separately from Uniswap V4 because infinity-core's liquidity/amount rounding is an
+  ///         independent implementation feeding the same preview/withdraw paths.
+  function test_withdraw_neverExceedsPreview_onRealPool() public {
+    // Use the real Pancake V4 position the setUp already recovered into the vault (shares to vaultOwner).
+    uint256 shares = vault.balanceOf(vaultOwner);
+    assertGt(shares, 0, "vault owner holds shares backed by the real position");
+
+    uint256[4] memory preview = vault.previewWithdraw(shares);
+
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+
+    for (uint256 i; i < 4; i++) {
+      assertLe(got[i], preview[i], "realized withdraw must never exceed preview (rounds toward vault)");
+    }
+  }
+
   /// @dev Twin of the V4 integration test: a real native-currency Pancake V4 position cannot be
   ///      recovered with token0 == address(0) — recoverPosition's vault-token check rejects it.
   function test_recoverPosition_rejectsNativeCurrencyPoolFromRealPancakeV4PositionManager() public {

@@ -6,6 +6,7 @@ import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedCon
 import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/ISharedConfigManager.sol";
 import { ISharedCommon } from "../../contracts/shared-vault/interfaces/ISharedCommon.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract SharedConfigManagerTest is TestCommon {
   SharedConfigManager public configManager;
@@ -123,7 +124,7 @@ contract SharedConfigManagerTest is TestCommon {
   }
 
   function test_initialize_revertsIfCalledTwice() public {
-    vm.expectRevert();
+    vm.expectRevert(Initializable.InvalidInitialization.selector);
     configManager.initialize(
       OWNER, new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0), new address[](0)
     );
@@ -132,7 +133,7 @@ contract SharedConfigManagerTest is TestCommon {
   function test_initialize_revertsWithZeroOwner() public {
     SharedConfigManager fresh = new SharedConfigManager();
 
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableInvalidOwner.selector, address(0)));
     fresh.initialize(
       address(0), new address[](0), new address[](0), FEE_RECIPIENT, 0, new address[](0), new address[](0), new address[](0)
     );
@@ -203,7 +204,7 @@ contract SharedConfigManagerTest is TestCommon {
     targets[0] = TARGET_B;
 
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setWhitelistTargets(targets, true);
   }
 
@@ -244,7 +245,7 @@ contract SharedConfigManagerTest is TestCommon {
     callers[0] = NON_OWNER;
 
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setWhitelistCallers(callers, true);
   }
 
@@ -328,7 +329,7 @@ contract SharedConfigManagerTest is TestCommon {
     routers[0] = address(0x999);
 
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setWhitelistSwapRouters(routers, true);
   }
 
@@ -375,7 +376,7 @@ contract SharedConfigManagerTest is TestCommon {
     signers[0] = address(0x999);
 
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setWhitelistSigners(signers, true);
   }
 
@@ -407,7 +408,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_setVaultPaused_revertsForNonOwner() public {
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setVaultPaused(true);
   }
 
@@ -484,7 +485,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_setPlatformFeeBasisPoint_revertsForNonOwner() public {
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setPlatformFeeBasisPoint(500);
   }
 
@@ -526,7 +527,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_setMaxGasFeeX64_revertsForNonOwner() public {
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setMaxGasFeeX64(1);
   }
 
@@ -565,7 +566,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_setMaxPositions_revertsForNonOwner() public {
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setMaxPositions(5);
   }
 
@@ -625,7 +626,7 @@ contract SharedConfigManagerTest is TestCommon {
 
   function test_setMinTokenPrecision_revertsForNonOwner() public {
     vm.prank(NON_OWNER);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_OWNER));
     configManager.setMinTokenPrecision(3);
   }
 }

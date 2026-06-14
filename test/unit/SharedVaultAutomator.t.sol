@@ -13,6 +13,7 @@ import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/
 import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
@@ -343,8 +344,15 @@ contract SharedVaultAutomatorTest is TestCommon {
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
+    // expectRevert MUST precede prank: a prank immediately followed by an expectRevert cheatcode is
+    // consumed before the real call, so the call would otherwise run as the default sender. Ordering it
+    // this way makes NON_OPERATOR the actual caller, which is what this test claims to verify.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OPERATOR, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(NON_OPERATOR);
-    vm.expectRevert();
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -446,7 +454,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.pause();
 
     vm.prank(OPERATOR);
-    vm.expectRevert();
+    vm.expectRevert(Pausable.EnforcedPause.selector);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -470,7 +478,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.pause();
 
     vm.prank(OPERATOR);
-    vm.expectRevert();
+    vm.expectRevert(Pausable.EnforcedPause.selector);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -535,8 +543,14 @@ contract SharedVaultAutomatorTest is TestCommon {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
+    // expectRevert MUST precede prank (see executeWithAgentAllowance twin): otherwise the prank is
+    // consumed and the call runs as the default sender instead of NON_OPERATOR.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OPERATOR, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(NON_OPERATOR);
-    vm.expectRevert();
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 

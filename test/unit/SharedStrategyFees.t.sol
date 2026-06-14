@@ -202,4 +202,33 @@ contract SharedStrategyFeesTest is Test {
     assertEq(fee1, 0);
     assertEq(t0.balanceOf(platform), 1, "the wei reached the platform recipient");
   }
+
+  /// @dev Fee rounding DIRECTION: `applyFees` uses floor `FullMath.mulDiv` throughout, so the protocol
+  ///      always rounds the fee DOWN (favoring the user) and can never over-charge. Platform-only config
+  ///      (ownerBps = 0, gasFeeX64 = 0) with amounts whose bps slice has a remainder pins the floor: for
+  ///      a0 = 1001 at 10% the exact share is 100.1, which floors to 100 (a `mulDivRoundingUp` switch would
+  ///      yield 101); for a1 = 2003 the exact share is 200.3, which floors to 200 (ceil would be 201).
+  ///      The `fee * 10_000 <= amount * platformBps` checks lock the never-rounds-up direction generally.
+  function test_applyFees_roundsDown_protocolNeverOverCharges() public {
+    uint256 a0 = 1_001;
+    uint256 a1 = 2_003;
+    uint16 platformBps = 1_000; // 10%
+
+    (uint256 fee0, uint256 fee1) =
+      harness.applyFees(address(t0), a0, address(t1), a1, _config(platformBps, 0, 0));
+
+    // FLOOR, not ceil: ceil would be 101 / 201. This locks the user-favoring direction.
+    assertEq(fee0, (a0 * platformBps) / 10_000, "fee0 floored"); // 100
+    assertEq(fee1, (a1 * platformBps) / 10_000, "fee1 floored"); // 200
+    assertEq(fee0, 100, "fee0 == 100 (100.1 floored, not 101)");
+    assertEq(fee1, 200, "fee1 == 200 (200.3 floored, not 201)");
+
+    // General never-rounds-up bound: the collected fee must not exceed the exact (unrounded) slice.
+    assertLe(fee0 * 10_000, a0 * platformBps, "fee0 never rounds up against the user");
+    assertLe(fee1 * 10_000, a1 * platformBps, "fee1 never rounds up against the user");
+
+    // The floored slice is exactly what reached the platform recipient (no consolidation, direct transfer).
+    assertEq(t0.balanceOf(platform), 100, "platform received the floored fee0");
+    assertEq(t1.balanceOf(platform), 200, "platform received the floored fee1");
+  }
 }

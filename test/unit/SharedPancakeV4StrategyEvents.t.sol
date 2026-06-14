@@ -451,4 +451,50 @@ contract SharedPancakeV4StrategyEventsTest is Test {
     emit ISharedPancakeV4Utils.SwapAndMint(address(posm), posm.nextTokenId(), expectedLiquidity, used0, used1);
     harness.swapAndMint(address(posm), abi.encodeCall(ISharedPancakeV4Utils.swapAndMint, (p)));
   }
+
+  /// @dev P10 (non-circular), twin of the Uniswap V4 case: the sibling `expectEmit` tests pin the
+  ///      emitted amounts against the lib's OWN `getLiquidityForAmounts`/`getAmountsForLiquidity`
+  ///      recomputed at the same price, so a formula bug present in both lib and test would pass. This
+  ///      test instead captures the amounts the contract ACTUALLY emitted (via recordLogs) and asserts
+  ///      a relationship the quote must satisfy regardless of its internal arithmetic: with token0
+  ///      grossly over-supplied vs token1 at a 1:1 in-range price, token1 is the scarce/limiting side,
+  ///      so the emitted consumption must leave the over-supplied token0 only partially used
+  ///      (`amount0 < offered0`), never consume more than offered on the scarce side
+  ///      (`amount1 <= offered1`), and both sides must be non-zero. No lib formula is recomputed here.
+  function test_pancake_swapAndMint_imbalanced_emittedConsumptionRespectsSupplyBounds() public {
+    uint256 offered0 = 100e18; // grossly over-supplied
+    uint256 offered1 = 1e18; // scarce / limiting side
+    ISharedPancakeV4Utils.SwapAndMintParams memory p;
+    p.posm = address(posm);
+    p.poolKey = _poolKey();
+    p.mintParams =
+      ISharedPancakeV4Utils.MintParams({ tickLower: -60, tickUpper: 60, minLiquidity: 0, hookData: "", deadline: 0 });
+    p.swapParams = new ISharedPancakeV4Utils.SwapParams[](0);
+    p.inputTokens = _inputs(offered0, offered1);
+    p.sweepTokens = new Currency[](0);
+
+    vm.recordLogs();
+    harness.swapAndMint(address(posm), abi.encodeCall(ISharedPancakeV4Utils.swapAndMint, (p)));
+    (uint256 emittedAmount0, uint256 emittedAmount1) = _emittedSwapAndMintAmounts();
+
+    assertGt(emittedAmount0, 0, "over-supplied side still consumed (non-zero)");
+    assertGt(emittedAmount1, 0, "scarce side consumed (non-zero)");
+    assertLt(emittedAmount0, offered0, "over-supplied token0 must not be fully consumed");
+    assertLe(emittedAmount1, offered1, "scarce token1 consumption cannot exceed what was offered");
+  }
+
+  /// @dev Reads back the `amount0`/`amount1` words (3rd and 4th uints) from the single emitted
+  ///      `SwapAndMint` log; `liquidity` is the 1st non-indexed word and is skipped. The mock tokens
+  ///      emit no events, so the only log carrying this topic0 is the strategy event itself.
+  function _emittedSwapAndMintAmounts() internal returns (uint256 amount0, uint256 amount1) {
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    bytes32 sig = keccak256("SwapAndMint(address,uint256,uint256,uint256,uint256)");
+    for (uint256 i; i < logs.length; i++) {
+      if (logs[i].topics.length > 0 && logs[i].topics[0] == sig) {
+        (, amount0, amount1) = abi.decode(logs[i].data, (uint256, uint256, uint256));
+        return (amount0, amount1);
+      }
+    }
+    revert("SwapAndMint log not found");
+  }
 }

@@ -14,6 +14,8 @@ import { SharedStrategyFeeConfig } from "../../contracts/shared-vault/libraries/
 import { ICommon } from "../../contracts/public-vault/interfaces/ICommon.sol";
 import { IFeeTaker } from "../../contracts/public-vault/interfaces/strategies/IFeeTaker.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
@@ -3667,7 +3669,9 @@ contract SharedVaultTest is TestCommon {
     uint256[4] memory minAmounts;
 
     vm.prank(NON_AUTHORIZED);
-    vm.expectRevert();
+    vm.expectRevert(
+      abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, NON_AUTHORIZED, 0, burnShares)
+    );
     vault.withdraw(burnShares, minAmounts, false, VAULT_OWNER);
   }
 
@@ -7764,7 +7768,7 @@ contract SharedVaultTest is TestCommon {
 
   function test_setMinTokenPrecision_reverts_for_non_owner() public {
     vm.prank(NON_AUTHORIZED);
-    vm.expectRevert();
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, NON_AUTHORIZED));
     configManager.setMinTokenPrecision(3);
   }
 

@@ -277,6 +277,48 @@ contract SharedV4ValuationLibTest is Test {
     assertEq(amount1, 0);
   }
 
+  /// @dev Off-center but still in-range: every other split test puts the current tick at exactly 0
+  ///      (the symmetric balance point where principal0 == principal1) or fully out of range, so the
+  ///      normal two-sided in-range branch of `getAmountsForLiquidity` (A < X < B) is never asserted
+  ///      to hold BOTH amounts with the two sides UNEQUAL. Setting the current tick to 30 inside
+  ///      [-60, 60] forces that branch and a genuinely lopsided split (price above 1:1 holds more of
+  ///      the now-cheaper token0). No recompute: the property is just "both sides present, unequal."
+  function test_getPositionAmountsSplit_offCenterInRange_bothSidesNonzeroUnequal() public {
+    int24 cur = 30; // inside [-60, 60] but not centered
+    manager.setSlot0(poolId, TickMath.getSqrtPriceAtTick(cur), cur);
+    _seedPosition(1e18, 0, 0);
+
+    (,, uint256 principal0, uint256 principal1) =
+      SharedV4ValuationLib.getPositionAmountsSplit(address(posm), TOKEN_ID);
+
+    assertGt(principal0, 0, "token0 principal present in-range");
+    assertGt(principal1, 0, "token1 principal present in-range");
+    assertTrue(principal0 != principal1, "off-center range must value the two sides differently");
+  }
+
+  /// @dev MIN/MAX usable-tick bounds with the current price at the lower bound (entirely below range):
+  ///      `getSqrtPriceAtTick` is exercised at the extreme ends it is only ever called with for a
+  ///      full-range position, and `getAmountsForLiquidity`'s `sqrtX <= sqrtA` branch must value the
+  ///      out-of-range side to EXACTLY zero without reverting. A reverting valuation here would brick
+  ///      deposit()/withdraw()/preview for any vault holding a max-width position. The mock POSM pins
+  ///      its tick range at construction (the lib reads ticks from `getPoolAndPositionInfo`), so a
+  ///      fresh `widePosm` is spun up at the extreme bounds; only the POSM-side liquidity drives the
+  ///      principal, so no manager-side position write is needed.
+  function test_getPositionAmounts_extremeTicks_doesNotRevertAndZerosCorrectSide() public {
+    int24 spacing = 60;
+    int24 lo = TickMath.minUsableTick(spacing);
+    int24 hi = TickMath.maxUsableTick(spacing);
+
+    ValuationMockPosm widePosm = new ValuationMockPosm(manager, poolKey, lo, hi);
+    widePosm.setLiquidity(TOKEN_ID, 1e18);
+    // Current price AT the lower bound -> position is entirely token0 (sqrtX <= sqrtA branch).
+    manager.setSlot0(poolId, TickMath.getSqrtPriceAtTick(lo), lo);
+
+    (uint256 a0, uint256 a1) = SharedV4ValuationLib.getPositionAmounts(address(widePosm), TOKEN_ID);
+    assertGt(a0, 0, "below-range position is entirely token0");
+    assertEq(a1, 0, "no token1 below range");
+  }
+
   /// @dev F7 pin: with a checkpoint AHEAD of current fee growth (possible after fee-growth wrap),
   ///      `_feeOwed`'s unchecked subtraction wraps mod 2^256 by design — and valuation must NOT
   ///      revert, because a reverting valuation bricks deposits for the whole vault. The wrapped

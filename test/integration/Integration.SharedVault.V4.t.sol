@@ -703,6 +703,73 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertGe(got[1] + t1In / 200 + 5, t1In, "round-trip token1 loss is only dust");
   }
 
+  /// @notice P2 (independent principal pin): the UNIT valuation tests check the lib's principal against
+  ///         the lib's OWN `LiquidityAmounts.getAmountsForLiquidity(...)` call — a circular check that
+  ///         can only catch a wiring bug, not a valuation/rounding bug. The ground truth for principal
+  ///         is what the REAL V4 PositionManager actually pulled at mint. Here we deposit a balanced
+  ///         pair into the vault's sole tracked position, measure `t0In`/`t1In` actually consumed by the
+  ///         real POSM, then assert the vault's view of principal — `previewWithdraw(shares)` of the
+  ///         deposit's minted shares, which same-block (no fees) is exactly the lib's principal valuation —
+  ///         matches the consumed amounts. This grounds the lib's arithmetic in the pool's real token
+  ///         movement, independent of the lib's own `getAmountsForLiquidity`.
+  ///
+  ///         Tolerance: 0.5% (`0.005e18`). The deposit uses `slippageBps = 50` (0.5%), so the LP add can
+  ///         leave up to ~0.5% of one side unconsumed as idle vault balance; `previewWithdraw` re-adds
+  ///         that idle remainder to the lib's principal, so principal-vs-consumed agreement is bounded by
+  ///         the same 0.5% the existing round-trip test already proves is realistic for this real pool
+  ///         (not a loosened figure — it is the file's own deposit slippage budget).
+  function test_getPositionPrincipal_matchesRealAmountsConsumed_independentOfLibMath() public {
+    token0.mint(depositor, 100 ether);
+    token1.mint(depositor, 100 ether);
+
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = token0.balanceOf(depositor);
+    uint256 t1Before = token1.balanceOf(depositor);
+    uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amounts, 50, 0); // 0.5% LP-add slippage tolerance (same as round-trip pin)
+    vm.stopPrank();
+
+    uint256 t0In = t0Before - token0.balanceOf(depositor); // ground truth: what the real POSM consumed
+    uint256 t1In = t1Before - token1.balanceOf(depositor);
+    assertGt(t0In, 0, "token0 actually consumed by the real pool");
+    assertGt(t1In, 0, "token1 actually consumed by the real pool");
+
+    // previewWithdraw on THIS DEPOSIT's freshly-minted shares (NOT totalSupply — the vault was pre-seeded
+    // in setUp with idle balances + a recovered position held by vaultOwner, so totalSupply values the
+    // whole vault, ~11e18, not the 1e18 deposit). Same-block there are no fees, so the depositor's share
+    // valuation equals the lib's principal view of what they contributed. Index 0/1 == token0/token1.
+    uint256[4] memory pv = vault.previewWithdraw(shares);
+
+    // Independent: the lib's principal must equal what the AMM actually took, within LP-add dust.
+    assertApproxEqRel(pv[0], t0In, 0.005e18, "valuation principal0 != real consumed amount0");
+    assertApproxEqRel(pv[1], t1In, 0.005e18, "valuation principal1 != real consumed amount1");
+  }
+
+  /// @notice P6 (withdraw <= preview): the documented vault-favoring rounding direction — realized
+  ///         `withdraw()` amounts must NEVER exceed what `previewWithdraw()` quoted (preview is a strict
+  ///         upper bound by a few wei, per the NatSpec). The UNIT tests assert `received == preview`,
+  ///         which only holds in the lossless mock and contradicts the contract's documented direction.
+  ///         This pins the protective inequality against the REAL V4 pool, where preview and realized can
+  ///         legitimately differ by AMM/rounding dust — and the difference must always favor the vault.
+  function test_withdraw_neverExceedsPreview_onRealPool() public {
+    // Use the real V4 position the setUp already recovered into the vault (shares held by vaultOwner).
+    uint256 shares = vault.balanceOf(vaultOwner);
+    assertGt(shares, 0, "vault owner holds shares backed by the real position");
+
+    uint256[4] memory preview = vault.previewWithdraw(shares);
+
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+
+    for (uint256 i; i < 4; i++) {
+      assertLe(got[i], preview[i], "realized withdraw must never exceed preview (rounds toward vault)");
+    }
+  }
+
   function test_recoverPosition_rejectsNativeCurrencyPoolFromRealV4PositionManager() public {
     PoolKey memory nativeKey = PoolKey({
       currency0: Currency.wrap(address(0)),

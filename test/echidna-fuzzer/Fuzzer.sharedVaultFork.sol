@@ -1937,6 +1937,14 @@ contract SharedVaultForkFuzzer {
     _assertVaultBacked(vault);
   }
 
+  /// @notice Aggregate-solvency invariant for the base fork vault: the sum over all holders of
+  ///         `previewWithdraw` never exceeds `getTotalBalances` by more than `positionCount + 1` wei.
+  ///         Guarded by `forkReady`, so it is a no-op until `_ensureReady` has seeded the base vault.
+  function assert_fork_solvency() public view {
+    if (!forkReady) return;
+    _assertForkSolvent(vault);
+  }
+
   function _newInitializedVault(string memory name) internal returns (ISharedVault v) {
     _dealERC20(BASE_WETH, address(this), INITIAL_WETH);
     _dealERC20(BASE_USDC, address(this), INITIAL_USDC);
@@ -2123,6 +2131,46 @@ contract SharedVaultForkFuzzer {
     if (IERC20(address(targetVault)).totalSupply() == 0) return;
     uint256[4] memory totals = targetVault.getTotalBalances();
     assert(totals[0] > 0 || totals[1] > 0);
+  }
+
+  /// @notice Aggregate SOLVENCY invariant (ported from the mock harness's `_assertSolvent`): the vault
+  ///         must be able to honor EVERY shareholder's `previewWithdraw` simultaneously — the sum of all
+  ///         holders' previewable amounts must never exceed the vault's total balances. This is strictly
+  ///         stronger than `_assertVaultBacked` (which only checks "some token > 0"); a violation means
+  ///         the vault has promised out more value than it actually holds (true over-issuance / insolvency).
+  /// @dev    `previewWithdraw` is a close UPPER BOUND on the realizable per-holder amount: it floors once
+  ///         over (idle + spot-valued LP) and can exceed the per-position settled amount by a few wei per
+  ///         position (SharedVault W-7). A `getPositionCount() + 1` wei tolerance absorbs that documented
+  ///         rounding so it is not mistaken for insolvency; a genuine over-issuance would exceed totals by
+  ///         a balance-proportional margin, far beyond this tolerance. The holder set mirrors
+  ///         `_assertShareConservation`: `address(this)` plus every entry of `players`.
+  function _assertForkSolvent(ISharedVault targetVault) internal view {
+    uint256 supply = IERC20(address(targetVault)).totalSupply();
+    if (supply == 0) return;
+
+    uint256[4] memory totals = targetVault.getTotalBalances();
+    uint256[4] memory owed;
+
+    uint256 selfBal = IERC20(address(targetVault)).balanceOf(address(this));
+    if (selfBal > 0) {
+      uint256[4] memory pw = targetVault.previewWithdraw(selfBal);
+      for (uint256 i; i < 4; i++) {
+        owed[i] += pw[i];
+      }
+    }
+    for (uint256 p; p < players.length; p++) {
+      uint256 bal = IERC20(address(targetVault)).balanceOf(address(players[p]));
+      if (bal == 0) continue;
+      uint256[4] memory pw = targetVault.previewWithdraw(bal);
+      for (uint256 i; i < 4; i++) {
+        owed[i] += pw[i];
+      }
+    }
+
+    uint256 tol = targetVault.getPositionCount() + 1;
+    for (uint256 i; i < 4; i++) {
+      assert(owed[i] <= totals[i] + tol);
+    }
   }
 
   function _firstTokenId(ISharedVault targetVault) internal view returns (uint256) {

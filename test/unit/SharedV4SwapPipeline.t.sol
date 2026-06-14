@@ -58,6 +58,14 @@ contract SharedV4SwapPipelineRouter {
     ERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
     ERC20(tokenOut).transfer(msg.sender, amountOut);
   }
+
+  /// @dev Pulls `pull`, which is LESS than the approved (signed) amountIn, so the pipeline's MEASURED
+  ///      input delta (`balanceInBefore - balanceInAfter == pull`) diverges from the nominal signed
+  ///      amount. Used to prove `total0 -= amountInDelta` books the measured pull, not `amountIn`.
+  function swapPartial(address tokenIn, address tokenOut, uint256 pull, uint256 amountOut) external {
+    ERC20(tokenIn).transferFrom(msg.sender, address(this), pull); // < approved amountIn
+    ERC20(tokenOut).transfer(msg.sender, amountOut);
+  }
 }
 
 contract SharedV4SwapPipelineHarness {
@@ -171,6 +179,44 @@ contract SharedV4SwapPipelineTest is Test {
     assertEq(total1, amountOut, "swap output credited to total1");
     assertEq(token0.balanceOf(address(harness)), runtimeAmount - signedAmountIn, "harness keeps the remainder");
     assertEq(token1.balanceOf(address(harness)), amountOut, "harness received the swap output");
+  }
+
+  /// @dev The input side is booked at the MEASURED delta (`total0 -= amountInDelta`), NOT the nominal
+  ///      signed `amountIn`. Every other test approves and pulls the same amount, so amountInDelta ==
+  ///      amountIn there and the two are indistinguishable. Here the router pulls LESS than the approved
+  ///      signed amountIn (the digest still binds the full signedAmountIn and the partial swapData), so a
+  ///      regression that booked the nominal amountIn would yield total0 == runtimeAmount - signedAmountIn
+  ///      (== 0) and strand the unpulled input untracked. The correct contract books the measured pull.
+  function test_execute_booksMeasuredDelta_notNominalAmountIn_whenRouterPullsPartial() public {
+    uint256 runtimeAmount = 10 ether;
+    uint256 signedAmountIn = 10 ether; // approved to the router and bound into the digest
+    uint256 pull = signedAmountIn / 2; // router consumes only part of the approval
+    uint256 amountOut = 5 ether;
+    bytes memory rawSwapData =
+      abi.encodeCall(SharedV4SwapPipelineRouter.swapPartial, (address(token0), address(token1), pull, amountOut));
+
+    token0.mint(address(harness), runtimeAmount);
+    token1.mint(address(router), amountOut);
+
+    ISharedV4Utils.SwapParams[] memory swaps = new ISharedV4Utils.SwapParams[](1);
+    swaps[0] = ISharedV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: signedAmountIn,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: amountOut,
+      // Sign over the full signedAmountIn; the raw call only pulls `pull`. amountInDelta (== pull) must
+      // be what gets booked, not amountIn.
+      swapData: _signedSwapData(address(token0), address(token1), signedAmountIn, amountOut, rawSwapData)
+    });
+
+    (uint256 total0, uint256 total1) =
+      harness.execute(address(router), address(token0), address(token1), runtimeAmount, 0, swaps);
+
+    // Discriminating: must book the MEASURED 5e (pull), not the nominal 10e (signedAmountIn).
+    assertEq(total0, runtimeAmount - pull, "input booked at measured delta, not signed amountIn");
+    assertEq(token0.balanceOf(address(harness)), runtimeAmount - pull, "unpulled input stays in the vault");
+    assertEq(total1, amountOut, "swap output credited to total1");
+    assertEq(token0.balanceOf(address(router)), pull, "router pulled only the partial amount");
   }
 
   /// @dev v4utils parity: every executed hop emits Swap(tokenIn, tokenOut, amountInDelta, amountOutDelta)

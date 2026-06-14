@@ -527,6 +527,126 @@ contract SharedSwapDataSignatureTest is Test {
     assertEq(decoded, hex"1234");
   }
 
+  /// @dev Completes the tamper-and-reject matrix (which already covers amountIn, minAmountOut, router,
+  ///      vault, deadline, nonce, signer): the envelope `swapData` body is a signed field, so mutating it
+  ///      after signing while keeping the original signature must reject. `verify` rebuilds the digest from
+  ///      `envelope.swapData`, so the body-Y digest no longer matches the signature over body X
+  ///      (the digest binds `keccak256(swapData)` — SharedSwapDataSignature.hash). The body is carried in
+  ///      the envelope (not a `verify` argument), so this is exercised by re-encoding the envelope with a
+  ///      different body and the unchanged signature.
+  function test_verify_rejectsWhenSwapDataBodyMutatedAfterSigning() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+    address tokenIn = address(0xC);
+    address tokenOut = address(0xD);
+    uint256 amountIn = 1 ether;
+    uint256 amountOutMin = 0.9 ether;
+    bytes memory signedBody = hex"1234"; // body X that was actually signed
+    bytes memory tamperedBody = hex"deadbeef"; // body Y placed in the envelope instead
+    uint256 deadline = block.timestamp + 1 hours;
+    bytes32 nonce = bytes32("body-tamper-nonce");
+
+    // Sign body X, then build an envelope carrying body Y with that same (now-stale) signature.
+    bytes32 digest =
+      caller.hash(expectedVault, signer, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, signedBody, deadline, nonce);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(SIGNER_PK, digest);
+    bytes memory tampered =
+      abi.encode(tamperedBody, expectedVault, deadline, signer, nonce, abi.encodePacked(r, s, v));
+
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, tampered
+    );
+
+    // Sanity: the same signature verifies when the envelope carries the body it was signed over.
+    bytes memory honest = abi.encode(signedBody, expectedVault, deadline, signer, nonce, abi.encodePacked(r, s, v));
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, tokenIn, tokenOut, amountIn, amountOutMin, honest
+    );
+    assertEq(decoded, signedBody, "untampered body verifies");
+  }
+
+  /// @dev tokenIn is a signed field (SharedSwapDataSignature.hash binds it into the digest) but is passed
+  ///      as a `verify` ARGUMENT, not carried in the envelope. Substituting a different tokenIn at verify
+  ///      time makes the reconstructed digest diverge from the one the signer authorized, so the signature
+  ///      check fails with InvalidSwapDataSignature — preventing an operator from re-pointing the input
+  ///      token of an authorized swap.
+  function test_verify_rejectsWhenTokenInSubstituted() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+    address signedTokenIn = address(0xC);
+    address substitutedTokenIn = address(0xCC);
+    address tokenOut = address(0xD);
+    uint256 amountIn = 1 ether;
+    uint256 amountOutMin = 0.9 ether;
+
+    bytes memory signedSwapData = _signSwapData(
+      caller, expectedVault, signer, swapRouter, signedTokenIn, tokenOut, amountIn, amountOutMin, hex"1234",
+      block.timestamp + 1 hours, bytes32("tokenIn-tamper-nonce")
+    );
+
+    // Present the envelope with a DIFFERENT tokenIn than was signed.
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, substitutedTokenIn, tokenOut, amountIn,
+      amountOutMin, signedSwapData
+    );
+
+    // Sanity: the same envelope verifies with the tokenIn it was signed for.
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, signedTokenIn, tokenOut, amountIn,
+      amountOutMin, signedSwapData
+    );
+    assertEq(decoded, hex"1234", "same envelope verifies with the signed tokenIn");
+  }
+
+  /// @dev tokenOut is likewise a signed field passed as a `verify` argument. Substituting it at verify time
+  ///      diverges the reconstructed digest and rejects with InvalidSwapDataSignature — preventing an
+  ///      operator from re-pointing the output token of an authorized swap.
+  function test_verify_rejectsWhenTokenOutSubstituted() public {
+    SharedSwapDataSignatureHarness caller = new SharedSwapDataSignatureHarness();
+    SharedSwapDataSignatureConfigHarness config = new SharedSwapDataSignatureConfigHarness();
+    address signer = vm.addr(SIGNER_PK);
+    config.setSigner(signer, true);
+
+    address expectedVault = address(0xA);
+    address swapRouter = address(0xB);
+    address tokenIn = address(0xC);
+    address signedTokenOut = address(0xD);
+    address substitutedTokenOut = address(0xDD);
+    uint256 amountIn = 1 ether;
+    uint256 amountOutMin = 0.9 ether;
+
+    bytes memory signedSwapData = _signSwapData(
+      caller, expectedVault, signer, swapRouter, tokenIn, signedTokenOut, amountIn, amountOutMin, hex"1234",
+      block.timestamp + 1 hours, bytes32("tokenOut-tamper-nonce")
+    );
+
+    // Present the envelope with a DIFFERENT tokenOut than was signed.
+    vm.expectRevert(ISharedCommon.InvalidSwapDataSignature.selector);
+    caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, tokenIn, substitutedTokenOut, amountIn,
+      amountOutMin, signedSwapData
+    );
+
+    // Sanity: the same envelope verifies with the tokenOut it was signed for.
+    bytes memory decoded = caller.verify(
+      ISharedConfigManager(address(config)), expectedVault, swapRouter, tokenIn, signedTokenOut, amountIn,
+      amountOutMin, signedSwapData
+    );
+    assertEq(decoded, hex"1234", "same envelope verifies with the signed tokenOut");
+  }
+
   function _signSwapData(
     SharedSwapDataSignatureHarness harness,
     address vault,

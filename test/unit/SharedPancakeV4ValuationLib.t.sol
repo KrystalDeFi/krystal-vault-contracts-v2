@@ -293,6 +293,54 @@ contract SharedPancakeV4ValuationLibTest is Test {
     assertEq(amount1, 0);
   }
 
+  /// @dev Off-center but still in-range (twin of the Uniswap V4 case): every other split test puts the
+  ///      current tick at exactly 0 (the symmetric balance point where principal0 == principal1) or
+  ///      fully out of range, so the normal two-sided in-range branch of `getAmountsForLiquidity`
+  ///      (A < X < B) is never asserted to hold BOTH amounts with the two sides UNEQUAL. Current tick
+  ///      30 inside [-60, 60] forces that branch and a genuinely lopsided split. No recompute: the
+  ///      property is just "both sides present, unequal."
+  function test_getPositionAmountsSplit_offCenterInRange_bothSidesNonzeroUnequal() public {
+    int24 cur = 30; // inside [-60, 60] but not centered
+    manager.setSlot0(TickMath.getSqrtPriceAtTick(cur), cur);
+    posm.setPosition(TOKEN_ID, 1e18, 0, 0);
+
+    (,, uint256 principal0, uint256 principal1) =
+      SharedPancakeV4ValuationLib.getPositionAmountsSplit(address(posm), TOKEN_ID);
+
+    assertGt(principal0, 0, "token0 principal present in-range");
+    assertGt(principal1, 0, "token1 principal present in-range");
+    assertTrue(principal0 != principal1, "off-center range must value the two sides differently");
+  }
+
+  /// @dev MIN/MAX usable-tick bounds with the current price at the lower bound (entirely below range),
+  ///      twin of the V4 case: `getSqrtPriceAtTick` is exercised at the extreme full-range ends and
+  ///      `getAmountsForLiquidity`'s `sqrtX <= sqrtA` branch must value the out-of-range side to
+  ///      EXACTLY zero without reverting (a revert here bricks deposit/withdraw/preview for any vault
+  ///      holding a max-width position). The mock POSM pins its tick range at construction, so a fresh
+  ///      `widePosm` is spun up at the extreme bounds with the SAME pool manager.
+  function test_getPositionAmounts_extremeTicks_doesNotRevertAndZerosCorrectSide() public {
+    int24 spacing = 60;
+    int24 lo = TickMath.minUsableTick(spacing);
+    int24 hi = TickMath.maxUsableTick(spacing);
+
+    PoolKey memory widePoolKey = PoolKey({
+      currency0: Currency.wrap(address(0x1111)),
+      currency1: Currency.wrap(address(0x2222)),
+      hooks: IHooks(address(0)),
+      poolManager: IPoolManager(address(manager)),
+      fee: 3000,
+      parameters: bytes32(uint256(uint24(60)) << 16) // tickSpacing 60
+    });
+    PancakeValuationMockPosm widePosm = new PancakeValuationMockPosm(manager, widePoolKey, lo, hi);
+    widePosm.setPosition(TOKEN_ID, 1e18, 0, 0);
+    // Current price AT the lower bound -> position is entirely token0 (sqrtX <= sqrtA branch).
+    manager.setSlot0(TickMath.getSqrtPriceAtTick(lo), lo);
+
+    (uint256 a0, uint256 a1) = SharedPancakeV4ValuationLib.getPositionAmounts(address(widePosm), TOKEN_ID);
+    assertGt(a0, 0, "below-range position is entirely token0");
+    assertEq(a1, 0, "no token1 below range");
+  }
+
   /// @dev F7 pin (parity with the V4 twin): a checkpoint AHEAD of current fee growth wraps mod 2^256
   ///      in `_feeOwed` by design and must NOT revert — a reverting valuation bricks deposits for the
   ///      whole vault. Wrapped delta 0 - Q128 ≡ 2^128·(2^128 − 1) → fee term (2^128 − 1)·liquidity.
