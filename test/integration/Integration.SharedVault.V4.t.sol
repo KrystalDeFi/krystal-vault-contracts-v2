@@ -319,6 +319,92 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(address(nativeVault).balance, 0, "raw native was not left in vault");
   }
 
+  /// @notice Native-currency OUTFLOW wrapping (`_wrapNativeBalanceDelta` success branches in
+  ///         `_collectFees` / `_decreaseV4Principal`, reached on every exit of a native-currency pool).
+  ///         The existing native test only drives ETH INTO a position (mint); this drives it OUT: a full
+  ///         withdraw exits the native position, the real V4 PositionManager returns RAW ETH for the
+  ///         currency0==address(0) side, and the strategy lib MUST wrap that delta to WETH (the vault
+  ///         token) before fee/principal accounting. If the wrap regressed, the raw ETH would be stranded
+  ///         on the vault and mis-accounted — so we assert no raw native remains and the withdrawer is
+  ///         paid in WETH (unwrap=false). Untested for both V4 and its Pancake twin before this.
+  function test_withdrawFull_nativeCurrencyPool_wrapsNativeOnExit_withRealV4PositionManager() public {
+    // --- Set up a native (ETH/token0) pool vault and mint a position into it (mirrors the mint test). ---
+    PoolKey memory nativeKey = PoolKey({
+      currency0: Currency.wrap(address(0)),
+      currency1: Currency.wrap(address(token0)),
+      fee: LP_FEE,
+      tickSpacing: TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    posm.initializePool(nativeKey, SQRT_PRICE_1_1);
+
+    SharedVault nativeVault = new SharedVault();
+    vm.deal(address(this), 10 ether);
+    IWETH9(BASE_WETH).deposit{ value: 10 ether }();
+    IERC20(BASE_WETH).transfer(address(nativeVault), 10 ether);
+    token0.mint(address(nativeVault), 10 ether);
+    address[4] memory vaultTokens = [BASE_WETH, address(token0), address(0), address(0)];
+    uint256[4] memory initialAmounts = [uint256(10 ether), uint256(10 ether), uint256(0), uint256(0)];
+    nativeVault.initialize(
+      "SharedVault-V4-Native-Exit-Fork",
+      vaultTokens,
+      initialAmounts,
+      vaultOwner,
+      address(this),
+      address(configManager),
+      BASE_WETH,
+      0
+    );
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: nativeKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(strategy),
+      bytes.concat(
+        abi.encode(SharedV4Strategy.OperationType.EXECUTE),
+        abi.encode(
+          BASE_V4_POSM, uint256(0), abi.encodeCall(IV4Utils.swapAndMint, (mintParams)), uint256(0),
+          new address[](0), new uint256[](0)
+        )
+      ),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(vaultOwner);
+    nativeVault.execute(actions);
+    assertEq(nativeVault.getPositionCount(), 1, "native position minted");
+    assertEq(address(nativeVault).balance, 0, "no raw native after mint (baseline)");
+
+    // --- Drive ETH OUT: a full withdraw exits the native position. ---
+    uint256 ownerWethBefore = IERC20(BASE_WETH).balanceOf(vaultOwner);
+    uint256 ownerShares = nativeVault.balanceOf(vaultOwner);
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = nativeVault.withdraw(ownerShares, mins, false);
+
+    // The exit returned raw ETH for the currency0 side; _wrapNativeBalanceDelta must have wrapped it.
+    assertEq(address(nativeVault).balance, 0, "raw native from the position exit was wrapped, not stranded");
+    assertEq(nativeVault.getPositionCount(), 0, "full withdraw removed the native position");
+    assertEq(nativeVault.totalSupply(), 0, "all shares burned");
+    assertGt(got[0], 0, "native (WETH) side returned to the withdrawer");
+    // unwrap=false → the native value is paid as WETH (the vault token), not raw ETH.
+    assertEq(IERC20(BASE_WETH).balanceOf(vaultOwner), ownerWethBefore + got[0], "withdrawer paid in WETH, not raw ETH");
+  }
+
   function test_swapAndMint_rejectsPoolKeyNotInitializedInPositionManagerPoolManager() public {
     PoolKey memory uninitializedKey = PoolKey({
       currency0: poolKey.currency0,
@@ -577,6 +663,113 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     assertEq(vault.getPositionCount(), 0, "full V4 withdraw removes tracked position");
   }
 
+  /// @notice MED-2 (V4-family round-trip conservation): a deposit immediately followed by withdrawing all
+  ///         the minted shares — same block / same price, against the REAL Uniswap-V4 PositionManager —
+  ///         must NEVER return more of either token than was deposited (no value creation, no dilution of
+  ///         existing holders), and must return all but AMM/rounding dust (so the no-profit bound is tight,
+  ///         not vacuously satisfied by silently losing value). This is the end-to-end conservation
+  ///         assertion the existing V4 integration tests lacked — they only checked `> 0`.
+  function test_depositWithdraw_roundTrip_neverProfits_withRealV4PositionManager() public {
+    token0.mint(depositor, 100 ether);
+    token1.mint(depositor, 100 ether);
+
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = token0.balanceOf(depositor);
+    uint256 t1Before = token1.balanceOf(depositor);
+
+    uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amounts, 50, 0); // 0.5% LP-add slippage tolerance
+    assertGt(shares, 0, "deposit minted shares");
+
+    uint256 t0In = t0Before - token0.balanceOf(depositor);
+    uint256 t1In = t1Before - token1.balanceOf(depositor);
+    assertGt(t0In, 0, "token0 actually deposited");
+    assertGt(t1In, 0, "token1 actually deposited");
+
+    uint256[4] memory mins;
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+    vm.stopPrank();
+
+    // No profit: an instant round-trip cannot return more of either token than went in — rounding and
+    // the vault's floor-in-its-favor can only reduce the return.
+    assertLe(got[0], t0In, "round-trip token0 out <= in (no profit)");
+    assertLe(got[1], t1In, "round-trip token1 out <= in (no profit)");
+
+    // Not a value sink: returns all but dust (< 0.5% + a few wei), so the no-profit bound is tight.
+    assertGe(got[0] + t0In / 200 + 5, t0In, "round-trip token0 loss is only dust");
+    assertGe(got[1] + t1In / 200 + 5, t1In, "round-trip token1 loss is only dust");
+  }
+
+  /// @notice P2 (independent principal pin): the UNIT valuation tests check the lib's principal against
+  ///         the lib's OWN `LiquidityAmounts.getAmountsForLiquidity(...)` call — a circular check that
+  ///         can only catch a wiring bug, not a valuation/rounding bug. The ground truth for principal
+  ///         is what the REAL V4 PositionManager actually pulled at mint. Here we deposit a balanced
+  ///         pair into the vault's sole tracked position, measure `t0In`/`t1In` actually consumed by the
+  ///         real POSM, then assert the vault's view of principal — `previewWithdraw(shares)` of the
+  ///         deposit's minted shares, which same-block (no fees) is exactly the lib's principal valuation —
+  ///         matches the consumed amounts. This grounds the lib's arithmetic in the pool's real token
+  ///         movement, independent of the lib's own `getAmountsForLiquidity`.
+  ///
+  ///         Tolerance: 0.5% (`0.005e18`). The deposit uses `slippageBps = 50` (0.5%), so the LP add can
+  ///         leave up to ~0.5% of one side unconsumed as idle vault balance; `previewWithdraw` re-adds
+  ///         that idle remainder to the lib's principal, so principal-vs-consumed agreement is bounded by
+  ///         the same 0.5% the existing round-trip test already proves is realistic for this real pool
+  ///         (not a loosened figure — it is the file's own deposit slippage budget).
+  function test_getPositionPrincipal_matchesRealAmountsConsumed_independentOfLibMath() public {
+    token0.mint(depositor, 100 ether);
+    token1.mint(depositor, 100 ether);
+
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = token0.balanceOf(depositor);
+    uint256 t1Before = token1.balanceOf(depositor);
+    uint256[4] memory amounts = [uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)];
+    uint256 shares = vault.deposit(amounts, 50, 0); // 0.5% LP-add slippage tolerance (same as round-trip pin)
+    vm.stopPrank();
+
+    uint256 t0In = t0Before - token0.balanceOf(depositor); // ground truth: what the real POSM consumed
+    uint256 t1In = t1Before - token1.balanceOf(depositor);
+    assertGt(t0In, 0, "token0 actually consumed by the real pool");
+    assertGt(t1In, 0, "token1 actually consumed by the real pool");
+
+    // previewWithdraw on THIS DEPOSIT's freshly-minted shares (NOT totalSupply — the vault was pre-seeded
+    // in setUp with idle balances + a recovered position held by vaultOwner, so totalSupply values the
+    // whole vault, ~11e18, not the 1e18 deposit). Same-block there are no fees, so the depositor's share
+    // valuation equals the lib's principal view of what they contributed. Index 0/1 == token0/token1.
+    uint256[4] memory pv = vault.previewWithdraw(shares);
+
+    // Independent: the lib's principal must equal what the AMM actually took, within LP-add dust.
+    assertApproxEqRel(pv[0], t0In, 0.005e18, "valuation principal0 != real consumed amount0");
+    assertApproxEqRel(pv[1], t1In, 0.005e18, "valuation principal1 != real consumed amount1");
+  }
+
+  /// @notice P6 (withdraw <= preview): the documented vault-favoring rounding direction — realized
+  ///         `withdraw()` amounts must NEVER exceed what `previewWithdraw()` quoted (preview is a strict
+  ///         upper bound by a few wei, per the NatSpec). The UNIT tests assert `received == preview`,
+  ///         which only holds in the lossless mock and contradicts the contract's documented direction.
+  ///         This pins the protective inequality against the REAL V4 pool, where preview and realized can
+  ///         legitimately differ by AMM/rounding dust — and the difference must always favor the vault.
+  function test_withdraw_neverExceedsPreview_onRealPool() public {
+    // Use the real V4 position the setUp already recovered into the vault (shares held by vaultOwner).
+    uint256 shares = vault.balanceOf(vaultOwner);
+    assertGt(shares, 0, "vault owner holds shares backed by the real position");
+
+    uint256[4] memory preview = vault.previewWithdraw(shares);
+
+    uint256[4] memory mins;
+    vm.prank(vaultOwner);
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+
+    for (uint256 i; i < 4; i++) {
+      assertLe(got[i], preview[i], "realized withdraw must never exceed preview (rounds toward vault)");
+    }
+  }
+
   function test_recoverPosition_rejectsNativeCurrencyPoolFromRealV4PositionManager() public {
     PoolKey memory nativeKey = PoolKey({
       currency0: Currency.wrap(address(0)),
@@ -610,7 +803,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     });
     swaps[1] = IV4Utils.SwapParams({
       tokenIn: Currency.wrap(address(hopToken)),
-      amountIn: 0,
+      // Hop 1's full output, passed explicitly: the pipeline forwards the param amount to signature
+      // verification verbatim (amountIn == 0 means "no swap", not "use the tracked balance").
+      amountIn: 0.01 ether,
       tokenOut: Currency.wrap(address(token1)),
       amountOutMin: 1,
       swapData: _signedSwapData(address(hopToken), address(token1), 0.01 ether, 1, hop1SwapData)
@@ -710,32 +905,183 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   }
 
   // ===========================================================================
-  // Security regression: gas-fee siphon via non-pool input tokens.
+  // DECREASE_AND_SWAP into a non-pool VAULT token (`swapDestToken`).
   //
-  // Before the fix in `_validateV4InputTokens`, an authorized executor could attach a
-  // non-pool vault token (e.g. DAI on a WETH/USDC mint) inside `SwapAndMintParams.inputTokens`
-  // with a nonzero `gasFeeX64`. `_takeInputGasFeesAndGetPoolAmounts` skimmed
-  // `amount * gasFeeX64 / Q64` of that token BEFORE checking whether it matched `currency0`
-  // or `currency1`; the unmatched amount was then silently dropped from the LP accounting.
-  //
-  // After the fix, every positive-amount `inputTokens[i]` must equal `currency0` or
-  // `currency1`, so the path reverts with `InvalidPoolTokens()` long before the fee
-  // transfer is reached. The two tests below pin that revert for swapAndMint and
-  // swapAndIncrease respectively.
+  // A vault holding a third token C may exit an A/B position and convert the
+  // proceeds into C: declaring `swapDestToken = C` lets signed hops output to C
+  // terminally, and C's remainder is exempt from the pipeline ledger's exact-zero
+  // rule (it stays idle in the vault, fully share-priced — V3/Aerodrome
+  // `_swapForWithdraw` targetToken parity). Every OTHER non-pool token still has
+  // to net to zero, and a dest that is not a vault token unlocks nothing.
   // ===========================================================================
 
-  function test_swapAndMint_rejectsNonPoolInputToken_preventsGasFeeSiphon() public {
+  function test_decreaseAndSwap_toNonPoolVaultTokenDest_swapsProceedsAndReportsThem() public {
+    SharedVault threeTokenVault = _deployThreeTokenV4Vault();
+    uint256 idForDecrease = _mintPositionToOperator(poolKey, 0);
+    IERC721(BASE_V4_POSM).approve(address(threeTokenVault), idForDecrease);
+    threeTokenVault.recoverPosition(BASE_V4_POSM, idForDecrease, address(strategy), address(token0), address(token1));
+    uint128 liquidityBefore = posm.getPositionLiquidity(idForDecrease);
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    bytes memory hopSwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](1);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData
+      )
+    });
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(hopToken)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
+    bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, idForDecrease, instructions));
+
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, idForDecrease, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    // The event must report the dest-token proceeds left idle by the pipeline (no longer 0).
+    vm.expectEmit(true, true, false, true, address(threeTokenVault));
+    emit IV4Utils.DecreaseAndSwap(BASE_V4_POSM, idForDecrease, 0.5 ether, Currency.wrap(address(hopToken)), 0.02 ether);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertLt(posm.getPositionLiquidity(idForDecrease), liquidityBefore, "liquidity decreased");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore + 0.02 ether, "dest proceeds idle in the vault"
+    );
+    assertEq(token0.balanceOf(address(swapRouter)), 0.01 ether, "router pulled the signed token0 amountIn");
+    assertEq(hopToken.allowance(address(threeTokenVault), address(swapRouter)), 0, "no stale router approvals");
+  }
+
+  /// @dev A `swapDestToken` outside the vault's token list unlocks nothing: a terminal hop to it is
+  ///      still unreachable. Uses the setUp two-token vault, where `hopToken` is NOT a vault token.
+  function test_decreaseAndSwap_destNotVaultToken_rejectsTerminalHopToDest() public {
+    bytes memory hopSwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](1);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapData(address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData)
+    });
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(hopToken)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
+    bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, tokenId, instructions));
+
+    bytes memory innerData = abi.encode(BASE_V4_POSM, tokenId, params, uint256(0), new address[](0), new uint256[](0));
+    _expectRevertExecute(
+      bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData),
+      ISharedStrategy.InvalidPoolTokens.selector
+    );
+  }
+
+  /// @dev The dest allowance must be DECLARED: with `swapDestToken` left at zero (which resolves to
+  ///      the vault's WETH — here `token0`, a pool token), a terminal hop to the third vault token
+  ///      is still rejected even though that token would have been an eligible dest.
+  function test_decreaseAndSwap_zeroDestDoesNotUnlockTerminalNonPoolOutput() public {
+    SharedVault threeTokenVault = _deployThreeTokenV4Vault();
+    uint256 idForDecrease = _mintPositionToOperator(poolKey, 0);
+    IERC721(BASE_V4_POSM).approve(address(threeTokenVault), idForDecrease);
+    threeTokenVault.recoverPosition(BASE_V4_POSM, idForDecrease, address(strategy), address(token0), address(token1));
+
+    bytes memory hopSwapData =
+      abi.encodeCall(RecordingSwapRouter.swap, (address(token0), address(hopToken), 0.02 ether));
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](1);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(token0)),
+      amountIn: 0.01 ether,
+      tokenOut: Currency.wrap(address(hopToken)),
+      amountOutMin: 0.02 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(token0), address(hopToken), 0.01 ether, 0.02 ether, hopSwapData
+      )
+    });
+
+    IV4Utils.DecreaseAndSwapParams memory decParams = IV4Utils.DecreaseAndSwapParams({
+      decreaseParams: IV4Utils.DecreaseLiquidityParams({
+        liquidity: 0.5 ether, deadline: block.timestamp, amount0Min: 0, amount1Min: 0, hookData: ""
+      }),
+      swapParams: swaps,
+      swapDestToken: Currency.wrap(address(0)),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    IV4Utils.Instructions memory instructions =
+      IV4Utils.Instructions({ action: IV4Utils.UtilActions.DECREASE_AND_SWAP, params: abi.encode(decParams) });
+    bytes memory params = abi.encodeCall(IV4Utils.execute, (BASE_V4_POSM, idForDecrease, instructions));
+
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, idForDecrease, params, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+  }
+
+  // ===========================================================================
+  // Security regression: gas-fee siphon via non-pool input tokens.
+  //
+  // An authorized executor may attach a non-pool VAULT token (e.g. DAI on a WETH/USDC
+  // mint) inside `SwapAndMintParams.inputTokens` — that is the supported "fund an LP from
+  // a third vault token" flow (V3/Aerodrome parity via `swapSourceToken`). What must stay
+  // impossible is the historical siphon: skimming `amount * gasFeeX64 / Q64` of that token
+  // while the remainder dangles unused (never folded into the pool amounts).
+  //
+  // The guard is the swap pipeline's virtual ledger: every non-pool input is seeded as a
+  // tracked balance that MUST net to exactly zero through signed swap hops. An input with
+  // no consuming hop leaves a non-zero ledger entry, so the whole operation — including
+  // the already-skimmed gas fee — reverts with `InvalidAmount()`. The two tests below pin
+  // that for swapAndMint and swapAndIncrease respectively; the happy-path tests after them
+  // pin the supported fully-consumed flow.
+  // ===========================================================================
+
+  function test_swapAndMint_rejectsDanglingNonPoolInputToken_preventsGasFeeSiphon() public {
     SharedVault threeTokenVault = _deployThreeTokenV4Vault();
 
-    // Pre-seed the bogus non-pool vault token in the new vault. This is the token the pre-fix
-    // exploit would have skimmed via the fake "gas fee" route. The amount is intentionally
-    // large so that the siphoned share (at `gasFeeX64 ≈ Q64`) would be obviously material.
+    // Pre-seed the non-pool vault token in the new vault. This is the token the historical
+    // exploit would have skimmed via the fake "gas fee" route while dropping the remainder.
     hopToken.mint(address(threeTokenVault), 1 ether);
 
     IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](3);
     inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.1 ether });
     inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.1 ether });
-    // The exploit row: a vault token that is NOT one of the pool currencies.
+    // The exploit row: a non-pool vault token with NO swap hop consuming it.
     inputs[2] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
 
     IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
@@ -749,10 +1095,9 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
-      // `Q64 / 2` ≈ 50% gas fee — well above any honest rate and large enough to make the
-      // pre-fix siphon trivially observable: 0.5 ether of hopToken would have moved to the
-      // executor before this test reached any LP step.
-      gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
+      // 10% — within the configured `maxGasFeeX64` cap (30%), so the fee-cap check cannot mask
+      // the dangle: the skim itself executes and only the ledger check can (and must) catch it.
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 10)
     });
 
     bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
@@ -766,18 +1111,17 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     uint256 hopBefore = hopToken.balanceOf(address(threeTokenVault));
     uint256 attackerHopBefore = hopToken.balanceOf(vaultOwner);
 
-    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     vm.prank(vaultOwner);
     threeTokenVault.execute(actions);
 
-    // The whole call reverted, so no balances should have moved. We assert this explicitly to
-    // distinguish a "validation rejected" outcome from a "fee was paid but later revert
-    // rolled it back" outcome — only the former proves the validator is now the guard.
+    // The ledger check reverts the WHOLE call, so the skimmed gas fee is rolled back with it:
+    // a dangling input can never pay out, no matter how the fee fields are set.
     assertEq(hopToken.balanceOf(address(threeTokenVault)), hopBefore, "vault hopToken untouched");
     assertEq(hopToken.balanceOf(vaultOwner), attackerHopBefore, "executor received no hopToken");
   }
 
-  function test_swapAndIncrease_rejectsNonPoolInputToken_preventsGasFeeSiphon() public {
+  function test_swapAndIncrease_rejectsDanglingNonPoolInputToken_preventsGasFeeSiphon() public {
     SharedVault threeTokenVault = _deployThreeTokenV4Vault();
 
     // The vault must already own a V4 position (any tokenId) for swapAndIncrease to be
@@ -804,7 +1148,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       sweepTokens: new Currency[](0),
       protocolFeeX64: 0,
       performanceFeeX64: 0,
-      gasFeeX64: uint64(uint256(0x10000000000000000) / 2)
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 10)
     });
 
     bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndIncrease, (incParams));
@@ -815,9 +1159,247 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
     actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
 
-    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
     vm.prank(vaultOwner);
     threeTokenVault.execute(actions);
+  }
+
+  /// @dev A token that is not on the vault's token list at all must still be rejected outright as an
+  ///      input — full consumption through swaps is not enough; inputs may only draw on configured
+  ///      vault tokens. Uses the setUp two-token vault, where `hopToken` is NOT a vault token.
+  function test_swapAndMint_rejectsNonVaultInputToken() public {
+    hopToken.mint(address(vault), 1 ether);
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](1);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    _expectRevertExecute(
+      bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData),
+      ISharedStrategy.InvalidPoolTokens.selector
+    );
+  }
+
+  // ===========================================================================
+  // Supported flow: fund swapAndMint / swapAndIncrease from a non-pool VAULT token.
+  // A vault configured with three tokens can open or grow a token0/token1 LP position
+  // paying entirely from the third token, as long as signed swap hops convert the FULL
+  // declared input into the pool currencies (V3/Aerodrome `swapSourceToken` parity).
+  // ===========================================================================
+
+  function test_swapAndMint_fromNonPoolVaultTokenInput_swapsViaSignedHopsAndMints() public {
+    SharedVault threeTokenVault = _deployThreeTokenV4Vault();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](1);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    // Two signed hops split the hop input across both pool currencies; together they consume
+    // exactly the declared 1 ether (the pipeline ledger requires the full amount to be spent).
+    bytes memory hop0Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.5 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.5 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertEq(threeTokenVault.getPositionCount(), 1, "hop-funded V4 position tracked");
+    assertEq(IERC721(BASE_V4_POSM).ownerOf(nextIdBefore), address(threeTokenVault), "three-token vault owns new NFT");
+    assertGt(posm.getPositionLiquidity(nextIdBefore), 0, "minted liquidity is non-zero");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
+    assertEq(hopToken.balanceOf(address(swapRouter)), 1 ether, "router consumed the full hop input");
+  }
+
+  function test_swapAndIncrease_fromNonPoolVaultTokenInput_swapsViaSignedHopsAndIncreases() public {
+    SharedVault threeTokenVault = _deployThreeTokenV4Vault();
+    uint256 idForIncrease = _mintPositionToOperator(poolKey, 0);
+    IERC721(BASE_V4_POSM).approve(address(threeTokenVault), idForIncrease);
+    threeTokenVault.recoverPosition(BASE_V4_POSM, idForIncrease, address(strategy), address(token0), address(token1));
+    uint128 liquidityBefore = posm.getPositionLiquidity(idForIncrease);
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](1);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    bytes memory hop0Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.5 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.5 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.5 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IV4Utils.SwapAndIncreaseParams memory incParams = IV4Utils.SwapAndIncreaseParams({
+      posm: BASE_V4_POSM,
+      tokenId: idForIncrease,
+      increaseParams: IV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndIncrease, (incParams));
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, idForIncrease, paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertGt(posm.getPositionLiquidity(idForIncrease), liquidityBefore, "hop-funded increase grew liquidity");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
+    assertEq(hopToken.balanceOf(address(swapRouter)), 1 ether, "router consumed the full hop input");
+  }
+
+  /// @dev Gas-fee interplay on the supported flow: the skim applies to the DECLARED input amount and
+  ///      the post-fee remainder must be exactly consumed by the signed hops. The 25% rate (Q64/4)
+  ///      is chosen because it is dyadic — `mulDiv(amount, gasFeeX64, Q64)` is exact, so the
+  ///      remainder is exactly 0.75 ether (a truncating rate like Q64/10 leaves a 1-wei dangle that
+  ///      the ledger rightly rejects; backends must derive signed amounts from the same mulDiv).
+  function test_swapAndMint_fromNonPoolVaultTokenInput_skimsGasFeeThenRequiresFullConsumption() public {
+    SharedVault threeTokenVault = _deployThreeTokenV4Vault();
+    uint256 nextIdBefore = posm.nextTokenId();
+    uint256 vaultHopBefore = hopToken.balanceOf(address(threeTokenVault));
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](1);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(hopToken)), amount: 1 ether });
+
+    bytes memory hop0Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token0), 0.4 ether));
+    bytes memory hop1Data = abi.encodeCall(RecordingSwapRouter.swap, (address(hopToken), address(token1), 0.4 ether));
+
+    IV4Utils.SwapParams[] memory swaps = new IV4Utils.SwapParams[](2);
+    swaps[0] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.375 ether,
+      tokenOut: Currency.wrap(address(token0)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token0), 0.375 ether, 0.4 ether, hop0Data
+      )
+    });
+    swaps[1] = IV4Utils.SwapParams({
+      tokenIn: Currency.wrap(address(hopToken)),
+      amountIn: 0.375 ether,
+      tokenOut: Currency.wrap(address(token1)),
+      amountOutMin: 0.4 ether,
+      swapData: _signedSwapDataForVault(
+        address(threeTokenVault), address(hopToken), address(token1), 0.375 ether, 0.4 ether, hop1Data
+      )
+    });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_V4_POSM,
+      poolKey: poolKey,
+      mintParams: IV4Utils.MintParams({
+        tickLower: TICK_LOWER, tickUpper: TICK_UPPER, minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      swapParams: swaps,
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: uint64(uint256(0x10000000000000000) / 4) // 25%, dyadic => exact skim
+    });
+
+    bytes memory paramsBytes = abi.encodeCall(IV4Utils.swapAndMint, (mintParams));
+    bytes memory innerData =
+      abi.encode(BASE_V4_POSM, uint256(0), paramsBytes, uint256(0), new address[](0), new uint256[](0));
+    bytes memory stratData = bytes.concat(abi.encode(SharedV4Strategy.OperationType.EXECUTE), innerData);
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(address(strategy), stratData, ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    threeTokenVault.execute(actions);
+
+    assertEq(IERC721(BASE_V4_POSM).ownerOf(nextIdBefore), address(threeTokenVault), "hop-funded mint succeeded");
+    assertEq(hopToken.balanceOf(feeRecipient), 0.25 ether, "gas fee skimmed from the hop input");
+    assertEq(hopToken.balanceOf(address(swapRouter)), 0.75 ether, "post-fee remainder fully swapped");
+    assertEq(
+      hopToken.balanceOf(address(threeTokenVault)), vaultHopBefore - 1 ether, "exactly the declared hop input spent"
+    );
   }
 
   // ===========================================================================
@@ -1066,10 +1648,23 @@ contract SharedVaultV4IntegrationTest is TestCommon {
     uint256 amountOutMin,
     bytes memory rawSwapData
   ) internal returns (bytes memory) {
+    return _signedSwapDataForVault(address(vault), tokenIn, tokenOut, amountIn, amountOutMin, rawSwapData);
+  }
+
+  /// @dev Same digest construction as `_signedSwapData` but bound to an explicit vault address, for
+  ///      tests that execute against a vault other than the setUp `vault` (e.g. the three-token vault).
+  function _signedSwapDataForVault(
+    address signedVault,
+    address tokenIn,
+    address tokenOut,
+    uint256 amountIn,
+    uint256 amountOutMin,
+    bytes memory rawSwapData
+  ) internal returns (bytes memory) {
     uint256 deadline = block.timestamp + 1 hours;
     bytes32 nonce = bytes32(++swapDataNonce);
     bytes32 digest = SharedSwapDataSignature.hash(
-      address(vault),
+      signedVault,
       swapDataSigner,
       address(swapRouter),
       tokenIn,
@@ -1081,7 +1676,7 @@ contract SharedVaultV4IntegrationTest is TestCommon {
       nonce
     );
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(SWAP_DATA_SIGNER_PK, digest);
-    return abi.encode(rawSwapData, address(vault), deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
+    return abi.encode(rawSwapData, signedVault, deadline, swapDataSigner, nonce, abi.encodePacked(r, s, v));
   }
 
   function _expectRevertExecute(bytes memory stratData, bytes4 expectedError) internal {
@@ -1114,9 +1709,10 @@ contract SharedVaultV4IntegrationTest is TestCommon {
   }
 
   /// @dev Builds a fresh `SharedVault` whose `vaultTokens` list contains `hopToken` in
-  ///      addition to the pool's `token0` / `token1`. Without that third slot the exploit
-  ///      can't be staged — `_validateVaultToken(hopToken)` would short-circuit. Returns the
-  ///      newly initialized vault; reuses the existing `configManager`, `strategy`, and
+  ///      addition to the pool's `token0` / `token1` — the staging ground for both the
+  ///      dangling-input regression tests and the supported hop-funded mint/increase flows
+  ///      (without the third slot, the pipeline's vault-token check on inputs would
+  ///      short-circuit first). Reuses the existing `configManager`, `strategy`, and
   ///      `poolKey` from the parent `setUp`.
   function _deployThreeTokenV4Vault() internal returns (SharedVault threeTokenVault) {
     threeTokenVault = new SharedVault();

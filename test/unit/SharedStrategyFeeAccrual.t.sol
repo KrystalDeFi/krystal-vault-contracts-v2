@@ -475,6 +475,69 @@ contract SharedStrategyFeeAccrualTest is Test {
     assertEq(amount0, principal0 + STORED_OWED0, "Aerodrome pending=0, only stored owed");
     assertEq(amount1, principal1 + STORED_OWED1, "Aerodrome pending=0, only stored owed");
   }
+
+  /// @dev Twin of test_v3_getPositionAmounts_out_of_range_no_new_pending: the Aerodrome strategy forks
+  ///      the V3 fee-growth math, so an out-of-range position must likewise report only stored owed.
+  function test_aerodrome_getPositionAmounts_out_of_range_no_new_pending() public {
+    // Position above current tick: currentTick < tickLower → no new fees accruing.
+    // fgInside = 0 when out of range (above), stored owed is still returned.
+    int24 tLow = 200;
+    int24 tHigh = 400;
+    int24 curTick = 0; // below range
+    uint160 sqrtPrice = SQRT_PRICE_TICK0;
+
+    MockAerodromePool pool = new MockAerodromePool(sqrtPrice, curTick, FG0_GLOBAL, FG1_GLOBAL);
+    // For tick >= curTick (tickLower=200 > curTick=0):
+    //   fgBelow = fgGlobal - lowerFgOutside; with lowerFgOutside=0 → fgBelow = fgGlobal
+    //   fgAbove = upperFgOutside = 0
+    //   fgInside = fgGlobal - fgGlobal - 0 = 0
+    // fgInsideLast=0 and fgInside=0 → delta=0 → pending=0
+    MockAerodromeFactory factory = new MockAerodromeFactory(address(pool));
+
+    address nfpm = address(new MockAerodromeNfpmWithFees(
+      address(factory),
+      address(0x1111),
+      address(0x2222),
+      1e18,
+      tLow,
+      tHigh,
+      0,           // fgInsideLast=0
+      0,
+      STORED_OWED0,
+      STORED_OWED1
+    ));
+
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    // Out of range: principal for the in-range token is non-zero, but no NEW pending fees
+    assertEq(amount0, principal0 + STORED_OWED0, "out-of-range: only stored owed0, no new pending");
+    assertEq(amount1, principal1 + STORED_OWED1, "out-of-range: only stored owed1, no new pending");
+  }
+
+  /// @dev F7 twin-parity with test_v3_getPositionAmounts_pending_above_uint128_not_truncated: the
+  ///      Aerodrome strategy shares the V3 valuation math fork, so pending fees above uint128 must be
+  ///      reported in full there too (no silent uint128 wrap inside the unchecked accumulation).
+  function test_aerodrome_getPositionAmounts_pending_above_uint128_not_truncated() public {
+    uint128 hugeLiquidity = type(uint128).max;
+    MockAerodromePool pool = new MockAerodromePool(SQRT_PRICE_TICK0, CURRENT_TICK, 2 * Q128, 2 * Q128);
+    MockAerodromeFactory factory = new MockAerodromeFactory(address(pool));
+    address nfpm = address(
+      new MockAerodromeNfpmWithFees(
+        address(factory), address(0x1111), address(0x2222), hugeLiquidity, TICK_LOWER, TICK_UPPER, 0, 0, 0, 0
+      )
+    );
+
+    SharedAerodromeStrategy strategy = new SharedAerodromeStrategy(address(1));
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(nfpm, 1);
+
+    uint256 expectedPending = 2 * uint256(type(uint128).max); // mulDiv(2*Q128, uint128.max, Q128)
+    assertGt(expectedPending, uint256(type(uint128).max), "sanity: pending exceeds uint128 range");
+    assertEq(amount0 - principal0, expectedPending, "token0 pending reported in full (no uint128 wrap)");
+    assertEq(amount1 - principal1, expectedPending, "token1 pending reported in full (no uint128 wrap)");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -714,5 +777,204 @@ contract CollectAccumulatedFeesTest is Test {
     assertEq(t1.balanceOf(address(wrapper)), 4.25e18, "token1 net generated fees stay idle");
     assertEq(t0.balanceOf(address(nfpm)), 0, "token0: nfpm fully drained");
     assertEq(t1.balanceOf(address(nfpm)), 0, "token1: nfpm fully drained");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mocks for decreaseLiquidityProportional tests
+// ---------------------------------------------------------------------------
+
+/// @dev Mock NFPM for the decrease→collect principal flow: decreaseLiquidity records its params
+///      verbatim and stages the configured principal amounts, which the follow-up collect() pays
+///      out — mirroring how the real NFPM moves decreased principal into tokensOwed*.
+contract MockNfpmDecrease {
+  address public token0;
+  address public token1;
+
+  uint256 public lastTokenId;
+  uint128 public lastLiquidity;
+  uint256 public lastAmount0Min;
+  uint256 public lastAmount1Min;
+  uint256 public lastDeadline;
+
+  uint256 internal stagedPrincipal0;
+  uint256 internal stagedPrincipal1;
+  uint256 internal pendingCollect0;
+  uint256 internal pendingCollect1;
+
+  struct DecreaseLiquidityParams {
+    uint256 tokenId;
+    uint128 liquidity;
+    uint256 amount0Min;
+    uint256 amount1Min;
+    uint256 deadline;
+  }
+
+  struct CollectParams {
+    uint256 tokenId;
+    address recipient;
+    uint128 amount0Max;
+    uint128 amount1Max;
+  }
+
+  constructor(address _t0, address _t1, uint256 _principal0, uint256 _principal1) {
+    token0 = _t0;
+    token1 = _t1;
+    stagedPrincipal0 = _principal0;
+    stagedPrincipal1 = _principal1;
+  }
+
+  function decreaseLiquidity(DecreaseLiquidityParams calldata params) external returns (uint256, uint256) {
+    lastTokenId = params.tokenId;
+    lastLiquidity = params.liquidity;
+    lastAmount0Min = params.amount0Min;
+    lastAmount1Min = params.amount1Min;
+    lastDeadline = params.deadline;
+    pendingCollect0 = stagedPrincipal0;
+    pendingCollect1 = stagedPrincipal1;
+    return (pendingCollect0, pendingCollect1);
+  }
+
+  function collect(CollectParams calldata params) external returns (uint256 a0, uint256 a1) {
+    a0 = pendingCollect0;
+    a1 = pendingCollect1;
+    pendingCollect0 = 0;
+    pendingCollect1 = 0;
+    if (a0 > 0) MockFeeToken(token0).transfer(params.recipient, a0);
+    if (a1 > 0) MockFeeToken(token1).transfer(params.recipient, a1);
+  }
+}
+
+/// @dev Wrapper exposing SharedNfpmProportionalExit.decreaseLiquidityProportional as an external
+///      call so `address(this)` inside the library resolves here and collected principal lands
+///      here for balance assertions (mirrors CollectFeeWrapper).
+contract DecreaseLiquidityWrapper {
+  function callDecrease(
+    address nfpm,
+    uint128 liquidityToRemove,
+    uint256 amount0Min,
+    uint256 amount1Min,
+    address _token0,
+    address _token1,
+    ICommon.FeeConfig memory feeConfig
+  ) external {
+    SharedNfpmProportionalExit.decreaseLiquidityProportional(
+      nfpm, 1, liquidityToRemove, amount0Min, amount1Min, _token0, _token1, feeConfig
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// decreaseLiquidityProportional regression tests
+// ---------------------------------------------------------------------------
+
+contract DecreaseLiquidityProportionalTest is Test {
+  // 2^60 = Q64/16 — dyadic, so the gas cut (principal / 16) is exact with no rounding residue.
+  uint64 constant GAS_FEE_X64 = uint64(1) << 60;
+
+  address constant PLATFORM = address(0xFEE1);
+  address constant OWNER = address(0xFEE2);
+  address constant GAS_RECIPIENT = address(0xFEE3);
+
+  function _setup(uint256 principal0, uint256 principal1)
+    internal
+    returns (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1)
+  {
+    t0 = new MockFeeToken();
+    t1 = new MockFeeToken();
+    nfpm = new MockNfpmDecrease(address(t0), address(t1), principal0, principal1);
+    t0.mint(address(nfpm), principal0);
+    t1.mint(address(nfpm), principal1);
+    wrapper = new DecreaseLiquidityWrapper();
+  }
+
+  /// @dev Platform/owner fields deliberately NONZERO: decreaseLiquidityProportional must never
+  ///      apply them to principal (the fee slice was already settled by collectAccumulatedFees).
+  function _perfConfig(uint64 gasFeeX64, address gasRecipient) internal pure returns (ICommon.FeeConfig memory fc) {
+    fc = ICommon.FeeConfig({
+      vaultOwnerFeeBasisPoint: 500,
+      vaultOwner: OWNER,
+      platformFeeBasisPoint: 1000,
+      platformFeeRecipient: PLATFORM,
+      gasFeeX64: gasFeeX64,
+      gasFeeRecipient: gasRecipient
+    });
+  }
+
+  /// @dev Withdraw-path config (gasFeeX64 = 0): the decrease params are forwarded verbatim and the
+  ///      collected principal reaches the caller untouched — the nonzero platform/owner bps in the
+  ///      config must NOT be charged on principal.
+  function test_decreaseLiquidityProportional_noGasFee_collectsFullPrincipal_andForwardsParams() public {
+    (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1) = _setup(4e18, 6e18);
+
+    wrapper.callDecrease(address(nfpm), 777, 1e18, 2e18, address(t0), address(t1), _perfConfig(0, address(0)));
+
+    assertEq(nfpm.lastTokenId(), 1, "tokenId forwarded");
+    assertEq(nfpm.lastLiquidity(), 777, "liquidity forwarded");
+    assertEq(nfpm.lastAmount0Min(), 1e18, "amount0Min forwarded");
+    assertEq(nfpm.lastAmount1Min(), 2e18, "amount1Min forwarded");
+    assertEq(nfpm.lastDeadline(), block.timestamp, "deadline is current timestamp");
+
+    assertEq(t0.balanceOf(address(wrapper)), 4e18, "token0 principal fully collected");
+    assertEq(t1.balanceOf(address(wrapper)), 6e18, "token1 principal fully collected");
+    assertEq(t0.balanceOf(PLATFORM), 0, "no platform fee on principal");
+    assertEq(t1.balanceOf(PLATFORM), 0, "no platform fee on principal");
+    assertEq(t0.balanceOf(OWNER), 0, "no owner fee on principal");
+    assertEq(t1.balanceOf(OWNER), 0, "no owner fee on principal");
+  }
+
+  /// @dev Gas branch: callers that pass a gas fee get EXACTLY the Q64 fraction of each token's
+  ///      principal sent to the gas recipient — and the gasOnly reconfig must zero out the
+  ///      platform/owner fields, so they receive nothing even though the config sets them.
+  function test_decreaseLiquidityProportional_gasBranch_takesGasOnlyCut() public {
+    (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1) = _setup(16e18, 32e18);
+
+    wrapper.callDecrease(address(nfpm), 1, 0, 0, address(t0), address(t1), _perfConfig(GAS_FEE_X64, GAS_RECIPIENT));
+
+    assertEq(t0.balanceOf(GAS_RECIPIENT), 1e18, "token0 gas cut = principal/16");
+    assertEq(t1.balanceOf(GAS_RECIPIENT), 2e18, "token1 gas cut = principal/16");
+    assertEq(t0.balanceOf(address(wrapper)), 15e18, "token0 remainder stays with caller");
+    assertEq(t1.balanceOf(address(wrapper)), 30e18, "token1 remainder stays with caller");
+    assertEq(t0.balanceOf(PLATFORM), 0, "gasOnly config zeroes platform fee");
+    assertEq(t1.balanceOf(PLATFORM), 0, "gasOnly config zeroes platform fee");
+    assertEq(t0.balanceOf(OWNER), 0, "gasOnly config zeroes owner fee");
+    assertEq(t1.balanceOf(OWNER), 0, "gasOnly config zeroes owner fee");
+  }
+
+  /// @dev One-sided principal exercises the `principal0 > 0 || principal1 > 0` gate's second arm:
+  ///      the gas fee applies to the nonzero token only, with no zero-value transfer for the other.
+  function test_decreaseLiquidityProportional_gasBranch_oneSidedPrincipal() public {
+    (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1) = _setup(0, 32e18);
+
+    wrapper.callDecrease(address(nfpm), 1, 0, 0, address(t0), address(t1), _perfConfig(GAS_FEE_X64, GAS_RECIPIENT));
+
+    assertEq(t0.balanceOf(GAS_RECIPIENT), 0, "no token0 gas fee when principal0 is zero");
+    assertEq(t1.balanceOf(GAS_RECIPIENT), 2e18, "token1 gas cut = principal/16");
+    assertEq(t0.balanceOf(address(wrapper)), 0, "no token0 principal");
+    assertEq(t1.balanceOf(address(wrapper)), 30e18, "token1 remainder stays with caller");
+  }
+
+  /// @dev Zero principal collected → the gas branch is skipped entirely (no transfers, no revert),
+  ///      covering the `(principal0 > 0 || principal1 > 0)` guard.
+  function test_decreaseLiquidityProportional_zeroPrincipal_skipsGasFee() public {
+    (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1) = _setup(0, 0);
+
+    wrapper.callDecrease(address(nfpm), 1, 0, 0, address(t0), address(t1), _perfConfig(GAS_FEE_X64, GAS_RECIPIENT));
+
+    assertEq(t0.balanceOf(GAS_RECIPIENT), 0, "no token0 gas fee on zero principal");
+    assertEq(t1.balanceOf(GAS_RECIPIENT), 0, "no token1 gas fee on zero principal");
+    assertEq(t0.balanceOf(address(wrapper)), 0, "nothing collected");
+    assertEq(t1.balanceOf(address(wrapper)), 0, "nothing collected");
+  }
+
+  /// @dev gasFeeX64 set but recipient unset → guard's recipient arm skips the fee; the caller
+  ///      keeps the full principal.
+  function test_decreaseLiquidityProportional_zeroGasRecipient_skipsGasFee() public {
+    (DecreaseLiquidityWrapper wrapper, MockNfpmDecrease nfpm, MockFeeToken t0, MockFeeToken t1) = _setup(4e18, 6e18);
+
+    wrapper.callDecrease(address(nfpm), 1, 0, 0, address(t0), address(t1), _perfConfig(GAS_FEE_X64, address(0)));
+
+    assertEq(t0.balanceOf(address(wrapper)), 4e18, "token0 principal fully collected");
+    assertEq(t1.balanceOf(address(wrapper)), 6e18, "token1 principal fully collected");
   }
 }

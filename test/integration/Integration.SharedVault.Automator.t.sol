@@ -6,6 +6,8 @@ import { TestCommon, WETH, USDC, NFPM } from "../TestCommon.t.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
@@ -279,8 +281,14 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     address attacker = makeAddr("attacker");
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
+    // expectRevert before prank: a prank consumed by the expectRevert cheatcode would let the call run
+    // as the default sender, not `attacker`. Ordering it this way makes `attacker` the real caller.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, attacker, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(attacker);
-    vm.expectRevert(); // AccessControl revert
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), actions, encodedAA, sig);
   }
 
@@ -398,8 +406,14 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
 
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
+    // expectRevert before prank (see attacker twin): otherwise the revoked `operator` prank is consumed
+    // and the call runs as the default sender.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, operator, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(operator);
-    vm.expectRevert(); // AccessControl revert
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), actions, encodedAA, sig);
   }
 
@@ -417,7 +431,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     ISharedVault.Action[] memory actions = new ISharedVault.Action[](0);
 
     vm.prank(operator);
-    vm.expectRevert(); // Pausable revert
+    vm.expectRevert(Pausable.EnforcedPause.selector);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), actions, encodedAA, sig);
   }
 }

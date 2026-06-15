@@ -699,14 +699,15 @@ contract SharedVault is
   function execute(Action[] calldata actions) external override nonReentrant onlyAuthorized whenVaultNotPaused {
     for (uint256 i; i < actions.length;) {
       Action calldata action = actions[i];
+      bytes memory result;
 
       if (action.callType == CallType.DELEGATECALL) {
         require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
         // --- Strategy: delegatecall through ISharedStrategy.execute() interface ---
         // Strategies handle both LP operations (non-empty PositionChange[]) and token-only
         // operations like harvest/swap (empty PositionChange[]).
-        (bool success, bytes memory result) =
-          action.target.delegatecall(abi.encodeCall(ISharedStrategy.execute, (action.data)));
+        bool success;
+        (success, result) = action.target.delegatecall(abi.encodeCall(ISharedStrategy.execute, (action.data)));
 
         if (!success) {
           if (result.length == 0) revert StrategyCallFailed();
@@ -737,10 +738,12 @@ contract SharedVault is
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
         require(amountOut >= minAmountOut, InsufficientOutput());
+        result = abi.encode(amountOut);
       } else {
         require(configManager.isWhitelistedTarget(action.target), InvalidTarget(action.target));
         // --- CALL_WITH_POSITIONS: direct call whose return value is PositionChange[] ---
-        (bool success, bytes memory result) = action.target.call(action.data);
+        bool success;
+        (success, result) = action.target.call(action.data);
 
         if (!success) {
           if (result.length == 0) revert StrategyCallFailed();
@@ -752,7 +755,7 @@ contract SharedVault is
         _applyPositionChanges(action.target, result, true);
       }
 
-      emit VaultExecute(vaultFactory, action.target, action.data);
+      emit VaultExecute(vaultFactory, action.target, action.data, result);
       unchecked {
         i++;
       }
@@ -782,31 +785,22 @@ contract SharedVault is
     ISharedStrategy.PositionChange[] memory changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
     for (uint256 c; c < changes.length;) {
       if (changes[c].isAdd) {
-        if (probeStrategy) {
-          // Probe `getPositionAmounts` to confirm the target can value the position before it is tracked.
-          (bool ok, bytes memory probeData) = strategy.staticcall(
-            abi.encodeCall(ISharedStrategy.getPositionAmounts, (changes[c].nfpm, changes[c].tokenId))
-          );
-          require(ok && probeData.length >= 64, InvalidTarget(strategy));
-        }
-        // Verify canonical token pair via getPositionTokens: a buggy target can report any vault-token
-        // pair but _getTotalBalances() would attribute LP value to the wrong assets, mispricing shares.
-        (bool tokensOk, bytes memory tokensData) = strategy.staticcall(
-          abi.encodeCall(ISharedStrategy.getPositionTokens, (changes[c].nfpm, changes[c].tokenId))
-        );
-        require(tokensOk && tokensData.length >= 64, InvalidTarget(strategy));
-        (address canonToken0, address canonToken1) = abi.decode(tokensData, (address, address));
-        require(canonToken0 == changes[c].token0 && canonToken1 == changes[c].token1, TokenNotConfigured());
-        require(isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1], TokenNotConfigured());
-        // Verify vault owns the NFT before tracking it: an unowned position would misprice shares.
-        (bool ownsNft, bytes memory ownerData) =
-          changes[c].nfpm.staticcall(abi.encodeCall(IERC721.ownerOf, (changes[c].tokenId)));
-        require(
-          ownsNft && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this), InvalidOperation()
+        // Strategy probe, canonical-token-pair match, and NFT ownership checks live in
+        // SharedVaultPreviewLib (delegatecalled, so address(this) is still this vault) to keep
+        // SharedVault under the EIP-170 size limit. isVaultToken is read here (vault storage) and
+        // its verdict passed in so the lib enforces the checks in the original order.
+        SharedVaultPreviewLib.validatePositionAdd(
+          strategy,
+          changes[c].nfpm,
+          changes[c].tokenId,
+          changes[c].token0,
+          changes[c].token1,
+          probeStrategy,
+          isVaultToken[changes[c].token0] && isVaultToken[changes[c].token1]
         );
         _addPosition(strategy, changes[c].nfpm, changes[c].tokenId, changes[c].token0, changes[c].token1);
       } else {
-        _verifyPositionExit(strategy, changes[c].nfpm, changes[c].tokenId);
+        SharedVaultPreviewLib.verifyPositionExit(strategy, changes[c].nfpm, changes[c].tokenId);
         _removePosition(changes[c].nfpm, changes[c].tokenId);
       }
       unchecked {
@@ -1011,20 +1005,6 @@ contract SharedVault is
     }
     positions.pop();
     delete positionIndex[key];
-  }
-
-  /// @dev Before untracking a position, verify it is truly exited. If the vault still holds the NFT,
-  ///      require the strategy reports zero amounts — a non-zero value means a live LP position would
-  ///      be untracked, understating TVL and enabling mispriced deposits/withdrawals.
-  function _verifyPositionExit(address strategy, address nfpm, uint256 tokenId) internal view {
-    (bool callOk, bytes memory ownerData) = nfpm.staticcall(abi.encodeCall(IERC721.ownerOf, (tokenId)));
-    if (callOk && ownerData.length >= 32 && abi.decode(ownerData, (address)) == address(this)) {
-      (bool amtsOk, bytes memory amtsData) =
-        strategy.staticcall(abi.encodeCall(ISharedStrategy.getPositionAmounts, (nfpm, tokenId)));
-      require(amtsOk && amtsData.length >= 64, InvalidOperation());
-      (uint256 a0, uint256 a1) = abi.decode(amtsData, (uint256, uint256));
-      require(a0 == 0 && a1 == 0, InvalidOperation());
-    }
   }
 
   // ==================== Internal: Balance Calculations ====================

@@ -427,6 +427,76 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.stopPrank();
   }
 
+  /// @dev The pause gate must cover BOTH createVault overloads — the actions overload clones and
+  ///      executes too, so leaving it open would make the pause switch trivially bypassable.
+  function test_pause_blocksCreateVaultWithActions() public {
+    vm.prank(FACTORY_OWNER);
+    factory.pause();
+
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
+    factory.createVault("PausedActions", tokens, amounts, 0, new ISharedVault.Action[](0));
+  }
+
+  function test_pause_revertsForNonOwner() public {
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.pause();
+  }
+
+  function test_unpause_revertsForNonOwner() public {
+    vm.prank(FACTORY_OWNER);
+    factory.pause();
+
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert();
+    factory.unpause();
+  }
+
+  /// @dev The CREATE2 salt is keccak(name, sender, "shared-1.0"): the same creator reusing a name
+  ///      must hit the predicted-address code check and revert instead of silently redeploying.
+  function test_createVault_duplicateNameSameSender_reverts() public {
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.startPrank(VAULT_CREATOR);
+    factory.createVault("Reused Name", tokens, amounts, 0);
+    vm.expectRevert(ISharedVaultFactory.DuplicateVaultName.selector);
+    factory.createVault("Reused Name", tokens, amounts, 0);
+    vm.stopPrank();
+  }
+
+  /// @dev The sender is part of the salt, so the same name from a different creator is a different
+  ///      deterministic address and must succeed.
+  function test_createVault_sameNameDifferentSender_succeeds() public {
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    vm.prank(VAULT_CREATOR);
+    address vault1 = factory.createVault("Shared Name", tokens, amounts, 0);
+
+    vm.prank(FACTORY_OWNER);
+    address vault2 = factory.createVault("Shared Name", tokens, amounts, 0);
+
+    assertTrue(vault1 != vault2, "same name from different senders yields distinct vaults");
+    assertTrue(factory.isVault(vault1) && factory.isVault(vault2), "both registered");
+  }
+
+  function test_createVault_emitsVaultCreated() public {
+    address[4] memory tokens = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory amounts = [uint256(0), uint256(0), uint256(0), uint256(0)];
+
+    // The vault address (topic 2) is unknown until the clone is deployed; check owner topic + name data.
+    vm.expectEmit(true, false, false, true, address(factory));
+    emit ISharedVaultFactory.VaultCreated(VAULT_CREATOR, address(0), "Event Vault");
+
+    vm.prank(VAULT_CREATOR);
+    factory.createVault("Event Vault", tokens, amounts, 0);
+  }
+
   function test_setConfigManager() public {
     address newConfig = address(0x999);
     vm.startPrank(FACTORY_OWNER);
@@ -440,6 +510,28 @@ contract SharedVaultFactoryTest is TestCommon {
     vm.expectRevert(ISharedCommon.ZeroAddress.selector);
     factory.setConfigManager(address(0));
     vm.stopPrank();
+  }
+
+  function test_setConfigManager_fail_non_owner() public {
+    vm.prank(VAULT_CREATOR);
+    vm.expectRevert(abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, VAULT_CREATOR));
+    factory.setConfigManager(address(0x999));
+  }
+
+  function test_setConfigManager_emitsEvent() public {
+    address newConfig = address(0x999);
+    vm.expectEmit(false, false, false, true, address(factory));
+    emit ISharedVaultFactory.ConfigManagerSet(newConfig);
+    vm.prank(FACTORY_OWNER);
+    factory.setConfigManager(newConfig);
+  }
+
+  function test_setVaultImplementation_emitsEvent() public {
+    address newImpl = address(0x888);
+    vm.expectEmit(false, false, false, true, address(factory));
+    emit ISharedVaultFactory.VaultImplementationSet(newImpl);
+    vm.prank(FACTORY_OWNER);
+    factory.setVaultImplementation(newImpl);
   }
 
   function test_setVaultImplementation() public {

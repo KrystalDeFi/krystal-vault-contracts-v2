@@ -2,6 +2,52 @@
 
 ## ISharedV4Utils
 
+### Swap
+
+```solidity
+event Swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut)
+```
+
+### SwapAndMint
+
+```solidity
+event SwapAndMint(address posm, uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1)
+```
+
+_The amount fields on SwapAndMint / SwapAndIncrease / AdjustRange / CompoundFees report the
+     amounts CONSUMED by the realized liquidity, quoted at the execution price (v4utils parity).
+     For imbalanced or out-of-range adds the non-limiting side's remainder stays idle in the
+     vault and is NOT reported._
+
+### SwapAndIncrease
+
+```solidity
+event SwapAndIncrease(address posm, uint256 tokenId, uint256 liquidity, uint256 amount0, uint256 amount1)
+```
+
+### DecreaseAndSwap
+
+```solidity
+event DecreaseAndSwap(address posm, uint256 tokenId, uint128 liquidity, Currency token, uint256 amount)
+```
+
+_`token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it.
+     For a pool-token dest that is the post-swap total; for a non-pool VAULT-token dest it is
+     the terminal swap output left idle by the pipeline; otherwise 0 (no allowance, nothing
+     can flow there). Unlike v4utils nothing is swept — proceeds stay idle in the vault._
+
+### AdjustRange
+
+```solidity
+event AdjustRange(address posm, uint256 tokenId, uint256 newTokenId, uint256 newLiquidity, uint256 token0Added, uint256 token1Added)
+```
+
+### CompoundFees
+
+```solidity
+event CompoundFees(address posm, uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+```
+
 ### UtilActions
 
 ```solidity
@@ -57,9 +103,12 @@ struct IncreaseLiquidityParams {
 
 ### SwapParams
 
-_`amountIn == 0` means "use the full available amount" in SharedV4SwapPipeline. For signed
-     operator swaps, the signature binds the resolved runtime amount, not this zero sentinel.
-     `amountOutMin` is signer-controlled; signers must apply their own route/oracle slippage policy._
+_SharedV4SwapPipeline forwards `amountIn` to signature verification verbatim — the digest
+     binds this exact amount, never an on-chain computed balance — and the tracked total only
+     needs to cover it (the backend folds withdraw-liquidity slippage into the signed amount;
+     the un-swapped remainder stays in the totals). `amountIn == 0` means "no swap for this hop"
+     (`amountOutMin` must be 0); it is NOT resolved to the available balance. `amountOutMin` is
+     signer-controlled; signers must apply their own route/oracle slippage policy._
 
 ```solidity
 struct SwapParams {

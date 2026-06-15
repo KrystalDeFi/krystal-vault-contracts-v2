@@ -50,6 +50,7 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import { SharedV4Strategy } from "../../contracts/shared-vault/strategies/SharedV4Strategy.sol";
+import { SharedAerodromeStrategy } from "../../contracts/shared-vault/strategies/SharedAerodromeStrategy.sol";
 import { ISharedV4Utils as IV4Utils } from "../../contracts/shared-vault/interfaces/ISharedV4Utils.sol";
 import { SharedPancakeV4Strategy } from "../../contracts/shared-vault/strategies/SharedPancakeV4Strategy.sol";
 import { ICLPoolManager } from "infinity-core/src/pool-cl/interfaces/ICLPoolManager.sol";
@@ -72,6 +73,27 @@ interface IBaseV3Nfpm {
       address token0,
       address token1,
       uint24 fee,
+      int24 tickLower,
+      int24 tickUpper,
+      uint128 liquidity,
+      uint256 feeGrowthInside0LastX128,
+      uint256 feeGrowthInside1LastX128,
+      uint128 tokensOwed0,
+      uint128 tokensOwed1
+    );
+}
+
+/// @dev Aerodrome Slipstream NFPM positions() layout: int24 tickSpacing where V3 has uint24 fee.
+interface IAeroForkNfpm {
+  function positions(uint256 tokenId)
+    external
+    view
+    returns (
+      uint96 nonce,
+      address operator,
+      address token0,
+      address token1,
+      int24 tickSpacing,
       int24 tickLower,
       int24 tickUpper,
       uint128 liquidity,
@@ -265,10 +287,14 @@ contract SharedVaultForkFuzzer {
   address internal constant BASE_SHARED_VAULT_FACTORY = 0xB20B4517a17b8f9d1806906920071FACA0c3bd26;
   address internal constant BASE_SHARED_V3_STRATEGY_PROXY = 0xC2CbEfac9423030333466c8B52B6FF4e85304a8c;
   // Uniswap V4 PositionManager on Base. Used as the `posm` in V4 strategy calls.
-  // We don't need this pool to exist on the fork — the security regression handler
-  // exercises the `_validateV4InputTokens` gate which fires before any V4 PM call.
+  // We don't need this pool to exist on the fork — the security regression handler's
+  // bait reverts inside SharedV4SwapPipeline.executeWithInputs (gas-fee cap or the
+  // exact-consumption input ledger) before any V4 PM call.
   address internal constant BASE_UNISWAP_V4_POSM = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
   address internal constant BASE_PANCAKE_V4_POSM = 0x55f4c8abA71A1e923edC303eb4fEfF14608cC226;
+  // Aerodrome Slipstream NonfungiblePositionManager on Base (same constant as TestCommon's
+  // AERODROME_NFPM). The WETH/USDC volatile CL pool (tickSpacing 100) predates BASE_FORK_BLOCK.
+  address internal constant BASE_AERODROME_NFPM = 0x827922686190790b37229fd06084350E74485b72;
 
   uint256 internal constant BASE_FORK_BLOCK = 46_190_000;
   uint24 internal constant FEE_TIER = 500;
@@ -279,6 +305,11 @@ contract SharedVaultForkFuzzer {
   int24 internal constant V4_TICK_SPACING = 60;
   int24 internal constant V4_TICK_LOWER = -600;
   int24 internal constant V4_TICK_UPPER = 600;
+  // Aerodrome WETH/USDC volatile pool parameters (1% tier). Full-range ticks are multiples of
+  // the 100 tickSpacing, mirroring Integration.SharedVault.Aerodrome.t.sol.
+  int24 internal constant AERO_TICK_SPACING = 100;
+  int24 internal constant AERO_TICK_LOWER = -887_000;
+  int24 internal constant AERO_TICK_UPPER = 887_000;
   uint160 internal constant SQRT_PRICE_1_1 = 79_228_162_514_264_337_593_543_950_336;
 
   uint256 internal constant INITIAL_WETH = 1 ether;
@@ -315,22 +346,23 @@ contract SharedVaultForkFuzzer {
   // ─── V4 security-regression harness
   // ──────────────────────────────────────────
   // The Uniswap V4 strategy here is a freshly-deployed `SharedV4Strategy` linked
-  // against the locally-compiled `SharedV4StrategyLib` (which carries the
-  // `_validateV4InputTokens` currency-match fix). It is whitelisted into the
+  // against the locally-compiled `SharedV4StrategyLib` (whose input handling routes
+  // through SharedV4SwapPipeline's exact-consumption ledger). It is whitelisted into the
   // production `SharedConfigManager` so the fork vault can `execute` against it
   // via DELEGATECALL — exactly mirroring how the real deployed V4 strategy proxy
   // is invoked, but with patched bytecode.
   SharedV4Strategy public localV4Strategy;
   /// @dev Vault with THREE configured tokens: WETH (currency0 of the test pool),
   ///      USDC (currency1), and DAI (the "bait" non-pool vault token). Without a
-  ///      third vault token the gas-fee siphon exploit can't even be staged —
-  ///      `_validateVaultToken(DAI)` would short-circuit before the buggy
-  ///      `_takeInputGasFeesAndGetPoolAmounts` step is reached.
+  ///      third vault token the gas-fee siphon exploit can't even be staged — the
+  ///      pipeline's vault-token check on inputs would short-circuit before the
+  ///      gas-fee skim is reached.
   ISharedVault public v4ThreeTokenVault;
   bool public v4HarnessReady;
   bool public v4SecurityFiredAtLeastOnce;
   bool public v4SuccessChecked;
   bool public v4NativeSuccessChecked;
+  bool public v4FullExitChecked;
 
   SharedPancakeV4Strategy public localPancakeV4Strategy;
   ISharedVault public pancakeV4ThreeTokenVault;
@@ -338,6 +370,15 @@ contract SharedVaultForkFuzzer {
   bool public pancakeV4SecurityFiredAtLeastOnce;
   bool public pancakeV4SuccessChecked;
   bool public pancakeV4NativeSuccessChecked;
+  bool public pancakeV4FullExitChecked;
+
+  // ─── Aerodrome (Slipstream) harness ────────────────────────────────────────
+  // Locally-compiled SharedAerodromeStrategy driven against the REAL Base
+  // Slipstream NFPM — the only fuzz coverage of the Aerodrome strategy fork.
+  SharedAerodromeStrategy public localAerodromeStrategy;
+  ISharedVault public aerodromeVault;
+  bool public aerodromeReady;
+  bool public aeroFullExitChecked;
 
   constructor() payable {
     swapDataSigner = new ForkSigner();
@@ -636,6 +677,240 @@ contract SharedVaultForkFuzzer {
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
+  // Aerodrome (Slipstream) handlers — locally-compiled SharedAerodromeStrategy
+  // against the real Base Slipstream NFPM and WETH/USDC tickSpacing-100 pool.
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  function fork_aero_setup_real_position() public {
+    _ensureAerodromeReady();
+  }
+
+  function _ensureAerodromeReady() internal {
+    if (aerodromeReady) return;
+    _ensureBaseVault();
+    if (address(forkSwapRouter) == address(0)) forkSwapRouter = new ForkSwapRouter();
+
+    // The strategy's immutable swapRouter is the fork mock router; these handlers never carry
+    // swapData, so the router is never actually called.
+    localAerodromeStrategy = new SharedAerodromeStrategy(address(forkSwapRouter));
+    address[] memory targets = new address[](1);
+    targets[0] = address(localAerodromeStrategy);
+    localConfigManager.setWhitelistTargets(targets, true);
+    address[] memory nfpms = new address[](1);
+    nfpms[0] = BASE_AERODROME_NFPM;
+    localConfigManager.setWhitelistNfpms(nfpms, true);
+
+    aerodromeVault = _newInitializedVault("EchidnaForkAero");
+    IERC20(BASE_WETH).approve(address(aerodromeVault), type(uint256).max);
+    IERC20(BASE_USDC).approve(address(aerodromeVault), type(uint256).max);
+    _mintAerodromePosition(aerodromeVault, 0.3 ether, 900e6);
+    aerodromeReady = true;
+
+    _assertAerodromePositionOwned();
+  }
+
+  function fork_aero_increase_real_position(uint256 wethAmount) external {
+    _ensureAerodromeReady();
+    if (aerodromeVault.getPositionCount() == 0) return;
+    uint256 tokenId = _firstTokenId(aerodromeVault);
+    uint128 liquidityBefore = _aeroLiquidity(tokenId);
+
+    uint256 idleWeth = IERC20(BASE_WETH).balanceOf(address(aerodromeVault));
+    uint256 idleUsdc = IERC20(BASE_USDC).balanceOf(address(aerodromeVault));
+    if (idleWeth < 1e13 || idleUsdc < 1e6) return;
+
+    wethAmount = _clamp(wethAmount, 1e13, idleWeth / 2);
+    uint256 usdcAmount = _ceilMulDiv(wethAmount, idleUsdc, idleWeth);
+    if (usdcAmount == 0 || usdcAmount > idleUsdc / 2) return;
+
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(localAerodromeStrategy),
+      data: _aeroSwapAndIncreaseData(tokenId, wethAmount, usdcAmount),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    aerodromeVault.execute(actions);
+
+    assert(aerodromeVault.getPositionCount() >= 1);
+    assert(_aeroLiquidity(tokenId) >= liquidityBefore);
+    _assertAerodromePositionOwned();
+    _assertVaultBacked(aerodromeVault);
+  }
+
+  /// @notice Property: a deposit -> withdraw(all minted shares) roundtrip on the Aerodrome vault
+  ///         never profits the depositor (rounding favors the vault; no fees are configured here).
+  function fork_aero_deposit_withdraw_roundtrip(uint256 wethSeed) external {
+    _ensureAerodromeReady();
+    if (aerodromeVault.getPositionCount() == 0) return;
+
+    uint256[4] memory totals = aerodromeVault.getTotalBalances();
+    if (totals[0] == 0 || totals[1] == 0) return;
+
+    uint256 wethAmount = _clamp(wethSeed, 1e13, MAX_WETH_DEPOSIT);
+    uint256 usdcAmount = _ceilMulDiv(wethAmount, totals[1], totals[0]);
+    if (usdcAmount == 0 || usdcAmount > 20_000e6) return;
+
+    _topUpERC20(BASE_WETH, address(this), wethAmount);
+    _topUpERC20(BASE_USDC, address(this), usdcAmount);
+    uint256 wethBefore = IERC20(BASE_WETH).balanceOf(address(this));
+    uint256 usdcBefore = IERC20(BASE_USDC).balanceOf(address(this));
+    uint256 supplyBefore = IERC20(address(aerodromeVault)).totalSupply();
+
+    uint256[4] memory amounts = [wethAmount, usdcAmount, uint256(0), uint256(0)];
+    uint256 preview = aerodromeVault.previewDeposit(amounts);
+    uint256 minted;
+    try aerodromeVault.deposit(amounts, 100, 0) returns (uint256 shares) {
+      minted = shares;
+      assert(preview > 0);
+      assert(shares > 0);
+      assert(IERC20(address(aerodromeVault)).totalSupply() == supplyBefore + shares);
+    } catch {
+      assert(preview == 0);
+      return;
+    }
+
+    uint256[4] memory mins;
+    uint256[4] memory got = aerodromeVault.withdraw(minted, mins, false);
+    assert(got[0] > 0 || got[1] > 0);
+
+    // No-profit: the roundtrip can only return at most what was put in.
+    assert(IERC20(BASE_WETH).balanceOf(address(this)) <= wethBefore);
+    assert(IERC20(BASE_USDC).balanceOf(address(this)) <= usdcBefore);
+    assert(IERC20(address(aerodromeVault)).totalSupply() == supplyBefore);
+
+    _assertAerodromePositionOwned();
+    _assertVaultBacked(aerodromeVault);
+  }
+
+  function fork_aero_full_owner_exit_removes_real_position() external {
+    _ensureAerodromeReady();
+    if (aeroFullExitChecked) return;
+    aeroFullExitChecked = true;
+
+    ISharedVault freshVault = _newInitializedVault("EchidnaForkAeroFullExit");
+    _mintAerodromePosition(freshVault, 0.3 ether, 900e6);
+
+    assert(freshVault.getPositionCount() == 1);
+    uint256 shares = IERC20(address(freshVault)).balanceOf(address(this));
+    uint256[4] memory minAmounts;
+    uint256[4] memory withdrawn = freshVault.withdraw(shares, minAmounts, false);
+
+    assert(withdrawn[0] > 0 || withdrawn[1] > 0);
+    assert(IERC20(address(freshVault)).totalSupply() == 0);
+    assert(freshVault.getPositionCount() == 0);
+  }
+
+  function assert_fork_aero_position_owned_when_tracked() public view {
+    if (!aerodromeReady) return;
+    _assertAerodromePositionOwned();
+  }
+
+  function _mintAerodromePosition(ISharedVault targetVault, uint256 amount0, uint256 amount1) internal {
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(localAerodromeStrategy),
+      data: _aeroSwapAndMintData(amount0, amount1),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
+    targetVault.execute(actions);
+    assert(targetVault.getPositionCount() == 1);
+  }
+
+  function _aeroSwapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = BASE_WETH;
+    approveTokens[1] = BASE_USDC;
+
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amount0;
+    approveAmounts[1] = amount1;
+
+    IV3Utils.SwapAndMintParams memory params = IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: BASE_AERODROME_NFPM,
+      token0: BASE_WETH,
+      token1: BASE_USDC,
+      fee: 0,
+      tickSpacing: AERO_TICK_SPACING,
+      tickLower: AERO_TICK_LOWER,
+      tickUpper: AERO_TICK_UPPER,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: amount0,
+      amount1: amount1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+
+    return bytes.concat(abi.encode(uint8(0)), abi.encode(params, approveTokens, approveAmounts, uint256(0)));
+  }
+
+  function _aeroSwapAndIncreaseData(uint256 tokenId, uint256 amount0, uint256 amount1)
+    internal
+    view
+    returns (bytes memory)
+  {
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = BASE_WETH;
+    approveTokens[1] = BASE_USDC;
+
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amount0;
+    approveAmounts[1] = amount1;
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: BASE_AERODROME_NFPM,
+      tokenId: tokenId,
+      amount0: amount0,
+      amount1: amount1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    return bytes.concat(abi.encode(uint8(1)), abi.encode(params, approveTokens, approveAmounts, uint256(0)));
+  }
+
+  function _assertAerodromePositionOwned() internal view {
+    uint256 count = aerodromeVault.getPositionCount();
+    assert(count > 0);
+    (address strategy, address nfpm, uint256 tokenId, address token0, address token1) = aerodromeVault.getPosition(0);
+    assert(strategy == address(localAerodromeStrategy));
+    assert(nfpm == BASE_AERODROME_NFPM);
+    assert(token0 == BASE_WETH);
+    assert(token1 == BASE_USDC);
+    assert(IERC721(BASE_AERODROME_NFPM).ownerOf(tokenId) == address(aerodromeVault));
+    assert(_aeroLiquidity(tokenId) > 0);
+  }
+
+  function _aeroLiquidity(uint256 tokenId) internal view returns (uint128 liquidity) {
+    (,,,,,,, liquidity,,,,) = IAeroForkNfpm(BASE_AERODROME_NFPM).positions(tokenId);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
   // Property-style handlers (each one encodes a SharedVault invariant under fuzz)
   //
   // Echidna calls these with random arguments interleaved with the existing
@@ -924,25 +1199,27 @@ contract SharedVaultForkFuzzer {
   // The Uniswap V4 strategy library used to validate `inputTokens[i]` only as
   // "must be a configured vault token". A malicious-but-authorized executor could
   // therefore include e.g. DAI inside a WETH/USDC `swapAndMint` with a nonzero
-  // `gasFeeX64` and have `_takeInputGasFeesAndGetPoolAmounts` siphon
-  // `amount * gasFeeX64 / Q64` of that DAI to `msg.sender` BEFORE the per-entry
-  // currency match — the remainder then silently dropped from LP accounting.
+  // `gasFeeX64` and have the input gas-fee skim siphon `amount * gasFeeX64 / Q64`
+  // of that DAI to `msg.sender` while the remainder silently dropped from LP
+  // accounting.
   //
-  // After the fix in `SharedV4StrategyLib._validateV4InputTokens`, every
-  // positive-amount entry must equal `currency0` or `currency1`. The handler
-  // below builds exactly that exploit shape against a freshly deployed
-  // (patched-lib-linked) `SharedV4Strategy` and asserts the call reverts with
-  // `InvalidPoolTokens` AND that no vault DAI was siphoned to msg.sender.
+  // Today non-pool VAULT-token inputs are a supported funding source, but they are
+  // seeded into SharedV4SwapPipeline's intermediate ledger, which must net to
+  // EXACTLY zero through signed swap hops. The bait below carries NO swap hops, so
+  // the DAI entry always dangles: the call must revert (gas-fee cap `InvalidGasFeeX64`
+  // above `maxGasFeeX64`, otherwise the ledger's `InvalidAmount`) AND no vault DAI
+  // may move to msg.sender — the skim rolls back with the revert.
   // ──────────────────────────────────────────────────────────────────────────────
 
-  /// @notice Property: SwapAndMint with a non-pool vault token in `inputTokens`
-  ///         reverts at the validator gate AND moves zero DAI out of the vault.
+  /// @notice Property: SwapAndMint with a DANGLING non-pool vault token in
+  ///         `inputTokens` (no consuming swap hop) reverts AND moves zero DAI
+  ///         out of the vault.
   /// @dev    The pool itself (WETH/USDC V4) does not need to exist on the fork
-  ///         for this to pass — `_validateV4InputTokens` fires before any V4 PM
-  ///         call. We sweep `gasFeeSeed` across the full uint64 space so Echidna
-  ///         can probe both small and near-100% fee rates; any non-zero rate
-  ///         used to cause a siphon, so reverting under all of them proves the
-  ///         fix isn't bypassable via fee-rate edge cases.
+  ///         for this to pass — the bait reverts inside the swap pipeline's input
+  ///         handling before any V4 PM call. We sweep `gasFeeSeed` across the full
+  ///         uint64 space so Echidna can probe both small and near-100% fee rates;
+  ///         any non-zero rate used to cause a siphon, so reverting under all of
+  ///         them proves the guard isn't bypassable via fee-rate edge cases.
   function fork_v4_swapAndMint_rejects_non_pool_input_token(uint64 gasFeeSeed) external {
     _ensureV4Harness();
 
@@ -1090,6 +1367,77 @@ contract SharedVaultForkFuzzer {
     assert(address(successVault).balance == 0);
   }
 
+  /// @dev Drives collectFees + exitProportional (DECREASE_LIQUIDITY/TAKE_PAIR via the local
+  ///      SharedV4StrategyLib) against the REAL Uniswap V4 position manager: a partial withdraw must
+  ///      decrease liquidity proportionally while keeping the position tracked; a subsequent full
+  ///      withdraw must drain liquidity to zero, untrack the position, and burn all shares.
+  function fork_v4_partial_then_full_owner_exit_removes_local_position() external {
+    if (v4FullExitChecked) return;
+    v4FullExitChecked = true;
+    _ensureV4Harness();
+
+    (ForkV4MockERC20 token0, ForkV4MockERC20 token1) = _deploySortedForkV4TokenPair();
+    PoolKey memory key = PoolKey({
+      currency0: Currency.wrap(address(token0)),
+      currency1: Currency.wrap(address(token1)),
+      fee: V4_LP_FEE,
+      tickSpacing: V4_TICK_SPACING,
+      hooks: IHooks(address(0))
+    });
+    IPositionManager(BASE_UNISWAP_V4_POSM).initializePool(key, SQRT_PRICE_1_1);
+
+    SharedVault exitVault =
+      _newLocalV4Vault(address(token0), address(token1), address(localV4Strategy), BASE_UNISWAP_V4_POSM);
+    uint256 mintedId = IPositionManager(BASE_UNISWAP_V4_POSM).nextTokenId();
+
+    IV4Utils.InputTokenParams[] memory inputs = new IV4Utils.InputTokenParams[](2);
+    inputs[0] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IV4Utils.InputTokenParams({ token: Currency.wrap(address(token1)), amount: 0.25 ether });
+
+    IV4Utils.SwapAndMintParams memory mintParams = IV4Utils.SwapAndMintParams({
+      posm: BASE_UNISWAP_V4_POSM,
+      poolKey: key,
+      mintParams: IV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new Currency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _executeLocalV4(
+      exitVault,
+      address(localV4Strategy),
+      _v4ExecuteData(BASE_UNISWAP_V4_POSM, 0, abi.encodeCall(IV4Utils.swapAndMint, (mintParams)))
+    );
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterMint = IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterMint > 0);
+
+    uint256[4] memory mins;
+    uint256 shares = exitVault.balanceOf(address(this));
+
+    // Partial: half the shares → proportional decrease, position stays tracked.
+    uint256[4] memory gotPartial = exitVault.withdraw(shares / 2, mins, false);
+    assert(gotPartial[0] > 0 || gotPartial[1] > 0);
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterPartial = IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterPartial > 0 && liquidityAfterPartial < liquidityAfterMint);
+
+    // Full: remaining shares → position drained, untracked, supply zero.
+    uint256[4] memory gotFull = exitVault.withdraw(exitVault.balanceOf(address(this)), mins, false);
+    assert(gotFull[0] > 0 || gotFull[1] > 0);
+    assert(exitVault.totalSupply() == 0);
+    assert(exitVault.getPositionCount() == 0);
+    assert(IPositionManager(BASE_UNISWAP_V4_POSM).getPositionLiquidity(mintedId) == 0);
+  }
+
   function fork_pancake_v4_swapAndMint_rejects_non_pool_input_token(uint64 gasFeeSeed) external {
     _ensurePancakeV4Harness();
 
@@ -1228,6 +1576,78 @@ contract SharedVaultForkFuzzer {
     assert(tracked0 == BASE_WETH);
     assert(tracked1 == address(token1));
     assert(address(successVault).balance == 0);
+  }
+
+  /// @dev Pancake twin of fork_v4_partial_then_full_owner_exit_removes_local_position: drives
+  ///      collectFees + exitProportional through the local SharedPancakeV4StrategyLib against the
+  ///      REAL Pancake Infinity CL position manager.
+  function fork_pancake_v4_partial_then_full_owner_exit_removes_local_position() external {
+    if (pancakeV4FullExitChecked) return;
+    pancakeV4FullExitChecked = true;
+    _ensurePancakeV4Harness();
+
+    (ForkV4MockERC20 token0, ForkV4MockERC20 token1) = _deploySortedForkV4TokenPair();
+    address poolManager = address(ICLPositionManager(BASE_PANCAKE_V4_POSM).clPoolManager());
+    PancakeV4PoolKey memory key = PancakeV4PoolKey({
+      currency0: PancakeCurrency.wrap(address(token0)),
+      currency1: PancakeCurrency.wrap(address(token1)),
+      hooks: IPancakeHooks(address(0)),
+      poolManager: IPancakePoolManager(poolManager),
+      fee: V4_LP_FEE,
+      parameters: _pancakeClParameters(V4_TICK_SPACING)
+    });
+    ICLPoolManager(poolManager).initialize(key, SQRT_PRICE_1_1);
+
+    SharedVault exitVault =
+      _newLocalV4Vault(address(token0), address(token1), address(localPancakeV4Strategy), BASE_PANCAKE_V4_POSM);
+    uint256 mintedId = ICLPositionManager(BASE_PANCAKE_V4_POSM).nextTokenId();
+
+    IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
+    inputs[0] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token0)), amount: 0.25 ether });
+    inputs[1] = IPancakeV4Utils.InputTokenParams({ token: PancakeCurrency.wrap(address(token1)), amount: 0.25 ether });
+
+    IPancakeV4Utils.SwapAndMintParams memory mintParams = IPancakeV4Utils.SwapAndMintParams({
+      posm: BASE_PANCAKE_V4_POSM,
+      poolKey: key,
+      mintParams: IPancakeV4Utils.MintParams({
+        tickLower: V4_TICK_LOWER,
+        tickUpper: V4_TICK_UPPER,
+        minLiquidity: 0,
+        hookData: "",
+        deadline: block.timestamp + 300
+      }),
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      inputTokens: inputs,
+      sweepTokens: new PancakeCurrency[](0),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _executeLocalV4(
+      exitVault,
+      address(localPancakeV4Strategy),
+      _pancakeV4ExecuteData(BASE_PANCAKE_V4_POSM, 0, abi.encodeCall(IPancakeV4Utils.swapAndMint, (mintParams)))
+    );
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterMint = ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterMint > 0);
+
+    uint256[4] memory mins;
+    uint256 shares = exitVault.balanceOf(address(this));
+
+    // Partial: half the shares → proportional decrease, position stays tracked.
+    uint256[4] memory gotPartial = exitVault.withdraw(shares / 2, mins, false);
+    assert(gotPartial[0] > 0 || gotPartial[1] > 0);
+    assert(exitVault.getPositionCount() == 1);
+    uint128 liquidityAfterPartial = ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId);
+    assert(liquidityAfterPartial > 0 && liquidityAfterPartial < liquidityAfterMint);
+
+    // Full: remaining shares → position drained, untracked, supply zero.
+    uint256[4] memory gotFull = exitVault.withdraw(exitVault.balanceOf(address(this)), mins, false);
+    assert(gotFull[0] > 0 || gotFull[1] > 0);
+    assert(exitVault.totalSupply() == 0);
+    assert(exitVault.getPositionCount() == 0);
+    assert(ICLPositionManager(BASE_PANCAKE_V4_POSM).getPositionLiquidity(mintedId) == 0);
   }
 
   function _ensureV4Harness() internal {
@@ -1404,8 +1824,10 @@ contract SharedVaultForkFuzzer {
 
   /// @dev Builds the encoded action calldata for a `SwapAndMint` whose third
   ///      `inputTokens` entry is DAI — a vault token that is NOT one of the pool
-  ///      currencies. Pre-fix this would have siphoned `daiAmount * gasFeeX64 / Q64`
-  ///      DAI to `msg.sender`; post-fix it must revert at `_validateV4InputTokens`.
+  ///      currencies, with NO swap hop consuming it. Pre-fix this would have
+  ///      siphoned `daiAmount * gasFeeX64 / Q64` DAI to `msg.sender`; today the
+  ///      dangling DAI seed must fail the pipeline's exact-consumption ledger
+  ///      (or the gas-fee cap) and revert the whole call.
   function _v4SwapAndMintBaitCalldata(uint64 gasFeeX64) internal view returns (bytes memory) {
     (address c0, address c1) = BASE_WETH < BASE_USDC ? (BASE_WETH, BASE_USDC) : (BASE_USDC, BASE_WETH);
 
@@ -1513,6 +1935,14 @@ contract SharedVaultForkFuzzer {
   function assert_fork_vault_backed() public view {
     if (!forkReady) return;
     _assertVaultBacked(vault);
+  }
+
+  /// @notice Aggregate-solvency invariant for the base fork vault: the sum over all holders of
+  ///         `previewWithdraw` never exceeds `getTotalBalances` by more than `positionCount + 1` wei.
+  ///         Guarded by `forkReady`, so it is a no-op until `_ensureReady` has seeded the base vault.
+  function assert_fork_solvency() public view {
+    if (!forkReady) return;
+    _assertForkSolvent(vault);
   }
 
   function _newInitializedVault(string memory name) internal returns (ISharedVault v) {
@@ -1701,6 +2131,46 @@ contract SharedVaultForkFuzzer {
     if (IERC20(address(targetVault)).totalSupply() == 0) return;
     uint256[4] memory totals = targetVault.getTotalBalances();
     assert(totals[0] > 0 || totals[1] > 0);
+  }
+
+  /// @notice Aggregate SOLVENCY invariant (ported from the mock harness's `_assertSolvent`): the vault
+  ///         must be able to honor EVERY shareholder's `previewWithdraw` simultaneously — the sum of all
+  ///         holders' previewable amounts must never exceed the vault's total balances. This is strictly
+  ///         stronger than `_assertVaultBacked` (which only checks "some token > 0"); a violation means
+  ///         the vault has promised out more value than it actually holds (true over-issuance / insolvency).
+  /// @dev    `previewWithdraw` is a close UPPER BOUND on the realizable per-holder amount: it floors once
+  ///         over (idle + spot-valued LP) and can exceed the per-position settled amount by a few wei per
+  ///         position (SharedVault W-7). A `getPositionCount() + 1` wei tolerance absorbs that documented
+  ///         rounding so it is not mistaken for insolvency; a genuine over-issuance would exceed totals by
+  ///         a balance-proportional margin, far beyond this tolerance. The holder set mirrors
+  ///         `_assertShareConservation`: `address(this)` plus every entry of `players`.
+  function _assertForkSolvent(ISharedVault targetVault) internal view {
+    uint256 supply = IERC20(address(targetVault)).totalSupply();
+    if (supply == 0) return;
+
+    uint256[4] memory totals = targetVault.getTotalBalances();
+    uint256[4] memory owed;
+
+    uint256 selfBal = IERC20(address(targetVault)).balanceOf(address(this));
+    if (selfBal > 0) {
+      uint256[4] memory pw = targetVault.previewWithdraw(selfBal);
+      for (uint256 i; i < 4; i++) {
+        owed[i] += pw[i];
+      }
+    }
+    for (uint256 p; p < players.length; p++) {
+      uint256 bal = IERC20(address(targetVault)).balanceOf(address(players[p]));
+      if (bal == 0) continue;
+      uint256[4] memory pw = targetVault.previewWithdraw(bal);
+      for (uint256 i; i < 4; i++) {
+        owed[i] += pw[i];
+      }
+    }
+
+    uint256 tol = targetVault.getPositionCount() + 1;
+    for (uint256 i; i < 4; i++) {
+      assert(owed[i] <= totals[i] + tol);
+    }
   }
 
   function _firstTokenId(ISharedVault targetVault) internal view returns (uint256) {

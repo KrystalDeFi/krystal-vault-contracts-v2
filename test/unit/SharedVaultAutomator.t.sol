@@ -12,6 +12,9 @@ import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedCon
 import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
 import { StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
 
@@ -341,8 +344,15 @@ contract SharedVaultAutomatorTest is TestCommon {
     (bytes memory encoded, bytes memory sig) = _signAgentAllowance(address(vault));
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
+    // expectRevert MUST precede prank: a prank immediately followed by an expectRevert cheatcode is
+    // consumed before the real call, so the call would otherwise run as the default sender. Ordering it
+    // this way makes NON_OPERATOR the actual caller, which is what this test claims to verify.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OPERATOR, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(NON_OPERATOR);
-    vm.expectRevert();
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -374,6 +384,29 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.InvalidSignature.selector);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
+  }
+
+  /// @dev Boundary pin for the expiry comparison: `expirationTime >= block.timestamp` means an
+  ///      allowance expiring exactly NOW is still valid (inclusive bound). The fail_expired test
+  ///      covers `now - 1`; this covers `now` so a future drift to a strict `>` comparison fails CI.
+  function test_executeWithAgentAllowance_expiryAtCurrentTimestamp_isValid() public {
+    _nonce++;
+    AgentAllowanceStructHash.AgentAllowance memory allowance = AgentAllowanceStructHash.AgentAllowance({
+      vault: address(vault),
+      signatureTime: uint64(block.timestamp),
+      expirationTime: uint64(block.timestamp) // expires exactly now — still valid (>= semantics)
+    });
+    bytes memory encoded = abi.encode(allowance);
+    bytes32 structHash = AgentAllowanceStructHash._hash(encoded);
+    bytes32 digest = automator.hashTypedDataV4(structHash);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.prank(OPERATOR);
+    automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
+    // No revert = the inclusive expiry boundary holds.
   }
 
   function test_executeWithAgentAllowance_fail_wrongSigner() public {
@@ -421,7 +454,7 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.pause();
 
     vm.prank(OPERATOR);
-    vm.expectRevert();
+    vm.expectRevert(Pausable.EnforcedPause.selector);
     automator.executeWithAgentAllowance(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -432,6 +465,20 @@ contract SharedVaultAutomatorTest is TestCommon {
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
     vm.prank(OPERATOR);
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+  }
+
+  /// @dev Twin of test_executeWithAgentAllowance_fail_paused: both operator entrypoints share the
+  ///      whenNotPaused gate, so the user-order path must be blocked while the automator is paused.
+  function test_executeWithUserOrder_fail_paused() public {
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.prank(ADMIN);
+    automator.pause();
+
+    vm.prank(OPERATOR);
+    vm.expectRevert(Pausable.EnforcedPause.selector);
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -467,12 +514,43 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.executeWithUserOrder(ISharedVault(address(otherVault)), ops, encoded, sig);
   }
 
+  /// @dev Characterization: user orders are validated against the TARGET vault's owner, not bound to
+  ///      a specific vault — one order signed by an owner of two vaults authorizes operator execution
+  ///      on both. The (trusted) operator role is the boundary that keeps actions faithful to the
+  ///      order's intent; if vault-scoping is ever added to the order digest, this test must change.
+  function test_executeWithUserOrder_sameOwnerSecondVault_orderValidOnBoth() public {
+    SharedVault secondVault = new SharedVault();
+    tokenA.mint(address(this), 200e18);
+    tokenB.mint(address(this), 200e18);
+    tokenA.transfer(address(secondVault), 100e18);
+    tokenB.transfer(address(secondVault), 100e18);
+    address[4] memory vt = [address(tokenA), address(tokenB), address(0), address(0)];
+    uint256[4] memory am = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
+    vm.startPrank(VAULT_OWNER);
+    secondVault.initialize("SameOwner2", vt, am, VAULT_OWNER, address(0), address(configManager), address(0), 0);
+    vm.stopPrank();
+
+    (bytes memory encoded, bytes memory sig) = _signUserOrder();
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+
+    vm.startPrank(OPERATOR);
+    automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
+    automator.executeWithUserOrder(ISharedVault(address(secondVault)), ops, encoded, sig);
+    vm.stopPrank();
+  }
+
   function test_executeWithUserOrder_fail_nonOperator() public {
     (bytes memory encoded, bytes memory sig) = _signUserOrder();
     ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
 
+    // expectRevert MUST precede prank (see executeWithAgentAllowance twin): otherwise the prank is
+    // consumed and the call runs as the default sender instead of NON_OPERATOR.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OPERATOR, automator.OPERATOR_ROLE_HASH()
+      )
+    );
     vm.prank(NON_OPERATOR);
-    vm.expectRevert();
     automator.executeWithUserOrder(ISharedVault(address(vault)), ops, encoded, sig);
   }
 
@@ -587,6 +665,22 @@ contract SharedVaultAutomatorTest is TestCommon {
     automator.grantOperator(NON_OPERATOR);
   }
 
+  function test_revokeOperator_fail_nonAdmin() public {
+    vm.prank(NON_OPERATOR);
+    vm.expectRevert();
+    automator.revokeOperator(OPERATOR);
+    // The role must be untouched after the failed revoke.
+    assertTrue(automator.hasRole(automator.OPERATOR_ROLE_HASH(), OPERATOR));
+  }
+
+  // ============ ERC165 ============
+
+  function test_supportsInterface_reportsAccessControlAndErc165() public view {
+    assertTrue(automator.supportsInterface(type(IAccessControl).interfaceId), "IAccessControl");
+    assertTrue(automator.supportsInterface(type(IERC165).interfaceId), "ERC165");
+    assertFalse(automator.supportsInterface(0xffffffff), "0xffffffff must be rejected per ERC165");
+  }
+
   // ============ pause / unpause ============
 
   function test_pause_unpause() public {
@@ -697,6 +791,35 @@ contract SharedVaultAutomatorTest is TestCommon {
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
     vm.stopPrank();
+  }
+
+  /// @dev Multisig (EIP-1271) cancellation of a USER order. The existing multisig cancel test covers only
+  ///      the AgentAllowance path, and the multisig user-order test covers only replay — so the
+  ///      cancel-then-blocked invariant for a user order whose actor is an EIP-1271 vault owner was
+  ///      unpinned. The C-3 cancel key is the actor (here the multisig vaultOwner), so cancelling from
+  ///      the multisig must block a subsequent executeWithUserOrder with OrderCancelled.
+  function test_multisig_executeWithUserOrder_fail_cancelled() public {
+    (SharedVault msVault, MockMultisig multisig, SharedVaultAutomatorHelper msAutomator) = _setupMultisigVault();
+
+    _nonce++;
+    StructHash.Order memory order;
+    order.chainId = int64(uint64(block.chainid));
+    order.signatureTime = int64(uint64(block.timestamp + _nonce));
+    bytes memory encoded = abi.encode(order);
+    bytes32 digest = msAutomator.hashTypedDataV4(StructHash._hash(encoded));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(VAULT_OWNER_KEY, digest);
+    bytes memory sig = abi.encodePacked(r, s, v);
+
+    // Cancel from the multisig vault owner (validated via EIP-1271), as the allowance-path test does.
+    vm.prank(address(multisig));
+    msAutomator.cancelOrder(digest, sig);
+    assertTrue(msAutomator.isOrderCancelled(address(multisig), digest), "cancellation recorded under the multisig");
+
+    // The operator's subsequent user-order execution is blocked.
+    ISharedVault.Action[] memory ops = _executeOp(abi.encode(uint256(0)));
+    vm.prank(OPERATOR);
+    vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
+    msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
   }
 
   // ============ receive() + sweep (automator inherits Withdrawable) ============

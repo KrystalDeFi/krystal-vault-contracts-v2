@@ -1,6 +1,37 @@
-## TestSuites 
+## TestSuites
 
-### Create A Vault
+### Shared Vault (contracts/shared-vault)
+
+Coverage lives in three layers; the checklist below this section is the legacy private-vault plan.
+
+* **Unit** (`test/unit/Shared*.t.sol`): core vault accounting (`SharedVault.t.sol`, incl. lifecycle-event
+  emissions — SetVaultAdmin / VaultPausedUpdated / VaultOwnerChanged — owner/admin/operator privilege
+  separation, and the fail-closed untrack guard when a still-owned position's valuation probe reverts),
+  gateway zaps
+  (`SharedVaultGateway.t.sol`), factory/automator/config-manager, strategy swap paths and signed-amount
+  guards for the V3/Aerodrome twins (`SharedV3StrategySwapPath.t.sol` / `SharedAerodromeStrategySwapPath.t.sol`
+  — keep these mirrored, the strategies are forks), valuation fee-accrual parity across V3/Aerodrome/V4/Pancake
+  (`SharedStrategyFeeAccrual*.t.sol`, incl. the proportional-exit decrease→collect principal flow:
+  params forwarded verbatim, principal never perf-fee'd, and the gas-only branch with its
+  zero-principal / zero-recipient skip guards), hook gates, swap-data signature binding (incl. chain-id replay),
+  the V4 swap pipeline and its Pancake normalization twin (`SharedV4SwapPipeline.t.sol` /
+  `SharedPancakeV4SwapPipeline.t.sol` — keep these mirrored too),
+  the V4/Pancake depositProportional slippage floor (`SharedV4DepositProportional.t.sol` /
+  `SharedPancakeV4DepositProportional.t.sol` — mirrored twins),
+  the V4/Pancake valuation libraries (`SharedV4ValuationLib.t.sol` / `SharedPancakeV4ValuationLib.t.sol`
+  — mirrored twins: burned-token try/catch fallback, principal/fee split, F7 wrapped-fee-growth
+  no-revert, the non-wrapping `hasCollectableFeesForFailedCollect` gate, and the out-of-range
+  fee-growth-inside decomposition; the V4 file mocks the PoolManager at the storage-slot level so
+  `StateLibrary`'s extsload slot math is exercised for real),
+  and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`, incl. the
+  previewWithdraw owner-bps pre-clamp pin).
+* **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol
+  (V3/Sushi/Pancake V3, Aerodrome, Uniswap V4, Pancake V4), multi-protocol vaults, gateway, automator,
+  and the vault `CALL` swap path.
+* **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness,
+  `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
+
+### Create A Vault (legacy private-vault checklist)
 [x] User can create a Vault without any assets
 [x] User can set a principal token from the whitelist, principal can't be changed
 

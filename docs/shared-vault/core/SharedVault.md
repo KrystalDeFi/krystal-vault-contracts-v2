@@ -612,16 +612,6 @@ function _addPosition(address strategy, address nfpm, uint256 tokenId, address t
 function _removePosition(address nfpm, uint256 tokenId) internal
 ```
 
-### _verifyPositionExit
-
-```solidity
-function _verifyPositionExit(address strategy, address nfpm, uint256 tokenId) internal view
-```
-
-_Before untracking a position, verify it is truly exited. If the vault still holds the NFT,
-     require the strategy reports zero amounts — a non-zero value means a live LP position would
-     be untracked, understating TVL and enabling mispriced deposits/withdrawals._
-
 ### _wethIndex
 
 ```solidity

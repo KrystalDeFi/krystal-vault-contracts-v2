@@ -490,6 +490,69 @@ contract SharedVaultIntegrationTest is TestCommon {
   }
 
   // =========================================================
+  // P4 (V3-family round-trip conservation): deposit immediately followed by withdrawing all the minted
+  // shares — same block / same price, against the REAL Uniswap V3 NFPM — must NEVER return more of either
+  // token than was deposited (no value creation / no dilution of existing holders), and must return all
+  // but AMM/rounding dust (so the no-profit bound is tight, not vacuously satisfied by silently losing
+  // value). Back-port of Integration.SharedVault.V4.t.sol:672 onto the real Uniswap V3 NFPM. This is the
+  // end-to-end conservation assertion the existing V3 integration tests lacked — they only checked `> 0`.
+  // Balanced-deposit path (no swap): deposit amounts are proportional to the vault's current total
+  // balances (the WETH/USDC pool is ~3000:1, not 1:1), so neither side is materially over-pulled and the
+  // per-side dust bound stays tight. slippageBps=50 (0.5%) matches the V4 reference; dust = t*In/200.
+  // =========================================================
+
+  function test_depositWithdraw_roundTrip_neverProfits_onRealNfpm() public {
+    // Establish a real Uniswap V3 LP position first so the round-trip exercises the real NFPM
+    // (increaseLiquidity -> exitProportional), not just idle balances.
+    vm.startPrank(vaultOwner);
+    ISharedVault.Action[] memory mintActions = new ISharedVault.Action[](1);
+    mintActions[0] = ISharedVault.Action(
+      address(v3Strategy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL
+    );
+    vault.execute(mintActions);
+    vm.stopPrank();
+
+    address depositor = makeAddr("v3RoundTripDepositor");
+    setErc20Balance(WETH, depositor, 100 ether);
+    setErc20Balance(USDC, depositor, 200_000e6);
+
+    // Balanced (vault-ratio) deposit: WETH is the reference leg, USDC follows the vault's WETH:USDC ratio.
+    uint256[4] memory totalBals = vault.getTotalBalances();
+    uint256 wethIn = 0.5 ether;
+    uint256 usdcIn = totalBals[0] > 0 ? (wethIn * totalBals[1]) / totalBals[0] + 1 : 1500e6;
+
+    vm.startPrank(depositor);
+    IERC20(WETH).approve(address(vault), type(uint256).max);
+    IERC20(USDC).approve(address(vault), type(uint256).max);
+
+    uint256 t0Before = IERC20(WETH).balanceOf(depositor);
+    uint256 t1Before = IERC20(USDC).balanceOf(depositor);
+
+    uint256 shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 50, 0); // 0.5% LP-add slippage tolerance
+    assertGt(shares, 0, "deposit minted shares");
+
+    uint256 t0In = t0Before - IERC20(WETH).balanceOf(depositor);
+    uint256 t1In = t1Before - IERC20(USDC).balanceOf(depositor);
+    assertGt(t0In, 0, "WETH actually deposited");
+    assertGt(t1In, 0, "USDC actually deposited");
+
+    uint256[4] memory mins;
+    uint256[4] memory got = vault.withdraw(shares, mins, false);
+    vm.stopPrank();
+
+    // No profit: an instant round-trip cannot return more of either token than went in — rounding and
+    // the vault's floor-in-its-favor can only reduce the return.
+    assertLe(got[0], t0In, "round-trip WETH out <= in (no profit)");
+    assertLe(got[1], t1In, "round-trip USDC out <= in (no profit)");
+
+    // Not a value sink: returns all but dust (< 0.5% + a few wei), so the no-profit bound is tight.
+    assertGe(got[0] + t0In / 200 + 5, t0In, "round-trip WETH loss is only dust");
+    assertGe(got[1] + t1In / 200 + 5, t1In, "round-trip USDC loss is only dust");
+    console.log("UniV3 round-trip: WETH in/out =", t0In, got[0]);
+    console.log("UniV3 round-trip: USDC in/out =", t1In, got[1]);
+  }
+
+  // =========================================================
   // previewWithdraw includes LP position value
   // =========================================================
 

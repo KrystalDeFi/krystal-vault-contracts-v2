@@ -5,6 +5,37 @@ import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 interface ISharedV4Utils {
+  // Action events — byte-compatible with v4utils `IV4Utils` so existing decoders work unchanged.
+  // Emitted by SharedV4StrategyLib / SharedV4SwapPipeline under delegatecall from SharedVault,
+  // so the logs surface at the vault address.
+  event Swap(address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut);
+  /// @dev The amount fields on SwapAndMint / SwapAndIncrease / AdjustRange / CompoundFees report the
+  ///      amounts CONSUMED by the realized liquidity, quoted at the execution price (v4utils parity).
+  ///      For imbalanced or out-of-range adds the non-limiting side's remainder stays idle in the
+  ///      vault and is NOT reported.
+  event SwapAndMint(address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1);
+  event SwapAndIncrease(
+    address indexed posm, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1
+  );
+  /// @dev `token`/`amount` report `swapDestToken` and this operation's post-swap proceeds in it.
+  ///      For a pool-token dest that is the post-swap total; for a non-pool VAULT-token dest it is
+  ///      the terminal swap output left idle by the pipeline; otherwise 0 (no allowance, nothing
+  ///      can flow there). Unlike v4utils nothing is swept — proceeds stay idle in the vault.
+  event DecreaseAndSwap(
+    address indexed posm, uint256 indexed tokenId, uint128 liquidity, Currency token, uint256 amount
+  );
+  event AdjustRange(
+    address indexed posm,
+    uint256 indexed tokenId,
+    uint256 newTokenId,
+    uint256 newLiquidity,
+    uint256 token0Added,
+    uint256 token1Added
+  );
+  event CompoundFees(
+    address indexed posm, uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1
+  );
+
   enum UtilActions {
     ADJUST_RANGE,
     DECREASE_AND_SWAP,
@@ -38,9 +69,12 @@ interface ISharedV4Utils {
     uint256 deadline;
   }
 
-  /// @dev `amountIn == 0` means "use the full available amount" in SharedV4SwapPipeline. For signed
-  ///      operator swaps, the signature binds the resolved runtime amount, not this zero sentinel.
-  ///      `amountOutMin` is signer-controlled; signers must apply their own route/oracle slippage policy.
+  /// @dev SharedV4SwapPipeline forwards `amountIn` to signature verification verbatim — the digest
+  ///      binds this exact amount, never an on-chain computed balance — and the tracked total only
+  ///      needs to cover it (the backend folds withdraw-liquidity slippage into the signed amount;
+  ///      the un-swapped remainder stays in the totals). `amountIn == 0` means "no swap for this hop"
+  ///      (`amountOutMin` must be 0); it is NOT resolved to the available balance. `amountOutMin` is
+  ///      signer-controlled; signers must apply their own route/oracle slippage policy.
   struct SwapParams {
     Currency tokenIn;
     uint256 amountIn;
@@ -62,9 +96,12 @@ interface ISharedV4Utils {
   // SharedV4StrategyLib never reads them; performance fees come exclusively from
   // `performanceFeeConfig()`.
   // ABI compatibility note: `sweepTokens` and `swapDestToken` mirror legacy V4Utils payload
-  // shapes but SharedV4StrategyLib does NOT read them. They do not trigger on-chain sweeping
-  // or select a swap destination in the shared strategy; pool-token balances remain idle in
-  // the vault, and non-pool intermediates must net to zero through SharedV4SwapPipeline.
+  // shapes. `sweepTokens` is never read. `swapDestToken` labels the `DecreaseAndSwap` event
+  // and, on DECREASE_AND_SWAP only, authorizes TERMINAL swap outputs into it when it names a
+  // non-pool VAULT token (its proceeds stay idle in the vault, exempt from the pipeline
+  // ledger's exact-zero rule). Neither field triggers on-chain sweeping; pool-token balances
+  // remain idle in the vault, and every other non-pool intermediate must net to zero through
+  // SharedV4SwapPipeline.
 
   struct SwapAndMintParams {
     address posm;
@@ -95,7 +132,9 @@ interface ISharedV4Utils {
   struct DecreaseAndSwapParams {
     DecreaseLiquidityParams decreaseParams;
     SwapParams[] swapParams;
-    // Unread by SharedV4StrategyLib; retained only for ABI-compatible V4Utils payloads.
+    // Labels the DecreaseAndSwap event and, when naming a non-pool VAULT token, authorizes
+    // terminal swap outputs into it (left idle; no transfer/sweep semantics). address(0)
+    // resolves to the vault's WETH.
     Currency swapDestToken;
     uint64 protocolFeeX64;
     uint64 performanceFeeX64;

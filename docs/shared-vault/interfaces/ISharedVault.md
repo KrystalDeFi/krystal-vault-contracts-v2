@@ -17,8 +17,13 @@ event VaultWithdraw(address vaultFactory, address account, uint256[4] amounts, u
 ### VaultExecute
 
 ```solidity
-event VaultExecute(address vaultFactory, address target, bytes data)
+event VaultExecute(address vaultFactory, address target, bytes data, bytes result)
 ```
+
+Emitted once per `execute()` action with the action's outcome (the shared-vault
+        analogue of the public vault's `VaultAllocate`). `result` carries the raw return data
+        of the action: `abi.encode(PositionChange[])` for DELEGATECALL / CALL_WITH_POSITIONS
+        actions and `abi.encode(uint256 amountOut)` for swap CALL actions.
 
 ### SetVaultAdmin
 

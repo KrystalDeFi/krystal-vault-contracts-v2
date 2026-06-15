@@ -192,4 +192,59 @@ contract SharedStrategyFeeAccrualV4Test is Test {
     vm.expectRevert(bytes("hostile hook on fee-sync"));
     harness.collect(nfpm, 1, _emptyFeeConfig());
   }
+
+  // -------------------------------------------------------------------------
+  // Valuation parity with the Pancake twin suite (SharedStrategyFeeAccrualPancake.t.sol):
+  // the V4 valuation math is a fork of the same fee-growth model and must mirror its tests.
+  // -------------------------------------------------------------------------
+
+  // With LIQUIDITY = 1e18: fgInside0 = Q128 -> pending0 = mulDiv(Q128, 1e18, Q128) = 1e18,
+  // fgInside1 = 2*Q128 -> pending1 = 2e18.
+  uint256 constant PENDING0 = 1e18;
+  uint256 constant PENDING1 = 2e18;
+
+  function test_v4_getPositionAmounts_includes_pending_fees() public {
+    (address nfpm,) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0);
+
+    (uint256 amount0, uint256 amount1) = SharedV4ValuationLib.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = SharedV4ValuationLib.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(amount0, principal0 + PENDING0, "amount0 = principal + pending fees");
+    assertEq(amount1, principal1 + PENDING1, "amount1 = principal + pending fees");
+  }
+
+  function test_v4_getPositionPrincipalAmounts_excludes_fees() public {
+    (address nfpm,) = _setupCollect(FG_INSIDE0, FG_INSIDE1, 0, 0);
+
+    (uint256 principal0, uint256 principal1) = SharedV4ValuationLib.getPositionPrincipalAmounts(nfpm, 1);
+    (uint256 total0, uint256 total1) = SharedV4ValuationLib.getPositionAmounts(nfpm, 1);
+
+    assertGt(total0, principal0, "total exceeds principal because of pending fees");
+    assertGt(total1, principal1, "total exceeds principal because of pending fees");
+  }
+
+  function test_v4_getPositionAmounts_zero_pending_when_fgInsideLast_equals_current() public {
+    (address nfpm,) = _setupCollect(FG_INSIDE0, FG_INSIDE1, FG_INSIDE0, FG_INSIDE1);
+
+    (uint256 amount0, uint256 amount1) = SharedV4ValuationLib.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = SharedV4ValuationLib.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(amount0, principal0, "no pending: amount0 == principal0");
+    assertEq(amount1, principal1, "no pending: amount1 == principal1");
+  }
+
+  /// @dev F7-parity: fee-growth deltas wrap by design (mirrors Uniswap accounting). With
+  ///      current = Q128/2 and last = 2^256 - Q128/2, delta = Q128 (mod 2^256), so pending =
+  ///      mulDiv(Q128, 1e18, Q128) = 1e18 per token. Valuation must not revert under the wrap
+  ///      and must report the wrapped delta's fees — the Pancake twin pins the same case.
+  function test_v4_getPositionAmounts_wraparound_fee_growth() public {
+    uint256 last = type(uint256).max - (V4_Q128 / 2) + 1;
+    (address nfpm,) = _setupCollect(V4_Q128 / 2, V4_Q128 / 2, last, last);
+
+    (uint256 amount0, uint256 amount1) = SharedV4ValuationLib.getPositionAmounts(nfpm, 1);
+    (uint256 principal0, uint256 principal1) = SharedV4ValuationLib.getPositionPrincipalAmounts(nfpm, 1);
+
+    assertEq(amount0 - principal0, 1e18, "wrapped fee-growth yields the expected pending fees (token0)");
+    assertEq(amount1 - principal1, 1e18, "wrapped fee-growth yields the expected pending fees (token1)");
+  }
 }

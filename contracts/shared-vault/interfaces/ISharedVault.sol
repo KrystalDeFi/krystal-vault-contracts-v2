@@ -7,7 +7,11 @@ import "./ISharedConfigManager.sol";
 interface ISharedVault is ISharedCommon {
   event VaultDeposit(address indexed vaultFactory, address indexed account, uint256[4] amounts, uint256 shares);
   event VaultWithdraw(address indexed vaultFactory, address indexed account, uint256[4] amounts, uint256 shares);
-  event VaultExecute(address indexed vaultFactory, address indexed target, bytes data);
+  /// @notice Emitted once per `execute()` action with the action's outcome (the shared-vault
+  ///         analogue of the public vault's `VaultAllocate`). `result` carries the raw return data
+  ///         of the action: `abi.encode(PositionChange[])` for DELEGATECALL / CALL_WITH_POSITIONS
+  ///         actions and `abi.encode(uint256 amountOut)` for swap CALL actions.
+  event VaultExecute(address indexed vaultFactory, address indexed target, bytes data, bytes result);
   event SetVaultAdmin(address indexed vaultFactory, address indexed account, bool indexed isAdmin);
   event SetVaultOperator(address indexed vaultFactory, address indexed previousOperator, address indexed newOperator);
   event VaultOwnerChanged(address indexed vaultFactory, address indexed previousOwner, address indexed newOwner);

@@ -81,6 +81,8 @@ contract AeroFeeCapNfpm {
   uint256 public collectAmount1;
   uint256 public increased0;
   uint256 public increased1;
+  uint256 public collectCalls;
+  mapping(uint256 => address) internal owners;
 
   constructor(address _factory, address _token0, address _token1) {
     factory = _factory;
@@ -91,6 +93,14 @@ contract AeroFeeCapNfpm {
   function setCollectFees(uint256 amount0, uint256 amount1) external {
     collectAmount0 = amount0;
     collectAmount1 = amount1;
+  }
+
+  function setOwner(uint256 tokenId, address owner) external {
+    owners[tokenId] = owner;
+  }
+
+  function ownerOf(uint256 tokenId) external view returns (address) {
+    return owners[tokenId];
   }
 
   // Aerodrome positions(): note int24 tickSpacing at index 4 (vs V3's uint24 fee).
@@ -120,6 +130,7 @@ contract AeroFeeCapNfpm {
   function collect(
     INonfungiblePositionManager.CollectParams calldata params
   ) external returns (uint256 amount0, uint256 amount1) {
+    collectCalls++;
     amount0 = collectAmount0;
     amount1 = collectAmount1;
     collectAmount0 = 0;
@@ -219,6 +230,7 @@ contract AeroFeeCapVaultHarness {
 }
 
 contract SharedAerodromeStrategyFeeCapTest is Test {
+  uint64 internal constant GAS_FEE_X64_25_PERCENT = uint64(1 << 62);
   uint64 internal constant GAS_FEE_X64_75_PERCENT = uint64(3 << 62);
   // ~90% of the collected amount expressed as a Q64 fraction (0.9 * 2^64).
   uint64 internal constant GAS_FEE_X64_90_PERCENT = uint64((9 * (uint256(1) << 64)) / 10);
@@ -254,6 +266,54 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
     token1.mint(address(vault), 20_000);
 
     strategy = new SharedAerodromeStrategy(address(0xCAFE));
+  }
+
+  /// @dev Twin of test_v3_swapAndIncrease_does_not_collect_generated_fees: SWAP_AND_INCREASE adds
+  ///      principal only — it must NOT sweep the position's accrued fees into the vault, or the
+  ///      executor could bypass the platform/owner performance-fee settlement on those fees.
+  function test_aerodrome_swapAndIncrease_does_not_collect_generated_fees() public {
+    nfpm.setCollectFees(1_000, 2_000);
+    nfpm.setOwner(1, address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      tokenId: 1,
+      amount0: 100,
+      amount1: 200,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
+
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = address(token0);
+    approveTokens[1] = address(token1);
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = 100;
+    approveAmounts[1] = 200;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, approveTokens, approveAmounts, uint256(0))
+    );
+
+    vault.executeStrategy(address(strategy), data);
+
+    assertEq(nfpm.collectCalls(), 0, "increase must leave generated fees on the position");
+    assertEq(nfpm.increased0(), 100, "token0 principal increased");
+    assertEq(nfpm.increased1(), 200, "token1 principal increased");
   }
 
   /// @dev Unified clamp model (parity with the V4/Pancake libs): stacking a gas fee on top of platform +
@@ -320,6 +380,86 @@ contract SharedAerodromeStrategyFeeCapTest is Test {
 
     vm.prank(automator);
     vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Twin of test_v3_compound_collects_generated_fees_and_routes_gas_to_fee_collector. Fees are
+  ///      settled by SharedStrategyFees (direct transfer, inlined into the strategy running in the
+  ///      vault's delegatecall context), so FeeCollected is emitted from the vault address, in order
+  ///      platform → owner → gas, each token's slice transferred directly (no LpFeeTaker consolidation).
+  ///      This is the only Aerodrome test pinning the COMPOUND_FEES fee-event payload + ordering — the
+  ///      V3/V4/Pancake twins all have it; without it an Aerodrome fee-wiring regression goes uncaught.
+  function test_aerodrome_compound_collects_generated_fees_and_routes_gas_to_fee_collector() public {
+    nfpm.setCollectFees(1_000, 2_000);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), _compoundInstructions(GAS_FEE_X64_25_PERCENT))
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token0), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.PLATFORM, platformRecipient, address(token1), 200);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token0), 50);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.OWNER, vaultOwner, address(token1), 100);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, platformRecipient, address(token0), 250);
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit IFeeTaker.FeeCollected(address(vault), IFeeTaker.FeeType.GAS, platformRecipient, address(token1), 500);
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+
+    assertEq(token0.balanceOf(platformRecipient), 350, "token0 platform plus gas fee");
+    assertEq(token1.balanceOf(platformRecipient), 700, "token1 platform plus gas fee");
+    assertEq(token0.balanceOf(vaultOwner), 50, "token0 vault owner fee");
+    assertEq(token1.balanceOf(vaultOwner), 100, "token1 vault owner fee");
+    assertEq(token0.balanceOf(automator), 0, "executor receives no token0 gas fee");
+    assertEq(token1.balanceOf(automator), 0, "executor receives no token1 gas fee");
+    assertEq(nfpm.increased0(), 600, "net token0 generated fees compounded");
+    assertEq(nfpm.increased1(), 1_200, "net token1 generated fees compounded");
+  }
+
+  /// @dev Twin of test_v3_compound_revertsWhenEmptySwapDataHasMinOut: COMPOUND_FEES with a real
+  ///      targetToken but empty swapData and a positive amountOut0Min reaches the _swap empty-data guard
+  ///      (distinct from the no-target stale-minOut guard) and must revert InsufficientOutput.
+  function test_aerodrome_compound_revertsWhenEmptySwapDataHasMinOut() public {
+    nfpm.setCollectFees(1_000, 0);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = 1;
+    instructions.amountOut0Min = 1;
+    instructions.swapData0 = "";
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Twin of test_v3_compound_revertsWhenTargetTokenIsNotPoolToken: a COMPOUND_FEES targetToken
+  ///      that is neither pool token hits the _swapForCompound pool-token guard and reverts InvalidOperation.
+  function test_aerodrome_compound_revertsWhenTargetTokenIsNotPoolToken() public {
+    nfpm.setCollectFees(1_000, 2_000);
+
+    IV3Utils.Instructions memory instructions = _compoundInstructions(0);
+    instructions.targetToken = address(0xDEAD);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), uint256(1), instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidOperation.selector);
     vault.executeStrategy(address(strategy), data);
   }
 

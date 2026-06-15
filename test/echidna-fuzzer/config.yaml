@@ -20,9 +20,19 @@ deployContracts:
     ["0x1000000000000000000000000000000000000001", "SharedVaultPreviewLib"],
     ["0x1000000000000000000000000000000000000007", "SharedSwapDataSignature"],
   ]
+# crytic-compile args. Echidna forwards these to BOTH its own compile and to its
+# `slither --ignore-compile ... <cryticArgs>` source-analysis pass
+# (see Echidna.SourceAnalysis.Slither.runSlither).
+#  - compile-libraries: link the external libs at the same addresses Echidna deploys them.
+#  - foundry-out-directory: on the --ignore-compile path, crytic-compile 0.4.1 does NOT read
+#    foundry's `out` setting and defaults to `out/build-info`. This project builds to
+#    `artifacts/` (foundry.toml `out = 'artifacts'`), so without this flag slither dies with
+#    "out/build-info is not a directory", echidna reports "Running slither failed ... fuzzing
+#    will likely be less effective", and you silently lose constant mining + guided exploration.
 cryticArgs:
   [
     "--compile-libraries=(SharedVaultPreviewLib,0x1000000000000000000000000000000000000001),(SharedSwapDataSignature,0x1000000000000000000000000000000000000007)",
+    "--foundry-out-directory=artifacts",
   ]
 
 # balanceContract: balance of deployed contract in wei

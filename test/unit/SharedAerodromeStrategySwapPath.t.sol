@@ -75,6 +75,10 @@ contract SwapPathNfpm {
   uint256 public principalOut1;
   uint256 public mintCalls;
   uint256 public nextMintId = 777;
+  address public positionOwner;
+  uint256 public increased0;
+  uint256 public increased1;
+  bool public positionsReverts;
 
   constructor(SwapPathToken _token0, SwapPathToken _token1) {
     token0 = _token0;
@@ -83,6 +87,15 @@ contract SwapPathNfpm {
 
   function setLiquidity(uint128 _liquidity) external {
     liquidity = _liquidity;
+  }
+
+  /// @dev Owner reported for every tokenId; SWAP_AND_INCREASE requires the vault to own the position.
+  function setPositionOwner(address owner) external {
+    positionOwner = owner;
+  }
+
+  function ownerOf(uint256) external view returns (address) {
+    return positionOwner;
   }
 
   /// @dev Stage the amounts the next `collect()` returns (used as the withdraw fee-sync slice).
@@ -97,12 +110,33 @@ contract SwapPathNfpm {
     principalOut1 = amount1;
   }
 
+  /// @dev Simulates a burned/nonexistent tokenId: the real NFPM's positions() reverts for those, and
+  ///      the strategy's valuation try/catch must absorb it.
+  function setPositionsRevert(bool reverts) external {
+    positionsReverts = reverts;
+  }
+
   function positions(uint256)
     external
     view
     returns (uint96, address, address, address, int24, int24, int24, uint128, uint256, uint256, uint128, uint128)
   {
+    require(!positionsReverts, "Invalid token ID");
     return (0, address(0), address(token0), address(token1), int24(60), int24(-60), int24(60), liquidity, 0, 0, 0, 0);
+  }
+
+  function increaseLiquidity(INonfungiblePositionManager.IncreaseLiquidityParams calldata params)
+    external
+    returns (uint128 addedLiquidity, uint256 amount0, uint256 amount1)
+  {
+    amount0 = params.amount0Desired;
+    amount1 = params.amount1Desired;
+    if (amount0 > 0) token0.transferFrom(msg.sender, address(this), amount0);
+    if (amount1 > 0) token1.transferFrom(msg.sender, address(this), amount1);
+    increased0 += amount0;
+    increased1 += amount1;
+    addedLiquidity = uint128(amount0 + amount1);
+    liquidity += addedLiquidity;
   }
 
   function collect(INonfungiblePositionManager.CollectParams calldata params)
@@ -159,6 +193,15 @@ contract SwapPathRouter {
     SwapPathToken(tokenIn).transferFrom(msg.sender, address(this), amountIn);
     SwapPathToken(tokenOut).mint(recipient, amountOut);
   }
+
+  /// @dev Pulls `pull`, which is LESS than the signer-authorized amountIn the strategy approved, so the
+  ///      strategy's MEASURED input delta (`balanceInBefore - balanceInAfter == pull`) diverges from the
+  ///      nominal signed amount. Used to prove `_swapAndPrepareAmounts` books `amount - amountInDelta`
+  ///      (the measured pull), not `amount - amountIn`.
+  function swapPartial(address tokenIn, address tokenOut, uint256 pull, uint256 amountOut) external {
+    SwapPathToken(tokenIn).transferFrom(msg.sender, address(this), pull); // < approved amountIn
+    SwapPathToken(tokenOut).mint(msg.sender, amountOut);
+  }
 }
 
 contract SwapPathVaultHarness {
@@ -182,6 +225,22 @@ contract SwapPathVaultHarness {
     returns (ISharedStrategy.PositionChange[] memory changes)
   {
     (bool ok, bytes memory result) = strategy.delegatecall(abi.encodeCall(ISharedStrategy.execute, (data)));
+    if (!ok) {
+      assembly {
+        revert(add(result, 32), mload(result))
+      }
+    }
+    changes = abi.decode(result, (ISharedStrategy.PositionChange[]));
+  }
+
+  /// @dev Mirrors SharedVault._withdraw's exit delegatecall so exitProportional can be driven directly.
+  function exitStrategy(address strategy, address _nfpm, uint256 tokenId, uint256 shares, uint256 totalShares)
+    external
+    returns (ISharedStrategy.PositionChange[] memory changes)
+  {
+    (bool ok, bytes memory result) = strategy.delegatecall(
+      abi.encodeCall(ISharedStrategy.exitProportional, (_nfpm, tokenId, shares, totalShares, 0, 0, 0))
+    );
     if (!ok) {
       assembly {
         revert(add(result, 32), mload(result))
@@ -315,6 +374,117 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     assertEq(changes[0].tokenId, TOKEN_ID, "untracked tokenId");
     assertEq(changes[0].token0, address(token0), "change token0");
     assertEq(changes[0].token1, address(token1), "change token1");
+  }
+
+  // -------------------------------------------------------------------------
+  // v3utils-parity action events. The strategy executes under delegatecall, so
+  // every event surfaces at the vault (harness) address. Payloads are checked
+  // exactly: the mock NFPM reports liquidity = amount0 + amount1 and consumes
+  // the full desired amounts. Twin: SharedV3StrategySwapPath.t.sol.
+  // -------------------------------------------------------------------------
+
+  function test_actionEvents_swapAndMint_emitsSwapAndMint() public {
+    token0.mint(address(vault), 600);
+    token1.mint(address(vault), 700);
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 600;
+    params.amount1 = 700;
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.SwapAndMint(address(nfpm), 777, uint128(1300), 600, 700);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  function test_actionEvents_swapAndIncrease_emitsSwapAndIncreaseLiquidity() public {
+    nfpm.setPositionOwner(address(vault));
+    token0.mint(address(vault), 400);
+    token1.mint(address(vault), 500);
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.amount0 = 400;
+    params.amount1 = 500;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.SwapAndIncreaseLiquidity(address(nfpm), TOKEN_ID, uint128(900), 400, 500);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev v3utils parity: CompoundFees reports the liquidity ADDED by the compound and the net
+  ///      (post platform/owner skim) amounts pushed into the position: 10% platform + 5% owner
+  ///      of (1000, 2000) collected fees leaves (850, 1700).
+  function test_actionEvents_compound_emitsCompoundFees() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions(); // COMPOUND_FEES, no swap target
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.CompoundFees(address(nfpm), TOKEN_ID, uint128(2550), 850, 1700);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  function test_actionEvents_changeRange_emitsChangeRange() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.CHANGE_RANGE;
+    instructions.liquidity = 0; // sentinel: remove the full position liquidity
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    // Old position fully decreased to (1000, 2000); the re-mint consumes both and reports the new id.
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.ChangeRange(address(nfpm), TOKEN_ID, 777, 3000, 1000, 2000);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev `amount` is this operation's proceeds in targetToken: kept token1 principal (2000) plus the
+  ///      token0 -> token1 swap output (900). Nothing is transferred out — proceeds stay vault-idle.
+  function test_actionEvents_withdraw_emitsWithdrawAndCollectAndSwap() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000);
+
+    uint256 amountIn0 = 1000;
+    uint256 amountOut = 900;
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), amountIn0, amountOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.liquidity = type(uint128).max;
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = amountIn0;
+    instructions.amountOut0Min = 800;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), amountIn0, 800, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.expectEmit(true, true, true, true, address(vault));
+    emit SharedAerodromeStrategy.WithdrawAndCollectAndSwap(address(nfpm), TOKEN_ID, address(token1), 2900);
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), data);
   }
 
   /// @dev The swap must consume the signer-authorized `instructions.amountIn0` — NOT the on-chain
@@ -682,6 +852,300 @@ contract SharedAerodromeStrategySwapPathTest is Test {
     vault.executeStrategy(address(strategy), data);
   }
 
+  // -------------------------------------------------------------------------
+  // Mint/increase-side signed-amount guards (_swapAndPrepareAmounts /
+  // _swapAndPrepareIncreaseAmounts) — twins of the SharedV3StrategySwapPath
+  // tests; the two strategies fork the same branch logic.
+  // -------------------------------------------------------------------------
+
+  /// @dev swapSourceToken == token0: the signed token1-leg swap may consume at most `amount0`. A swap
+  ///      amount above the provided budget must revert InvalidAmount BEFORE any router interaction —
+  ///      otherwise the swap would reach past this operation into pooled vault token0.
+  function test_swapAndMint_revertsWhenAmount0BelowSignedAmountIn1() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 500;
+    params.amountIn1 = 1000; // > amount0 budget
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev swapSourceToken == token1: mirrored budget guard for the token0 leg.
+  function test_swapAndMint_revertsWhenAmount1BelowSignedAmountIn0() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token1);
+    params.amount1 = 500;
+    params.amountIn0 = 1000; // > amount1 budget
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Third-vault-token source: amountIn0 + amountIn1 must fit within the declared amount2 budget.
+  function test_swapAndMint_thirdTokenSource_revertsWhenBudgetExceeded() public {
+    SwapPathToken tokenX = new SwapPathToken("STX");
+    vault.addVaultToken(address(tokenX));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 1000;
+    params.amountIn0 = 600;
+    params.amountIn1 = 500; // 600 + 500 > 1000
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev A swap source that is not a vault token must be rejected — the two-leg swap branch would
+  ///      otherwise move an untracked asset through the vault's swap path.
+  function test_swapAndMint_thirdTokenSource_revertsWhenSourceNotVaultToken() public {
+    SwapPathToken tokenX = new SwapPathToken("STX"); // NOT registered on the vault
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 1000;
+    params.amountIn0 = 400;
+    params.amountIn1 = 400;
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Happy path for the previously-untested third-token branch: both legs swap signed amounts of the
+  ///      source vault token into the pool pair, and the mint consumes exactly the swap outputs.
+  function test_swapAndMint_thirdTokenSource_swapsBothLegsAndMints() public {
+    SwapPathToken tokenX = new SwapPathToken("STX");
+    vault.addVaultToken(address(tokenX));
+    tokenX.mint(address(vault), 2000);
+
+    uint256 amountIn0 = 1000;
+    uint256 amountIn1 = 1000;
+    uint256 out0 = 600;
+    uint256 out1 = 700;
+    bytes memory swapData0 = abi.encodeCall(SwapPathRouter.swap, (address(tokenX), address(token0), amountIn0, out0));
+    bytes memory swapData1 = abi.encodeCall(SwapPathRouter.swap, (address(tokenX), address(token1), amountIn1, out1));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(tokenX);
+    params.amount2 = 2000;
+    params.amountIn0 = amountIn0;
+    params.amountOut0Min = out0;
+    params.swapData0 = _signedSwapData(address(tokenX), address(token0), amountIn0, out0, swapData0);
+    params.amountIn1 = amountIn1;
+    params.amountOut1Min = out1;
+    params.swapData1 = _signedSwapData(address(tokenX), address(token1), amountIn1, out1, swapData1);
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), _mintData(params));
+
+    assertEq(tokenX.balanceOf(address(vault)), 0, "both legs consumed the tokenX budget");
+    assertEq(tokenX.balanceOf(address(router)), 2000, "router pulled the signed amounts");
+    assertEq(nfpm.mintCalls(), 1, "position minted");
+    assertEq(token0.balanceOf(address(nfpm)), out0, "mint consumed the token0 swap output");
+    assertEq(token1.balanceOf(address(nfpm)), out1, "mint consumed the token1 swap output");
+    assertEq(changes.length, 1, "single position change");
+    assertEq(changes[0].isAdd, true, "mint tracked");
+    assertEq(changes[0].tokenId, 777, "tracked tokenId from the NFPM mint");
+  }
+
+  /// @dev `_swapAndPrepareAmounts` books the swapped pool-token leg at the MEASURED input delta
+  ///      (`total0 = params.amount0 - amountInDelta`), NOT the nominal signed `amountIn1`. Every other
+  ///      swap test approves and pulls the same amount, so amountInDelta == amountIn there and the two
+  ///      are indistinguishable. Here, with swapSourceToken == token0, the router pulls LESS than the
+  ///      signer-authorized amountIn1 (the digest still binds the full amountIn1 and the partial
+  ///      swapData). The correct contract books total0 = amount0 - pull and mints it; a regression
+  ///      booking the nominal amountIn1 would mint amount0 - amountIn1 and strand the unpulled token0.
+  ///      Twin of SharedV3StrategySwapPath's test_swapAndMint_poolTokenSource_booksMeasuredDeltaNotNominalAmountIn.
+  function test_swapAndMint_poolTokenSource_booksMeasuredDeltaNotNominalAmountIn() public {
+    token0.mint(address(vault), 1000);
+
+    uint256 amountIn1 = 600; // signer-authorized token0 -> token1 swap amount (<= amount0 budget)
+    uint256 pull = 400; // router consumes only part of the approval
+    uint256 out1 = 700; // token1 delivered by the router
+    bytes memory swapData1 =
+      abi.encodeCall(SwapPathRouter.swapPartial, (address(token0), address(token1), pull, out1));
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 1000;
+    params.amountIn1 = amountIn1;
+    params.amountOut1Min = out1;
+    params.swapData1 = _signedSwapData(address(token0), address(token1), amountIn1, out1, swapData1);
+
+    vm.prank(automator);
+    vault.executeStrategy(address(strategy), _mintData(params));
+
+    // Discriminating: total0 booked at amount0 - measured pull (600), so the mint consumes 600 token0 —
+    // NOT amount0 - nominal amountIn1 (400). The unpulled 200 (amountIn1 - pull) is NOT stranded.
+    assertEq(token0.balanceOf(address(nfpm)), 1000 - pull, "mint consumed amount0 - measured pull, not - amountIn1");
+    assertEq(token1.balanceOf(address(nfpm)), out1, "mint consumed the token1 swap output");
+    assertEq(token0.balanceOf(address(router)), pull, "router pulled only the partial amount");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 stranded: 1000 - pull swapped-budget - (1000-pull) minted");
+  }
+
+  /// @dev Same budget guard on the increase path (_swapAndPrepareIncreaseAmounts).
+  function test_swapAndIncrease_revertsWhenAmount0BelowSignedAmountIn1() public {
+    nfpm.setPositionOwner(address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.swapSourceToken = address(token0);
+    params.amount0 = 500;
+    params.amountIn1 = 1000; // > amount0 budget
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev SWAP_AND_INCREASE must verify the vault actually owns the target NFT before touching it:
+  ///      topping up a foreign position would donate pooled vault tokens to the NFT's real owner.
+  ///      Twin of SharedV3StrategySwapPath's test (and of the V4/Pancake security tests).
+  function test_swapAndIncrease_revertsWhenPositionNotOwnedByVault() public {
+    nfpm.setPositionOwner(address(0xDEAD)); // not the vault
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedStrategy.InvalidPoolTokens.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Aerodrome pools have no native-currency leg, so a nonzero ethValue in the SWAP_AND_MINT
+  ///      payload is always a caller error and must revert before any token movement. Twin of
+  ///      SharedV3StrategySwapPath's test.
+  function test_swapAndMint_revertsOnNonZeroEthValue() public {
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 100;
+    params.amount1 = 100;
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(1)) // ethValue = 1
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Same native-leg rejection on the SWAP_AND_INCREASE path. Twin of SharedV3StrategySwapPath's test.
+  function test_swapAndIncrease_revertsOnNonZeroEthValue() public {
+    nfpm.setPositionOwner(address(vault));
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(1)) // ethValue = 1
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev The immutable swapRouter is the strategy's only swap counterparty; deploying with address(0)
+  ///      would brick every swap path, so the constructor must reject it. Twin of the V3 test.
+  function test_constructor_revertsOnZeroSwapRouter() public {
+    vm.expectRevert(ISharedCommon.ZeroAddress.selector);
+    new SharedAerodromeStrategy(address(0));
+  }
+
+  /// @dev Dust shares: when floor(posLiquidity * shares / totalShares) == 0 the strategy must not
+  ///      touch the position at all — no liquidity decrease, no collect, no PositionChange — so the
+  ///      vault's withdraw pays such a withdrawer from idle balances only and the position stays
+  ///      tracked for the remaining holders. Twin of SharedV3StrategySwapPath's test.
+  function test_exitProportional_dustShares_leavesPositionUntouched() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(0, 0);
+    nfpm.setPrincipalOut(1000, 2000); // would be released IF a decrease ran — it must not
+
+    // 1 share of 10_000_000: liquidityToRemove = floor(1_000_000 / 10_000_000) = 0
+    ISharedStrategy.PositionChange[] memory changes =
+      vault.exitStrategy(address(strategy), address(nfpm), TOKEN_ID, 1, 10_000_000);
+
+    assertEq(changes.length, 0, "no position change for dust shares");
+    assertEq(nfpm.liquidity(), 1_000_000, "liquidity untouched");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 released");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 released");
+  }
+
+  function _mintData(IV3Utils.SwapAndMintParams memory params) internal pure returns (bytes memory) {
+    return bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_MINT),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+  }
+
+  function _baseMintParams() internal view returns (IV3Utils.SwapAndMintParams memory) {
+    return IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      token0: address(token0),
+      token1: address(token1),
+      fee: 0,
+      tickSpacing: 60,
+      tickLower: -60,
+      tickUpper: 60,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: 0,
+      amount1: 0,
+      amount2: 0,
+      recipient: address(vault),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+  }
+
+  function _baseIncreaseParams() internal view returns (IV3Utils.SwapAndIncreaseLiquidityParams memory) {
+    return IV3Utils.SwapAndIncreaseLiquidityParams({
+      protocol: 0,
+      nfpm: address(nfpm),
+      tokenId: TOKEN_ID,
+      amount0: 0,
+      amount1: 0,
+      amount2: 0,
+      recipient: address(vault),
+      deadline: block.timestamp + 1,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      protocolFeeX64: 0,
+      gasFeeX64: 0
+    });
+  }
+
   function _baseInstructions() internal view returns (IV3Utils.Instructions memory) {
     return IV3Utils.Instructions({
       whatToDo: IV3Utils.WhatToDo.COMPOUND_FEES,
@@ -708,5 +1172,205 @@ contract SharedAerodromeStrategySwapPathTest is Test {
       performanceFeeX64: 0,
       gasFeeX64: 0
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // COMPOUND_FEES with a swap target: the collected-fee swap leg and its two
+  // guards (budget floor + target-side stale minOut). Mirrors
+  // SharedV3StrategySwapPath.t.sol (fork twins).
+  // -------------------------------------------------------------------------
+
+  /// @dev Happy path: collected fees are perf-fee'd (platform 10% + owner 5%), the token0 remainder is
+  ///      swapped toward the token1 target with signed swapData0, and the combined token1 total is
+  ///      compounded into the position via increaseLiquidity. No position change is reported.
+  function test_compound_withSwapTarget_swapsAndIncreasesLiquidity() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    // Net after platform 10% (100/200) + owner 5% (50/100): 850 token0, 1700 token1.
+    uint256 netFees0 = 850;
+    uint256 swapOut = 800;
+    bytes memory swapData0 =
+      abi.encodeCall(SwapPathRouter.swap, (address(token0), address(token1), netFees0, swapOut));
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = netFees0;
+    instructions.amountOut0Min = swapOut;
+    instructions.swapData0 = _signedSwapData(address(token0), address(token1), netFees0, swapOut, swapData0);
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), data);
+
+    assertEq(changes.length, 0, "compound keeps the tracked position");
+    assertEq(token0.balanceOf(platformRecipient), 100, "platform fee token0");
+    assertEq(token1.balanceOf(platformRecipient), 200, "platform fee token1");
+    assertEq(token0.balanceOf(vaultOwner), 50, "owner fee token0");
+    assertEq(token1.balanceOf(vaultOwner), 100, "owner fee token1");
+    assertEq(token0.balanceOf(address(router)), netFees0, "router pulled the full net token0 fees");
+    assertEq(nfpm.increased0(), 0, "nothing left on the token0 side");
+    assertEq(nfpm.increased1(), 1700 + swapOut, "token1 fees + swap output compounded");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 residue");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 residue");
+    assertEq(nfpm.liquidity(), 1_000_000 + 1700 + swapOut, "liquidity grew by the compounded amount");
+  }
+
+  /// @dev Budget floor: with targetToken == token1 the swap draws from the collected token0 fees, so
+  ///      `amountIn0` may not exceed the net collected amount — the swap must not reach past this
+  ///      operation's proceeds into other pooled vault balances.
+  function test_compound_revertsWhenSwapBudgetExceedsCollectedFees() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000); // net token0 after fees: 850
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountIn0 = 851; // one over the net collected budget
+    instructions.swapData0 = hex"01"; // never reached — budget check precedes the swap
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidAmount.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  /// @dev Target-side stale minOut: with targetToken == token1 no swap produces token1 "output", so a
+  ///      nonzero amountOut1Min could never be honored and must revert instead of being ignored
+  ///      (compound twin of the WITHDRAW_AND_COLLECT_AND_SWAP target-side guard).
+  function test_compound_revertsWhenTargetSideHasMinOut() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.stageCollect(1000, 2000);
+
+    IV3Utils.Instructions memory instructions = _baseInstructions();
+    instructions.targetToken = address(token1);
+    instructions.amountOut1Min = 1; // stale floor on the target side
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.EXECUTE_INSTRUCTIONS),
+      abi.encode(address(nfpm), TOKEN_ID, instructions)
+    );
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InsufficientOutput.selector);
+    vault.executeStrategy(address(strategy), data);
+  }
+
+  // -------------------------------------------------------------------------
+  // F3 input gas-fee skim on SWAP_AND_MINT / SWAP_AND_INCREASE (uniform with
+  // the V4/Pancake strategies). Mirrors the V3 twin suite.
+  // -------------------------------------------------------------------------
+
+  /// @dev params.gasFeeX64 > 0 skims the Q64 fraction of BOTH input amounts to the config fee
+  ///      recipient before the mint consumes the remainder.
+  function test_swapAndMint_takesInputGasFeeBeforeMint() public {
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64(1 << 62); // 25% in Q64 — under the 30% default config cap
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), _mintData(params));
+
+    // 25% of each input goes to the fee recipient (cm.feeRecipient == platformRecipient).
+    assertEq(token0.balanceOf(platformRecipient), 250, "gas fee skimmed from token0 input");
+    assertEq(token1.balanceOf(platformRecipient), 500, "gas fee skimmed from token1 input");
+    // The mint consumed the net remainder.
+    assertEq(token0.balanceOf(address(nfpm)), 750, "mint consumed net token0");
+    assertEq(token1.balanceOf(address(nfpm)), 1500, "mint consumed net token1");
+    assertEq(changes.length, 1, "new position tracked");
+    assertTrue(changes[0].isAdd, "position added");
+  }
+
+  /// @dev The mint-path gas fee is validated against the shared config cap (default 30%): an
+  ///      over-cap fee must revert InvalidGasFeeX64 before any token movement.
+  function test_swapAndMint_revertsWhenGasFeeExceedsConfigCap() public {
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndMintParams memory params = _baseMintParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64((uint256(2) << 64) / 5); // 40% > 30% default cap
+
+    vm.prank(automator);
+    vm.expectRevert(ISharedCommon.InvalidGasFeeX64.selector);
+    vault.executeStrategy(address(strategy), _mintData(params));
+  }
+
+  /// @dev Same F3 skim on the SWAP_AND_INCREASE input side.
+  function test_swapAndIncrease_takesInputGasFeeBeforeIncrease() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.setPositionOwner(address(vault));
+    token0.mint(address(vault), 1000);
+    token1.mint(address(vault), 2000);
+
+    IV3Utils.SwapAndIncreaseLiquidityParams memory params = _baseIncreaseParams();
+    params.amount0 = 1000;
+    params.amount1 = 2000;
+    params.gasFeeX64 = uint64(1 << 62); // 25%
+
+    bytes memory data = bytes.concat(
+      abi.encode(SharedAerodromeStrategy.OperationType.SWAP_AND_INCREASE),
+      abi.encode(params, new address[](0), new uint256[](0), uint256(0))
+    );
+
+    vm.prank(automator);
+    ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), data);
+
+    assertEq(changes.length, 0, "increase reports no position change");
+    assertEq(token0.balanceOf(platformRecipient), 250, "gas fee skimmed from token0 input");
+    assertEq(token1.balanceOf(platformRecipient), 500, "gas fee skimmed from token1 input");
+    assertEq(nfpm.increased0(), 750, "net token0 added to the position");
+    assertEq(nfpm.increased1(), 1500, "net token1 added to the position");
+  }
+
+  // -------------------------------------------------------------------------
+  // exitProportional zero-liquidity early exit + burned-NFT valuation zeros.
+  // Mirrors the V3 twin suite.
+  // -------------------------------------------------------------------------
+
+  /// @dev A tracked position whose liquidity is already zero must exit as a pure removal change —
+  ///      withdraw flows untrack it instead of reverting in the NFPM on a zero-liquidity decrease.
+  function test_exitProportional_zeroLiquidityPosition_returnsRemovalChange() public {
+    nfpm.setLiquidity(0);
+
+    ISharedStrategy.PositionChange[] memory changes =
+      vault.exitStrategy(address(strategy), address(nfpm), TOKEN_ID, 5, 10);
+
+    assertEq(changes.length, 1, "single change");
+    assertEq(changes[0].isAdd, false, "removal change");
+    assertEq(changes[0].tokenId, TOKEN_ID, "untracked tokenId");
+    assertEq(token0.balanceOf(address(vault)), 0, "no token0 released");
+    assertEq(token1.balanceOf(address(vault)), 0, "no token1 released");
+  }
+
+  /// @dev positions() reverts for burned/nonexistent tokenIds on the real NFPM. The valuation
+  ///      try/catch must absorb that and report zero value — a revert here would brick
+  ///      getTotalBalances (and with it deposits/withdrawals) for the whole vault.
+  function test_getPositionAmounts_returnsZerosForBurnedNft() public {
+    nfpm.setLiquidity(1_000_000);
+    nfpm.setPositionsRevert(true);
+
+    (uint256 amount0, uint256 amount1) = strategy.getPositionAmounts(address(nfpm), TOKEN_ID);
+    assertEq(amount0, 0, "burned NFT values to zero (amount0)");
+    assertEq(amount1, 0, "burned NFT values to zero (amount1)");
+
+    (uint256 principal0, uint256 principal1) = strategy.getPositionPrincipalAmounts(address(nfpm), TOKEN_ID);
+    assertEq(principal0, 0, "burned NFT principal zero (token0)");
+    assertEq(principal1, 0, "burned NFT principal zero (token1)");
+
+    (uint256 t0, uint256 t1, uint256 p0, uint256 p1) = strategy.getPositionAmountsSplit(address(nfpm), TOKEN_ID);
+    assertEq(t0 + t1 + p0 + p1, 0, "burned NFT split values to zero");
   }
 }

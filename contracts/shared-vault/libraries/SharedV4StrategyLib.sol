@@ -170,31 +170,24 @@ library SharedV4StrategyLib {
   ) external returns (ISharedStrategy.PositionChange[] memory changes) {
     _requireWhitelistedPosm(posm);
 
+    // Single pool-info read + token resolution shared by every branch (keeps this library under
+    // the EIP-170 deploy-size limit). Zero-liquidity positions untrack without touching principal.
     IPositionManager pm = IPositionManager(posm);
     uint128 posLiquidity = pm.getPositionLiquidity(tokenId);
+    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
+    (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
 
-    if (posLiquidity == 0) {
-      (PoolKey memory zeroLiquidityKey,) = pm.getPoolAndPositionInfo(tokenId);
-      (address token0, address token1) = _poolVaultTokens(zeroLiquidityKey.currency0, zeroLiquidityKey.currency1);
-      changes = new ISharedStrategy.PositionChange[](1);
-      changes[0] = ISharedStrategy.PositionChange(false, posm, tokenId, token0, token1);
-      return changes;
+    bool fullExit = true;
+    if (posLiquidity != 0) {
+      uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
+      if (liquidityToRemove == 0) return changes;
+      fullExit = liquidityToRemove >= posLiquidity;
+      _decreaseV4Principal(posm, poolKey, tokenId, liquidityToRemove, minAmount0, minAmount1, "", 0, block.timestamp);
     }
 
-    uint128 liquidityToRemove = uint128(FullMath.mulDiv(posLiquidity, shares, totalShares));
-    if (liquidityToRemove == 0) return new ISharedStrategy.PositionChange[](0);
-
-    bool isFullExit = liquidityToRemove >= posLiquidity;
-
-    (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
-    _decreaseV4Principal(posm, poolKey, tokenId, liquidityToRemove, minAmount0, minAmount1, "", 0, block.timestamp);
-
-    if (isFullExit) {
-      (address token0, address token1) = _poolVaultTokens(poolKey.currency0, poolKey.currency1);
+    if (fullExit) {
       changes = new ISharedStrategy.PositionChange[](1);
       changes[0] = ISharedStrategy.PositionChange(false, posm, tokenId, token0, token1);
-    } else {
-      changes = new ISharedStrategy.PositionChange[](0);
     }
   }
 
@@ -236,18 +229,22 @@ library SharedV4StrategyLib {
     }
   }
 
+  // Input-token validation, the input gas-fee skim, and the non-pool-input ledger (the "fund the
+  // LP from a third vault token" flow) all live in `SharedV4SwapPipeline.executeWithInputs` — the
+  // single audited input/swap boundary shared with the Pancake twin. Keeping them out of this
+  // library also preserves its EIP-170 headroom.
+
   function _executeSwapAndMint(address swapRouter, address posm, ISharedV4Utils.SwapAndMintParams memory params)
     private
   {
     require(params.posm == posm, ISharedCommon.InvalidOperation());
     (address token0, address token1) = _validatePoolVaultTokens(params.poolKey.currency0, params.poolKey.currency1);
-    _validateV4InputTokens(params.inputTokens, params.poolKey.currency0, params.poolKey.currency1);
-
-    (uint256 amount0, uint256 amount1) = _takeInputGasFeesAndGetPoolAmounts(
-      params.poolKey.currency0, params.poolKey.currency1, params.inputTokens, params.gasFeeX64
+    (uint256 amount0, uint256 amount1) = SharedV4SwapPipeline.executeWithInputs(
+      swapRouter, token0, token1, params.inputTokens, params.gasFeeX64, params.swapParams
     );
-    (amount0, amount1) = SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
-    _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
+    (uint256 tokenId, uint128 liquidity, uint256 used0, uint256 used1) =
+      _mintV4WithAmounts(posm, params.poolKey, amount0, amount1, params.mintParams);
+    emit ISharedV4Utils.SwapAndMint(posm, tokenId, liquidity, used0, used1);
   }
 
   function _executeSwapAndIncrease(
@@ -261,12 +258,12 @@ library SharedV4StrategyLib {
     IPositionManager pm = IPositionManager(posm);
     (PoolKey memory poolKey,) = pm.getPoolAndPositionInfo(tokenId);
     (address token0, address token1) = _validatePoolVaultTokens(poolKey.currency0, poolKey.currency1);
-    _validateV4InputTokens(params.inputTokens, poolKey.currency0, poolKey.currency1);
-
-    (uint256 amount0, uint256 amount1) =
-      _takeInputGasFeesAndGetPoolAmounts(poolKey.currency0, poolKey.currency1, params.inputTokens, params.gasFeeX64);
-    (amount0, amount1) = SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, params.swapParams);
-    _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
+    (uint256 amount0, uint256 amount1) = SharedV4SwapPipeline.executeWithInputs(
+      swapRouter, token0, token1, params.inputTokens, params.gasFeeX64, params.swapParams
+    );
+    (uint128 liquidity, uint256 used0, uint256 used1) =
+      _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, params.increaseParams);
+    emit ISharedV4Utils.SwapAndIncrease(posm, tokenId, liquidity, used0, used1);
   }
 
   function _executeInstruction(
@@ -286,7 +283,10 @@ library SharedV4StrategyLib {
         _collectV4GeneratedFees(posm, tokenId, poolKey, compoundParams.collectFeesHookData, compoundParams.gasFeeX64);
       (amount0, amount1) =
         SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, compoundParams.swapParams);
-      _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, compoundParams.increaseParams);
+      (, uint256 used0, uint256 used1) =
+        _increaseV4WithAmounts(posm, tokenId, poolKey, amount0, amount1, compoundParams.increaseParams);
+      // v4utils parity: liquidity is the position's TOTAL liquidity after the compound.
+      emit ISharedV4Utils.CompoundFees(posm, tokenId, pm.getPositionLiquidity(tokenId), used0, used1);
     } else if (instructions.action == ISharedV4Utils.UtilActions.DECREASE_AND_SWAP) {
       ISharedV4Utils.DecreaseAndSwapParams memory decParams =
         abi.decode(instructions.params, (ISharedV4Utils.DecreaseAndSwapParams));
@@ -305,10 +305,22 @@ library SharedV4StrategyLib {
       );
       amount0 += principal0;
       amount1 += principal1;
-      // Decrease-and-exit intentionally drops the returned token0/token1 totals: pool tokens stay
-      // vault-tracked as idle balances. The pipeline still enforces full consumption of any non-pool
-      // intermediates through its virtual ledger.
-      SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, decParams.swapParams);
+      // Decrease-and-exit leaves the returned token0/token1 totals idle in the vault (nothing is
+      // swept). `swapDestToken`, when it names a non-pool VAULT token, additionally authorizes the
+      // hops to output to it terminally (V3/Aerodrome `_swapForWithdraw` targetToken parity); those
+      // proceeds also stay idle and are reported on the event via `destOut`. Every other non-pool
+      // intermediate must still net to zero through the pipeline ledger.
+      address destToken = _vaultToken(decParams.swapDestToken);
+      (uint256 out0, uint256 out1, uint256 destOut) = SharedV4SwapPipeline.executeToDest(
+        swapRouter, token0, token1, amount0, amount1, destToken, decParams.swapParams
+      );
+      emit ISharedV4Utils.DecreaseAndSwap(
+        posm,
+        tokenId,
+        decParams.decreaseParams.liquidity,
+        decParams.swapDestToken,
+        destToken == token0 ? out0 : destToken == token1 ? out1 : destOut
+      );
     } else if (instructions.action == ISharedV4Utils.UtilActions.ADJUST_RANGE) {
       ISharedV4Utils.AdjustRangeParams memory adjustParams =
         abi.decode(instructions.params, (ISharedV4Utils.AdjustRangeParams));
@@ -327,7 +339,9 @@ library SharedV4StrategyLib {
       amount1 += principal1;
       (amount0, amount1) =
         SharedV4SwapPipeline.execute(swapRouter, token0, token1, amount0, amount1, adjustParams.swapParams);
-      _mintV4WithAmounts(posm, poolKey, amount0, amount1, adjustParams.mintParams);
+      (uint256 newTokenId, uint128 newLiquidity, uint256 used0, uint256 used1) =
+        _mintV4WithAmounts(posm, poolKey, amount0, amount1, adjustParams.mintParams);
+      emit ISharedV4Utils.AdjustRange(posm, tokenId, newTokenId, newLiquidity, used0, used1);
     } else {
       revert ISharedCommon.InvalidOperation();
     }
@@ -420,8 +434,8 @@ library SharedV4StrategyLib {
     uint256 amount0,
     uint256 amount1,
     ISharedV4Utils.IncreaseLiquidityParams memory params
-  ) private {
-    if (amount0 == 0 && amount1 == 0) return;
+  ) private returns (uint128 liquidity, uint256 used0, uint256 used1) {
+    if (amount0 == 0 && amount1 == 0) return (0, 0, 0);
     // Auto-gate (same invariant as _mintV4WithAmounts): swapAndIncrease/COMPOUND reach this
     // increase chokepoint for any vault-OWNED tokenId — vault-TRACKED is not required — so a
     // hooked-pool position planted on the vault (minted with recipient = vault) could otherwise
@@ -433,15 +447,16 @@ library SharedV4StrategyLib {
     IPositionManager pm = IPositionManager(posm);
     PositionInfo positionInfo = pm.positionInfo(tokenId);
     (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
-    uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96,
-      TickMath.getSqrtPriceAtTick(positionInfo.tickLower()),
-      TickMath.getSqrtPriceAtTick(positionInfo.tickUpper()),
-      amount0,
-      amount1
-    );
+    uint160 sqrtLowerX96 = TickMath.getSqrtPriceAtTick(positionInfo.tickLower());
+    uint160 sqrtUpperX96 = TickMath.getSqrtPriceAtTick(positionInfo.tickUpper());
+    liquidity = LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLowerX96, sqrtUpperX96, amount0, amount1);
     require(liquidity >= params.minLiquidity, ISharedCommon.InsufficientOutput());
-    if (liquidity == 0) return;
+    if (liquidity == 0) return (0, 0, 0);
+    // Quote the amounts this liquidity actually consumes at the execution price (v4utils parity).
+    // The supplied amounts are only the settle CAPS: for imbalanced or out-of-range adds the POSM
+    // leaves the non-limiting side's remainder idle in the vault, so the action events must report
+    // these quoted amounts, never the supplied ones.
+    (used0, used1) = LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtLowerX96, sqrtUpperX96, liquidity);
 
     _approveV4PositionManager(posm, poolKey, amount0, amount1);
     bool hasNative = _hasNative(poolKey);
@@ -475,7 +490,7 @@ library SharedV4StrategyLib {
     uint256 amount0,
     uint256 amount1,
     ISharedV4Utils.MintParams memory params
-  ) private returns (uint256 tokenId) {
+  ) private returns (uint256 tokenId, uint128 liquidity, uint256 used0, uint256 used1) {
     // Auto-gate: refuse pools whose hook intercepts liquidity removal. The withdraw/adjust exit
     // paths remove with empty hookData; a remove-hook pool could revert there and freeze withdraws,
     // so such a position must never be minted/tracked. Single chokepoint for both swapAndMint and
@@ -487,14 +502,15 @@ library SharedV4StrategyLib {
     (uint160 sqrtPriceX96,,,) = pm.poolManager().getSlot0(poolKey.toId());
     // Uniswap V4 PoolKey has no manager field; the POSM's immutable manager is authoritative here.
     require(sqrtPriceX96 != 0, ISharedCommon.InvalidOperation());
-    uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-      sqrtPriceX96,
-      TickMath.getSqrtPriceAtTick(params.tickLower),
-      TickMath.getSqrtPriceAtTick(params.tickUpper),
-      amount0,
-      amount1
-    );
+    uint160 sqrtLowerX96 = TickMath.getSqrtPriceAtTick(params.tickLower);
+    uint160 sqrtUpperX96 = TickMath.getSqrtPriceAtTick(params.tickUpper);
+    liquidity = LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtLowerX96, sqrtUpperX96, amount0, amount1);
     require(liquidity >= params.minLiquidity && liquidity > 0, ISharedCommon.InsufficientOutput());
+    // Quote the amounts this liquidity actually consumes at the execution price (v4utils parity).
+    // The supplied amounts are only the settle CAPS: for imbalanced or out-of-range mints the POSM
+    // leaves the non-limiting side's remainder idle in the vault, so the action events must report
+    // these quoted amounts, never the supplied ones.
+    (used0, used1) = LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtLowerX96, sqrtUpperX96, liquidity);
 
     tokenId = pm.nextTokenId();
     _approveV4PositionManager(posm, poolKey, amount0, amount1);
@@ -613,68 +629,6 @@ library SharedV4StrategyLib {
 
   function _requireWhitelistedPosm(address posm) private view {
     SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), posm);
-  }
-
-  /// @dev Every positive-amount input must be both a vault token AND one of the pool currencies.
-  ///      The currency match is essential: without it, an authorized executor could include a
-  ///      non-pool vault token (e.g. DAI in a WETH/USDC mint) with a nonzero `gasFeeX64` and have
-  ///      `_takeInputGasFeesAndGetPoolAmounts` siphon `amount * gasFeeX64 / Q64` of that token before
-  ///      validation while the remainder dangles unused (never folded into `amount0`/`amount1`).
-  ///      Zero-amount entries are tolerated (they're a no-op for both fee and pool accounting).
-  function _validateV4InputTokens(
-    ISharedV4Utils.InputTokenParams[] memory inputTokens,
-    Currency currency0,
-    Currency currency1
-  ) private view {
-    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
-    for (uint256 i; i < inputTokens.length;) {
-      if (inputTokens[i].amount > 0) {
-        address token = _vaultToken(inputTokens[i].token);
-        _validateVaultToken(token);
-        require(token == poolToken0 || token == poolToken1, ISharedStrategy.InvalidPoolTokens());
-      }
-      unchecked {
-        i++;
-      }
-    }
-  }
-
-  function _takeInputGasFeesAndGetPoolAmounts(
-    Currency currency0,
-    Currency currency1,
-    ISharedV4Utils.InputTokenParams[] memory inputTokens,
-    uint64 gasFeeX64
-  ) private returns (uint256 amount0, uint256 amount1) {
-    address gasFeeRecipient;
-    if (gasFeeX64 > 0) (gasFeeX64, gasFeeRecipient) = SharedStrategyFeeConfig.validateGasFeeX64(gasFeeX64);
-    (address poolToken0, address poolToken1) = _poolVaultTokens(currency0, currency1);
-    for (uint256 i; i < inputTokens.length;) {
-      uint256 amount = inputTokens[i].amount;
-      address token = _vaultToken(inputTokens[i].token);
-      if (amount > 0 && gasFeeX64 > 0) {
-        amount -= _applySingleTokenGasFee(token, amount, gasFeeX64, gasFeeRecipient);
-      }
-      if (token == poolToken0) amount0 += amount;
-      else if (token == poolToken1) amount1 += amount;
-      unchecked {
-        i++;
-      }
-    }
-  }
-
-  function _applySingleTokenGasFee(address token, uint256 amount, uint64 gasFeeX64, address gasFeeRecipient)
-    private
-    returns (uint256 gasFee)
-  {
-    ICommon.FeeConfig memory gasOnly = ICommon.FeeConfig({
-      vaultOwnerFeeBasisPoint: 0,
-      vaultOwner: address(0),
-      platformFeeBasisPoint: 0,
-      platformFeeRecipient: address(0),
-      gasFeeX64: gasFeeX64,
-      gasFeeRecipient: gasFeeRecipient
-    });
-    (gasFee,) = SharedStrategyFees.applyFees(token, amount, address(0), 0, gasOnly);
   }
 
   function _v4ParamsSelector(bytes memory params) internal pure returns (bytes4 selector) {

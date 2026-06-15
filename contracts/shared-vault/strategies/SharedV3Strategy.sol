@@ -30,6 +30,28 @@ contract SharedV3Strategy is ISharedStrategy {
   using SafeApprovalLib for IERC20;
   using SafeERC20 for IERC20;
 
+  // Action events — byte-compatible with v3utils `Common` so existing decoders work unchanged.
+  // Emitted under delegatecall from SharedVault, so the logs surface at the vault address.
+  event SwapAndMint(address indexed nfpm, uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+  event SwapAndIncreaseLiquidity(
+    address indexed nfpm, uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1
+  );
+  event CompoundFees(
+    address indexed nfpm, uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1
+  );
+  event ChangeRange(
+    address indexed nfpm,
+    uint256 indexed tokenId,
+    uint256 newTokenId,
+    uint256 newLiquidity,
+    uint256 token0Added,
+    uint256 token1Added
+  );
+  /// @dev `token`/`amount` report `instructions.targetToken` and this operation's proceeds in it
+  ///      (0 when no target token is set). Unlike v3utils nothing is transferred out — the
+  ///      proceeds stay idle in the vault.
+  event WithdrawAndCollectAndSwap(address indexed nfpm, uint256 indexed tokenId, address token, uint256 amount);
+
   address public immutable swapRouter;
 
   uint256 private constant Q128 = 0x100000000000000000000000000000000;
@@ -86,7 +108,11 @@ contract SharedV3Strategy is ISharedStrategy {
       if (params.gasFeeX64 > 0) {
         (total0, total1) = _takeInputGasFee(params.token0, params.token1, total0, total1, params.gasFeeX64);
       }
-      (tokenId, , , ) = _mintPosition(params, total0, total1);
+      uint128 liquidity;
+      uint256 added0;
+      uint256 added1;
+      (tokenId, liquidity, added0, added1) = _mintPosition(params, total0, total1);
+      emit SwapAndMint(params.nfpm, tokenId, liquidity, added0, added1);
     }
 
     // Return position change: new position added
@@ -114,7 +140,7 @@ contract SharedV3Strategy is ISharedStrategy {
     if (params.gasFeeX64 > 0) {
       (total0, total1) = _takeInputGasFee(token0, token1, total0, total1, params.gasFeeX64);
     }
-    _increasePosition(
+    (uint128 liquidity, uint256 added0, uint256 added1) = _increasePosition(
       params.nfpm,
       params.tokenId,
       token0,
@@ -125,6 +151,7 @@ contract SharedV3Strategy is ISharedStrategy {
       params.amountAddMin1,
       params.deadline
     );
+    emit SwapAndIncreaseLiquidity(params.nfpm, params.tokenId, liquidity, added0, added1);
 
     // No position change — existing position updated, already tracked
     changes = new PositionChange[](0);
@@ -168,7 +195,7 @@ contract SharedV3Strategy is ISharedStrategy {
         instructions.gasFeeX64
       );
       (fees0, fees1) = _swapForCompound(token0, token1, fees0, fees1, instructions);
-      _increasePosition(
+      (uint128 liquidity, uint256 added0, uint256 added1) = _increasePosition(
         nfpm,
         tokenId,
         token0,
@@ -179,6 +206,8 @@ contract SharedV3Strategy is ISharedStrategy {
         instructions.amountAddMin1,
         instructions.deadline
       );
+      // v3utils parity: liquidity is the liquidity ADDED by the compound (increaseLiquidity return).
+      emit CompoundFees(nfpm, tokenId, liquidity, added0, added1);
       return new PositionChange[](0);
     }
 
@@ -246,7 +275,9 @@ contract SharedV3Strategy is ISharedStrategy {
         return changes;
       }
 
-      (uint256 newTokenId, , , ) = _mintPosition(mintParams, total0, total1);
+      (uint256 newTokenId, uint128 newLiquidity, uint256 added0, uint256 added1) =
+        _mintPosition(mintParams, total0, total1);
+      emit ChangeRange(nfpm, tokenId, newTokenId, newLiquidity, added0, added1);
 
       (, , , , , , , uint128 liqAfter, , , , ) = INFPM(nfpm).positions(tokenId);
       if (liqAfter == 0) {
@@ -286,7 +317,8 @@ contract SharedV3Strategy is ISharedStrategy {
       );
       amount0 += principal0;
       amount1 += principal1;
-      _swapForWithdraw(token0, token1, amount0, amount1, instructions);
+      uint256 targetAmount = _swapForWithdraw(token0, token1, amount0, amount1, instructions);
+      emit WithdrawAndCollectAndSwap(nfpm, tokenId, instructions.targetToken, targetAmount);
 
       (, , , , , , , uint128 liqAfter, , , , ) = INFPM(nfpm).positions(tokenId);
       if (liqAfter == 0) {
@@ -527,13 +559,13 @@ contract SharedV3Strategy is ISharedStrategy {
     uint256 amount0Min,
     uint256 amount1Min,
     uint256 deadline
-  ) private {
-    if (amount0Desired == 0 && amount1Desired == 0) return;
+  ) private returns (uint128 liquidity, uint256 added0, uint256 added1) {
+    if (amount0Desired == 0 && amount1Desired == 0) return (0, 0, 0);
 
     if (amount0Desired > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0Desired);
     if (amount1Desired > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1Desired);
 
-    INFPM(nfpm).increaseLiquidity(
+    (liquidity, added0, added1) = INFPM(nfpm).increaseLiquidity(
       INFPM.IncreaseLiquidityParams({
         tokenId: tokenId,
         amount0Desired: amount0Desired,
@@ -721,22 +753,26 @@ contract SharedV3Strategy is ISharedStrategy {
     }
   }
 
+  /// @return targetAmount This operation's proceeds in `instructions.targetToken`: the side(s)
+  ///         already denominated in it plus the realized swap outputs. 0 when no target is set.
+  ///         Reported via the WithdrawAndCollectAndSwap event only — nothing is transferred out.
   function _swapForWithdraw(
     address token0,
     address token1,
     uint256 amount0,
     uint256 amount1,
     IV3Utils.Instructions memory instructions
-  ) private {
+  ) private returns (uint256 targetAmount) {
     if (instructions.targetToken == address(0)) {
       require(
         instructions.amountOut0Min == 0 && instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput()
       );
-      return;
+      return 0;
     }
     _validateVaultToken(instructions.targetToken);
     if (token0 == instructions.targetToken) {
       require(instructions.amountOut0Min == 0, ISharedCommon.InsufficientOutput());
+      targetAmount = amount0;
     } else {
       // Swap the signer-authorized `amountIn0`, not the on-chain computed principal + fees. `amountIn0` is
       // the amount bound into the SwapDataSignature digest and the backend folds withdraw-liquidity slippage
@@ -745,7 +781,7 @@ contract SharedV3Strategy is ISharedStrategy {
       // require `amount0 >= amountIn0` to keep the swap from reaching past this withdraw into the rest of the
       // pooled vault balance (mirrors `_swapForCompound`).
       require(amount0 >= instructions.amountIn0, ISharedCommon.InvalidAmount());
-      _swap(
+      (, uint256 amountOutDelta0) = _swap(
         token0,
         instructions.targetToken,
         instructions.amountIn0,
@@ -753,12 +789,14 @@ contract SharedV3Strategy is ISharedStrategy {
         instructions.swapData0,
         0
       );
+      targetAmount = amountOutDelta0;
     }
     if (token1 == instructions.targetToken) {
       require(instructions.amountOut1Min == 0, ISharedCommon.InsufficientOutput());
+      targetAmount += amount1;
     } else {
       require(amount1 >= instructions.amountIn1, ISharedCommon.InvalidAmount());
-      _swap(
+      (, uint256 amountOutDelta1) = _swap(
         token1,
         instructions.targetToken,
         instructions.amountIn1,
@@ -766,6 +804,7 @@ contract SharedV3Strategy is ISharedStrategy {
         instructions.swapData1,
         1
       );
+      targetAmount += amountOutDelta1;
     }
   }
 
@@ -901,9 +940,9 @@ contract SharedV3Strategy is ISharedStrategy {
   ///      the short-circuit in `getPositionAmounts` and avoid an unnecessary pool `slot0` staticcall.
   ///      Uses try/catch for positions() so that burned or nonexistent NFTs (which cause positions() to
   ///      revert on standard V3 NFPMs) return (0,0,0,0) rather than propagating the revert up through
-  ///      getPositionAmounts. Without this, _verifyPositionExit's staticcall to getPositionAmounts would
-  ///      receive amtsOk=false and block the untracking even for a legitimately exited position on a
-  ///      non-standard NFPM that keeps ownerOf() working after the position is burned.
+  ///      getPositionAmounts. Without this, SharedVaultPreviewLib.verifyPositionExit's staticcall to
+  ///      getPositionAmounts would receive amtsOk=false and block the untracking even for a legitimately
+  ///      exited position on a non-standard NFPM that keeps ownerOf() working after the position is burned.
   function _positionAmountsSplit(
     address nfpm,
     uint256 tokenId
