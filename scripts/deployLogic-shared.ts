@@ -18,7 +18,7 @@ import type {
   SharedStrategyProxy,
   SharedV3Strategy,
 } from "../typechain-types/contracts/shared-vault/strategies";
-import type { SharedV4Strategy } from "../typechain-types/contracts/shared-vault/strategies/SharedV4Strategy.sol";
+import type { SharedV4Strategy } from "../typechain-types/contracts/shared-vault/strategies/SharedV4Strategy.ts";
 
 const { SALT } = process.env;
 
@@ -181,18 +181,13 @@ async function deployContracts(
 
   const contracts: SharedContracts = {};
 
-  // 1. Deploy SharedConfigManager
-  if (networkConfig.sharedConfigManager?.enabled) {
-    contracts.sharedConfigManager = (await deployContract(
-      ++step,
-      networkConfig.sharedConfigManager?.autoVerifyContract,
-      "SharedConfigManager",
-      existingContract?.["sharedConfigManager"],
-      "contracts/shared-vault/core/SharedConfigManager.sol:SharedConfigManager",
-    )) as SharedConfigManager;
-  }
+  // The three core singletons (SharedConfigManager, SharedVaultFactory, SharedVaultGateway) are
+  // deployed LAST — via CreateX `deployCreate2AndInit` (atomic deploy-and-initialize) — to close the
+  // front-run init-hijack window. Their `initialize` args reference addresses minted below (strategy
+  // proxies, automator, vault impl), and CREATE2 addresses are independent of deploy order, so moving
+  // them to the end is address-preserving.
 
-  // 2. Deploy SharedSwapDataSignature (linked by SharedVault, swap strategies, and SharedV4SwapPipeline)
+  // 1. Deploy SharedSwapDataSignature (linked by SharedVault, swap strategies, and SharedV4SwapPipeline)
   if (networkConfig.sharedSwapDataSignatureLib?.enabled) {
     contracts.sharedSwapDataSignatureLib = await deployContract(
       ++step,
@@ -262,17 +257,6 @@ async function deployContracts(
       undefined,
       sharedVaultLibraries,
     )) as SharedVault;
-  }
-
-  // 6. Deploy SharedVaultFactory
-  if (networkConfig.sharedVaultFactory?.enabled) {
-    contracts.sharedVaultFactory = (await deployContract(
-      ++step,
-      networkConfig.sharedVaultFactory?.autoVerifyContract,
-      "SharedVaultFactory",
-      existingContract?.["sharedVaultFactory"],
-      "contracts/shared-vault/core/SharedVaultFactory.sol:SharedVaultFactory",
-    )) as SharedVaultFactory;
   }
 
   // 6. Deploy SharedV3Strategy + beacon + proxy
@@ -539,46 +523,10 @@ async function deployContracts(
     )) as SharedVaultAutomator;
   }
 
-  // 11. Deploy SharedVaultGateway (upgradeable: no constructor; `initialize` sets owner, swap router, WETH)
-  if (networkConfig.sharedVaultGateway?.enabled) {
-    const gatewaySwapRouter = networkConfig.sharedVaultGateway.swapRouter ?? networkConfig.swapRouters?.[0];
-    if (gatewaySwapRouter == null || gatewaySwapRouter === "") {
-      throw new Error(
-        "sharedVaultGateway: set `sharedVaultGateway.swapRouter` or at least one `swapRouters` entry on the network config",
-      );
-    }
-    if (!networkConfig.wrapToken) {
-      throw new Error("sharedVaultGateway: `wrapToken` is required on the network config");
-    }
-
-    const existingGateway = existingContract?.["sharedVaultGateway"];
-    contracts.sharedVaultGateway = (await deployContract(
-      ++step,
-      networkConfig.sharedVaultGateway.autoVerifyContract,
-      "SharedVaultGateway",
-      existingGateway,
-      "contracts/shared-vault/core/SharedVaultGateway.sol:SharedVaultGateway",
-    )) as SharedVaultGateway;
-
-    if (!existingGateway) {
-      await sleep(10000);
-      await contracts.sharedVaultGateway.initialize(contractAdmin, gatewaySwapRouter, networkConfig.wrapToken);
-    }
-  }
-
-  // Initialize SharedVaultFactory
-  if (networkConfig.sharedVaultFactory?.enabled && !existingContract?.["sharedVaultFactory"]) {
-    await sleep(10000);
-    await contracts.sharedVaultFactory?.initialize(
-      contractAdmin,
-      existingContract?.["sharedConfigManager"] || contracts.sharedConfigManager?.target,
-      existingContract?.["sharedVault"] || contracts.sharedVault?.target,
-      networkConfig.wrapToken!,
-    );
-  }
-
-  // Initialize SharedConfigManager
-  if (networkConfig.sharedConfigManager?.enabled && !existingContract?.["sharedConfigManager"]) {
+  // 11. Deploy SharedConfigManager — atomic deploy-and-initialize (CreateX deployCreate2AndInit).
+  //     Deployed AFTER the strategy proxies and automator because `initialize` whitelists their
+  //     addresses; fusing deploy + init into one tx removes the front-run init-hijack window.
+  if (networkConfig.sharedConfigManager?.enabled) {
     // Whitelist proxy addresses — never the raw implementations.
     // On upgrade: beacon.setImplementation(newImpl) — no re-whitelisting needed.
     const whitelistedTargets = [
@@ -600,9 +548,8 @@ async function deployContracts(
     ]).filter(Boolean) as string[];
     const whitelistedSwapRouters = (networkConfig.swapRouters ?? []) as string[];
 
-    await sleep(10000);
-
-    await contracts.sharedConfigManager?.initialize(
+    // Argument order MUST match SharedConfigManager.initialize (pass-by-position).
+    const configManagerInitData = await encodeInitializeData("SharedConfigManager", [
       contractAdmin,
       whitelistedTargets,
       whitelistedCallers,
@@ -611,7 +558,92 @@ async function deployContracts(
       whitelistedNfpms,
       whitelistedSwapRouters,
       commonConfig.signers,
-    );
+    ]);
+
+    contracts.sharedConfigManager = (await deployContract(
+      ++step,
+      networkConfig.sharedConfigManager?.autoVerifyContract,
+      "SharedConfigManager",
+      existingContract?.["sharedConfigManager"],
+      "contracts/shared-vault/core/SharedConfigManager.sol:SharedConfigManager",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      configManagerInitData,
+    )) as SharedConfigManager;
+  }
+
+  // 12. Deploy SharedVaultFactory — atomic deploy-and-initialize. Depends on the ConfigManager and
+  //     Vault implementation addresses (both deployed above), so it is constructed here.
+  if (networkConfig.sharedVaultFactory?.enabled) {
+    const configManagerAddr =
+      (existingContract?.["sharedConfigManager"] as string | undefined) ??
+      (contracts.sharedConfigManager?.target as string | undefined);
+    const vaultImplementationAddr =
+      (existingContract?.["sharedVault"] as string | undefined) ??
+      (contracts.sharedVault?.target as string | undefined);
+    if (!existingContract?.["sharedVaultFactory"] && (!configManagerAddr || !vaultImplementationAddr)) {
+      throw new Error(
+        "SharedVaultFactory atomic init requires SharedConfigManager and SharedVault. Enable their deployment or provide existingContract.sharedConfigManager and existingContract.sharedVault.",
+      );
+    }
+    if (!networkConfig.wrapToken) {
+      throw new Error("sharedVaultFactory: `wrapToken` is required on the network config");
+    }
+
+    const factoryInitData = await encodeInitializeData("SharedVaultFactory", [
+      contractAdmin,
+      configManagerAddr,
+      vaultImplementationAddr,
+      networkConfig.wrapToken,
+    ]);
+
+    contracts.sharedVaultFactory = (await deployContract(
+      ++step,
+      networkConfig.sharedVaultFactory?.autoVerifyContract,
+      "SharedVaultFactory",
+      existingContract?.["sharedVaultFactory"],
+      "contracts/shared-vault/core/SharedVaultFactory.sol:SharedVaultFactory",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      factoryInitData,
+    )) as SharedVaultFactory;
+  }
+
+  // 13. Deploy SharedVaultGateway — atomic deploy-and-initialize. `initialize` sets owner, swap
+  //     router, and WETH (all from config), so it needs no later-deployed addresses.
+  if (networkConfig.sharedVaultGateway?.enabled) {
+    const gatewaySwapRouter = networkConfig.sharedVaultGateway.swapRouter ?? networkConfig.swapRouters?.[0];
+    if (gatewaySwapRouter == null || gatewaySwapRouter === "") {
+      throw new Error(
+        "sharedVaultGateway: set `sharedVaultGateway.swapRouter` or at least one `swapRouters` entry on the network config",
+      );
+    }
+    if (!networkConfig.wrapToken) {
+      throw new Error("sharedVaultGateway: `wrapToken` is required on the network config");
+    }
+
+    const gatewayInitData = await encodeInitializeData("SharedVaultGateway", [
+      contractAdmin,
+      gatewaySwapRouter,
+      networkConfig.wrapToken,
+    ]);
+
+    contracts.sharedVaultGateway = (await deployContract(
+      ++step,
+      networkConfig.sharedVaultGateway.autoVerifyContract,
+      "SharedVaultGateway",
+      existingContract?.["sharedVaultGateway"],
+      "contracts/shared-vault/core/SharedVaultGateway.sol:SharedVaultGateway",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      gatewayInitData,
+    )) as SharedVaultGateway;
   }
 
   return contracts;
@@ -625,6 +657,14 @@ function getSharedStrategySwapRouter(): string {
   return swapRouter.toString();
 }
 
+/// Encodes `initialize(...)` calldata so a singleton can be deployed-and-initialized atomically via
+/// CreateX `deployCreate2AndInit`. SharedConfigManager / SharedVaultFactory / SharedVaultGateway link
+/// no libraries, so a plain getContractFactory resolves their ABI.
+async function encodeInitializeData(contractName: string, args: any[]): Promise<string> {
+  const factory = await ethers.getContractFactory(contractName);
+  return factory.interface.encodeFunctionData("initialize", args);
+}
+
 async function deployContract(
   step: number | string,
   autoVerify: boolean | undefined,
@@ -635,6 +675,10 @@ async function deployContract(
   argsTypes?: string[],
   args?: any[],
   libraries?: Record<string, string>,
+  // When set, the contract is deployed AND initialized in a single CreateX transaction
+  // (deployCreate2AndInit) instead of deployCreate2, removing the front-run init-hijack window.
+  // `initData` is the ABI-encoded `initialize(...)` calldata (see encodeInitializeData).
+  initData?: string,
 ): Promise<BaseContract> {
   log(1, `${step}. Deploying '${contractName}'`);
   log(1, "------------------------------------");
@@ -654,7 +698,21 @@ async function deployContract(
     const salt = encodeBytes32String((customSalt ? customSalt : SALT) || "");
     let deployTx;
     try {
-      deployTx = await factory["deployCreate2(bytes32,bytes)"](salt, bytecode);
+      if (initData) {
+        // Atomic deploy-and-initialize: CreateX runs the constructor, then CALLs `initData` (the
+        // encoded `initialize(...)`) in the SAME transaction — so there is no window for an attacker
+        // to front-run `initialize` and hijack ownership/whitelists. The whole tx reverts
+        // (ICreateX.FailedContractInitialisation) if the init call fails. Values are zero: these
+        // singletons are not payable on construction or init.
+        deployTx = await factory["deployCreate2AndInit(bytes32,bytes,bytes,(uint256,uint256))"](
+          salt,
+          bytecode,
+          initData,
+          { constructorAmount: 0n, initCallAmount: 0n },
+        );
+      } else {
+        deployTx = await factory["deployCreate2(bytes32,bytes)"](salt, bytecode);
+      }
     } catch (e: any) {
       log(2, "failed to deploy contract", e);
     }
