@@ -17,8 +17,8 @@ import type {
   SharedStrategyBeacon,
   SharedStrategyProxy,
   SharedV3Strategy,
+  SharedV4Strategy,
 } from "../typechain-types/contracts/shared-vault/strategies";
-import type { SharedV4Strategy } from "../typechain-types/contracts/shared-vault/strategies/SharedV4Strategy.ts";
 
 const { SALT } = process.env;
 
