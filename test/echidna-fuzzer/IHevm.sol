@@ -18,4 +18,6 @@ interface IHevm {
   function selectFork(uint256 forkId) external;
   function activeFork() external returns (uint256);
   function label(address addr, string calldata label) external;
+  function etch(address target, bytes calldata newRuntimeBytecode) external;
+  function getNonce(address account) external returns (uint64);
 }

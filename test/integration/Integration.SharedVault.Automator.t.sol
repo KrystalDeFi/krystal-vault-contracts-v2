@@ -61,7 +61,7 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
   uint256 internal swapDataNonce;
 
   function setUp() public {
-    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 36_953_600);
+    uint256 fork = vm.createFork(vm.envString("RPC_URL"), 45_893_511);
     vm.selectFork(fork);
 
     (vaultOwner, vaultOwnerPk) = makeAddrAndKey("vaultOwner");
