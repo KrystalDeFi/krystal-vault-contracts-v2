@@ -1,0 +1,141 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "currency0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "currency1",
+        "type": "address"
+      }
+    ],
+    "name": "CurrenciesInitializedOutOfOrder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PoolNotInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedDynamicLPFeeUpdate",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "PoolId",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint24",
+        "name": "dynamicLPFee",
+        "type": "uint24"
+      }
+    ],
+    "name": "DynamicLPFeeUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "PoolId",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "poolIdToPoolKey",
+    "outputs": [
+      {
+        "internalType": "Currency",
+        "name": "currency0",
+        "type": "address"
+      },
+      {
+        "internalType": "Currency",
+        "name": "currency1",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IHooks",
+        "name": "hooks",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IPoolManager",
+        "name": "poolManager",
+        "type": "address"
+      },
+      {
+        "internalType": "uint24",
+        "name": "fee",
+        "type": "uint24"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "parameters",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "Currency",
+            "name": "currency0",
+            "type": "address"
+          },
+          {
+            "internalType": "Currency",
+            "name": "currency1",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IHooks",
+            "name": "hooks",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IPoolManager",
+            "name": "poolManager",
+            "type": "address"
+          },
+          {
+            "internalType": "uint24",
+            "name": "fee",
+            "type": "uint24"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "parameters",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct PoolKey",
+        "name": "key",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint24",
+        "name": "newDynamicLPFee",
+        "type": "uint24"
+      }
+    ],
+    "name": "updateDynamicLPFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

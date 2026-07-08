@@ -1,6 +1,6 @@
 #!/bin/sh
 
-usage="yarn <deploy,deploy-private,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm>] [-n <mainnet,testnet>] -- to run test on specific chain and network
+usage="yarn <deploy,deploy-private,deploy-shared,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm>] [-n <mainnet,testnet>] -- to run test on specific chain and network
 
 where:
     -h  show this help text
@@ -61,4 +61,6 @@ elif [ $CMD == "deploy" ]; then
   CHAIN=$CHAIN NETWORK=$NETWORK yarn hardhat run scripts/deployer.ts --network "$CHAIN"_"$NETWORK"
 elif [ $CMD == "deploy-private" ]; then
   CHAIN=$CHAIN NETWORK=$NETWORK yarn hardhat run scripts/deployer-private.ts --network "$CHAIN"_"$NETWORK"
+elif [ $CMD == "deploy-shared" ]; then
+  CHAIN=$CHAIN NETWORK=$NETWORK yarn hardhat run scripts/deployer-shared.ts --network "$CHAIN"_"$NETWORK"
 fi

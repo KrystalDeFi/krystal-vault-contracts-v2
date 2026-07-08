@@ -1,0 +1,358 @@
+[
+  {
+    "inputs": [],
+    "name": "InvalidAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRatio",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "idleBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpm",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "token0",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token1",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ISharedVault.Position[]",
+        "name": "positions",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "computeTotalBalances",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "balances",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "currentTotalSupply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "totalBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      }
+    ],
+    "name": "minDepositAmounts",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "minAmounts",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "amounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentTotalSupply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "totalBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      },
+      {
+        "internalType": "uint256",
+        "name": "initialShares",
+        "type": "uint256"
+      }
+    ],
+    "name": "previewDeposit",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "shares",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentTotalSupply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "idleBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "strategy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "nfpm",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "token0",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token1",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ISharedVault.Position[]",
+        "name": "positions",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "previewWithdraw",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "amounts",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "amounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentTotalSupply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "totalBalances",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "contract ISharedConfigManager",
+        "name": "configManager",
+        "type": "ISharedConfigManager"
+      }
+    ],
+    "name": "subsequentDepositTransfers",
+    "outputs": [
+      {
+        "internalType": "uint256[4]",
+        "name": "transferAmounts",
+        "type": "uint256[4]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "strategy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "token0",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token1",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "probeStrategy",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "vaultTokens",
+        "type": "bool"
+      }
+    ],
+    "name": "validatePositionAdd",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "strategy",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "verifyPositionExit",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

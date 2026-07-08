@@ -1,0 +1,646 @@
+# Solidity API
+
+## SharedVault
+
+### INITIAL_SHARES
+
+```solidity
+uint256 INITIAL_SHARES
+```
+
+_Fixed share count minted to the first depositor regardless of deposit amount.
+     This decouples share units from any specific token's decimals and prevents
+     the initial share price from being dictated by deposit size._
+
+### configManager
+
+```solidity
+contract ISharedConfigManager configManager
+```
+
+### vaultOwner
+
+```solidity
+address vaultOwner
+```
+
+### vaultFactory
+
+```solidity
+address vaultFactory
+```
+
+### operator
+
+```solidity
+address operator
+```
+
+### weth
+
+```solidity
+address weth
+```
+
+### tokenCount
+
+```solidity
+uint16 tokenCount
+```
+
+### tokens
+
+```solidity
+address[4] tokens
+```
+
+### isVaultToken
+
+```solidity
+mapping(address => bool) isVaultToken
+```
+
+### admins
+
+```solidity
+mapping(address => bool) admins
+```
+
+### vaultOwnerFeeBasisPoint
+
+```solidity
+uint16 vaultOwnerFeeBasisPoint
+```
+
+Basis points of LP performance/collection fees routed to `vaultOwner` on proportional exits (max 10_000).
+
+_Locked at initialization. There is intentionally no setter — the value the depositor saw at
+     vault creation must remain the value applied to every subsequent withdrawal so the owner cannot
+     retroactively raise their performance-fee cut on existing deposits._
+
+### positions
+
+```solidity
+struct ISharedVault.Position[] positions
+```
+
+_Array of tracked LP positions_
+
+### positionIndex
+
+```solidity
+mapping(bytes32 => uint256) positionIndex
+```
+
+_Quick lookup: keccak256(nfpm, tokenId) => index+1 (0 = not tracked)_
+
+### onlyOwner
+
+```solidity
+modifier onlyOwner()
+```
+
+### onlyAuthorized
+
+```solidity
+modifier onlyAuthorized()
+```
+
+### onlyOperator
+
+```solidity
+modifier onlyOperator()
+```
+
+### whenVaultNotPaused
+
+```solidity
+modifier whenVaultNotPaused()
+```
+
+### _onlyOwner
+
+```solidity
+function _onlyOwner() internal view
+```
+
+### _onlyAuthorized
+
+```solidity
+function _onlyAuthorized() internal view
+```
+
+### _onlyOperator
+
+```solidity
+function _onlyOperator() internal view
+```
+
+### _whenVaultNotPaused
+
+```solidity
+function _whenVaultNotPaused() internal view
+```
+
+### initialize
+
+```solidity
+function initialize(string _name, address[4] _tokens, uint256[4] initialAmounts, address _owner, address _operator, address _configManager, address _weth, uint16 _vaultOwnerFeeBasisPoint) public
+```
+
+Initializes the shared vault
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| _name | string |  |
+| _tokens | address[4] |  |
+| initialAmounts | uint256[4] |  |
+| _owner | address |  |
+| _operator | address | Initial vault operator. The operator role is fixed at initialization —                  there is no post-deploy setter. Pass address(0) for a vault with no operator. |
+| _configManager | address |  |
+| _weth | address |  |
+| _vaultOwnerFeeBasisPoint | uint16 | Vault-owner performance fee basis points (≤ 10_000). Locked at                  init — there is no setter so the fee depositors saw at vault creation cannot be                  retroactively raised on existing positions. |
+
+### deposit
+
+```solidity
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares) external payable returns (uint256 shares)
+```
+
+Deposit tokens proportionally and receive shares.
+
+_Share ratio is based on TOTAL shareholder-owned balances (idle + LP principal + net LP fees).
+     Send ETH via msg.value to auto-wrap to WETH; amounts[wethIndex] must equal msg.value.
+     Only the needed WETH is wrapped; excess native ETH is sent back to the caller **after**
+     minting shares so a malicious depositor cannot receive a refund callback between balance
+     snapshots and share finalization (AMM / LP valuation manipulation)._
+
+### deposit
+
+```solidity
+function deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) external payable returns (uint256 shares)
+```
+
+Deposit tokens proportionally and mint shares to `receiver`.
+
+### _deposit
+
+```solidity
+function _deposit(uint256[4] amounts, uint16 slippageBps, uint256 minShares, address receiver) internal returns (uint256 shares)
+```
+
+### _measureActualPulled
+
+```solidity
+function _measureActualPulled(uint256[4] idleBefore) internal view returns (uint256[4] actualPulled)
+```
+
+_Measure how much each vault token actually arrived in the vault since `idleBefore`.
+     Used to credit depositors with the ACTUAL amount the vault holds, not the requested
+     transferFrom amount. Critical for fee-on-transfer (FOT) tokens and other non-standard
+     ERC20s where `transferFrom(X)` results in `< X` arriving at the recipient.
+     For the WETH slot (when ETH was sent via msg.value), the wrap is exact: actualPulled[wi]
+     equals the wrapped amount because IWETH9.deposit() always mints 1:1._
+
+### _validateWethDeposit
+
+```solidity
+function _validateWethDeposit(uint256[4] amounts) internal view returns (uint256 wi)
+```
+
+_If caller sent ETH, returns validated WETH slot index; otherwise `type(uint256).max`._
+
+### _firstDepositTransfers
+
+```solidity
+function _firstDepositTransfers(uint256[4] amounts) internal view returns (uint256[4] transferAmounts, uint256 sharesOut)
+```
+
+_First deposit — always mints `INITIAL_SHARES`; full `amounts` are transferred._
+
+### _subsequentDepositTransfers
+
+```solidity
+function _subsequentDepositTransfers(uint256[4] amounts, uint256 currentTotalSupply, uint256[4] totalBalances) internal view returns (uint256[4] transferAmounts)
+```
+
+_Subsequent deposit — compute how many tokens to pull based on minimum ratio across tokens.
+     Shares are NOT computed here; they are derived from the post-LP-deposit balance delta so
+     that slippage-induced partial LP consumption is reflected in the final share count.
+
+     **Dust-proof rounding**: proportional slices are rounded UP (ceiling) and then floored to
+     `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`. Without this:
+       (a) when a vault holds dust (e.g., 50 wei USDT + 100e18 tokenA), a depositor providing
+           `amounts = [1 USDT-worth of tokenA, 0]` would compute `transferAmounts[dust] = 0`
+           (floor of 0.5 wei) and receive shares for free, diluting existing holders; and
+       (b) when a token slot resolves to 1–few wei, SharedVaultGateway's swap aggregator
+           cannot produce that exact micro-amount to satisfy the deposit.
+     Rounding up + min-enforcement forces depositor overpayment on sub-threshold slices, so
+     existing holders are never diluted and the gateway always sees a swappable amount._
+
+### _computeSharesFromDelta
+
+```solidity
+function _computeSharesFromDelta(uint256 currentTotalSupply, uint256[4] balancesBefore, uint256[4] balancesAfter, uint256[4] requiredAmounts) internal view returns (uint256 shares)
+```
+
+_Compute shares earned by a depositor from the delta between pre- and post-LP-deposit balances.
+     Uses the minimum ratio across deposited tokens (binding constraint). Every token the depositor
+     paid (`requiredAmounts[i] > 0`) must show a strictly positive total-balance delta; if any
+     such token does not (LP valuation dropped due to price movement/sandwich), returns 0 so the
+     caller's `require(shares > 0)` reverts — preventing over-crediting from skipped tokens._
+
+### _wrapWethDeposit
+
+```solidity
+function _wrapWethDeposit(uint256 wi, uint256[4] transferAmounts) internal returns (uint256 excessEth)
+```
+
+_Wrap only `transferAmounts[wi]` from `msg.value` into WETH; return excess native ETH (not sent here)._
+
+### _pullDepositTokensExcludingWethSlot
+
+```solidity
+function _pullDepositTokensExcludingWethSlot(uint256 wi, uint256[4] transferAmounts) internal
+```
+
+### _depositProportionalToAllPositions
+
+```solidity
+function _depositProportionalToAllPositions(uint256 currentTotalSupply, uint256[4] totalBalances, uint256[4] transferAmounts, uint16 slippageBps) internal
+```
+
+_Push proportional slices into tracked LP positions; no-op on first deposit or empty positions.
+
+     **Principal-only scaling**: the per-position top-up ratio is derived from each position's
+     *principal* (liquidity at the current price), NOT from `getPositionAmounts` which bundles
+     uncollected fees. `increaseLiquidity` can only consume tokens at the range ratio dictated
+     by the current tick, so mixing fee balances (whose ratio is set by historical swap flow, not
+     the range) into the desired amounts would either leak into idle silently (slippageBps == 0)
+     or revert via `amount*Min` (slippageBps > 0). Uncollected fees are therefore effectively
+     treated as idle: their shareholder-owned value still counts toward `_getTotalBalances` for
+     share pricing, net of platform/vault-owner performance fees, but they do not participate in
+     the LP top-up. The depositor's proportional share of those net fees remains in the vault as
+     a slightly higher idle reserve (or gets collected and proportionally returned on the next
+     `exitProportional`).
+
+     **Single binding share**: minimum-precision floors can intentionally make one token's pulled
+     amount larger than its proportional share. For in-range positions, clamp the LP top-up to the
+     smaller side's share so the floor excess stays idle instead of causing an off-ratio
+     `increaseLiquidity` slippage revert._
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap) external returns (uint256[4] amounts)
+```
+
+Burn shares and withdraw proportional tokens.
+
+_For each tracked LP position the vault delegatecalls the strategy to exit
+     a proportional share of liquidity. Tokens returned to the vault are then
+     included in the idle balance withdrawn to the caller.
+
+     **Slippage protection model**: individual LP exits are called with
+     minAmount0=0, minAmount1=0 by design. Per-position slippage guards are
+     intentionally omitted so that a single position's tight bound cannot DoS
+     the entire withdrawal. Instead, `minAmounts` provides aggregate per-token
+     protection: if a sandwich attack reduces any LP exit return, the total
+     `amounts[i]` decreases and the outer check reverts the whole tx. Callers
+     should derive `minAmounts` from `previewWithdraw()` minus acceptable slippage._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| shares | uint256 |  |
+| minAmounts | uint256[4] |  |
+| unwrap | bool | If true, any WETH output is unwrapped to native ETH before sending. |
+
+### withdraw
+
+```solidity
+function withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address account) external returns (uint256[4] amounts)
+```
+
+Burn `account` shares and withdraw proportional tokens to the caller.
+
+_`account` only selects whose shares are burned. When called via allowance, output tokens
+     and any unwrapped native ETH are sent to `_msgSender()`, not to `account`._
+
+### _withdraw
+
+```solidity
+function _withdraw(uint256 shares, uint256[4] minAmounts, bool unwrap, address account) internal returns (uint256[4] amounts)
+```
+
+### execute
+
+```solidity
+function execute(struct ISharedVault.Action[] actions) external
+```
+
+Execute one or more actions atomically. See ISharedCommon.CallType for full semantics.
+
+  DELEGATECALL         — delegatecall target via ISharedStrategy.execute(data).
+                         Result is PositionChange[]: LP positions are tracked.
+                         New position entries (isAdd) require token0/token1 to be vault tokens.
+                         Token-only operations (harvest, swap-reward) return an empty array.
+  CALL                 — direct call to a swap aggregator (target must be a whitelisted swap router).
+                         action.data = abi.encode(tokenIn, tokenOut, amountIn, minAmountOut, swapCalldata).
+                         Trust boundary for the opaque `swapCalldata` (W-4): it is NOT executed on
+                         trust — it must carry a whitelisted-signer signature
+                         (`SharedSwapDataSignature`) binding chainId/vault/router/tokenIn/tokenOut/
+                         amountIn/minAmountOut/keccak(swapData); tokenIn/tokenOut must be distinct
+                         vault tokens; the router allowance is scoped to exactly `amountIn` and reset
+                         to 0 after the call; and the realized tokenOut delta INTO the vault must be
+                         >= minAmountOut. The residual trust is only that the (governance-)whitelisted
+                         router and signer behave — a compromised signer signing minAmountOut == 0 is
+                         the boundary. Funds cannot be redirected to a non-vault recipient profitably.
+  CALL_WITH_POSITIONS  — direct call to a target that returns PositionChange[].
+                         action.data is forwarded as raw calldata; result is decoded as PositionChange[].
+                         The target is stored as pos.strategy and will be delegatecalled via
+                         exitProportional at withdrawal time — it must implement ISharedStrategy.
+                         No token pre-approval or balance check is performed on this path:
+                         the external contract manages its own token transfers (unlike CALL,
+                         where the vault is the initiator and owns the approval flow).
+
+### _verifySignedSwapData
+
+```solidity
+function _verifySignedSwapData(address swapRouter, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes signedSwapData) internal returns (bytes swapData)
+```
+
+### _applyPositionChanges
+
+```solidity
+function _applyPositionChanges(address strategy, bytes result, bool probeStrategy) internal
+```
+
+_Decode a PositionChange[] from raw return bytes and update LP position tracking.
+     `probeStrategy` is enabled only for CALL_WITH_POSITIONS, where an arbitrary target
+     must prove it implements ISharedStrategy before the vault tracks a position for later
+     delegatecall-based exits._
+
+### getTokens
+
+```solidity
+function getTokens() external view returns (address[4])
+```
+
+### getIdleBalances
+
+```solidity
+function getIdleBalances() external view returns (uint256[4])
+```
+
+### getTotalBalances
+
+```solidity
+function getTotalBalances() external view returns (uint256[4])
+```
+
+Total shareholder-owned balances: idle tokens plus LP principal and net uncollected LP fees.
+
+_Reports the NET value owned by shareholders, not gross LP value. For each tracked position the
+     uncollected-fee portion is reduced by the platform fee and then the vault-owner fee (mirroring
+     `SharedStrategyFeeConfig.performanceFeeConfig`; the combined rate is clamped to 10000 bps).
+     LP principal and idle balances are never fee-charged. This matches the realized `withdraw()`
+     flow, which collects fees first so the proportional idle distribution is already net-of-fee.
+     Integrator notes:
+     - Share price is `totalSupply() / getTotalBalances()`. Because `configManager.platformFeeBasisPoint()`
+       is read live (never cached), changing the platform fee instantly reprices every vault's shares:
+       existing depositors' per-share value moves the moment the fee changes.
+     - This same net figure feeds `previewDeposit`, `getMinDepositAmounts`, and the gateway's deposit
+       ratio math, so dashboards and valuation tooling should expect the net (lower) number, not gross._
+
+### getPositionCount
+
+```solidity
+function getPositionCount() external view returns (uint256)
+```
+
+### getPosition
+
+```solidity
+function getPosition(uint256 index) external view returns (address strategy, address nfpm, uint256 tokenId, address token0, address token1)
+```
+
+### previewDeposit
+
+```solidity
+function previewDeposit(uint256[4] amounts) external view returns (uint256 shares)
+```
+
+### previewWithdraw
+
+```solidity
+function previewWithdraw(uint256 _shares) external view returns (uint256[4] amounts)
+```
+
+Preview token amounts returned for burning `_shares` NET of LP exit fees.
+
+_Returns the proportional share of (idle + LP principal + (1 − feeRate) × uncollected LP fees).
+     The fee deduction mirrors `SharedStrategyFeeConfig.performanceFeeConfig`: combined platform +
+     vault-owner basis points are clamped to 10000 (silent platform clamp) and applied only to the
+     uncollected-fees portion of each tracked position. Principal exits incur no perf/platform fee
+     (matching the V3 / Aerodrome flow in `SharedNfpmProportionalExit.decreaseLiquidityProportional`).
+     **Estimate, not exact (W-7)**: this is a close UPPER BOUND on what `withdraw` actually
+     transfers and can exceed it by a few wei per token per position. `previewWithdraw` divides once
+     over (idle + spot-valued LP), whereas `withdraw` floors the idle slice separately and then adds
+     the tokens actually returned by removing `floor(liquidity·shares/supply)` (a second layer of AMM
+     rounding). Always apply a slippage margin; do NOT pass `previewWithdraw()` verbatim as
+     `minAmounts`, or a 1-wei shortfall can trigger `InsufficientOutput`._
+
+### getMinDepositAmounts
+
+```solidity
+function getMinDepositAmounts() external view returns (uint256[4] minAmounts)
+```
+
+Per-token minimum amounts required for a subsequent deposit.
+
+_Returns zeros on first deposit (totalSupply == 0) because no proportional floor applies.
+     For subsequent deposits each non-zero-balance slot returns
+     `10 ** max(0, token.decimals() - configManager.minTokenPrecision())`.
+     Slots whose total balance is zero must be deposited at exactly zero; their entry is 0._
+
+### sweepTokens
+
+```solidity
+function sweepTokens(address[] _tokens, uint256[] amounts, address to) external
+```
+
+### sweepNativeToken
+
+```solidity
+function sweepNativeToken(uint256 amount, address to) external
+```
+
+### sweepERC721
+
+```solidity
+function sweepERC721(address token, uint256 tokenId, address to) external
+```
+
+### sweepERC1155
+
+```solidity
+function sweepERC1155(address token, uint256 tokenId, uint256 amount, address to) external
+```
+
+### grantAdminRole
+
+```solidity
+function grantAdminRole(address _address) external
+```
+
+### revokeAdminRole
+
+```solidity
+function revokeAdminRole(address _address) external
+```
+
+### setPaused
+
+```solidity
+function setPaused(bool _paused) external
+```
+
+### transferOwnership
+
+```solidity
+function transferOwnership(address newOwner) external
+```
+
+### dropPosition
+
+```solidity
+function dropPosition(address nfpm, uint256 tokenId) external
+```
+
+Forcibly remove a position from vault tracking without exiting liquidity.
+
+_See `ISharedVault.dropPosition` regarding asymmetric custody when `operator` is set.
+     Callable by `vaultOwner` OR `operator`. The operator path exists as an emergency
+     escape hatch: if a strategy or NFPM becomes bricked, deposits/withdrawals revert
+     until the broken position is dropped. Allowing the operator to force-drop ensures
+     depositors are not stranded when the vault owner is unavailable._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT position manager that issued the position |
+| tokenId | uint256 | The position token ID to drop |
+
+### recoverPosition
+
+```solidity
+function recoverPosition(address nfpm, uint256 tokenId, address strategy, address token0, address token1) external
+```
+
+Recover a previously dropped position back into vault tracking.
+        Pulls the NFT from the operator (caller must have approved this vault as spender),
+        re-adds the position to tracking, and re-enables LP valuation and proportional exits.
+        The strategy must be whitelisted in ConfigManager (it is delegatecalled on deposits/withdrawals).
+
+_See `ISharedVault.recoverPosition` re `token0` / `token1` and vault token validation._
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| nfpm | address | NFT position manager that issued the position |
+| tokenId | uint256 | The position token ID to recover |
+| strategy | address | Whitelisted strategy to use for this position (must implement ISharedStrategy) |
+| token0 | address | Pool token0 (must be a configured vault token) |
+| token1 | address | Pool token1 (must be a configured vault token) |
+
+### isValidSignature
+
+```solidity
+function isValidSignature(bytes32 hash, bytes signature) external view returns (bytes4)
+```
+
+_Should return whether the signature provided is valid for the provided data_
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| hash | bytes32 | Hash of the data to be signed |
+| signature | bytes | Signature byte array associated with _data |
+
+### supportsInterface
+
+```solidity
+function supportsInterface(bytes4 interfaceId) public view virtual returns (bool)
+```
+
+_See {IERC165-supportsInterface}._
+
+### decimals
+
+```solidity
+function decimals() public pure returns (uint8)
+```
+
+_Returns the number of decimals used to get its user representation.
+For example, if `decimals` equals `2`, a balance of `505` tokens should
+be displayed to a user as `5.05` (`505 / 10 ** 2`).
+
+Tokens usually opt for a value of 18, imitating the relationship between
+Ether and Wei. This is the default value returned by this function, unless
+it's overridden.
+
+NOTE: This information is only used for _display_ purposes: it in
+no way affects any of the arithmetic of the contract, including
+{IERC20-balanceOf} and {IERC20-transfer}._
+
+### _addPosition
+
+```solidity
+function _addPosition(address strategy, address nfpm, uint256 tokenId, address token0, address token1) internal
+```
+
+### _removePosition
+
+```solidity
+function _removePosition(address nfpm, uint256 tokenId) internal
+```
+
+### _wethIndex
+
+```solidity
+function _wethIndex() internal view returns (uint256)
+```
+
+_Returns the index of the WETH token in the tokens array, or type(uint256).max if not found._
+
+### _getIdleBalances
+
+```solidity
+function _getIdleBalances() internal view returns (uint256[4] balances)
+```
+
+### _getTotalBalances
+
+```solidity
+function _getTotalBalances() internal view returns (uint256[4] balances)
+```
+
+Total shareholder-owned balances including idle tokens, LP principal, and net LP fees
+
+_Net of platform and vault-owner performance fees on the uncollected-fee portion (live read of
+     `configManager.platformFeeBasisPoint()`, so it reprices instantly when the platform fee changes).
+     See `ISharedVault.getTotalBalances` for the full integrator-facing semantics._
+
+### receive
+
+```solidity
+receive() external payable
+```
+

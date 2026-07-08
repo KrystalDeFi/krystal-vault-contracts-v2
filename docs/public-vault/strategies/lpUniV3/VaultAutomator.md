@@ -156,7 +156,7 @@ Cancel an order
 ### isOrderCancelled
 
 ```solidity
-function isOrderCancelled(bytes orderSignature) external view returns (bool)
+function isOrderCancelled(bytes32 hash) external view returns (bool)
 ```
 
 Check if an order is cancelled
@@ -165,7 +165,7 @@ Check if an order is cancelled
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| orderSignature | bytes | Signature of the order |
+| hash | bytes32 | EIP-712 digest of the order |
 
 #### Return Values
 

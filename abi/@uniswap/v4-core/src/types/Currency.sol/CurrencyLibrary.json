@@ -1,0 +1,25 @@
+[
+  {
+    "inputs": [],
+    "name": "ERC20TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NativeTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ADDRESS_ZERO",
+    "outputs": [
+      {
+        "internalType": "Currency",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

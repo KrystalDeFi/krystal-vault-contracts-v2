@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": [],
+    "name": "InvalidFeeForExactOut",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint160",
+        "name": "sqrtPriceCurrentX96",
+        "type": "uint160"
+      },
+      {
+        "internalType": "uint160",
+        "name": "sqrtPriceLimitX96",
+        "type": "uint160"
+      }
+    ],
+    "name": "InvalidSqrtPriceLimit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoLiquidityToReceiveFees",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PoolAlreadyInitialized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PoolNotInitialized",
+    "type": "error"
+  }
+]

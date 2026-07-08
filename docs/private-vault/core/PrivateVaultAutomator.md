@@ -86,13 +86,13 @@ Cancel an order
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| hash | bytes32 | Hash of the data to be signed |
+| hash | bytes32 | EIP-712 digest that was signed |
 | signature | bytes | Signature of the order |
 
 ### isOrderCancelled
 
 ```solidity
-function isOrderCancelled(bytes signature) external view returns (bool)
+function isOrderCancelled(bytes32 hash) external view returns (bool)
 ```
 
 Check if an order is cancelled
@@ -101,7 +101,7 @@ Check if an order is cancelled
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| signature | bytes | Signature of the order |
+| hash | bytes32 | EIP-712 digest of the order |
 
 #### Return Values
 

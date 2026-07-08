@@ -1,0 +1,347 @@
+[
+  {
+    "inputs": [],
+    "name": "CannotSweepVaultToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DuplicateToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DuplicateVaultName",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientShares",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGasFeeX64",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "nfpm",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidNfpm",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRatio",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "strategy",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSwapDataSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "swapRouter",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidSwapRouter",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      }
+    ],
+    "name": "InvalidTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVaultOwnerFeeBasisPoint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LengthMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NfpmEnumerableRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoTokensConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "StrategyCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SwapDataSignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "SwapFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TokenNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooManyPositions",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedLiquidityHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VaultPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "configManager",
+        "type": "address"
+      }
+    ],
+    "name": "ConfigManagerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      }
+    ],
+    "name": "VaultCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "vaultImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "VaultImplementationSet",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "initialAmounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      }
+    ],
+    "name": "createVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "address[4]",
+        "name": "tokens",
+        "type": "address[4]"
+      },
+      {
+        "internalType": "uint256[4]",
+        "name": "initialAmounts",
+        "type": "uint256[4]"
+      },
+      {
+        "internalType": "uint16",
+        "name": "vaultOwnerFeeBasisPoint",
+        "type": "uint16"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "enum ISharedCommon.CallType",
+            "name": "callType",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ISharedVault.Action[]",
+        "name": "actions",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "createVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      }
+    ],
+    "name": "isVault",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

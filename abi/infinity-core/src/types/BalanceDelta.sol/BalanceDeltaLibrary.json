@@ -1,0 +1,15 @@
+[
+  {
+    "inputs": [],
+    "name": "ZERO_DELTA",
+    "outputs": [
+      {
+        "internalType": "BalanceDelta",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

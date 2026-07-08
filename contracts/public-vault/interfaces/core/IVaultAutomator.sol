@@ -50,7 +50,8 @@ interface IVaultAutomator is ICommon {
 
   function cancelOrder(bytes calldata abiEncodedUserOrder, bytes calldata orderSignature) external;
 
-  function isOrderCancelled(bytes calldata orderSignature) external view returns (bool);
+  /// @notice Check whether an order (identified by its EIP-712 digest) has been cancelled
+  function isOrderCancelled(bytes32 hash) external view returns (bool);
 
   function grantOperator(address operator) external;
 
