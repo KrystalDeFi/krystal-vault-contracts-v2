@@ -1,5 +1,5 @@
 import { commonConfig } from "./config_common";
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   hyperevm_mainnet: {
@@ -24,6 +24,45 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       autoVerifyContract: true,
     },
     v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
+  },
+};
+
+// HyperEVM has no Uniswap V4 / Pancake Infinity — V3-only shared deployment
+// (no sharedV4SwapPipeline, V4/Pancake strategies, or v4NfpmAddresses).
+const SharedConfig: Record<string, IConfigShared> = {
+  hyperevm_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
   },
 };
 
@@ -139,5 +178,6 @@ export const HyperevmConfig: Record<string, IConfig> = {
       "0xC8352A2EbA29F4d9BD4221c07D3461BaCc779088",
     ],
     ...PrivateConfig.hyperevm_mainnet,
+    ...SharedConfig.hyperevm_mainnet,
   },
 };
