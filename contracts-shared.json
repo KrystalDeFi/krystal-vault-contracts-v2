@@ -113,6 +113,5 @@
     "sharedConfigManager": "0x67b82362d1501a82d12883e70d20eb2f140f4518",
     "sharedVaultFactory": "0xefdf2e686099bd2a8d6af226652735503deb74f1",
     "sharedVaultGateway": "0x69d9e26c47053a7ddc2ef6d4198e311664f95054"
-  },
-  "robinhood_mainnet": {}
+  }
 }
