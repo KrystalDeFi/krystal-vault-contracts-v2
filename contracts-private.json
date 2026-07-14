@@ -65,11 +65,11 @@
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   },
   "robinhood_mainnet": {
-    "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
-    "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
-    "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x28f7c986008a5f5c8d7910458b0b958a1601bfd7",
-    "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
-    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
+    "privateConfigManager": "0xb1f2f673fe3dfbec374e83556dca4d62c1d885ac",
+    "privateVault": "0xd82a464973348f717c1155fdb2e963f24a89a783",
+    "privateVaultFactory": "0x60a21cdb100df730daaecf1850efc536a207fd9d",
+    "privateVaultAutomator": "0x1e3289617475df3a6766a13f864b66676f844f27",
+    "v3UtilsStrategy": "0x1dc739605bf90d3af53735d6028a6900bc225e68",
+    "v4UtilsStrategy": "0xa378bcfe0ab53df1b0088df188b32d33784143b0"
   }
 }
