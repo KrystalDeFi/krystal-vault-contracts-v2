@@ -88,6 +88,10 @@ const config: HardhatUserConfig = {
       url: `https://rpc.hyperliquid.xyz/evm`,
       chainId: 999,
     },
+    robinhood: {
+      url: `https://rpc.mainnet.chain.robinhood.com`,
+      chainId: 4663,
+    },
   },
   etherscan: {
     apiKey: {
@@ -100,6 +104,8 @@ const config: HardhatUserConfig = {
       ronin: RONINSCAN_APIKEY || "",
       berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
+      // Robinhood Chain is not on Etherscan V2; Blockscout ignores the key but hardhat-verify requires one
+      robinhood: "blockscout",
     },
     customChains: [
       {
@@ -172,6 +178,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api.etherscan.io/v2/api?chainid=999",
           browserURL: "https://hyperevmscan.io/",
+        },
+      },
+      {
+        network: "robinhood",
+        chainId: 4663,
+        urls: {
+          apiURL: "https://robinhoodchain.blockscout.com/api",
+          browserURL: "https://robinhoodchain.blockscout.com",
         },
       },
     ],
@@ -254,6 +268,13 @@ if (PRIVATE_KEY) {
   config.networks!.hyperevm_mainnet = {
     url: `https://rpc.hyperliquid.xyz/evm`,
     chainId: 999,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  config.networks!.robinhood_mainnet = {
+    url: `https://rpc.mainnet.chain.robinhood.com`,
+    chainId: 4663,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
