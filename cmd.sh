@@ -1,10 +1,10 @@
 #!/bin/sh
 
-usage="yarn <deploy,deploy-private,deploy-shared,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm>] [-n <mainnet,testnet>] -- to run test on specific chain and network
+usage="yarn <deploy,deploy-private,deploy-shared,test> [-h] [-c <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm,robinhood>] [-n <mainnet,testnet>] -- to run test on specific chain and network
 
 where:
     -h  show this help text
-    -c  which chain to run, supported <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm>
+    -c  which chain to run, supported <eth,bsc,polygon,arbitrum,optimism,base,berachain,ronin,hyperevm,robinhood>
     -n  which network to run, supported <mainnet,testnet>
     -f  specific test to run if any"
 
@@ -20,7 +20,7 @@ while getopts ":hc:n:f:x:" option; do
       exit
       ;;
     c) 
-      if [[ ! "$OPTARG" =~ ^(eth|bsc|polygon|arbitrum|optimism|base|berachain|ronin|hyperevm)$ ]]; then
+      if [[ ! "$OPTARG" =~ ^(eth|bsc|polygon|arbitrum|optimism|base|berachain|ronin|hyperevm|robinhood)$ ]]; then
           printf "invalid value for -%s\n" "$option" >&2
           echo "$usage" >&2
           exit 1

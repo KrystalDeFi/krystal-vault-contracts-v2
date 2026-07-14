@@ -63,5 +63,13 @@
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
+  },
+  "robinhood_mainnet": {
+    "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
+    "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
+    "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
+    "privateVaultAutomator": "0x28f7c986008a5f5c8d7910458b0b958a1601bfd7",
+    "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
+    "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   }
 }
