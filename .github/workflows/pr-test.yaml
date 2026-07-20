@@ -48,10 +48,6 @@ jobs:
           mv test/integration/Integration.HyperEVMUpheaval.t.sol.disabled test/integration/Integration.HyperEVMUpheaval.t.sol
 
       - name: Smart-wallet-owner coverage (osaka EVM - P256 precompile + EIP-7702)
-        # Runs the Coinbase passkey (WebAuthn/P256) and Trust Wallet Biz (7702) tests that self-skip
-        # under the default cancun EVM. Needs a base RPC (real Coinbase factory) and a mainnet RPC
-        # (real Biz impl); osaka enables the P256 precompile at 0x100. Prefers repo RPC secrets and
-        # falls back to public keyless endpoints so no credentials are embedded in this workflow.
         run: |
           export RPC_URL="https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a"
           export MAINNET_RPC_URL="https://ethereum-rpc.publicnode.com"
