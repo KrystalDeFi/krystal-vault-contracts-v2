@@ -952,8 +952,9 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@krystal/util-contracts@file:../util-contracts":
+"@krystal/util-contracts@github:KrystalDeFi/util-contracts#v0.1.0":
   version "0.1.0"
+  resolved "https://codeload.github.com/KrystalDeFi/util-contracts/tar.gz/9617230f1de86e348fd875083864f2fd05a1f5d9"
   dependencies:
     "@openzeppelin/contracts" "^5.2.0"
 
