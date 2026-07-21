@@ -15,6 +15,8 @@ import { SignatureValidator } from "@krystal/util-contracts/contracts/SignatureV
 contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
 
+  /// @dev Keyed on `_cancelKey(canceller, digest)` (not the bare digest) so cancellation is scoped to
+  ///      the order's own signer; see `cancelOrder` for why this prevents third-party cancellation DoS.
   mapping(bytes32 => bool) private _cancelledOrder;
 
   constructor(address _owner, address[] memory _operators) CustomEIP712("V3AutomationOrder", "5.0") {
@@ -79,8 +81,9 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
     require(agentAllowance.vault == address(vault), InvalidSignature());
     require(agentAllowance.expirationTime >= block.timestamp, InvalidSignature());
     bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
-    require(SignatureValidator.isValidSignatureNow(IPrivateVault(vault).vaultOwner(), digest, signature), InvalidSignature());
-    require(!_cancelledOrder[digest], OrderCancelled());
+    address owner = IPrivateVault(vault).vaultOwner();
+    require(SignatureValidator.isValidSignatureNow(owner, digest, signature), InvalidSignature());
+    require(!_cancelledOrder[_cancelKey(owner, digest)], OrderCancelled());
   }
 
   /// @dev Validate the order
@@ -90,7 +93,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(abiEncodedUserOrder));
     require(SignatureValidator.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
-    require(!_cancelledOrder[digest], OrderCancelled());
+    require(!_cancelledOrder[_cancelKey(actor, digest)], OrderCancelled());
   }
 
   /// @notice Cancel an order
@@ -98,15 +101,16 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
   /// @param signature Signature of the order
   function cancelOrder(bytes32 hash, bytes memory signature) external {
     require(SignatureValidator.isValidSignatureNow(msg.sender, hash, signature), InvalidSignature());
-    _cancelledOrder[hash] = true;
+    _cancelledOrder[_cancelKey(msg.sender, hash)] = true;
     emit CancelOrder(msg.sender, hash, signature);
   }
 
-  /// @notice Check if an order is cancelled
+  /// @notice Check if an order (identified by its EIP-712 digest) has been cancelled by `actor`
+  /// @param actor Address that cancelled (or would cancel) the order
   /// @param hash EIP-712 digest of the order
-  /// @return true if the order is cancelled
-  function isOrderCancelled(bytes32 hash) external view returns (bool) {
-    return _cancelledOrder[hash];
+  /// @return true if the order is cancelled by `actor`
+  function isOrderCancelled(address actor, bytes32 hash) external view returns (bool) {
+    return _cancelledOrder[_cancelKey(actor, hash)];
   }
 
   /// @notice Grant operator role
@@ -140,5 +144,11 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
     return super.supportsInterface(interfaceId);
+  }
+
+  /// @dev Cancellation key, scoped to the order signer / canceller so cancellation is per-actor rather
+  ///      than global. `abi.encode` (not `encodePacked`) keeps the address and digest fields unambiguous.
+  function _cancelKey(address actor, bytes32 digest) private pure returns (bytes32) {
+    return keccak256(abi.encode(actor, digest));
   }
 }

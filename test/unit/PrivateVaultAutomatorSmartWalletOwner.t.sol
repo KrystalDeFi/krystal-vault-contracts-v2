@@ -237,7 +237,7 @@ contract PrivateVaultAutomatorSmartWalletOwnerTest is TestCommon {
     vm.prank(address(coinbaseWallet));
     automator.cancelOrder(orderHash, sig);
 
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(address(coinbaseWallet), orderHash));
   }
 
   function test_coinbase_wrongSigner_reverts() public {
@@ -302,7 +302,7 @@ contract PrivateVaultAutomatorSmartWalletOwnerTest is TestCommon {
     vm.prank(bizAccount);
     automator.cancelOrder(orderHash, sig);
 
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(bizAccount, orderHash));
   }
 
   function test_biz_wrongSigner_reverts() public {

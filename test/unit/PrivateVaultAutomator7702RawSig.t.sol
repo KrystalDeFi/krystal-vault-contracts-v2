@@ -131,7 +131,7 @@ contract PrivateVaultAutomator7702RawSigTest is Test {
     bytes memory sig = _rawSign(orderHash, OWNER_PK);
     vm.prank(owner7702);
     automator.cancelOrder(orderHash, sig);
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(owner7702, orderHash));
   }
 
   function test_7702_rawSig_wrongKey_reverts() public {

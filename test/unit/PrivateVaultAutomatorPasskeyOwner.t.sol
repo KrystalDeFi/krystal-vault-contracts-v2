@@ -253,7 +253,7 @@ contract PrivateVaultAutomatorPasskeyOwnerTest is TestCommon {
     bytes memory sig = _signAsPasskey(orderHash, PASSKEY_PK);
     vm.prank(address(wallet));
     automator.cancelOrder(orderHash, sig);
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(address(wallet), orderHash));
   }
 
   function test_passkey_wrongKey_reverts() public {
