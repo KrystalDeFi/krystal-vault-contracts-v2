@@ -472,14 +472,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
   }
 
   function test_executeMulticall_eip712_fail_cancelledOrder() public {
-    // Test EIP712 executeMulticall with cancelled order
-    bytes memory abiEncodedOrder = _createEip712Order(address(mockStrategy), 1, block.timestamp + 3600);
-
-    // Use the same signature format as the hash-based cancelOrder
-    bytes32 orderHash = keccak256(abiEncodedOrder);
+    // Test EIP712 executeMulticall with cancelled order. Build a properly-encoded
+    // LpUniV3StructHash.Order and derive the REAL EIP-712 digest that _validateOrder checks
+    // (same derivation as test_multisig_executeWithUserOrder_success), so the signature actually
+    // matches what execution validates against and the test genuinely exercises the cancellation
+    // check rather than masking an unrelated InvalidSignature revert.
+    LpUniV3StructHash.Order memory emptyOrder;
+    bytes memory abiEncodedOrder = abi.encode(emptyOrder);
+    bytes32 structHash = LpUniV3StructHash._hash(emptyOrder);
+    bytes32 orderHash = automator.hashTypedDataV4(structHash);
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
-    // Cancel the order first
+    // Cancel the order as the vault owner — the actor executeMulticallWithUserOrder validates
+    // against (vault.vaultOwner()).
     vm.startPrank(VAULT_OWNER);
     automator.cancelOrder(orderHash, signature);
     vm.stopPrank();
@@ -493,9 +498,10 @@ contract PrivateVaultAutomatorTest is TestCommon {
     ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
-    // Try to execute cancelled order
+    // Try to execute cancelled order — the signature now matches the digest, so the signature
+    // check passes and execution reaches (and reverts on) the cancellation check specifically.
     vm.startPrank(OPERATOR);
-    vm.expectRevert(); // Expect revert due to invalid order structure or cancelled order
+    vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
     automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, signature
     );
