@@ -141,6 +141,23 @@ contract MockMultisig {
   receive() external payable { }
 }
 
+/// @dev 7702 delegate that ONLY validates a signature over its own EIP-712-wrapped hash — so a RAW
+///      signature over the bare digest fails its isValidSignature. Etched onto an EOA to give that
+///      address BOTH code and a private key (the EIP-7702 condition). Mirrors
+///      `Wrapped7702Delegate` in test/unit/PrivateVaultAutomator7702RawSig.t.sol.
+contract Wrapped7702Delegate {
+  bytes4 internal constant MAGIC = 0x1626ba7e;
+
+  function wrap(bytes32 hash) public view returns (bytes32) {
+    return keccak256(abi.encodePacked("\x19Delegate:", block.chainid, address(this), hash));
+  }
+
+  function isValidSignature(bytes32 hash, bytes calldata sig) external view returns (bytes4) {
+    (address rec, ECDSA.RecoverError err,) = ECDSA.tryRecover(wrap(hash), sig);
+    return (err == ECDSA.RecoverError.NoError && rec == address(this)) ? MAGIC : bytes4(0xffffffff);
+  }
+}
+
 // Expose internal EIP-712 helpers for test signing
 contract SharedVaultAutomatorHelper is SharedVaultAutomator {
   constructor(address _owner, address[] memory _operators) SharedVaultAutomator(_owner, _operators) { }
@@ -820,6 +837,45 @@ contract SharedVaultAutomatorTest is TestCommon {
     vm.prank(OPERATOR);
     vm.expectRevert(ISharedVaultAutomator.OrderCancelled.selector);
     msAutomator.executeWithUserOrder(ISharedVault(address(msVault)), ops, encoded, sig);
+  }
+
+  // ============ EIP-7702 dual-path signature validation ============
+
+  /// @dev Proves the dual-path `SignatureValidator` accepts a 7702 account's RAW ECDSA signature
+  ///      where OZ `SignatureChecker` would have rejected it. `SignatureChecker.isValidSignatureNow`
+  ///      branches purely on `signer.code.length`: once the signer has code (as a 7702 account does),
+  ///      it ONLY calls `isValidSignature` and never attempts ECDSA recovery. Here `owner7702` is an
+  ///      EOA (has a private key) with `Wrapped7702Delegate` code etched onto it (the 7702 condition:
+  ///      code + key at one address). The delegate's `isValidSignature` validates only a signature
+  ///      over its OWN wrapped hash (`wrap(hash)`), so it REJECTS a raw signature over the bare
+  ///      digest — proving acceptance below cannot come from the EIP-1271 leg. It can only come from
+  ///      the ECDSA-recovery leg that `SignatureValidator` tries in addition (unlike
+  ///      `SignatureChecker`, which is gated off by the presence of code).
+  function test_7702_rawEoaSig_acceptedViaEcdsaLeg() public {
+    uint256 ownerPk = 0x7702BEEF;
+    address owner7702 = vm.addr(ownerPk);
+    Wrapped7702Delegate delegateImpl = new Wrapped7702Delegate();
+    vm.etch(owner7702, address(delegateImpl).code); // 7702: code + key at the same address
+
+    bytes32 orderHash = keccak256("7702-shared-vault-cancel-order");
+
+    // Sign the RAW digest (not the delegate's wrapped hash).
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPk, orderHash);
+    bytes memory rawSig = abi.encodePacked(r, s, v);
+
+    // Non-vacuous: confirm the 7702 delegate's own EIP-1271 leg REJECTS this raw signature — so any
+    // acceptance by the automator can only be explained by the ECDSA-recovery leg.
+    bytes4 selfCheck = Wrapped7702Delegate(owner7702).isValidSignature(orderHash, rawSig);
+    assertEq(selfCheck, bytes4(0xffffffff), "delegate must reject the raw sig via its own EIP-1271 leg");
+
+    assertFalse(automator.isOrderCancelled(owner7702, orderHash));
+
+    // The automator's cancelOrder validates `isValidSignatureNow(_msgSender(), hash, signature)` —
+    // _msgSender() here is the 7702 account itself.
+    vm.prank(owner7702);
+    automator.cancelOrder(orderHash, rawSig);
+
+    assertTrue(automator.isOrderCancelled(owner7702, orderHash));
   }
 
   // ============ receive() + sweep (automator inherits Withdrawable) ============
