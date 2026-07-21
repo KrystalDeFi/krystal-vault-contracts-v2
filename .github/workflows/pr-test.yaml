@@ -52,7 +52,7 @@ jobs:
           export RPC_URL="https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a"
           export MAINNET_RPC_URL="https://ethereum-rpc.publicnode.com"
           forge test --via-ir --evm-version osaka \
-            --match-contract "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork" -vvv
+            --match-contract "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration" -vvv
 
       - name: Create new branch and push the document
         env:

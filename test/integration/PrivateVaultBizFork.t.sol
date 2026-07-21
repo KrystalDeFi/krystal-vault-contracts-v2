@@ -190,4 +190,35 @@ contract PrivateVaultBizForkTest is TestCommon {
     vm.expectRevert(IPrivateVaultAutomator.InvalidSignature.selector);
     automator.executeMulticallWithAgentAllowance(IPrivateVault(address(vault)), t, cv, d, ct, encoded, badSig);
   }
+
+  // Sign the RAW automator digest with the delegating EOA's key (no Biz EIP-712 wrap).
+  // SignatureChecker rejected this; SignatureValidator accepts it via the ECDSA leg.
+  function _rawSignAsBiz(bytes32 digest, uint256 pk) internal pure returns (bytes memory) {
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
+    return abi.encodePacked(r, s, v);
+  }
+
+  function test_fork_biz7702_rawEoaSig_agentAllowance() public {
+    _skipUnlessLive();
+    PrivateVault vault = _deployVault();
+    (bytes memory encoded, bytes32 digest) = _agentAllowance(address(vault));
+    bytes memory sig = _rawSignAsBiz(digest, BIZ_OWNER_PK);
+
+    (address[] memory t, uint256[] memory cv, bytes[] memory d, IPrivateCommon.CallType[] memory ct) = _multicall();
+    vm.prank(OPERATOR);
+    automator.executeMulticallWithAgentAllowance(IPrivateVault(address(vault)), t, cv, d, ct, encoded, sig);
+    assertEq(strategy.value(), 42);
+  }
+
+  function test_fork_biz7702_rawEoaSig_userOrder() public {
+    _skipUnlessLive();
+    PrivateVault vault = _deployVault();
+    (bytes memory encodedOrder, bytes32 digest) = _orderDigest();
+    bytes memory sig = _rawSignAsBiz(digest, BIZ_OWNER_PK);
+
+    (address[] memory t, uint256[] memory cv, bytes[] memory d, IPrivateCommon.CallType[] memory ct) = _multicall();
+    vm.prank(OPERATOR);
+    automator.executeMulticallWithUserOrder(IPrivateVault(address(vault)), t, cv, d, ct, encodedOrder, sig);
+    assertEq(strategy.value(), 42);
+  }
 }
