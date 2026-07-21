@@ -11,3 +11,4 @@ hardhat/=node_modules/hardhat/
 solady/=node_modules/solady/
 infinity-core/=node_modules/@pancakeswap/infinity-core/
 infinity-periphery/=node_modules/@pancakeswap/infinity-periphery/
+@krystal/util-contracts/=node_modules/@krystal/util-contracts/

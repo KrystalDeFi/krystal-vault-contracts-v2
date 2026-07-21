@@ -10,7 +10,7 @@ import "../../common/libraries/strategies/AgentAllowanceStructHash.sol";
 import { StructHash as OrderStructHash } from "../../common/libraries/strategies/LpUniV3StructHash.sol";
 import "../../common/Withdrawable.sol";
 
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import { SignatureValidator } from "@krystal/util-contracts/contracts/SignatureValidator.sol";
 
 contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdrawable, IPrivateVaultAutomator {
   bytes32 public constant OPERATOR_ROLE_HASH = keccak256("OPERATOR_ROLE");
@@ -79,7 +79,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
     require(agentAllowance.vault == address(vault), InvalidSignature());
     require(agentAllowance.expirationTime >= block.timestamp, InvalidSignature());
     bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
-    require(SignatureChecker.isValidSignatureNow(IPrivateVault(vault).vaultOwner(), digest, signature), InvalidSignature());
+    require(SignatureValidator.isValidSignatureNow(IPrivateVault(vault).vaultOwner(), digest, signature), InvalidSignature());
     require(!_cancelledOrder[digest], OrderCancelled());
   }
 
@@ -89,7 +89,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
   /// @param actor Actor of the order
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(OrderStructHash._hash(abiEncodedUserOrder));
-    require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
+    require(SignatureValidator.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
     require(!_cancelledOrder[digest], OrderCancelled());
   }
 
@@ -97,7 +97,7 @@ contract PrivateVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdra
   /// @param hash EIP-712 digest that was signed
   /// @param signature Signature of the order
   function cancelOrder(bytes32 hash, bytes memory signature) external {
-    require(SignatureChecker.isValidSignatureNow(msg.sender, hash, signature), InvalidSignature());
+    require(SignatureValidator.isValidSignatureNow(msg.sender, hash, signature), InvalidSignature());
     _cancelledOrder[hash] = true;
     emit CancelOrder(msg.sender, hash, signature);
   }
