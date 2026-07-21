@@ -9,6 +9,7 @@ import { IPrivateVault } from "../../contracts/private-vault/interfaces/core/IPr
 import { IPrivateCommon } from "../../contracts/private-vault/interfaces/core/IPrivateCommon.sol";
 import { PrivateConfigManager } from "../../contracts/private-vault/core/PrivateConfigManager.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import "../../contracts/common/libraries/strategies/AgentAllowanceStructHash.sol";
 import { StructHash as LpUniV3StructHash } from "../../contracts/common/libraries/strategies/LpUniV3StructHash.sol";
 
@@ -41,7 +42,6 @@ contract PrivateVaultAutomator7702IntegrationTest is Test {
   address internal constant ADMIN = address(0xAD);
   uint256 internal constant OWNER_PK = 0x7702F00D;
   address internal owner7702;
-  uint256 internal allowanceNonce;
 
   function setUp() public {
     strategy = new IntgStrategy();
@@ -85,7 +85,6 @@ contract PrivateVaultAutomator7702IntegrationTest is Test {
   // Reusable agent allowance signed once, replayed on multiple operator executions until expiry.
   function test_lifecycle_reusableAllowance_multipleExecutions() public {
     PrivateVault vault = _vault();
-    allowanceNonce++;
     AgentAllowanceStructHash.AgentAllowance memory a =
       AgentAllowanceStructHash.AgentAllowance(address(vault), uint64(block.timestamp + 1), uint64(block.timestamp + 3600));
     bytes memory encoded = abi.encode(a);
@@ -106,15 +105,17 @@ contract PrivateVaultAutomator7702IntegrationTest is Test {
   // Non-operator cannot execute even with a valid owner signature.
   function test_nonOperator_reverts() public {
     PrivateVault vault = _vault();
-    allowanceNonce++;
     AgentAllowanceStructHash.AgentAllowance memory a =
       AgentAllowanceStructHash.AgentAllowance(address(vault), uint64(block.timestamp + 1), uint64(block.timestamp + 3600));
     bytes memory encoded = abi.encode(a);
     bytes32 digest = automator.hashTypedDataV4(AgentAllowanceStructHash._hash(encoded));
     bytes memory sig = _rawSign(digest);
     (address[] memory t, uint256[] memory cv, bytes[] memory d, IPrivateCommon.CallType[] memory ct) = _multicall(7);
+    bytes32 operatorRoleHash = automator.OPERATOR_ROLE_HASH();
     vm.prank(address(0xBEEF));
-    vm.expectRevert();
+    vm.expectRevert(
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(0xBEEF), operatorRoleHash)
+    );
     automator.executeMulticallWithAgentAllowance(IPrivateVault(address(vault)), t, cv, d, ct, encoded, sig);
   }
 
