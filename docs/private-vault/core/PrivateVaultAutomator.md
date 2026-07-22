@@ -92,22 +92,23 @@ Cancel an order
 ### isOrderCancelled
 
 ```solidity
-function isOrderCancelled(bytes32 hash) external view returns (bool)
+function isOrderCancelled(address actor, bytes32 hash) external view returns (bool)
 ```
 
-Check if an order is cancelled
+Check if an order (identified by its EIP-712 digest) has been cancelled by `actor`
 
 #### Parameters
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
+| actor | address | Address that cancelled (or would cancel) the order |
 | hash | bytes32 | EIP-712 digest of the order |
 
 #### Return Values
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| [0] | bool | true if the order is cancelled |
+| [0] | bool | true if the order is cancelled by `actor` |
 
 ### grantOperator
 

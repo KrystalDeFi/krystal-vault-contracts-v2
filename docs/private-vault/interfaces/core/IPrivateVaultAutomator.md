@@ -41,10 +41,10 @@ function cancelOrder(bytes32 hash, bytes signature) external
 ### isOrderCancelled
 
 ```solidity
-function isOrderCancelled(bytes32 hash) external view returns (bool)
+function isOrderCancelled(address actor, bytes32 hash) external view returns (bool)
 ```
 
-Check whether an order (identified by its EIP-712 digest) has been cancelled
+Check whether an order (identified by its EIP-712 digest) has been cancelled by `actor`
 
 ### grantOperator
 
