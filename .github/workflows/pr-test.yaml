@@ -36,7 +36,7 @@ jobs:
           mv test/integration/Integration.HyperEVMUpheaval.t.sol test/integration/Integration.HyperEVMUpheaval.t.sol.disabled
 
       - run: |
-          RPC_URL=https://rpc.baseazul.dev ECHIDNA_RPC_URL=https://ethereum-rpc.publicnode.com HYPEREVM_RPC_URL=https://rpc.hyperliquid.xyz/evm yarn test          
+          RPC_URL=https://base.merkle.io ECHIDNA_RPC_URL=https://ethereum-rpc.publicnode.com HYPEREVM_RPC_URL=https://rpc.hyperliquid.xyz/evm yarn test          
           # RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
           # RPC_URL=https://base.merkle.io
           # RPC_URL=https://base.llamarpc.com
@@ -50,7 +50,7 @@ jobs:
 
       - name: Smart-wallet-owner coverage (osaka EVM - P256 precompile + EIP-7702)
         run: |
-          export RPC_URL="https://rpc.baseazul.dev"
+          export RPC_URL="https://base.merkle.io"
           export MAINNET_RPC_URL="https://ethereum-rpc.publicnode.com"
           forge test --via-ir --evm-version osaka \
             --match-contract "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration" -vvv
