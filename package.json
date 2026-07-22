@@ -25,7 +25,7 @@
     "@ethersproject/bignumber": "^5.7.0",
     "@ethersproject/networks": "^5.7.1",
     "@ethersproject/solidity": "^5.7.0",
-    "@krystal/util-contracts": "github:KrystalDeFi/util-contracts#v0.4.0",
+    "@krystal/util-contracts": "github:KrystalDeFi/util-contracts#v0.5.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
     "@nomicfoundation/hardhat-ethers": "^3.0.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.9",
