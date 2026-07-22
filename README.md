@@ -61,7 +61,7 @@ the contracts.
 
 ## Contracts
 
-The main contracts in this repository are:
+The main contracts in this repository are::
 
 ## Events
 
