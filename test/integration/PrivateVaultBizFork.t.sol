@@ -34,11 +34,21 @@ contract BizForkAutomatorHarness is PrivateVaultAutomator {
 ///         test EOA (whose key we control) so calls execute the real Biz impl with address(this)==EOA
 ///         — the genuine 7702 condition. Biz validates a 65-byte ECDSA sig over its EIP-712-wrapped
 ///         hash and requires recover(...) == address(this).
-///         Needs a mainnet RPC; runs under the default cancun EVM. Self-skips without MAINNET_RPC_URL.
-///           MAINNET_RPC_URL=<eth-rpc> forge test --match-contract PrivateVaultBizFork -vv
+///         Pinned to a fixed mainnet block where the delegation is present, so the fork is HERMETIC:
+///         that block is committed under test/fixtures/rpc-cache/mainnet and replayed offline. Runs
+///         under --evm-version osaka (EIP-7702). Self-skips only if MAINNET_RPC_URL is unset or the
+///         delegation is absent at the pinned block.
+///           MAINNET_RPC_URL=https://mainnet.gateway.tenderly.co \
+///             forge test --match-contract PrivateVaultBizFork --evm-version osaka -vv
 contract PrivateVaultBizForkTest is TestCommon {
   // A real Trust Wallet Biz 7702 account on mainnet (delegation designator → Biz implementation).
   address internal constant BIZ_7702_ACCOUNT = 0x9AED5B111E3c522BA1B938d7b7bD47AfE85CFA74;
+
+  // Pinned mainnet block at which BIZ_7702_ACCOUNT is 7702-delegated. Cached under
+  // test/fixtures/rpc-cache/mainnet/<block> so this fork replays offline (deterministic + hermetic).
+  // To move it: pick a recent block where eth_getCode(BIZ_7702_ACCOUNT) is a 23-byte 0xef0100…
+  // designator, then run scripts/regen-fork-cache.sh.
+  uint256 internal constant BIZ_FORK_BLOCK = 25_596_137;
 
   // Verified Biz EIP-712 constants (from on-chain source).
   bytes32 internal constant BIZ_MSG_HASH = 0x31322a37c2a66b24e1088197e5b24fcc050625c13d4b84c3eaa6a8be5270321d; // keccak("Biz(bytes32 msgHash)")
@@ -62,7 +72,7 @@ contract PrivateVaultBizForkTest is TestCommon {
   function setUp() public {
     string memory rpc = vm.envOr("MAINNET_RPC_URL", string(""));
     if (bytes(rpc).length == 0) return; // no mainnet RPC → tests skip
-    vm.createSelectFork(rpc);
+    vm.createSelectFork(rpc, BIZ_FORK_BLOCK); // pinned + cached → hermetic offline replay
 
     bytes memory designator = BIZ_7702_ACCOUNT.code;
     if (designator.length != 23) return; // account not (or no longer) 7702-delegated → skip

@@ -4,12 +4,37 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # osaka-only contracts: need --evm-version osaka (EIP-7702 + P256).
+  OSAKA_CONTRACTS: "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration"
+  # Disabled integration tests — excluded from the gate EXPLICITLY (not by an in-test
+  # skip), so nothing is silently green:
+  #   Katana   -> forks Ronin; no public archive node exists to record.
+  #   HyperEVM -> fork mechanism unreliable (per team decision).
+  # (BizFork is hermetic — pinned to a cached Ethereum block — and runs in the osaka step.)
+  # NOTE: --no-match-path is a GLOB (not a regex). Brace expansion excludes exactly
+  # Integration.Katana.t.sol + the 3 Integration.HyperEVM*.t.sol files.
+  NON_HERMETIC_PATH: "test/integration/Integration.{Katana,HyperEVM}*.t.sol"
+  # Canonical URLs Foundry resolves to a chain-id WITHOUT a live probe, so --offline
+  # replays the pinned blocks from the restored cache. Do NOT swap these for
+  # non-canonical endpoints (base.merkle.io, base.llamarpc.com, eth.merkle.io, ...) —
+  # those force a live probe and re-introduce the node dependency this design removes.
+  FORK_BASE_RPC: "https://mainnet.base.org"
+  FORK_ETH_RPC: "https://mainnet.gateway.tenderly.co"
+
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # BLOCKING GATE — hermetic AND fail-loud.
+  # The full suite (unit + fork/integration) runs offline, with fork state
+  # replayed from committed fixtures (test/fixtures/rpc-cache). No RPC node is ever
+  # contacted. There are NO in-test skips here: every selected test passes or fails
+  # loudly. A missing/stale cache or a misconfigured URL -> hard failure (red), never
+  # a silent green. Tests that cannot be hermetic are excluded explicitly (see env).
+  # ───────────────────────────────────────────────────────────────────────────
   pr-test:
     if: github.actor != 'Krystal-CICD'
     runs-on: [ubuntu-latest]
     steps:
-      # - uses: actions/checkout@v3
       - uses: actions/checkout@v2
         with:
           token: ${{ secrets.CICD_BOT_TOKEN }}
@@ -23,43 +48,47 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - run: |
-          npm install -g yarn      
+          npm install -g yarn
           yarn install
 
-      - name:
-          Ignore the Katana and HyperEVM test because no Ronin archive node is available and HyperEVM test mechanism is
-          not working well. Requested by sir HoangLong
+      # Replay recorded on-chain state — makes the fork tests fully offline.
+      - name: Restore RPC cache fixtures
         run: |
-          mv test/integration/Integration.Katana.t.sol test/integration/Integration.Katana.t.sol.disabled
-          mv test/integration/Integration.HyperEVM.t.sol test/integration/Integration.HyperEVM.t.sol.disabled
-          mv test/integration/Integration.HyperEVMProjectX.t.sol test/integration/Integration.HyperEVMProjectX.t.sol.disabled
-          mv test/integration/Integration.HyperEVMUpheaval.t.sol test/integration/Integration.HyperEVMUpheaval.t.sol.disabled
+          mkdir -p ~/.foundry/cache/rpc
+          cp -R test/fixtures/rpc-cache/base ~/.foundry/cache/rpc/
+          cp -R test/fixtures/rpc-cache/mainnet ~/.foundry/cache/rpc/
+          cp -R test/fixtures/rpc-cache/berachain ~/.foundry/cache/rpc/
+          echo "Restored: $(find ~/.foundry/cache/rpc -type f | wc -l) cache files"
 
-      - run: |
-          RPC_URL=https://base.merkle.io ECHIDNA_RPC_URL=https://ethereum-rpc.publicnode.com HYPEREVM_RPC_URL=https://rpc.hyperliquid.xyz/evm yarn test          
-          # RPC_URL=https://rpc.ankr.com/base/431b8fcced2be35b5b757fc266beb9f70373e23bc8bd715c31759b1fdf50ad8a
-          # RPC_URL=https://base.merkle.io
-          # RPC_URL=https://base.llamarpc.com
-
-      - name: Re-enable the Katana and HyperEVM test
+      # Full suite, cancun EVM, offline. Forks served from cache. Non-hermetic
+      # families excluded by path; osaka-only contracts run in the next step.
+      - name: Test suite (cancun, offline)
+        env:
+          RPC_URL: ${{ env.FORK_BASE_RPC }}
+          ECHIDNA_RPC_URL: ${{ env.FORK_ETH_RPC }}
+          FOUNDRY_OFFLINE: "true"
         run: |
-          mv test/integration/Integration.Katana.t.sol.disabled test/integration/Integration.Katana.t.sol
-          mv test/integration/Integration.HyperEVM.t.sol.disabled test/integration/Integration.HyperEVM.t.sol
-          mv test/integration/Integration.HyperEVMProjectX.t.sol.disabled test/integration/Integration.HyperEVMProjectX.t.sol
-          mv test/integration/Integration.HyperEVMUpheaval.t.sol.disabled test/integration/Integration.HyperEVMUpheaval.t.sol
+          forge test --offline -vvv --via-ir \
+            --no-match-path "$NON_HERMETIC_PATH" \
+            --no-match-contract "$OSAKA_CONTRACTS"
 
-      - name: Smart-wallet-owner coverage (osaka EVM - P256 precompile + EIP-7702)
+      # osaka-only contracts (EIP-7702 + P256), offline. Base forks AND BizFork
+      # (pinned to a cached Ethereum block) all replay from the restored cache.
+      - name: Test suite (osaka, offline)
+        env:
+          RPC_URL: ${{ env.FORK_BASE_RPC }}
+          MAINNET_RPC_URL: ${{ env.FORK_ETH_RPC }}
+          FOUNDRY_OFFLINE: "true"
         run: |
-          export RPC_URL="https://base.merkle.io"
-          export MAINNET_RPC_URL="https://ethereum-rpc.publicnode.com"
-          forge test --via-ir --evm-version osaka \
-            --match-contract "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration" -vvv
+          forge test --offline -vvv --via-ir --evm-version osaka \
+            --match-contract "$OSAKA_CONTRACTS"
 
-      - name: Create new branch and push the document
+      - name: Generate + commit documentation
         env:
           GH_TOKEN: ${{ secrets.CICD_BOT_TOKEN }}
         run: |
           set -e
+          yarn docgen
 
           git config user.name "Krystal-CICD"
           git config user.email "Krystal-CICD@users.noreply.github.com"
@@ -68,7 +97,6 @@ jobs:
           git checkout $CURRENT_BRANCH
           git pull origin $CURRENT_BRANCH
 
-          # Check if there are any changes to commit
           if [[ -n "$(git status --porcelain)" ]]; then
             git add .
             git commit -m "Add documentation for PR"
