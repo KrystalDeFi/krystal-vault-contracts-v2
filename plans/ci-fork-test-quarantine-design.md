@@ -137,10 +137,20 @@ matched nothing (letting HyperEVM run and fail with an empty RPC). Fail-loud cau
 the working glob is `test/integration/Integration.{Katana,HyperEVM}*.t.sol`, verified to
 exclude exactly those 4 files via `forge test --list`.
 
-Repro (mimic CI):
+Repro (mimic CI — both gate steps, exactly as `pr-test.yaml`):
 ```sh
+OSAKA='PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration'
+NON_HERMETIC='test/integration/Integration.{Katana,HyperEVM}*.t.sol'   # GLOB, not regex
+
+forge build --via-ir            # online: installs solc if missing (CI does this first)
 cp -R test/fixtures/rpc-cache/{base,mainnet,berachain} ~/.foundry/cache/rpc/
+
+# cancun step
 RPC_URL=https://mainnet.base.org ECHIDNA_RPC_URL=https://mainnet.gateway.tenderly.co \
   FOUNDRY_OFFLINE=true forge test --offline --via-ir \
-  --no-match-path '(Integration.Katana|Integration.HyperEVM)' --no-match-contract "$OSAKA_CONTRACTS"
+  --no-match-path "$NON_HERMETIC" --no-match-contract "$OSAKA"
+
+# osaka step (incl. BizFork)
+RPC_URL=https://mainnet.base.org MAINNET_RPC_URL=https://mainnet.gateway.tenderly.co \
+  FOUNDRY_OFFLINE=true forge test --offline --via-ir --evm-version osaka --match-contract "$OSAKA"
 ```

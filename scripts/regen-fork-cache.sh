@@ -27,9 +27,10 @@ cd "$(dirname "$0")/.."
 FIXTURES="test/fixtures/rpc-cache"
 CACHE="$HOME/.foundry/cache/rpc"
 
-# Pinned blocks the hermetic fork gate needs, by chain.
-# Keep in sync with the fork tests' block constants. BizFork is intentionally
-# absent — it forks *latest* Ethereum and cannot be made hermetic.
+# Pinned blocks the hermetic fork gate needs, by chain. Keep in sync with the fork
+# tests' block constants (base *_FORK_BLOCK, echidna BLOCK_NUMBER, BizFork BIZ_FORK_BLOCK).
+# NOTE: BizFork's mainnet block (25596137) is REQUIRED below — it is pinned + hermetic,
+# NOT "latest" — so it must stay in MAINNET_BLOCKS or the offline gate breaks.
 BASE_BLOCKS=(27448360 28445596 34350500 35350500 36953600 46190000)
 MAINNET_BLOCKS=(22365182 25596137)  # echidna ft.solo* (archive); BizFork (must match BIZ_FORK_BLOCK)
 BERACHAIN_BLOCKS=(5249000)    # Integration.KodiakIsland
