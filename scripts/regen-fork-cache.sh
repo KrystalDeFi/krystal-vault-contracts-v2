@@ -36,6 +36,11 @@ BERACHAIN_BLOCKS=(5249000)    # Integration.KodiakIsland
 
 OSAKA='PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration'
 
+# Non-hermetic tests are EXPLICITLY excluded from populate (they cannot be cached and
+# would fail live): Katana (no Ronin archive) + HyperEVM (unreliable). Keep in sync with
+# NON_HERMETIC_PATH in .github/workflows/pr-test.yaml. Everything else MUST pass online.
+NON_HERMETIC='test/integration/Integration.{Katana,HyperEVM}*.t.sol'
+
 echo ">> Populating ~/.foundry/cache/rpc via an ONLINE fork run (uses .env RPCs)..."
 # Canonical Base + recognized Ethereum URLs so the same URLs resolve offline in CI.
 # MAINNET_RPC_URL populates BizFork's pinned block (must serve state at BIZ_FORK_BLOCK —
@@ -44,10 +49,15 @@ echo ">> Populating ~/.foundry/cache/rpc via an ONLINE fork run (uses .env RPCs)
 : "${ECHIDNA_RPC_URL:=https://mainnet.gateway.tenderly.co}"
 : "${MAINNET_RPC_URL:=https://mainnet.gateway.tenderly.co}"
 export RPC_URL ECHIDNA_RPC_URL MAINNET_RPC_URL
-forge test --via-ir --no-match-contract "$OSAKA" || true
-forge test --via-ir --evm-version osaka --match-contract "$OSAKA" || true
+
+# NO `|| true`: under `set -e` a failing populate aborts the script (non-zero) instead of
+# silently copying stale/incomplete cache. A failure here means the fixtures would not be
+# trustworthy — fix the suite / RPC access and re-run before committing.
+forge test --via-ir --no-match-path "$NON_HERMETIC" --no-match-contract "$OSAKA"
+forge test --via-ir --evm-version osaka --match-contract "$OSAKA"
 
 echo ">> Copying pinned blocks into $FIXTURES ..."
+missing=0
 copy_chain() {
   local chain="$1"; shift
   mkdir -p "$FIXTURES/$chain"
@@ -56,7 +66,8 @@ copy_chain() {
       cp "$CACHE/$chain/$b" "$FIXTURES/$chain/$b"
       echo "   ✓ $chain/$b"
     else
-      echo "   ✗ MISSING in cache: $chain/$b (RPC populate failed?)" >&2
+      echo "   ✗ MISSING in cache: $chain/$b" >&2
+      missing=1
     fi
   done
 }
@@ -64,6 +75,17 @@ copy_chain base "${BASE_BLOCKS[@]}"
 copy_chain mainnet "${MAINNET_BLOCKS[@]}"
 copy_chain berachain "${BERACHAIN_BLOCKS[@]}"
 
-echo ">> Done. Review 'git status test/fixtures/rpc-cache' and commit the changes."
+# Authoritative trustworthiness gate: a required block absent means the populate run did
+# not fetch it (RPC access / block too old). Fail non-zero so incomplete fixtures are
+# never committed with a green exit.
+if [[ "$missing" -ne 0 ]]; then
+  echo ">> ERROR: required cache block(s) missing above — fixtures are INCOMPLETE. Do NOT commit." >&2
+  echo ">>        Check RPC access and that pinned blocks are still served (BIZ_FORK_BLOCK is recent)." >&2
+  exit 1
+fi
+
+echo ">> All required blocks present and copied — fixtures are complete and trustworthy."
+echo ">> Review 'git status test/fixtures/rpc-cache' and commit the changes."
 echo ">> Verify offline: RPC_URL=https://mainnet.base.org ECHIDNA_RPC_URL=https://mainnet.gateway.tenderly.co \\"
-echo "     FOUNDRY_OFFLINE=true forge test --offline --via-ir --no-match-contract '$OSAKA'"
+echo "     MAINNET_RPC_URL=https://mainnet.gateway.tenderly.co FOUNDRY_OFFLINE=true forge test --offline \\"
+echo "     --via-ir --no-match-path '$NON_HERMETIC' --no-match-contract '$OSAKA'"

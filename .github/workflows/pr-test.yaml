@@ -51,6 +51,14 @@ jobs:
           npm install -g yarn
           yarn install
 
+      # Compile ONLINE first: foundry-toolchain ships forge but not solc, and the
+      # steps below run --offline (which cannot fetch a missing solc). This installs
+      # solc 0.8.28 via svm and warms the build cache for both EVM targets.
+      - name: Compile (online — installs solc)
+        run: |
+          forge build --via-ir
+          forge build --via-ir --evm-version osaka
+
       # Replay recorded on-chain state — makes the fork tests fully offline.
       - name: Restore RPC cache fixtures
         run: |
