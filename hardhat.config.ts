@@ -217,21 +217,21 @@ if (PRIVATE_KEY) {
     hardfork: "cancun",
   };
   config.networks!.eth_mainnet = {
-    url: `https://eth.llamarpc.com`,
+    url: `https://eth.blockrazor.xyz`,
     chainId: 1,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
   };
   config.networks!.bsc_mainnet = {
-    url: `https://binance.llamarpc.com`,
+    url: `https://bsc-rpc.keccak.io`,
     chainId: 56,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
   };
   config.networks!.polygon_mainnet = {
-    url: `https://polygon-rpc.com`,
+    url: `https://polygon-rpc.keccak.io`,
     chainId: 137,
     accounts: [PRIVATE_KEY],
     timeout: 60000,

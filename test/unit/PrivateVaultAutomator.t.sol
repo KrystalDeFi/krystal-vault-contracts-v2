@@ -472,14 +472,19 @@ contract PrivateVaultAutomatorTest is TestCommon {
   }
 
   function test_executeMulticall_eip712_fail_cancelledOrder() public {
-    // Test EIP712 executeMulticall with cancelled order
-    bytes memory abiEncodedOrder = _createEip712Order(address(mockStrategy), 1, block.timestamp + 3600);
-
-    // Use the same signature format as the hash-based cancelOrder
-    bytes32 orderHash = keccak256(abiEncodedOrder);
+    // Test EIP712 executeMulticall with cancelled order. Build a properly-encoded
+    // LpUniV3StructHash.Order and derive the REAL EIP-712 digest that _validateOrder checks
+    // (same derivation as test_multisig_executeWithUserOrder_success), so the signature actually
+    // matches what execution validates against and the test genuinely exercises the cancellation
+    // check rather than masking an unrelated InvalidSignature revert.
+    LpUniV3StructHash.Order memory emptyOrder;
+    bytes memory abiEncodedOrder = abi.encode(emptyOrder);
+    bytes32 structHash = LpUniV3StructHash._hash(emptyOrder);
+    bytes32 orderHash = automator.hashTypedDataV4(structHash);
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
-    // Cancel the order first
+    // Cancel the order as the vault owner — the actor executeMulticallWithUserOrder validates
+    // against (vault.vaultOwner()).
     vm.startPrank(VAULT_OWNER);
     automator.cancelOrder(orderHash, signature);
     vm.stopPrank();
@@ -493,9 +498,10 @@ contract PrivateVaultAutomatorTest is TestCommon {
     ) = _createMulticallData();
     targets[0] = address(mockStrategy);
 
-    // Try to execute cancelled order
+    // Try to execute cancelled order — the signature now matches the digest, so the signature
+    // check passes and execution reaches (and reverts on) the cancellation check specifically.
     vm.startPrank(OPERATOR);
-    vm.expectRevert(); // Expect revert due to invalid order structure or cancelled order
+    vm.expectRevert(IPrivateVaultAutomator.OrderCancelled.selector);
     automator.executeMulticallWithUserOrder(
       IPrivateVault(address(privateVault)), targets, callValues, data, callTypes, abiEncodedOrder, signature
     );
@@ -660,7 +666,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, orderHash));
   }
 
   function test_cancelOrder_success() public {
@@ -676,7 +682,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, orderHash));
   }
 
   function test_cancelOrder_fail_invalidSignature() public {
@@ -708,7 +714,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
 
     // Verify order is not cancelled (check by hash, not signature bytes)
-    assertFalse(automator.isOrderCancelled(orderHash));
+    assertFalse(automator.isOrderCancelled(VAULT_OWNER, orderHash));
   }
 
   function test_isOrderCancelled_cancelled() public {
@@ -722,7 +728,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, orderHash));
   }
 
   function test_isOrderCancelled_eip712_notCancelled() public view {
@@ -731,7 +737,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes32 orderHash = keccak256(abiEncodedOrder);
 
     // Verify order is not cancelled (check by hash)
-    assertFalse(automator.isOrderCancelled(orderHash));
+    assertFalse(automator.isOrderCancelled(VAULT_OWNER, orderHash));
   }
 
   function test_isOrderCancelled_eip712_cancelled() public {
@@ -748,7 +754,49 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, orderHash));
+  }
+
+  function test_cancelOrder_attackerCannotGriefVictimOrder() public {
+    // Victim (vault owner) creates and signs a valid agent allowance order.
+    (bytes memory abiEncodedAgentAllowance, bytes32 digest) = _createAutomationAgentAllowance(address(privateVault));
+    bytes memory victimSignature = _signMessage(digest, VAULT_OWNER_PRIVATE_KEY);
+
+    // Attacker learns the digest and signs it with their OWN key.
+    uint256 attackerKey = 0xA77ACE;
+    address attacker = vm.addr(attackerKey);
+    bytes memory attackerSignature = _signMessage(digest, attackerKey);
+
+    // Attacker cancels the digest under their own identity (they did sign it, so this succeeds).
+    vm.prank(attacker);
+    automator.cancelOrder(digest, attackerSignature);
+
+    // The attacker's own cancellation entry is set, but the vault owner's is untouched.
+    assertTrue(automator.isOrderCancelled(attacker, digest));
+    assertFalse(automator.isOrderCancelled(VAULT_OWNER, digest));
+
+    // The vault owner's order must still execute: the attacker's cancellation is scoped to the
+    // attacker, not the vault owner.
+    (
+      address[] memory targets,
+      uint256[] memory callValues,
+      bytes[] memory data,
+      IPrivateCommon.CallType[] memory callTypes
+    ) = _createMulticallData();
+    targets[0] = address(mockStrategy);
+
+    vm.prank(OPERATOR);
+    automator.executeMulticallWithAgentAllowance(
+      IPrivateVault(address(privateVault)),
+      targets,
+      callValues,
+      data,
+      callTypes,
+      abiEncodedAgentAllowance,
+      victimSignature
+    );
+
+    assertEq(mockStrategy.getValue(), 42);
   }
 
   // ============ ROLE MANAGEMENT TESTS ============
@@ -963,7 +1011,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
     // 2. Verify order is not cancelled
-    assertFalse(automator.isOrderCancelled(orderHash));
+    assertFalse(automator.isOrderCancelled(VAULT_OWNER, orderHash));
 
     // 3. Operator executes multicall
     (
@@ -989,7 +1037,7 @@ contract PrivateVaultAutomatorTest is TestCommon {
     vm.stopPrank();
 
     // 6. Verify order is cancelled
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(VAULT_OWNER, orderHash));
 
     // 7. Try to execute again - should fail
     vm.startPrank(OPERATOR);
@@ -1293,13 +1341,13 @@ contract PrivateVaultAutomatorTest is TestCommon {
     bytes32 orderHash = _createAutomationOrder(address(mockStrategy), 1, block.timestamp + 3600);
     bytes memory signature = _signMessage(orderHash, VAULT_OWNER_PRIVATE_KEY);
 
-    assertFalse(automator.isOrderCancelled(orderHash));
+    assertFalse(automator.isOrderCancelled(address(multisig), orderHash));
 
     // Cancel as the multisig — SignatureChecker.isValidSignatureNow(multisig, hash, sig)
     // delegates to multisig.isValidSignature, which validates the EOA signature internally
     vm.prank(address(multisig));
     automator.cancelOrder(orderHash, signature);
 
-    assertTrue(automator.isOrderCancelled(orderHash));
+    assertTrue(automator.isOrderCancelled(address(multisig), orderHash));
   }
 }

@@ -3,7 +3,8 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+
+import { SignatureValidator } from "@krystal/util-contracts/contracts/SignatureValidator.sol";
 
 import "../interfaces/ISharedVault.sol";
 import "../interfaces/ISharedVaultAutomator.sol";
@@ -51,8 +52,9 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
 
   /// @inheritdoc ISharedVaultAutomator
   function cancelOrder(bytes32 hash, bytes memory signature) external override {
-    // SignatureChecker: for EOA checks ECDSA recovery; for multisig calls EIP-1271.isValidSignature
-    require(SignatureChecker.isValidSignatureNow(_msgSender(), hash, signature), InvalidSignature());
+    // SignatureValidator: dual-path — tries ECDSA recovery (EOA and EIP-7702 accounts) AND
+    // EIP-1271 isValidSignature (contract/multisig wallets); either succeeding is accepted.
+    require(SignatureValidator.isValidSignatureNow(_msgSender(), hash, signature), InvalidSignature());
     // Key on (canceller, EIP-712 digest) — NOT the digest alone.
     //  - On the digest (not raw signature bytes): EIP-1271 multisig wallets can produce different
     //    valid signature bytes for the same digest on every call, so keying on signature bytes would
@@ -114,10 +116,11 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
     );
     require(allowance.vault == vault, InvalidSignature());
     require(allowance.expirationTime >= block.timestamp, InvalidSignature());
-    // Use SignatureChecker to support both EOA (ECDSA) and smart contract wallets (EIP-1271 multisig)
+    // Use SignatureValidator to support EOA/EIP-7702 accounts (ECDSA) and smart contract wallets
+    // (EIP-1271 multisig) — both validation paths are attempted.
     bytes32 digest = _hashTypedDataV4(AgentAllowanceStructHash._hash(abiEncodedAgentAllowance));
     address owner = ISharedVault(vault).vaultOwner();
-    require(SignatureChecker.isValidSignatureNow(owner, digest, signature), InvalidSignature());
+    require(SignatureValidator.isValidSignatureNow(owner, digest, signature), InvalidSignature());
     // Consult the cancellation entry scoped to the allowance signer (the vault owner), so only the
     // owner's own cancellation revokes the allowance.
     require(!_cancelledOrder[_cancelKey(owner, digest)], OrderCancelled());
@@ -129,7 +132,7 @@ contract SharedVaultAutomator is CustomEIP712, AccessControl, Pausable, Withdraw
   /// @param actor Actor of the order
   function _validateOrder(bytes memory abiEncodedUserOrder, bytes memory orderSignature, address actor) internal view {
     bytes32 digest = _hashTypedDataV4(StructHash._hash(abiEncodedUserOrder));
-    require(SignatureChecker.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
+    require(SignatureValidator.isValidSignatureNow(actor, digest, orderSignature), InvalidSignature());
     // Consult the cancellation entry scoped to the order signer (`actor`), so only that signer's own
     // cancellation revokes the order — a third party self-signing the digest cannot grief it.
     require(!_cancelledOrder[_cancelKey(actor, digest)], OrderCancelled());

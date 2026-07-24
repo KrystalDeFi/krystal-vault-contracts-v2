@@ -3,7 +3,7 @@
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "pancakeV3FarmingStrategy": "0x233aff78b6bf001ce257d6c1ffa321c3291e54e4",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
@@ -14,7 +14,7 @@
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
-    "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "aerodromeFarmingStrategies": [
       "0xe8b3f065158cf2a581d529875506217e6abbf0af",
       "0xa2ba4d3b60435e87146188b27e4905c597d67721",
@@ -30,7 +30,7 @@
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "pancakeV3FarmingStrategy": "0x81701f061e7f5510e2d95e399cbec611bacb3c4c",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
@@ -41,7 +41,7 @@
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "pancakeV3FarmingStrategy": "0x81701f061e7f5510e2d95e399cbec611bacb3c4c",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "privateKyberFairFlowStrategy": "0xe22fe2b8c57bd9d0f668448a94276e64ec2ba657",
@@ -52,14 +52,14 @@
     "privateConfigManager": "0x60ccde74106f78db4428c9af6f9b165dbc8fb5d7",
     "privateVault": "0xc746cb128fd33f447c389e510efc12eb39d33362",
     "privateVaultFactory": "0xb7166204401cb23dafe02c4aae0a254a4d329adb",
-    "privateVaultAutomator": "0xd5bb424d9732bc8423cbb3444a70d8f85f86cf18",
+    "privateVaultAutomator": "0xda07b8873f2d41a0f8b2f1a063130436678de2dd",
     "v3UtilsStrategy": "0x13a4a7d8540c6fca95b46d736ec78bc1d0877b57"
   },
   "polygon_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x0fb6e8ecd8ca55c79122f4e114fb46afe1924089",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "privateMerklStrategy": "0x4e4ba610e4be48c3ae4340da818b110645b394e8",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
@@ -68,7 +68,7 @@
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
-    "privateVaultAutomator": "0x28f7c986008a5f5c8d7910458b0b958a1601bfd7",
+    "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   }
