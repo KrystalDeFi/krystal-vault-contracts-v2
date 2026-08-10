@@ -1,4 +1,4 @@
-import { IConfig, IConfigPrivate } from "./interfaces";
+import { IConfig, IConfigPrivate, IConfigShared } from "./interfaces";
 
 const PrivateConfig: Record<string, IConfigPrivate> = {
   robinhood_mainnet: {
@@ -31,11 +31,63 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
   },
 };
 
-// Robinhood Chain (Arbitrum Orbit L2, chain id 4663) — private-vault-only deployment.
-// Uniswap V3 is live; the public/shared vault stacks are not deployed here.
+// Robinhood has Uniswap V3 + V4, but no Pancake Infinity and no Aerodrome — those
+// strategy blocks (and pancakeV4NfpmAddresses) stay off.
+const SharedConfig: Record<string, IConfigShared> = {
+  robinhood_mainnet: {
+    sharedSwapDataSignatureLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultPreviewLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4SwapPipeline: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVault: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultFactory: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedConfigManager: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultAutomator: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedVaultGateway: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV3Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4StrategyLib: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    v4NfpmAddresses: ["0x58daec3116aae6d93017baaea7749052e8a04fa7"],
+  },
+};
+
+// Robinhood Chain (Arbitrum Orbit L2, chain id 4663) — private + shared vault deployment.
+// Uniswap V3 and V4 are live; the public vault stack is not deployed here.
 export const RobinhoodConfig: Record<string, IConfig> = {
   robinhood_mainnet: {
-    sleepTime: 20000,
+    sleepTime: 10000,
     vault: {
       enabled: false,
     },
@@ -45,11 +97,12 @@ export const RobinhoodConfig: Record<string, IConfig> = {
     vaultFactory: {
       enabled: false,
     },
-    swapRouters: [],
+    wrapToken: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    swapRouters: ["0xeC04bAb6F0Fa7068a2eCD17EC70AA99b09e814b8"],
     nfpmAddresses: [
       "0x73991a25c818bf1f1128deaab1492d45638de0d3", // Uniswap V3
-      "0x58daec3116aae6d93017baaea7749052e8a04fa7", // Uniswap V4
     ],
     ...PrivateConfig.robinhood_mainnet,
+    ...SharedConfig.robinhood_mainnet,
   },
 };

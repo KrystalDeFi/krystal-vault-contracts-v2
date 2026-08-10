@@ -113,5 +113,23 @@
     "sharedConfigManager": "0x67b82362d1501a82d12883e70d20eb2f140f4518",
     "sharedVaultFactory": "0xefdf2e686099bd2a8d6af226652735503deb74f1",
     "sharedVaultGateway": "0x69d9e26c47053a7ddc2ef6d4198e311664f95054"
+  },
+  "robinhood_mainnet": {
+    "sharedSwapDataSignatureLib": "0x219d738582d5e4a141ee56938d8c1f9667146f2d",
+    "sharedVaultPreviewLib": "0x5a44197ce69c942f523613af0f6268a252dedf02",
+    "sharedV4SwapPipeline": "0x81b3fd52bad3a27549986e954871e215fc8e67f7",
+    "sharedVault": "0x9916bc6101951e1135650f2266030a68a0bc1333",
+    "sharedV3Strategy": "0x5fff805ef1baeffd9638bcec66fcad71f518e044",
+    "sharedV3StrategyBeacon": "0x90ed5e75b8c01a0b4ecf31d1182a94bd3c2a3781",
+    "sharedV3StrategyProxy": "0x76f4198fb08999681beb70ee25bbd3de00a36a5a",
+    "sharedV4ValuationLib": "0xe20c991d592e75185493023bf01ad13b94c11de7",
+    "sharedV4StrategyLib": "0x192e6e9452e77cff75298f097eec59a3b7ff4dfb",
+    "sharedV4Strategy": "0x3b494d5b5407fd9c76b4e1b2a3a4324cdf596c3b",
+    "sharedV4StrategyBeacon": "0x81883cc711e818f553d9ed960ba9e0250eb98789",
+    "sharedV4StrategyProxy": "0xe26c534f7c43165182d47d53dbf50fe051b76fac",
+    "sharedVaultAutomator": "0x5df1a1fd2fc7d7c4f4eb2b4e35ef115d84664c5d",
+    "sharedConfigManager": "0x67b82362d1501a82d12883e70d20eb2f140f4518",
+    "sharedVaultFactory": "0xefdf2e686099bd2a8d6af226652735503deb74f1",
+    "sharedVaultGateway": "0x69d9e26c47053a7ddc2ef6d4198e311664f95054"
   }
 }
