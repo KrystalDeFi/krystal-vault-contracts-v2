@@ -85,7 +85,7 @@ export const ArcConfig: Record<string, IConfig> = {
     // not what this field means on every other chain. Unused by the private path.
     swapRouters: [],
     nfpmAddresses: [
-      "0x39654a85a4c05127f5fd6ed22caec077a0fb1377", // Uniswap V3 NonfungiblePositionManager
+      "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377", // Uniswap V3 NonfungiblePositionManager
     ],
     ...PrivateConfig.arc_mainnet,
   },

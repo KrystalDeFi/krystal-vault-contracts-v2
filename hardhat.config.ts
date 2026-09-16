@@ -94,7 +94,7 @@ const config: HardhatUserConfig = {
     },
     // Arc (Circle L1). Public mainnet RPC is not published yet — fill in at launch.
     arc: {
-      url: ``,
+      url: `https://rpc.mainnet.arc.io/`,
       chainId: 5042,
     },
   },
@@ -109,12 +109,9 @@ const config: HardhatUserConfig = {
       ronin: RONINSCAN_APIKEY || "",
       berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
+      arc: "blockscout",
       // Robinhood Chain is not on Etherscan V2; Blockscout ignores the key but hardhat-verify requires one
       robinhood: "blockscout",
-      // Arc's mainnet explorer and verification backend are unannounced (testnet
-      // uses testnet.arcscan.app). Placeholder so hardhat-verify has a key;
-      // switch to ETHERSCAN_V2_APIKEY if Arc lands on Etherscan V2.
-      arc: "blockscout",
     },
     customChains: [
       {
@@ -202,8 +199,8 @@ const config: HardhatUserConfig = {
         chainId: 5042,
         // Explorer host is unpublished until the 2026-09-16 mainnet launch.
         urls: {
-          apiURL: "",
-          browserURL: "",
+          apiURL: "https://explorer.arc.io/api",
+          browserURL: "https://explorer.arc.io",
         },
       },
     ],
@@ -302,7 +299,7 @@ if (PRIVATE_KEY) {
   // drops cheaper transactions with no error receipt — check maxFeePerGas if a
   // deploy tx disappears. RPC URL is blank until mainnet launches (2026-09-16).
   config.networks!.arc_mainnet = {
-    url: ``,
+    url: `https://rpc.mainnet.arc.io/`,
     chainId: 5042,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
