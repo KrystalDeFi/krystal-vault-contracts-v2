@@ -9,6 +9,7 @@ import { RoninConfig } from "./config_ronin";
 import { BerachainConfig } from "./config_berachain";
 import { HyperevmConfig } from "./config_hyperevm";
 import { RobinhoodConfig } from "./config_robinhood";
+import { ArcConfig } from "./config_arc";
 
 const NetworkConfig: Record<string, IConfig> = {
   ...BaseConfig,
@@ -21,6 +22,7 @@ const NetworkConfig: Record<string, IConfig> = {
   ...BerachainConfig,
   ...HyperevmConfig,
   ...RobinhoodConfig,
+  ...ArcConfig,
 };
 
 NetworkConfig.hardhat = {
@@ -35,6 +37,7 @@ NetworkConfig.hardhat = {
   ...NetworkConfig["berachain_mainnet"],
   ...NetworkConfig["hyperevm_mainnet"],
   ...NetworkConfig["robinhood_mainnet"],
+  ...NetworkConfig["arc_mainnet"],
   autoVerifyContract: false,
 };
 
