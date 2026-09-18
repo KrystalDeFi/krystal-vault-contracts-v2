@@ -83,6 +83,7 @@ export const ArcConfig: Record<string, IConfig> = {
     swapRouters: ["0x38b8b1BdF0dBB2E53c83A4cd6397837eF05F4364"],
     nfpmAddresses: [
       "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377", // Uniswap V3 NonfungiblePositionManager
+      "0x6049c9a0e26405C0985f9E3685C87d0aE917f82B", // Uniswap V4 NFPM
       "0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473", // Aerodrome NFPM
     ],
     ...PrivateConfig.arc_mainnet,
