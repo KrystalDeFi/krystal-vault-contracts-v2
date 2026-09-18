@@ -53,20 +53,21 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    // Canonical cross-chain CREATE2 addresses. EXPECTED BUT UNVERIFIED on Arc —
-    // neither sibling repo's contracts.json has a 5042 entry yet. Confirm both
-    // on-chain before deploying; a wrong address here bakes into the strategy
-    // immutables and needs a redeploy to fix.
-    v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
-    v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    privateMerklStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    aerodromeGaugeFactories: [],
+    merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+    v3UtilsAddress: "0x968cba9ce5fedc73bca355d8b3eb661a6199e003",
+    v4UtilsAddress: "0x542298e710b32b49883577883b75b39ef18883ce",
   },
 };
 
-// Uniswap V3 and V4 are both live on Arc. The shared vault stack is intentionally
-// absent: Arc has no WETH/WUSDC-style wrapper, and deployLogic-shared.ts hard
-// throws without `wrapToken` for both sharedVaultFactory and sharedVaultGateway.
-// The private path never reads `wrapToken`, `nfpmAddresses` or `swapRouters`, so
-// none of that blocks this deployment. The public vault stack is not deployed here.
 export const ArcConfig: Record<string, IConfig> = {
   arc_mainnet: {
     sleepTime: 10000,
@@ -79,13 +80,10 @@ export const ArcConfig: Record<string, IConfig> = {
     vaultFactory: {
       enabled: false,
     },
-    // TODO: Krystal's aggregator router is not deployed on Arc yet. Left empty
-    // rather than pointing at Uniswap's UniversalRouter
-    // (0x4fca4a51ab4f23a7447b3284fbd7d73289a89fb1), which is a live router but
-    // not what this field means on every other chain. Unused by the private path.
-    swapRouters: [],
+    swapRouters: ["0x38b8b1BdF0dBB2E53c83A4cd6397837eF05F4364"],
     nfpmAddresses: [
       "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377", // Uniswap V3 NonfungiblePositionManager
+      "0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473", // Aerodrome NFPM
     ],
     ...PrivateConfig.arc_mainnet,
   },
