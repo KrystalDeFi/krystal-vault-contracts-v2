@@ -109,7 +109,7 @@ const config: HardhatUserConfig = {
       ronin: RONINSCAN_APIKEY || "",
       berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
-      arc: "blockscout",
+      arc: ETHERSCAN_V2_APIKEY || "",
       // Robinhood Chain is not on Etherscan V2; Blockscout ignores the key but hardhat-verify requires one
       robinhood: "blockscout",
     },
@@ -199,8 +199,8 @@ const config: HardhatUserConfig = {
         chainId: 5042,
         // Explorer host is unpublished until the 2026-09-16 mainnet launch.
         urls: {
-          apiURL: "https://explorer.arc.io/api",
-          browserURL: "https://explorer.arc.io",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=5042",
+          browserURL: "https://arc.etherscan.io",
         },
       },
     ],
