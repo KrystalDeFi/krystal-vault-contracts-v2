@@ -63,7 +63,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     },
     aerodromeGaugeFactories: [],
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
-    v3UtilsAddress: "0x968cba9ce5fedc73bca355d8b3eb661a6199e003",
+    v3UtilsAddress: "0x1ee314a465dafd595ab7de8707cca629178b45d6",
     v4UtilsAddress: "0x542298e710b32b49883577883b75b39ef18883ce",
   },
 };
