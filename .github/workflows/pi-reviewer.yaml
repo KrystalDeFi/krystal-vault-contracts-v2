@@ -66,7 +66,7 @@ jobs:
             After the review, post a summary comment on the PR with an overall assessment, key findings, and a verdict (Approve / Request Changes / Needs Discussion).
 
             Do not use GitHub CLI to approve pull requests or request changes on the PR.
-          model: openai/gpt-5.5
+          model: z-ai/glm-5.2     # https://labs.scale.com/leaderboard/sweatlas-qna                      
 
   pi-validate-job:
     name: "Pi Validate job"
