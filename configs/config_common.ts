@@ -15,7 +15,7 @@ export const commonConfig = {
     "0xb7fF80039870BD4b8B1Fb578aE515d67BD25C664",
     "0x05c5B3d233eDBBb067797bDC2Afcdd71faE6EE58",
   ],
-  feeCollector: "0x12Eb25bc8f57f4F7920150F9EeC0b96d96278be4",
+  feeCollector: "0x8E2A9D954e7c88a00d3571EeaB3d5E733a309426",
   vaultOwnerFeeBasisPoint: 500,
   platformFeeBasisPoint: 500,
   privatePlatformFeeBasisPoint: 1000,

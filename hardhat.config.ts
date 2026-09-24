@@ -92,6 +92,11 @@ const config: HardhatUserConfig = {
       url: `https://rpc.mainnet.chain.robinhood.com`,
       chainId: 4663,
     },
+    // Arc (Circle L1). Public mainnet RPC is not published yet — fill in at launch.
+    arc: {
+      url: `https://rpc.mainnet.arc.io/`,
+      chainId: 5042,
+    },
   },
   etherscan: {
     apiKey: {
@@ -104,6 +109,7 @@ const config: HardhatUserConfig = {
       ronin: RONINSCAN_APIKEY || "",
       berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
+      arc: ETHERSCAN_V2_APIKEY || "",
       // Robinhood Chain is not on Etherscan V2; Blockscout ignores the key but hardhat-verify requires one
       robinhood: "blockscout",
     },
@@ -186,6 +192,15 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://robinhoodchain.blockscout.com/api",
           browserURL: "https://robinhoodchain.blockscout.com",
+        },
+      },
+      {
+        network: "arc",
+        chainId: 5042,
+        // Explorer host is unpublished until the 2026-09-16 mainnet launch.
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=5042",
+          browserURL: "https://arc.etherscan.io",
         },
       },
     ],
@@ -275,6 +290,17 @@ if (PRIVATE_KEY) {
   config.networks!.robinhood_mainnet = {
     url: `https://rpc.mainnet.chain.robinhood.com`,
     chainId: 4663,
+    accounts: [PRIVATE_KEY],
+    timeout: 60000,
+    hardfork: "cancun",
+  };
+  // Arc targets the Osaka hardfork, a superset of cancun, so the cancun-compiled
+  // bytecode deploys as-is. NOTE: Arc enforces a 20 gwei minimum base fee and
+  // drops cheaper transactions with no error receipt — check maxFeePerGas if a
+  // deploy tx disappears. RPC URL is blank until mainnet launches (2026-09-16).
+  config.networks!.arc_mainnet = {
+    url: `https://rpc.mainnet.arc.io/`,
+    chainId: 5042,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
