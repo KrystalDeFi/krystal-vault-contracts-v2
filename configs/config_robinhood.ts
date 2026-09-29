@@ -26,6 +26,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateMultiSwapStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
   },
