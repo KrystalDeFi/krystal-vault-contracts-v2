@@ -41,6 +41,10 @@ export interface IConfigPrivate {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  privateMultiSwapStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   v3UtilsAddress?: AddressLike;
   v4UtilsAddress?: AddressLike;
   aerodromeGaugeFactories?: AddressLike[];

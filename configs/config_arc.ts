@@ -61,6 +61,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateMultiSwapStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     aerodromeGaugeFactories: [],
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     v3UtilsAddress: "0x1ee314a465dafd595ab7de8707cca629178b45d6",

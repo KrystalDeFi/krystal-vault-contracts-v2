@@ -14,6 +14,7 @@ import { AerodromeFarmingStrategy } from "../typechain-types/contracts/private-v
 import { PancakeV3FarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy";
 import { V3UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv3/V3UtilsStrategy";
 import { V4UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv4/V4UtilsStrategy";
+import { MultiSwapStrategy } from "../typechain-types/contracts/private-vault/strategies/swap/MultiSwapStrategy";
 import { MerklStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/MerklStrategy";
 import { KyberFairFlowStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/KyberFairFlowStrategy";
 import { sleep } from "./helpers";
@@ -42,6 +43,7 @@ export interface PrivateContracts {
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
+  multiSwapStrategies?: MultiSwapStrategy[];
   privateMerklStrategy?: MerklStrategy;
   privateKyberFairFlowStrategy?: KyberFairFlowStrategy;
 }
@@ -103,6 +105,7 @@ async function deployContracts(
   );
   const v3UtilsStrategy = await deployV3UtilsStrategyContract(++step, existingContract);
   const v4UtilsStrategy = await deployV4UtilsStrategyContract(++step, existingContract);
+  const multiSwapStrategy = await deployMultiSwapStrategyContract(++step, existingContract);
 
   Object.assign(contracts, {
     privateVault: privateVault.privateVault,
@@ -114,10 +117,11 @@ async function deployContracts(
     privateKyberFairFlowStrategy: privateKyberFairFlowStrategy.privateKyberFairFlowStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
     v4UtilsStrategy: v4UtilsStrategy.v4UtilsStrategy,
+    multiSwapStrategies: multiSwapStrategy.multiSwapStrategies,
   });
 
   // Initialize contracts
-  if (networkConfig.privateVaultFactory?.enabled) {
+  if (networkConfig.privateVaultFactory?.enabled && !existingContract?.["privateVaultFactory"]) {
     await privateVaultFactory?.privateVaultFactory?.initialize(
       contractAdmin,
       existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
@@ -125,16 +129,18 @@ async function deployContracts(
     );
   }
 
-  if (networkConfig.privateConfigManager?.enabled) {
-    // Configure whitelistedCaller (PrivateVaultAutomator) and whitelistedTargets (AerodromeFarmingStrategy, V3UtilsStrategy, V4UtilsStrategy)
+  if (networkConfig.privateConfigManager?.enabled && !existingContract?.["privateConfigManager"]) {
+    // Configure whitelistedCaller (PrivateVaultAutomator) and whitelistedTargets (farming + utils + MultiSwapStrategy)
     const whitelistedCallers = [
       existingContract?.["privateVaultAutomator"] || contracts?.privateVaultAutomator?.target,
     ].filter(Boolean);
 
     const deployedAerodromeStrategies = (contracts?.aerodromeFarmingStrategies ?? []).map((s) => s.target);
+    const deployedMultiSwapStrategies = (contracts?.multiSwapStrategies ?? []).map((s) => s.target);
 
     const whitelistedTargets = [
       ...deployedAerodromeStrategies,
+      ...deployedMultiSwapStrategies,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
       existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
       existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
@@ -424,6 +430,39 @@ export const deployV4UtilsStrategyContract = async (
 
   return {
     v4UtilsStrategy,
+  };
+};
+
+export const deployMultiSwapStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  const multiSwapStrategies: MultiSwapStrategy[] = [];
+
+  if (config.privateMultiSwapStrategy?.enabled) {
+    const swapRouters = config.swapRouters ?? [];
+    const existingAddresses: (string | undefined)[] = existingContract?.["multiSwapStrategies"] ?? [];
+
+    for (let i = 0; i < swapRouters.length; i++) {
+      const strategy = (await deployContract(
+        `${step}.${i + 1} >>`,
+        config.privateMultiSwapStrategy?.autoVerifyContract,
+        "MultiSwapStrategy",
+        existingAddresses[i],
+        "contracts/private-vault/strategies/swap/MultiSwapStrategy.sol:MultiSwapStrategy",
+        undefined,
+        ["address"],
+        [swapRouters[i]],
+      )) as MultiSwapStrategy;
+      multiSwapStrategies.push(strategy);
+    }
+  }
+
+  return {
+    multiSwapStrategies,
   };
 };
 
