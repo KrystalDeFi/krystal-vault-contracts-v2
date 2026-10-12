@@ -19,6 +19,7 @@ Do **not** open a public GitHub issue for security vulnerabilities.
 
 ### Out of Scope
 
+- **Public vault contracts** (`contracts/public-vault/`) — these contracts are deprecated, paused, and operate in withdraw-only mode. No new deployments are planned.
 - Bugs in third-party protocols themselves (report these to the respective protocol's security program)
 - Off-chain infrastructure, web applications, APIs, and backend services
 - Deployments on chains not listed above
