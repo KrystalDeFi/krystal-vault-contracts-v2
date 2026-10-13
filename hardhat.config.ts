@@ -110,8 +110,8 @@ const config: HardhatUserConfig = {
       berachain: ETHERSCAN_V2_APIKEY || "",
       hyperevm: ETHERSCAN_V2_APIKEY || "",
       arc: ETHERSCAN_V2_APIKEY || "",
-      // Robinhood Chain is not on Etherscan V2; Blockscout ignores the key but hardhat-verify requires one
-      robinhood: "blockscout",
+      // robinhood: "blockscout",
+      robinhood: ETHERSCAN_V2_APIKEY || "",
     },
     customChains: [
       {
@@ -190,8 +190,10 @@ const config: HardhatUserConfig = {
         network: "robinhood",
         chainId: 4663,
         urls: {
-          apiURL: "https://robinhoodchain.blockscout.com/api",
-          browserURL: "https://robinhoodchain.blockscout.com",
+          // apiURL: "https://robinhoodchain.blockscout.com/api",
+          // browserURL: "https://robinhoodchain.blockscout.com",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=4663",
+          browserURL: "https://robin.etherscan.io",
         },
       },
       {
