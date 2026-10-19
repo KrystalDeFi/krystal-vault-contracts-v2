@@ -44,8 +44,15 @@ jobs:
         with:
           node-version: 18
 
+      # Pinned, NOT `stable`: forge >=1.8 auto-detects context-scoped remappings
+      # (`<lib>/:ds-test/=...`) for the nested node_modules/@uniswap/*/lib trees, and
+      # @nomicfoundation/hardhat-foundry (1.1.3 installed; still true in 1.2.1, the newest
+      # Hardhat-2 release) rejects any remapping with a context -> `yarn docgen` fails.
+      # Bump only after that is solved.
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
 
       - run: |
           npm install -g yarn
