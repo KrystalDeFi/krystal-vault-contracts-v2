@@ -79,6 +79,7 @@
     "privateVault": "0x34c1b3f20c83f0d959ea8ff5a6d37960bd2362e3",
     "privateVaultFactory": "0x99029ddf03de6446524f7ffa6585458b58dc1eee",
     "privateVaultAutomator": "0x27d5b5a907654df396bbbe4979f868e76786001a",
+    "aerodromeFarmingStrategies": ["0xe27e25d74aa9b7e8a1a88028030c380bac724a8d"],
     "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   }
