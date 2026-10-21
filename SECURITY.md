@@ -25,6 +25,23 @@ Do **not** open a public GitHub issue for security vulnerabilities.
 - Issues already disclosed in public audit reports or known issues acknowledged by the team
 - Findings from automated scanners without a demonstrated impact
 - Theoretical attacks without a realistic exploit scenario
+- Attacks that require a trusted role to act maliciously, as defined in the [Trust Model](#trust-model) below
+
+## Trust Model
+
+Reports are assessed against the following trust assumptions. Issues that depend on a trusted party abusing its role are considered accepted risks of the design, not security vulnerabilities. We may still fix them as logic improvements.
+
+### Trusted roles
+
+- **Krystal-operated roles:** factory and config manager owners (governance), the vault `operator`, the whitelisted swap-data signers, and whitelisted automation callers.
+- **Shared vault owner:** depositors in a shared vault trust its vault owner. The owner manages the vault's funds on behalf of depositors, including choosing positions, pools, and when to enter or exit them. Actions by the vault owner, or by admins and automation the owner authorizes, against that vault's own depositors are out of scope.
+
+### Untrusted parties
+
+- Depositors and shareholders
+- Any external account or contract, including other vault owners acting against vaults they do not own
+
+In-scope examples: a depositor or outsider taking funds from other depositors, stealing platform or vault-owner fees, or freezing deposits and withdrawals; and a vault owner affecting other vaults, Krystal's platform fees, or protocol-level contracts.
 
 ## Severity and Rewards
 
