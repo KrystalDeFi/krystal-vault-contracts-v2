@@ -153,8 +153,8 @@ contract SharedV3Strategy is ISharedStrategy {
     );
     emit SwapAndIncreaseLiquidity(params.nfpm, params.tokenId, liquidity, added0, added1);
 
-    // No position change — existing position updated, already tracked
-    changes = new PositionChange[](0);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, params.nfpm, params.tokenId, token0, token1);
   }
 
   /// @dev Native V3Utils-style action execution. Generated LP fees are collected only for actions

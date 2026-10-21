@@ -83,6 +83,8 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
       SharedPancakeV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
     } else {
       require(tokenId != 0, ISharedCommon.InvalidOperation());
+      require(_posmNftOwnedByVault(posm, tokenId), InvalidPoolTokens());
+      SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
       SharedPancakeV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
     }
 
@@ -120,6 +122,12 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
       (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+    } else if (isSwapAndIncrease) {
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
+      (PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
+      (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(true, posm, tokenId, c0, c1);
     } else {
       // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
@@ -181,6 +189,7 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
     external
     override
   {
+    SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
     SharedPancakeV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
   }
 

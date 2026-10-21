@@ -152,7 +152,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     );
     emit SwapAndIncreaseLiquidity(params.nfpm, params.tokenId, liquidity, added0, added1);
 
-    changes = new PositionChange[](0);
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, params.nfpm, params.tokenId, token0, token1);
   }
 
   /// @dev Despite the historical `SAFE_TRANSFER_NFT` name, the NFT itself is never transferred —
