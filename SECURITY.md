@@ -12,7 +12,7 @@ Do **not** open a public GitHub issue for security vulnerabilities.
 
 ### In Scope
 
-- All Solidity smart contracts in this repository (public vaults, private vaults, shared vaults)
+- Solidity smart contracts in this repository related to private vaults and shared vaults
 - Deployments on **Ethereum, Arbitrum, Base, BSC, Polygon and Robinhood**
 - Vulnerabilities in how Krystal contracts integrate with third-party protocols (Uniswap, PancakeSwap, Aerodrome, SushiSwap, etc.)
 - Access control, governance, and upgrade mechanism vulnerabilities
