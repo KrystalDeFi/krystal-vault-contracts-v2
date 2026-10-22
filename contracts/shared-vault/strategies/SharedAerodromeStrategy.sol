@@ -152,7 +152,11 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     );
     emit SwapAndIncreaseLiquidity(params.nfpm, params.tokenId, liquidity, added0, added1);
 
-    changes = new PositionChange[](0);
+    // GHSA-mqv2-4v6r-rmw6 (claim 2): emit an add-change so the vault TRACKS (nfpm, tokenId). Idempotent
+    // for an already-tracked position; for a planted, untracked NFT it forces tracking through
+    // validatePositionAdd, so swapAndIncrease can no longer park vault funds in a hidden position.
+    changes = new PositionChange[](1);
+    changes[0] = PositionChange(true, params.nfpm, params.tokenId, token0, token1);
   }
 
   /// @dev Despite the historical `SAFE_TRANSFER_NFT` name, the NFT itself is never transferred —

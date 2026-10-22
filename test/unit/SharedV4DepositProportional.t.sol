@@ -136,6 +136,16 @@ contract DepPropV4ConfigManager {
   function setNfpm(address nfpm, bool ok) external {
     isWhitelistedNfpm[nfpm] = ok;
   }
+
+  // GHSA-mqv2 fix added a performanceFeeConfig() read on the deposit path (collect-before-increase);
+  // return zero fees so the collect is a no-op against this lib-focused slippage harness.
+  function platformFeeBasisPoint() external pure returns (uint16) {
+    return 0;
+  }
+
+  function feeRecipient() external pure returns (address) {
+    return address(0xFEE);
+  }
 }
 
 /// @dev Delegatecall context standing in for SharedVault: holds the tokens and implements the
@@ -154,6 +164,14 @@ contract DepPropV4VaultHarness {
 
   function weth() external pure returns (address) {
     return address(0xBEEF);
+  }
+
+  function vaultOwnerFeeBasisPoint() external pure returns (uint16) {
+    return 0;
+  }
+
+  function vaultOwner() external pure returns (address) {
+    return address(0xB0B);
   }
 
   function depositProportional(address strategy, address posm, uint256 tokenId, uint256 a0, uint256 a1, uint16 bps)

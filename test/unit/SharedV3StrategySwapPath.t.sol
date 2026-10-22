@@ -1274,7 +1274,12 @@ contract SharedV3StrategySwapPathTest is Test {
     vm.prank(automator);
     ISharedStrategy.PositionChange[] memory changes = vault.executeStrategy(address(strategy), data);
 
-    assertEq(changes.length, 0, "increase reports no position change");
+    // GHSA-mqv2-4v6r-rmw6 (claim 2): swapAndIncrease now emits an add-change so the vault tracks the
+    // position it funded (idempotent for an already-tracked one; forces tracking for a planted NFT).
+    assertEq(changes.length, 1, "increase now reports a tracking add-change");
+    assertTrue(changes[0].isAdd, "swapAndIncrease emits an add-change");
+    assertEq(changes[0].tokenId, params.tokenId, "tracked tokenId matches");
+    assertEq(changes[0].nfpm, params.nfpm, "tracked nfpm matches");
     assertEq(token0.balanceOf(platformRecipient), 250, "gas fee skimmed from token0 input");
     assertEq(token1.balanceOf(platformRecipient), 500, "gas fee skimmed from token1 input");
     assertEq(nfpm.increased0(), 750, "net token0 added to the position");

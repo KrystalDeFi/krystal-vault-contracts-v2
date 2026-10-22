@@ -83,6 +83,11 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
       SharedPancakeV4StrategyLib.swapAndMintCalldata(swapRouter, posm, params);
     } else {
       require(tokenId != 0, ISharedCommon.InvalidOperation());
+      // GHSA-mqv2-4v6r-rmw6 (1C): collect + charge performance fees before swapAndIncrease's
+      // INCREASE_LIQUIDITY settles the position's accrued fees uncharged. The ownership check mirrors
+      // the lib's guard so a not-owned position still reverts InvalidPoolTokens before any pool touch.
+      require(_posmNftOwnedByVault(posm, tokenId), InvalidPoolTokens());
+      SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
       SharedPancakeV4StrategyLib.swapAndIncreaseCalldata(swapRouter, posm, tokenId, params);
     }
 
@@ -120,8 +125,19 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
       (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
       changes = new PositionChange[](1);
       changes[0] = PositionChange(false, posm, tokenId, c0, c1);
+    } else if (isSwapAndIncrease) {
+      // GHSA-mqv2-4v6r-rmw6 (claim 2): swapAndIncrease moved vault funds into (posm, tokenId). Emit an
+      // add-change so the vault TRACKS it — idempotent for an already-tracked position (SharedVault.
+      // _addPosition no-ops when tracked), but for a planted, untracked NFT it forces tracking through
+      // validatePositionAdd (hook-gate + vault-token + ownership checks), so funds can no longer be
+      // parked in a position hidden from getTotalBalances() / withdraw().
+      require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
+      (PoolKey memory key,) = pm.getPoolAndPositionInfo(tokenId);
+      (address c0, address c1) = _poolVaultTokens(key.currency0, key.currency1);
+      changes = new PositionChange[](1);
+      changes[0] = PositionChange(true, posm, tokenId, c0, c1);
     } else {
-      // Partial decrease, compound, or increase — must NOT have minted a new vault-owned NFT
+      // Partial decrease or compound — must NOT have minted a new vault-owned NFT
       require(pm.nextTokenId() == nextIdBefore || !_posmNftOwnedByVault(posm, nextIdBefore), InvalidPoolTokens());
       changes = new PositionChange[](0);
     }
@@ -181,6 +197,11 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
     external
     override
   {
+    // GHSA-mqv2-4v6r-rmw6 (1A/1B): collect + charge accrued fees before INCREASE_LIQUIDITY auto-settles
+    // them uncharged (share inflation) and before the lib snapshots balances for its slippage floor
+    // (which would otherwise underflow once fees land as idle). SharedVault routes every deposit LP
+    // top-up through here, so the fix lives in the beacon-upgradeable strategy, not SharedVault.
+    SharedPancakeV4StrategyLib.collectFees(posm, tokenId, SharedStrategyFeeConfig.performanceFeeConfig());
     SharedPancakeV4StrategyLib.depositProportional(posm, tokenId, amount0, amount1, slippageBps);
   }
 

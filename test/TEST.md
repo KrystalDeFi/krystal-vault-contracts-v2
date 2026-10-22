@@ -84,3 +84,11 @@ Coverage lives in three layers; the checklist below this section is the legacy p
 [] User can't add to a LP which the pool is just created within the same block (to avoid flash-loan attack)
     [] Or if there is some way we could check the TVL in the previous block?
 [x] User can't add LP where the POOL_LIST is fixed and the pool is not in the POOL_LIST
+
+
+### Shared Vault — Security Regressions (GHSA-mqv2-4v6r-rmw6)
+Real-POSM fork suites: `test/integration/Regression.GHSA_mqv2.V4.t.sol` + `...PancakeV4.t.sol`.
+[x] Deposit collects + charges accrued V4/Pancake LP fees BEFORE the proportional top-up (no round-trip profit; platform+owner fees paid; existing holder claim preserved) — fix in `Shared{V4,PancakeV4}Strategy.depositProportional` (SharedVault untouched; strategies are beacon-upgradeable)
+[x] Deposit with slippageBps > 0 succeeds after fees accrue (no Panic/InsufficientOutput)
+[x] swapAndIncrease collects + charges fees before INCREASE_LIQUIDITY — fix in `SharedV4Strategy`/`SharedPancakeV4Strategy._execute`
+[x] swapAndIncrease emits a tracking add-change so a planted untracked NFT cannot hide vault value — all four strategies (V4/Pancake/V3/Aerodrome); V3/Aero pinned in `Shared{V3,Aerodrome}StrategySwapPath.t.sol`
