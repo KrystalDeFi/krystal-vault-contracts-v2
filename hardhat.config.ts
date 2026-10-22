@@ -241,14 +241,14 @@ if (PRIVATE_KEY) {
     hardfork: "cancun",
   };
   config.networks!.bsc_mainnet = {
-    url: `https://bsc-rpc.keccak.io`,
+    url: `https://56.rpc.thirdweb.com`,
     chainId: 56,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
     hardfork: "cancun",
   };
   config.networks!.polygon_mainnet = {
-    url: `https://polygon-rpc.keccak.io`,
+    url: `https://rpc-polygon.blockmachine.io`,
     chainId: 137,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
@@ -262,7 +262,7 @@ if (PRIVATE_KEY) {
     hardfork: "cancun",
   };
   config.networks!.arbitrum_mainnet = {
-    url: `https://arbitrum-one-rpc.publicnode.com`,
+    url: `https://arb-one.api.pocket.network`,
     chainId: 42161,
     accounts: [PRIVATE_KEY],
     timeout: 60000,
