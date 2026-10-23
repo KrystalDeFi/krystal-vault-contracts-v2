@@ -89,6 +89,7 @@ const AerodromeConfig: Record<string, IConfigAerodrome> = {
       "0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08",
       "0xB630227a79707D517320b6c0f885806389dFcbB3",
       "0x385293CaE378C813F16f0C1334d774AdDDf56AbB",
+      "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
     ],
   },
 };
