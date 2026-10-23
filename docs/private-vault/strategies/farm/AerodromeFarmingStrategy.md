@@ -71,7 +71,7 @@ constructor(address _gaugeFactory, address _configManager, address _emissionToke
 | ---- | ---- | ----------- |
 | _gaugeFactory | address |  |
 | _configManager | address |  |
-| _emissionToken | address | For an Aero gauge factory, the token its gauges pay on this chain, checked against the        LeafVoter. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`. |
+| _emissionToken | address | For an Aero gauge factory, the token its gauges pay on this chain, which must be exactly the        one Aero pays out there. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`. |
 
 ### _getGaugeFromTokenId
 
