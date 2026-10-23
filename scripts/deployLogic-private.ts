@@ -1,4 +1,4 @@
-import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
+import { BaseContract, ZeroAddress, encodeBytes32String, solidityPacked } from "ethers";
 import { ethers, network, run } from "hardhat";
 import { isArray } from "lodash";
 import { commonConfig } from "../configs/config_common";
@@ -267,6 +267,8 @@ export const deployAerodromeFarmingStrategyContract = async (
     const existingAddresses: (string | undefined)[] = existingContract?.["aerodromeFarmingStrategies"] ?? [];
 
     for (let i = 0; i < gaugeFactories.length; i++) {
+      // The constructor tells Aero gauge factories from legacy ones: an Aero factory needs the chain's
+      // `aeroEmissionToken` (it reverts on a missing or wrong one), a legacy factory ignores it.
       const strategy = (await deployContract(
         `${step}.${i + 1} >>`,
         config.privateAerodromeFarmingStrategy?.autoVerifyContract,
@@ -274,8 +276,12 @@ export const deployAerodromeFarmingStrategyContract = async (
         existingAddresses[i],
         "contracts/private-vault/strategies/farm/AerodromeFarmingStrategy.sol:AerodromeFarmingStrategy",
         undefined,
-        ["address", "address"],
-        [gaugeFactories[i], existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+        ["address", "address", "address"],
+        [
+          gaugeFactories[i],
+          existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target,
+          config.aeroEmissionToken ?? ZeroAddress,
+        ],
       )) as AerodromeFarmingStrategy;
       aerodromeFarmingStrategies.push(strategy);
     }

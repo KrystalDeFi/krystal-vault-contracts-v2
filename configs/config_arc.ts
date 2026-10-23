@@ -61,7 +61,11 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    aerodromeGaugeFactories: [],
+    aerodromeGaugeFactories: [
+      "0xa02d1F4E4243ff0d350F478c44B0Fd37c7bF848C", // Aero, Arc's pre-merger deployment (NFPM 0xc84bB45D…)
+      "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
+    ],
+    aeroEmissionToken: "0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307", // xAERO (pays both gauge factories)
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     v3UtilsAddress: "0x1ee314a465dafd595ab7de8707cca629178b45d6",
     v4UtilsAddress: "0x542298e710b32b49883577883b75b39ef18883ce",
@@ -84,7 +88,8 @@ export const ArcConfig: Record<string, IConfig> = {
     nfpmAddresses: [
       "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377", // Uniswap V3 NonfungiblePositionManager
       "0x6049c9a0e26405C0985f9E3685C87d0aE917f82B", // Uniswap V4 NFPM
-      "0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473", // Aerodrome NFPM
+      "0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473", // Aero Slipstream NFPM, Arc's pre-merger deployment (still live)
+      "0x4857DB576eE0e45F10525eC59527BfD10beeC60b", // Aero Slipstream NFPM
     ],
     ...PrivateConfig.arc_mainnet,
   },

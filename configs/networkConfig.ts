@@ -39,6 +39,9 @@ NetworkConfig.hardhat = {
   ...NetworkConfig["robinhood_mainnet"],
   ...NetworkConfig["arc_mainnet"],
   autoVerifyContract: false,
+  // The hardhat network forks Base at a block before Aero existed, and the spread above would hand it Arc's gauge
+  // factories, which aren't on Base at all.
+  aerodromeGaugeFactories: [],
 };
 
 export { NetworkConfig };

@@ -2,6 +2,15 @@
 pragma solidity ^0.8.28;
 
 import { ICLGauge } from "../../../common/interfaces/protocols/aerodrome/ICLGauge.sol";
+import { IAeroCLGauge } from "../../../common/interfaces/protocols/aerodrome/IAeroCLGauge.sol";
+import { IAeroCLGaugeFactory } from "../../../common/interfaces/protocols/aerodrome/IAeroCLGaugeFactory.sol";
+import { IAeroLeafVoter } from "../../../common/interfaces/protocols/aerodrome/IAeroLeafVoter.sol";
+import { IAeroEmissionsHandler } from "../../../common/interfaces/protocols/aerodrome/IAeroEmissionsHandler.sol";
+import { IAeroMessageOrchestrator } from "../../../common/interfaces/protocols/aerodrome/IAeroMessageOrchestrator.sol";
+import { IAeroRootLocalAdapter } from "../../../common/interfaces/protocols/aerodrome/IAeroRootLocalAdapter.sol";
+import { IAeroRootMessageOrchestrator } from
+  "../../../common/interfaces/protocols/aerodrome/IAeroRootMessageOrchestrator.sol";
+import { IAeroVoter } from "../../../common/interfaces/protocols/aerodrome/IAeroVoter.sol";
 import { INonfungiblePositionManager } from
   "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import { ICLGaugeFactory } from "../../../common/interfaces/protocols/aerodrome/ICLGaugeFactory.sol";
@@ -15,23 +24,58 @@ import { IPrivateConfigManager } from "../../interfaces/core/IPrivateConfigManag
 import { IPrivateVault } from "../../interfaces/core/IPrivateVault.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/// @notice Stakes vault positions in the CL gauges of one gauge factory: a legacy Aerodrome/Velodrome Slipstream
+///         one, or Aero's (the merged Aerodrome + Velodrome protocol), whose gauges pay emissions through
+///         `claimEmissions` instead of `getReward`.
 contract AerodromeFarmingStrategy {
   using SafeERC20 for IERC20;
 
   address public immutable gaugeFactory;
   address public immutable nfpm;
   IPrivateConfigManager public immutable configManager;
+  /// @notice Aero's LeafVoter when the gauge factory is Aero's, zero for a legacy gauge factory
+  address public immutable leafVoter;
+  /// @notice Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains. Zero for a
+  ///         legacy gauge factory, whose gauges report their reward token themselves.
+  address public immutable emissionToken;
 
   event AerodromeFarmingStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingUnstaked(uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingRewardsHarvested(uint256 indexed tokenId, address indexed gauge, address msgSender);
 
-  constructor(address _gaugeFactory, address _configManager) {
+  /// @param _emissionToken For an Aero gauge factory, the token its gauges pay on this chain, which must be exactly the
+  ///        one Aero pays out there. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`.
+  constructor(address _gaugeFactory, address _configManager, address _emissionToken) {
     require(_gaugeFactory != address(0), "Invalid gauge factory");
     require(_configManager != address(0), "Invalid config manager");
+    address _leafVoter = _leafVoterOf(_gaugeFactory);
+    require(_leafVoter == address(0) || _isEmissionToken(_leafVoter, _emissionToken), "Invalid emission token");
     gaugeFactory = _gaugeFactory;
     nfpm = ICLGaugeFactory(_gaugeFactory).nft();
     configManager = IPrivateConfigManager(_configManager);
+    leafVoter = _leafVoter;
+    emissionToken = _leafVoter == address(0) ? address(0) : _emissionToken;
+  }
+
+  function _leafVoterOf(address _gaugeFactory) private view returns (address) {
+    try IAeroCLGaugeFactory(_gaugeFactory).leafVoter() returns (address _leafVoter) {
+      return _leafVoter;
+    } catch {
+      return address(0);
+    }
+  }
+
+  /// @dev Leaf chains pay the receipt token (xAERO) that the LeafVoter's emissions handler transfers. On Base, the root
+  ///      chain, the handler redeems it right away for the root Voter's TOKEN (AERO), reached along the route a redeem
+  ///      takes: LeafVoter, message orchestrator, root-local adapter, root message orchestrator, Voter.
+  function _isEmissionToken(address _leafVoter, address token) private view returns (bool) {
+    try IAeroEmissionsHandler(IAeroLeafVoter(_leafVoter).EMISSIONS_HANDLER()).RECEIPT_TOKEN() returns (address paid) {
+      return token == paid;
+    } catch {
+      address adapter = IAeroMessageOrchestrator(IAeroLeafVoter(_leafVoter).ORCHESTRATOR()).adapter();
+      address voter = IAeroRootMessageOrchestrator(IAeroRootLocalAdapter(adapter).ROOT_MESSAGE_ORCHESTRATOR()).VOTER();
+      return token == IAeroVoter(voter).TOKEN();
+    }
   }
 
   function _getGaugeFromTokenId(uint256 tokenId) internal view returns (address gauge) {
@@ -61,6 +105,14 @@ contract AerodromeFarmingStrategy {
     }
 
     address clGauge = _getGaugeFromTokenId(tokenId);
+    // A legacy gauge refuses deposits once killed. An Aero gauge doesn't, yet while it is inactive or has a zero
+    // emission cap it pays no emissions and still takes the staked position's swap fees.
+    if (leafVoter != address(0)) {
+      require(
+        IAeroLeafVoter(leafVoter).isActivated(clGauge) && IAeroCLGaugeFactory(gaugeFactory).emissionCap(clGauge) != 0,
+        "Gauge not active"
+      );
+    }
     IERC721(nfpm).approve(clGauge, tokenId);
     ICLGauge(clGauge).deposit(tokenId);
 
@@ -72,8 +124,28 @@ contract AerodromeFarmingStrategy {
     payable
   {
     address clGauge = _getGaugeFromTokenId(tokenId);
-    _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
-    ICLGauge(clGauge).withdraw(tokenId);
+    if (leafVoter == address(0)) {
+      _harvest(clGauge, tokenId, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
+      ICLGauge(clGauge).withdraw(tokenId);
+    } else {
+      // An Aero gauge claims the position's emissions itself on withdraw, and defers them when the mint fails so that a
+      // minting outage can't block the exit. Claiming first would revert the whole withdrawal in exactly that case, so
+      // measure the gauge's own claim. Its fee collect moves nothing here: a staked position earns no pool fees, and
+      // the gauge swept the owed ones to the vault at deposit.
+      uint256 balanceBefore = IERC20(emissionToken).balanceOf(address(this));
+      ICLGauge(clGauge).withdraw(tokenId);
+      _distributeReward(emissionToken, balanceBefore, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
+    }
+
+    emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
+  }
+
+  /// @notice Aero only: unstake through the gauge's emergency exit, which works only while Aero governance has it
+  ///         enabled. The position's accrued emissions are forfeited.
+  function emergencyWithdraw(uint256 tokenId) external payable {
+    require(leafVoter != address(0), "Not an Aero gauge");
+    address clGauge = _getGaugeFromTokenId(tokenId);
+    IAeroCLGauge(clGauge).emergencyWithdraw(tokenId);
 
     emit AerodromeFarmingUnstaked(tokenId, clGauge, msg.sender);
   }
@@ -89,11 +161,33 @@ contract AerodromeFarmingStrategy {
     internal
     returns (uint256 harvestedAmount)
   {
-    address rewardToken = ICLGauge(clGauge).rewardToken();
-    uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
+    if (leafVoter == address(0)) {
+      address rewardToken = ICLGauge(clGauge).rewardToken();
+      uint256 balanceBefore = IERC20(rewardToken).balanceOf(address(this));
+      ICLGauge(clGauge).getReward(tokenId);
+      return _distributeReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
+    }
 
-    ICLGauge(clGauge).getReward(tokenId);
+    // Every Aero claim also pays out the vault's deferred emissions. A withdrawn position can no longer be named in a
+    // claim, so for one the list stays empty and only the deferred emissions are claimed.
+    uint256[] memory tokenIds;
+    if (ICLGauge(clGauge).stakedContains(address(this), tokenId)) {
+      tokenIds = new uint256[](1);
+      tokenIds[0] = tokenId;
+    }
+    uint256 emissionsBefore = IERC20(emissionToken).balanceOf(address(this));
+    IAeroCLGauge(clGauge).claimEmissions(address(this), address(this), tokenIds);
+    harvestedAmount = _distributeReward(emissionToken, emissionsBefore, rewardFeeX64, gasFeeX64, vaultOwnerAsRecipient);
+  }
 
+  /// @dev Takes the fees from what the claim paid, then forwards the rest to the vault owner when asked to.
+  function _distributeReward(
+    address rewardToken,
+    uint256 balanceBefore,
+    uint64 rewardFeeX64,
+    uint64 gasFeeX64,
+    bool vaultOwnerAsRecipient
+  ) internal returns (uint256 harvestedAmount) {
     harvestedAmount = _handleReward(rewardToken, balanceBefore, rewardFeeX64, gasFeeX64);
     if (vaultOwnerAsRecipient && harvestedAmount > 0) {
       address rewardRecipient = IPrivateVault(address(this)).vaultOwner();
