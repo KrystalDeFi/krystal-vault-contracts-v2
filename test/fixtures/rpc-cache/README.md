@@ -27,11 +27,12 @@ test/fixtures/rpc-cache/<chain>/<block>   ->   ~/.foundry/cache/rpc/<chain>/<blo
 | Chain | Blocks | Used by |
 |---|---|---|
 | `base` | 27448360, 28445596, 34350500, 35350500, 36953600, 46190000 | all Base fork/integration tests |
+| `base` | 52900000 | `Integration.{PrivateVault,SharedVault}.Aero` (Aero, the merged Aerodrome + Velodrome, launched 2026-10-21) |
 | `mainnet` | 22365182 | echidna `ft.solo*` (Ethereum archive) |
 | `mainnet` | 25596137 | `PrivateVaultBizFork` (pinned block where the real 7702 delegation is present) |
 | `berachain` | 5249000 | `Integration.KodiakIsland` |
 
-Total ≈ 770 KB.
+Total ≈ 940 KB.
 
 `PrivateVaultBizFork` used to fork *latest* Ethereum (non-hermetic); it is now pinned
 to `BIZ_FORK_BLOCK` (a block where `BIZ_7702_ACCOUNT` is delegated) and replayed from

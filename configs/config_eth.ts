@@ -18,6 +18,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateAerodromeFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     privatePancakeV3FarmingStrategy: {
       enabled: true,
       autoVerifyContract: true,
@@ -43,6 +47,10 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     pancakeV3MasterChef: "0x556B9306565093C855AEA9AE92A594704c2Cd59e",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",
+    aerodromeGaugeFactories: [
+      "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
+    ],
+    aeroEmissionToken: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2", // xAERO
   },
 };
 
@@ -89,6 +97,10 @@ const SharedConfig: Record<string, IConfigShared> = {
       autoVerifyContract: true,
     },
     sharedV4Strategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
+    sharedAerodromeStrategy: {
       enabled: true,
       autoVerifyContract: true,
     },
@@ -198,6 +210,9 @@ export const EthereumConfig: Record<string, IConfig> = {
       "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
       "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
       "0x2214A42d8e2A1d20635c2cb0664422c528B6A432",
+    ],
+    aerodromeNfpmAddresses: [
+      "0x4857DB576eE0e45F10525eC59527BfD10beeC60b", // Aero
     ],
     ...PrivateConfig.eth_mainnet,
     ...SharedConfig.eth_mainnet,
