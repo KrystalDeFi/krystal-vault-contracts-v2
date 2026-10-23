@@ -109,6 +109,7 @@ contract MockRootEmissionsHandler { }
 contract MockLeafVoter {
   address public RECEIPT_TOKEN;
   address public EMISSIONS_HANDLER;
+  address public ORCHESTRATOR;
   mapping(address => bool) public isActivated;
 
   constructor(address receiptToken, address handler) {
@@ -118,6 +119,43 @@ contract MockLeafVoter {
 
   function setActivated(address gauge, bool activated) external {
     isActivated[gauge] = activated;
+  }
+
+  function setOrchestrator(address orchestrator) external {
+    ORCHESTRATOR = orchestrator;
+  }
+}
+
+/// @dev Base's redeem route, LeafVoter → message orchestrator → root-local adapter → root orchestrator → Voter.
+contract MockMessageOrchestrator {
+  address public adapter;
+
+  constructor(address _adapter) {
+    adapter = _adapter;
+  }
+}
+
+contract MockRootLocalAdapter {
+  address public ROOT_MESSAGE_ORCHESTRATOR;
+
+  constructor(address rootOrchestrator) {
+    ROOT_MESSAGE_ORCHESTRATOR = rootOrchestrator;
+  }
+}
+
+contract MockRootMessageOrchestrator {
+  address public VOTER;
+
+  constructor(address voter) {
+    VOTER = voter;
+  }
+}
+
+contract MockVoter {
+  address public TOKEN;
+
+  constructor(address token) {
+    TOKEN = token;
   }
 }
 
@@ -370,18 +408,26 @@ contract AerodromeFarmingStrategyTest is Test {
     new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager), makeAddr("notAToken"));
   }
 
-  /// On Base the handler redeems the receipt token for AERO, so any token but the receipt token can be the payout.
-  function test_constructor_rootChain_rejectsTheReceiptTokenOnly() public {
+  /// On Base the handler redeems the receipt token for the root Voter's TOKEN (AERO), so exactly that token pays out:
+  /// the receipt token and any other deployed token (e.g. the pre-merger AERO) are rejected.
+  function test_constructor_rootChain_requiresTheRootVoterToken() public {
     MockRewardToken baseXAero = new MockRewardToken("xAERO");
+    MockRewardToken aero = new MockRewardToken("AERO");
     MockLeafVoter rootVoter = new MockLeafVoter(address(baseXAero), address(new MockRootEmissionsHandler()));
+    MockRootMessageOrchestrator rootOrchestrator = new MockRootMessageOrchestrator(address(new MockVoter(address(aero))));
+    MockRootLocalAdapter localAdapter = new MockRootLocalAdapter(address(rootOrchestrator));
+    rootVoter.setOrchestrator(address(new MockMessageOrchestrator(address(localAdapter))));
     MockAeroGaugeFactory rootFactory = new MockAeroGaugeFactory(address(aeroNfpm), address(rootVoter));
 
     vm.expectRevert("Invalid emission token");
     new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(baseXAero));
 
+    vm.expectRevert("Invalid emission token");
+    new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(legacyReward));
+
     AerodromeFarmingStrategy strategy =
-      new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(legacyReward));
-    assertEq(strategy.emissionToken(), address(legacyReward));
+      new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(aero));
+    assertEq(strategy.emissionToken(), address(aero));
   }
 
   /// The deploy script passes the chain's emission token to every gauge factory; a legacy one ignores it.

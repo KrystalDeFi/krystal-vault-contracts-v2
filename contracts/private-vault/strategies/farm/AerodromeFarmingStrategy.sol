@@ -6,6 +6,11 @@ import { IAeroCLGauge } from "../../../common/interfaces/protocols/aerodrome/IAe
 import { IAeroCLGaugeFactory } from "../../../common/interfaces/protocols/aerodrome/IAeroCLGaugeFactory.sol";
 import { IAeroLeafVoter } from "../../../common/interfaces/protocols/aerodrome/IAeroLeafVoter.sol";
 import { IAeroEmissionsHandler } from "../../../common/interfaces/protocols/aerodrome/IAeroEmissionsHandler.sol";
+import { IAeroMessageOrchestrator } from "../../../common/interfaces/protocols/aerodrome/IAeroMessageOrchestrator.sol";
+import { IAeroRootLocalAdapter } from "../../../common/interfaces/protocols/aerodrome/IAeroRootLocalAdapter.sol";
+import { IAeroRootMessageOrchestrator } from
+  "../../../common/interfaces/protocols/aerodrome/IAeroRootMessageOrchestrator.sol";
+import { IAeroVoter } from "../../../common/interfaces/protocols/aerodrome/IAeroVoter.sol";
 import { INonfungiblePositionManager } from
   "../../../common/interfaces/protocols/aerodrome/INonfungiblePositionManager.sol";
 import { ICLGaugeFactory } from "../../../common/interfaces/protocols/aerodrome/ICLGaugeFactory.sol";
@@ -38,8 +43,8 @@ contract AerodromeFarmingStrategy {
   event AerodromeFarmingUnstaked(uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingRewardsHarvested(uint256 indexed tokenId, address indexed gauge, address msgSender);
 
-  /// @param _emissionToken For an Aero gauge factory, the token its gauges pay on this chain, checked against the
-  ///        LeafVoter. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`.
+  /// @param _emissionToken For an Aero gauge factory, the token its gauges pay on this chain, which must be exactly the
+  ///        one Aero pays out there. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`.
   constructor(address _gaugeFactory, address _configManager, address _emissionToken) {
     require(_gaugeFactory != address(0), "Invalid gauge factory");
     require(_configManager != address(0), "Invalid config manager");
@@ -60,14 +65,16 @@ contract AerodromeFarmingStrategy {
     }
   }
 
-  /// @dev Leaf chains pay the LeafVoter's receipt token (xAERO). On Base, the root chain, the emissions handler redeems
-  ///      it for AERO right away, so there the receipt token is the one token the vault never receives.
+  /// @dev Leaf chains pay the receipt token (xAERO) that the LeafVoter's emissions handler transfers. On Base, the root
+  ///      chain, the handler redeems it right away for the root Voter's TOKEN (AERO), reached along the route a redeem
+  ///      takes: LeafVoter, message orchestrator, root-local adapter, root message orchestrator, Voter.
   function _isEmissionToken(address _leafVoter, address token) private view returns (bool) {
-    if (token.code.length == 0) return false;
     try IAeroEmissionsHandler(IAeroLeafVoter(_leafVoter).EMISSIONS_HANDLER()).RECEIPT_TOKEN() returns (address paid) {
       return token == paid;
     } catch {
-      return token != IAeroLeafVoter(_leafVoter).RECEIPT_TOKEN();
+      address adapter = IAeroMessageOrchestrator(IAeroLeafVoter(_leafVoter).ORCHESTRATOR()).adapter();
+      address voter = IAeroRootMessageOrchestrator(IAeroRootLocalAdapter(adapter).ROOT_MESSAGE_ORCHESTRATOR()).VOTER();
+      return token == IAeroVoter(voter).TOKEN();
     }
   }
 

@@ -11,4 +11,7 @@ interface IAeroLeafVoter {
 
   /// @notice Leaf chains' handler transfers the receipt token to the recipient; Base's redeems it for AERO instead
   function EMISSIONS_HANDLER() external view returns (address);
+
+  /// @notice Message orchestrator the LeafVoter dispatches redeems through
+  function ORCHESTRATOR() external view returns (address);
 }

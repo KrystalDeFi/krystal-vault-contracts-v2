@@ -57,6 +57,7 @@ contract PrivateVaultAeroIntegrationTest is TestCommon {
   address constant WETH_USDC_POOL = 0x2A430bEbD2082d8e05D56d64DEDE8944279bbC24; // tickSpacing 100
   address constant WETH_USDC_POOL_TS50 = 0x4A7af46bC8aBc00048c6c7920a1488DAF568366c; // tickSpacing 50
   address constant BASE_XAERO = 0x6CdDa0E730744DC6fF67654B35350Adad05EceE7; // Base LeafVoter's receipt token
+  address constant PRE_MERGER_AERO = 0x940181a94A35A4569E4529A3CDfB74e38FD98631; // Aerodrome's AERO
   address constant LEGACY_GAUGE_FACTORY = 0xD30677bd8dd15132F251Cb54CbDA552d2A05Fb08; // Aerodrome
   address constant V3_UTILS = 0xb4acbC082b5e7dEd571c98EE4257778a9D784B36;
   address constant V3_UTILS_ADMIN = 0x9A99252A76f7B40Cbf2002a8dB2977C85fA306DF;
@@ -223,9 +224,12 @@ contract PrivateVaultAeroIntegrationTest is TestCommon {
     vm.expectRevert("Invalid emission token");
     new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), address(0));
 
-    // Base's root handler redeems the receipt token for AERO, so the vault never holds xAERO here.
+    // Base's root handler redeems the receipt token for the root Voter's TOKEN, so only that AERO is accepted: not
+    // the receipt token the vault never holds here, nor any other token such as Aerodrome's pre-merger AERO.
     vm.expectRevert("Invalid emission token");
     new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), BASE_XAERO);
+    vm.expectRevert("Invalid emission token");
+    new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), PRE_MERGER_AERO);
 
     // A legacy Aerodrome factory ignores the emission token the deploy script passes every factory.
     AerodromeFarmingStrategy legacy = new AerodromeFarmingStrategy(LEGACY_GAUGE_FACTORY, address(configManager), AERO);
