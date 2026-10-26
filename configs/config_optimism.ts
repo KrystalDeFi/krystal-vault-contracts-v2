@@ -32,6 +32,9 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     },
     v3UtilsAddress: "0xb4acbc082b5e7ded571c98ee4257778a9d784b36",
     v4UtilsAddress: "0xE91D4cC5d8b97379d740A1f19c728EAb76A16228",
+    aerodromeGaugeFactories: [
+      "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
+    ],
   },
 };
 

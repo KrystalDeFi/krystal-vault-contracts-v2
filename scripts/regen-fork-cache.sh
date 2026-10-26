@@ -31,7 +31,7 @@ CACHE="$HOME/.foundry/cache/rpc"
 # tests' block constants (base *_FORK_BLOCK, echidna BLOCK_NUMBER, BizFork BIZ_FORK_BLOCK).
 # NOTE: BizFork's mainnet block (25596137) is REQUIRED below — it is pinned + hermetic,
 # NOT "latest" — so it must stay in MAINNET_BLOCKS or the offline gate breaks.
-BASE_BLOCKS=(27448360 28445596 34350500 35350500 36953600 46190000)
+BASE_BLOCKS=(27448360 28445596 34350500 35350500 36953600 46190000 52900000)  # 52900000: Aero AERO_FORK_BLOCK
 MAINNET_BLOCKS=(22365182 25596137)  # echidna ft.solo* (archive); BizFork (must match BIZ_FORK_BLOCK)
 BERACHAIN_BLOCKS=(5249000)    # Integration.KodiakIsland
 
