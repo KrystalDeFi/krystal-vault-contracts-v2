@@ -50,7 +50,6 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       "0x385293CaE378C813F16f0C1334d774AdDDf56AbB",
       "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
     ],
-    aeroEmissionToken: "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee", // AERO (Base is Aero's root chain)
     pancakeV3MasterChef: "0xC6A2Db661D5a5690172d8eB0a7DEA2d3008665A3",
     merklDistributor: "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
     uniswapV4KEMHook: "0x4440854B2d02C57A0Dc5c58b7A884562D875c0c4",

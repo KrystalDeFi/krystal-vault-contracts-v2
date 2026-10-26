@@ -44,9 +44,6 @@ export interface IConfigPrivate {
   v3UtilsAddress?: AddressLike;
   v4UtilsAddress?: AddressLike;
   aerodromeGaugeFactories?: AddressLike[];
-  /** Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains. Required when
-   *  `aerodromeGaugeFactories` lists an Aero gauge factory (one that answers `leafVoter()`). */
-  aeroEmissionToken?: AddressLike;
   pancakeV3MasterChef?: AddressLike;
   merklDistributor?: AddressLike;
   uniswapV4KEMHook?: AddressLike;

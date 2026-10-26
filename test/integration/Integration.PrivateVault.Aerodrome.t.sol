@@ -149,7 +149,7 @@ contract PrivateVaultIntegrationTest is TestCommon, IERC721Receiver {
     v3UtilsStrategy = new V3UtilsStrategy(V3_UTILS);
 
     // Deploy AerodromeFarmingStrategy
-    farmingStrategy = new AerodromeFarmingStrategy(GAUGE_FACTORY, address(configManager), address(0));
+    farmingStrategy = new AerodromeFarmingStrategy(GAUGE_FACTORY, address(configManager));
 
     // Add strategies to whitelist
     address[] memory strategiesToAdd = new address[](2);

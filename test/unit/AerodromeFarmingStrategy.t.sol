@@ -320,7 +320,7 @@ contract AerodromeFarmingStrategyTest is Test {
     legacyGauge = new MockLegacyCLGauge(address(legacyNfpm), legacyReward);
     _wirePool(legacyFactory, address(legacyGauge));
     legacyGaugeFactory = new MockLegacyGaugeFactory(address(legacyNfpm));
-    legacyStrategy = new AerodromeFarmingStrategy(address(legacyGaugeFactory), address(configManager), address(0));
+    legacyStrategy = new AerodromeFarmingStrategy(address(legacyGaugeFactory), address(configManager));
 
     xAero = new MockRewardToken("xAERO");
     MockCLFactory aeroFactory = new MockCLFactory();
@@ -332,7 +332,7 @@ contract AerodromeFarmingStrategyTest is Test {
     leafVoter.setActivated(address(aeroGauge), true);
     aeroGaugeFactory = new MockAeroGaugeFactory(address(aeroNfpm), address(leafVoter));
     aeroGaugeFactory.setEmissionCap(address(aeroGauge), 1e18);
-    aeroStrategy = new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager), address(xAero));
+    aeroStrategy = new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager));
 
     address[] memory targets = new address[](2);
     targets[0] = address(legacyStrategy);
@@ -392,25 +392,9 @@ contract AerodromeFarmingStrategyTest is Test {
     assertEq(aeroStrategy.gaugeFactory(), address(aeroGaugeFactory));
   }
 
-  function test_constructor_revertsWhen_aeroFactoryGetsNoEmissionToken() public {
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager), address(0));
-  }
-
-  /// A leaf chain pays exactly the LeafVoter's receipt token.
-  function test_constructor_revertsWhen_leafChainTokenIsNotTheReceiptToken() public {
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager), address(legacyReward));
-  }
-
-  function test_constructor_revertsWhen_emissionTokenHasNoCode() public {
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(address(aeroGaugeFactory), address(configManager), makeAddr("notAToken"));
-  }
-
-  /// On Base the handler redeems the receipt token for the root Voter's TOKEN (AERO), so exactly that token pays out:
-  /// the receipt token and any other deployed token (e.g. the pre-merger AERO) are rejected.
-  function test_constructor_rootChain_requiresTheRootVoterToken() public {
+  /// On Base the handler redeems the receipt token for the root Voter's TOKEN (AERO), so that token is the one read,
+  /// not the receipt token the vault never holds there.
+  function test_constructor_rootChain_readsTheRootVoterToken() public {
     MockRewardToken baseXAero = new MockRewardToken("xAERO");
     MockRewardToken aero = new MockRewardToken("AERO");
     MockLeafVoter rootVoter = new MockLeafVoter(address(baseXAero), address(new MockRootEmissionsHandler()));
@@ -419,29 +403,33 @@ contract AerodromeFarmingStrategyTest is Test {
     rootVoter.setOrchestrator(address(new MockMessageOrchestrator(address(localAdapter))));
     MockAeroGaugeFactory rootFactory = new MockAeroGaugeFactory(address(aeroNfpm), address(rootVoter));
 
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(baseXAero));
-
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(legacyReward));
-
-    AerodromeFarmingStrategy strategy =
-      new AerodromeFarmingStrategy(address(rootFactory), address(configManager), address(aero));
+    AerodromeFarmingStrategy strategy = new AerodromeFarmingStrategy(address(rootFactory), address(configManager));
     assertEq(strategy.emissionToken(), address(aero));
   }
 
-  /// The deploy script passes the chain's emission token to every gauge factory; a legacy one ignores it.
-  function test_constructor_ignoresEmissionTokenForLegacyFactory() public {
-    AerodromeFarmingStrategy strategy =
-      new AerodromeFarmingStrategy(address(legacyGaugeFactory), address(configManager), address(xAero));
-    assertEq(strategy.leafVoter(), address(0));
-    assertEq(strategy.emissionToken(), address(0));
+  /// A LeafVoter whose handler pays no receipt token and that has no redeem route can't name its emission token: the
+  /// deployment reverts instead of treating the Aero factory as a legacy one.
+  function test_constructor_revertsWhen_emissionTokenRouteIsBroken() public {
+    MockLeafVoter brokenVoter = new MockLeafVoter(address(xAero), address(new MockRootEmissionsHandler()));
+    MockAeroGaugeFactory brokenFactory = new MockAeroGaugeFactory(address(aeroNfpm), address(brokenVoter));
+    vm.expectRevert();
+    new AerodromeFarmingStrategy(address(brokenFactory), address(configManager));
+  }
+
+  /// A root route whose Voter reports no TOKEN fails closed rather than storing a zero emission token.
+  function test_constructor_revertsWhen_emissionTokenIsZero() public {
+    MockLeafVoter rootVoter = new MockLeafVoter(address(xAero), address(new MockRootEmissionsHandler()));
+    MockRootMessageOrchestrator rootOrchestrator = new MockRootMessageOrchestrator(address(new MockVoter(address(0))));
+    MockRootLocalAdapter localAdapter = new MockRootLocalAdapter(address(rootOrchestrator));
+    rootVoter.setOrchestrator(address(new MockMessageOrchestrator(address(localAdapter))));
+    MockAeroGaugeFactory rootFactory = new MockAeroGaugeFactory(address(aeroNfpm), address(rootVoter));
+    vm.expectRevert("Invalid emission token");
+    new AerodromeFarmingStrategy(address(rootFactory), address(configManager));
   }
 
   function test_constructor_treatsZeroLeafVoterAsLegacy() public {
     MockAeroGaugeFactory unwired = new MockAeroGaugeFactory(address(aeroNfpm), address(0));
-    AerodromeFarmingStrategy strategy =
-      new AerodromeFarmingStrategy(address(unwired), address(configManager), address(xAero));
+    AerodromeFarmingStrategy strategy = new AerodromeFarmingStrategy(address(unwired), address(configManager));
     assertEq(strategy.leafVoter(), address(0));
     assertEq(strategy.emissionToken(), address(0));
   }

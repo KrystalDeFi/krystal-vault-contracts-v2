@@ -35,26 +35,29 @@ contract AerodromeFarmingStrategy {
   IPrivateConfigManager public immutable configManager;
   /// @notice Aero's LeafVoter when the gauge factory is Aero's, zero for a legacy gauge factory
   address public immutable leafVoter;
-  /// @notice Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains. Zero for a
-  ///         legacy gauge factory, whose gauges report their reward token themselves.
+  /// @notice Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains, read from the
+  ///         LeafVoter at deployment. Zero for a legacy gauge factory, whose gauges report their reward token themselves.
   address public immutable emissionToken;
 
   event AerodromeFarmingStaked(address indexed nfpm, uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingUnstaked(uint256 indexed tokenId, address indexed gauge, address msgSender);
   event AerodromeFarmingRewardsHarvested(uint256 indexed tokenId, address indexed gauge, address msgSender);
 
-  /// @param _emissionToken For an Aero gauge factory, the token its gauges pay on this chain, which must be exactly the
-  ///        one Aero pays out there. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`.
-  constructor(address _gaugeFactory, address _configManager, address _emissionToken) {
+  /// @dev A legacy gauge factory is told apart from Aero's by not having `leafVoter()`.
+  constructor(address _gaugeFactory, address _configManager) {
     require(_gaugeFactory != address(0), "Invalid gauge factory");
     require(_configManager != address(0), "Invalid config manager");
     address _leafVoter = _leafVoterOf(_gaugeFactory);
-    require(_leafVoter == address(0) || _isEmissionToken(_leafVoter, _emissionToken), "Invalid emission token");
+    address _emissionToken;
+    if (_leafVoter != address(0)) {
+      _emissionToken = _emissionTokenOf(_leafVoter);
+      require(_emissionToken != address(0), "Invalid emission token");
+    }
     gaugeFactory = _gaugeFactory;
     nfpm = ICLGaugeFactory(_gaugeFactory).nft();
     configManager = IPrivateConfigManager(_configManager);
     leafVoter = _leafVoter;
-    emissionToken = _leafVoter == address(0) ? address(0) : _emissionToken;
+    emissionToken = _emissionToken;
   }
 
   function _leafVoterOf(address _gaugeFactory) private view returns (address) {
@@ -65,16 +68,17 @@ contract AerodromeFarmingStrategy {
     }
   }
 
-  /// @dev Leaf chains pay the receipt token (xAERO) that the LeafVoter's emissions handler transfers. On Base, the root
-  ///      chain, the handler redeems it right away for the root Voter's TOKEN (AERO), reached along the route a redeem
-  ///      takes: LeafVoter, message orchestrator, root-local adapter, root message orchestrator, Voter.
-  function _isEmissionToken(address _leafVoter, address token) private view returns (bool) {
+  /// @dev The token Aero pays emissions in on this chain. Leaf chains pay the receipt token (xAERO) that the
+  ///      LeafVoter's emissions handler transfers. On Base, the root chain, the handler redeems it right away for the
+  ///      root Voter's TOKEN (AERO), reached along the route a redeem takes: LeafVoter, message orchestrator, root-local
+  ///      adapter, root message orchestrator, Voter. A route that breaks reverts the deployment.
+  function _emissionTokenOf(address _leafVoter) private view returns (address) {
     try IAeroEmissionsHandler(IAeroLeafVoter(_leafVoter).EMISSIONS_HANDLER()).RECEIPT_TOKEN() returns (address paid) {
-      return token == paid;
+      return paid;
     } catch {
       address adapter = IAeroMessageOrchestrator(IAeroLeafVoter(_leafVoter).ORCHESTRATOR()).adapter();
       address voter = IAeroRootMessageOrchestrator(IAeroRootLocalAdapter(adapter).ROOT_MESSAGE_ORCHESTRATOR()).VOTER();
-      return token == IAeroVoter(voter).TOKEN();
+      return IAeroVoter(voter).TOKEN();
     }
   }
 

@@ -106,7 +106,7 @@ contract PrivateVaultAeroIntegrationTest is TestCommon {
     configManager.initialize(address(this), new address[](0), callers, feeRecipient);
 
     v3UtilsStrategy = new V3UtilsStrategy(V3_UTILS);
-    farmingStrategy = new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), AERO);
+    farmingStrategy = new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager));
 
     address[] memory targets = new address[](2);
     targets[0] = address(v3UtilsStrategy);
@@ -219,20 +219,13 @@ contract PrivateVaultAeroIntegrationTest is TestCommon {
   function test_aero_strategyBindsToRealFactories() public {
     assertEq(farmingStrategy.nfpm(), AERO_NFPM);
     assertEq(farmingStrategy.leafVoter(), LEAF_VOTER);
+    // Base's root handler redeems the receipt token for the root Voter's TOKEN, so that AERO is the token read: not
+    // the receipt token the vault never holds here, nor Aerodrome's pre-merger AERO.
     assertEq(farmingStrategy.emissionToken(), AERO);
+    assertTrue(farmingStrategy.emissionToken() != BASE_XAERO && farmingStrategy.emissionToken() != PRE_MERGER_AERO);
 
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), address(0));
-
-    // Base's root handler redeems the receipt token for the root Voter's TOKEN, so only that AERO is accepted: not
-    // the receipt token the vault never holds here, nor any other token such as Aerodrome's pre-merger AERO.
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), BASE_XAERO);
-    vm.expectRevert("Invalid emission token");
-    new AerodromeFarmingStrategy(AERO_GAUGE_FACTORY, address(configManager), PRE_MERGER_AERO);
-
-    // A legacy Aerodrome factory ignores the emission token the deploy script passes every factory.
-    AerodromeFarmingStrategy legacy = new AerodromeFarmingStrategy(LEGACY_GAUGE_FACTORY, address(configManager), AERO);
+    // A legacy Aerodrome factory has no LeafVoter, so no emission token.
+    AerodromeFarmingStrategy legacy = new AerodromeFarmingStrategy(LEGACY_GAUGE_FACTORY, address(configManager));
     assertEq(legacy.leafVoter(), address(0));
     assertEq(legacy.emissionToken(), address(0));
   }

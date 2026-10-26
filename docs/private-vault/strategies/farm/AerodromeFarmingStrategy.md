@@ -38,8 +38,8 @@ Aero's LeafVoter when the gauge factory is Aero's, zero for a legacy gauge facto
 address emissionToken
 ```
 
-Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains. Zero for a
-        legacy gauge factory, whose gauges report their reward token themselves.
+Token Aero gauges pay emissions in on this chain: AERO on Base, xAERO on the other chains, read from the
+        LeafVoter at deployment. Zero for a legacy gauge factory, whose gauges report their reward token themselves.
 
 ### AerodromeFarmingStaked
 
@@ -62,16 +62,10 @@ event AerodromeFarmingRewardsHarvested(uint256 tokenId, address gauge, address m
 ### constructor
 
 ```solidity
-constructor(address _gaugeFactory, address _configManager, address _emissionToken) public
+constructor(address _gaugeFactory, address _configManager) public
 ```
 
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| _gaugeFactory | address |  |
-| _configManager | address |  |
-| _emissionToken | address | For an Aero gauge factory, the token its gauges pay on this chain, which must be exactly the        one Aero pays out there. Ignored for a legacy gauge factory, which is told apart by not having `leafVoter()`. |
+_A legacy gauge factory is told apart from Aero's by not having `leafVoter()`._
 
 ### _getGaugeFromTokenId
 

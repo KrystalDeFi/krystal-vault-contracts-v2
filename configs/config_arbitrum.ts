@@ -50,7 +50,6 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
     aerodromeGaugeFactories: [
       "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
     ],
-    aeroEmissionToken: "0x436a085B2751cB87db270FFa66f8d698F87bEC82", // xAERO
   },
 };
 
