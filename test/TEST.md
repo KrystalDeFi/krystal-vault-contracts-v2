@@ -31,6 +31,23 @@ Coverage lives in three layers; the checklist below this section is the legacy p
 * **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness,
   `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
 
+### Private Vault: Ramses farming (RamsesFarmingStrategy)
+
+Ramses is supported in private vaults only; shared vaults don't support it.
+
+* **Unit** (`test/unit/RamsesFarmingStrategy.t.sol` against `test/helpers/RamsesMocks.sol`, which reproduce the
+  Ramses position manager / gauge / reward-validator claim semantics): the harvest claims RAM only (xRAM stays in the
+  gauge), takes the operator fees from exactly what arrived (fuzzed: RAM the vault already held is untouched, fee
+  rates past 100% revert), keeps or forwards the rest to the vault owner, and pays and charges nothing on a claim
+  the gauge forfeits.
+* **Fork** (`test/integration/Integration.HyperEVMRamses.t.sol`, non-hermetic, against real Ramses on HyperEVM): the
+  harvest end to end, the safe V3Utils pattern (harvest first in the same multicall: V3Utils gets no RAM), plus
+  `HyperEVMRamsesIncompatibilityTest`, which pins why no other strategy can serve Ramses: AerodromeFarming/
+  PancakeV3Farming can't stake or claim; V3UtilsStrategy can't increase and leaks the position's RAM to V3Utils on
+  exit; SharedV3/SharedAerodrome can't mint, track or claim.
+* **Echidna** (`test/echidna-fuzzer/Fuzzer.privateRamses.sol`, config `config.privateRamses.yaml`): a real
+  PrivateVault harvesting against the mocks; see `test/echidna-fuzzer/readme.md`.
+
 ### Create A Vault (legacy private-vault checklist)
 [x] User can create a Vault without any assets
 [x] User can set a principal token from the whitelist, principal can't be changed

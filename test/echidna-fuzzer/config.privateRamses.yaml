@@ -1,0 +1,14 @@
+# RamsesFarmingStrategy harness (Fuzzer.privateRamses.sol). Nothing to pre-deploy: no linked libraries.
+testMode: "assertion"
+allContracts: false
+
+# foundry-out-directory: see config.yaml (crytic-compile ignores foundry's `out` on --ignore-compile). Like config.yaml,
+# crytic-compile runs `forge clean` first; see readme.md to keep artifacts/ intact.
+cryticArgs: ["--foundry-out-directory=artifacts"]
+
+testLimit: 200000
+seqLen: 60
+# Short gaps between calls so harvests land inside and outside the 299 s anti-sybil window; `elapse` jumps further.
+maxTimeDelay: 600
+maxBlockDelay: 100
+deployer: "0x10000"

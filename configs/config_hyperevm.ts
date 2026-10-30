@@ -23,7 +23,12 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateRamsesFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
+    ramsesVoter: "0x9aab8C415aF5936b09C595B09B1ff15cbaDCD843",
   },
 };
 

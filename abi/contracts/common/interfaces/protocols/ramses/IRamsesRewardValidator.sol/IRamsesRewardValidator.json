@@ -1,0 +1,56 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "positionHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "origin",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickLower",
+        "type": "int24"
+      },
+      {
+        "internalType": "int24",
+        "name": "tickUpper",
+        "type": "int24"
+      },
+      {
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      }
+    ],
+    "name": "validateReward",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "slash",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
