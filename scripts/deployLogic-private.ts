@@ -12,6 +12,7 @@ import {
 } from "../typechain-types/contracts/private-vault/core";
 import { AerodromeFarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/AerodromeFarmingStrategy";
 import { PancakeV3FarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy";
+import { RamsesFarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/RamsesFarmingStrategy";
 import { V3UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv3/V3UtilsStrategy";
 import { V4UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv4/V4UtilsStrategy";
 import { MerklStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/MerklStrategy";
@@ -40,6 +41,7 @@ export interface PrivateContracts {
   privateVaultAutomator?: PrivateVaultAutomator;
   aerodromeFarmingStrategies?: AerodromeFarmingStrategy[];
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
+  ramsesFarmingStrategy?: RamsesFarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
   privateMerklStrategy?: MerklStrategy;
@@ -94,6 +96,12 @@ async function deployContracts(
     undefined,
     contracts,
   );
+  const ramsesFarmingStrategy = await deployRamsesFarmingStrategyContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
   const privateMerklStrategy = await deployPrivateMerklStrategyContract(++step, existingContract, undefined, contracts);
   const privateKyberFairFlowStrategy = await deployPrivateKyberFairFlowStrategyContract(
     ++step,
@@ -110,6 +118,7 @@ async function deployContracts(
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
     aerodromeFarmingStrategies: aerodromeFarmingStrategy.aerodromeFarmingStrategies,
     pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
+    ramsesFarmingStrategy: ramsesFarmingStrategy.ramsesFarmingStrategy,
     privateMerklStrategy: privateMerklStrategy.privateMerklStrategy,
     privateKyberFairFlowStrategy: privateKyberFairFlowStrategy.privateKyberFairFlowStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
@@ -136,6 +145,7 @@ async function deployContracts(
     const whitelistedTargets = [
       ...deployedAerodromeStrategies,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
+      existingContract?.["ramsesFarmingStrategy"] || contracts?.ramsesFarmingStrategy?.target,
       existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
       existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
       existingContract?.["v3UtilsStrategy"] || contracts?.v3UtilsStrategy?.target,
@@ -316,6 +326,38 @@ export const deployPancakeV3FarmingStrategyContract = async (
 
   return {
     pancakeV3FarmingStrategy,
+  };
+};
+
+export const deployRamsesFarmingStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let ramsesFarmingStrategy;
+
+  if (config.privateRamsesFarmingStrategy?.enabled) {
+    if (!config.ramsesVoter) {
+      throw new Error("privateRamsesFarmingStrategy: `ramsesVoter` is required on the network config");
+    }
+    // The constructor reads the position manager and RAM from the Voter.
+    ramsesFarmingStrategy = (await deployContract(
+      `${step} >>`,
+      config.privateRamsesFarmingStrategy?.autoVerifyContract,
+      "RamsesFarmingStrategy",
+      existingContract?.["ramsesFarmingStrategy"],
+      "contracts/private-vault/strategies/farm/RamsesFarmingStrategy.sol:RamsesFarmingStrategy",
+      undefined,
+      ["address", "address"],
+      [config.ramsesVoter, existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+    )) as RamsesFarmingStrategy;
+  }
+
+  return {
+    ramsesFarmingStrategy,
   };
 };
 

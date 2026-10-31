@@ -30,12 +30,19 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
+    privateRamsesFarmingStrategy: {
+      enabled: true,
+      autoVerifyContract: true,
+    },
     v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     aerodromeGaugeFactories: [
       "0x6Bdf3B9A782c28D6259356d0Cb7Ae22Ab1368863", // Up (Aerodrome fork)
       "0xf437f62053ACB121665b8fDBfeA8F214FB8E589d", // Aero
     ],
+    // Ramses' Voter (not in Ramses' published address list; read from the position manager's `voter` slot). Its CL
+    // gauges pay RAM although the docs still call Robinhood fee-only.
+    ramsesVoter: "0x30032D41868906f0376eC4D87B3D3Ac4064e7A97",
   },
 };
 
