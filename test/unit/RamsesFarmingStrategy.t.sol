@@ -163,7 +163,9 @@ contract RamsesFarmingStrategyTest is Test {
     uint256 tokenId = _farmingPosition(REWARD);
 
     vm.expectEmit(true, true, false, true, address(vault));
-    emit RamsesFarmingStrategy.RamsesFarmingRewardsHarvested(tokenId, address(nfpm), REWARD, OPERATOR);
+    emit RamsesFarmingStrategy.RamsesFarmingRewardsHarvested(
+      tokenId, address(nfpm), REWARD, REWARD - _fee(REWARD), OPERATOR
+    );
     _harvest(tokenId, false);
   }
 

@@ -21,8 +21,10 @@ contract RamsesFarmingStrategy {
   address public immutable rewardToken;
   IPrivateConfigManager public immutable configManager;
 
+  /// @param claimedAmount The RAM the claim brought in, before fees
+  /// @param harvestedAmount What is left after fees: kept by the vault, or sent to the vault owner
   event RamsesFarmingRewardsHarvested(
-    uint256 indexed tokenId, address indexed nfpm, uint256 harvestedAmount, address msgSender
+    uint256 indexed tokenId, address indexed nfpm, uint256 claimedAmount, uint256 harvestedAmount, address msgSender
   );
 
   constructor(address _voter, address _configManager) {
@@ -55,7 +57,7 @@ contract RamsesFarmingStrategy {
       IERC20(rewardToken).safeTransfer(IPrivateVault(address(this)).vaultOwner(), harvestedAmount);
     }
 
-    emit RamsesFarmingRewardsHarvested(tokenId, nfpm, claimedAmount, msg.sender);
+    emit RamsesFarmingRewardsHarvested(tokenId, nfpm, claimedAmount, harvestedAmount, msg.sender);
   }
 
   function _handleReward(uint256 claimedAmount, uint64 rewardFeeX64, uint64 gasFeeX64)

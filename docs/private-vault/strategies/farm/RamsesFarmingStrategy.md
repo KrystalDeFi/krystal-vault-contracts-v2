@@ -31,8 +31,18 @@ contract IPrivateConfigManager configManager
 ### RamsesFarmingRewardsHarvested
 
 ```solidity
-event RamsesFarmingRewardsHarvested(uint256 tokenId, address nfpm, uint256 harvestedAmount, address msgSender)
+event RamsesFarmingRewardsHarvested(uint256 tokenId, address nfpm, uint256 claimedAmount, uint256 harvestedAmount, address msgSender)
 ```
+
+#### Parameters
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| tokenId | uint256 |  |
+| nfpm | address |  |
+| claimedAmount | uint256 | The RAM the claim brought in, before fees |
+| harvestedAmount | uint256 | What is left after fees: kept by the vault, or sent to the vault owner |
+| msgSender | address |  |
 
 ### constructor
 
