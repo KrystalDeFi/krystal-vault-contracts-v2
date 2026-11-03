@@ -27,11 +27,7 @@ import {
 } from "../../contracts/common/interfaces/protocols/ramses/IRamsesV3PositionManager.sol";
 import { IRamsesV3Pool } from "../../contracts/common/interfaces/protocols/ramses/IRamsesV3Pool.sol";
 import { IRamsesGaugeV3 } from "../../contracts/common/interfaces/protocols/ramses/IRamsesGaugeV3.sol";
-
-/// @dev The reward forward of V3Utils since v3utils#63: the reward it passes on for a position manager's positions.
-interface IV3UtilsRewardForward {
-  function positionRewardToken(address nfpm) external view returns (address);
-}
+import { IV3UtilsRewardForward } from "../helpers/IV3UtilsRewardForward.sol";
 
 /// @notice Fork base for the Ramses suites against Ramses on HyperEVM (non-hermetic like the other
 ///         Integration.HyperEVM* suites: excluded from the offline fork gate). WHYPE/USDC is a gauged pool whose swap

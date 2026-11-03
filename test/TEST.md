@@ -46,6 +46,12 @@ Ramses is supported in private vaults only; shared vaults don't support it.
   passes the RAM to the vault fee-free. Plus `HyperEVMRamsesIncompatibilityTest`, which pins why no other strategy can
   serve Ramses: AerodromeFarming/PancakeV3Farming can't stake or claim; V3UtilsStrategy can't increase, and the legacy
   (pre-#63) V3Utils leaks the position's RAM on exit; SharedV3/SharedAerodrome can't mint, track or claim.
+* **Robinhood config** (`test/integration/Integration.RobinhoodRamses.t.sol`, non-hermetic: forks the latest Robinhood
+  block): the configured Voter (`ramsesVoter`, which Ramses doesn't publish) names the published position manager and
+  RAM, and that position manager claims through it; the configured V3Utils passes a Ramses position's RAM on; the
+  RamsesFarmingStrategy and V3UtilsStrategy recorded in `contracts-private.json` match the config and are whitelisted.
+  `checkRamsesConfig` in `scripts/deployLogic-private.ts` runs the same Voter and V3Utils checks before every Ramses
+  strategy deployment.
 * **Echidna** (`test/echidna-fuzzer/Fuzzer.privateRamses.sol`, config `config.privateRamses.yaml`): a real
   PrivateVault harvesting against the mocks; see `test/echidna-fuzzer/readme.md`.
 

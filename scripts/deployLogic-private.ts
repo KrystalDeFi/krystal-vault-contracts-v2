@@ -1,4 +1,4 @@
-import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
+import { AddressLike, BaseContract, ZeroAddress, encodeBytes32String, resolveAddress, solidityPacked } from "ethers";
 import { ethers, network, run } from "hardhat";
 import { isArray } from "lodash";
 import { commonConfig } from "../configs/config_common";
@@ -343,6 +343,7 @@ export const deployRamsesFarmingStrategyContract = async (
     if (!config.ramsesVoter) {
       throw new Error("privateRamsesFarmingStrategy: `ramsesVoter` is required on the network config");
     }
+    await checkRamsesConfig(config.ramsesVoter, config.v3UtilsAddress);
     // The constructor reads the position manager and RAM from the Voter.
     ramsesFarmingStrategy = (await deployContract(
       `${step} >>`,
@@ -359,6 +360,43 @@ export const deployRamsesFarmingStrategyContract = async (
   return {
     ramsesFarmingStrategy,
   };
+};
+
+// Ramses doesn't publish every Voter (Robinhood's was read from its position manager's storage), and it pays a
+// position's RAM to V3Utils while V3Utils operates on the position. So before the Ramses strategy is enabled, check on
+// chain that the Voter names a position manager and RAM, and that the configured V3Utils passes that RAM on
+// (v3utils#63) instead of keeping it.
+export const checkRamsesConfig = async (ramsesVoter: AddressLike, v3UtilsAddress?: AddressLike) => {
+  const voter = await ethers.getContractAt(
+    ["function nfpManager() view returns (address)", "function ram() view returns (address)"],
+    await resolveAddress(ramsesVoter),
+  );
+  const [nfpm, ram]: string[] = await Promise.all([voter.nfpManager(), voter.ram()]).catch((e: any) => {
+    throw new Error(
+      `privateRamsesFarmingStrategy: ${ramsesVoter} is not a Ramses Voter: ${e.shortMessage ?? e.message}`,
+    );
+  });
+  if (nfpm === ZeroAddress || ram === ZeroAddress) {
+    throw new Error(`privateRamsesFarmingStrategy: the Voter ${ramsesVoter} names no position manager or RAM`);
+  }
+  if (!v3UtilsAddress) return;
+
+  const v3Utils = await ethers.getContractAt(
+    ["function positionRewardToken(address nfpm) view returns (address)"],
+    await resolveAddress(v3UtilsAddress),
+  );
+  const rewardToken: string = await v3Utils.positionRewardToken(nfpm).catch((e: any) => {
+    throw new Error(
+      `privateRamsesFarmingStrategy: V3Utils ${v3UtilsAddress} has no positionRewardToken (before v3utils#63?): ` +
+        (e.shortMessage ?? e.message),
+    );
+  });
+  if (rewardToken !== ram) {
+    throw new Error(
+      `privateRamsesFarmingStrategy: V3Utils ${v3UtilsAddress} would keep the RAM of Ramses positions ` +
+        `(positionRewardToken(${nfpm}) is ${rewardToken}): call setPositionRewardToken(${nfpm}, ${ram}) on it first`,
+    );
+  }
 };
 
 export const deployPrivateMerklStrategyContract = async (
