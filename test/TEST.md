@@ -40,11 +40,12 @@ Ramses is supported in private vaults only; shared vaults don't support it.
   gauge), takes the operator fees from exactly what arrived (fuzzed: RAM the vault already held is untouched, fee
   rates past 100% revert), keeps or forwards the rest to the vault owner, and pays and charges nothing on a claim
   the gauge forfeits.
-* **Fork** (`test/integration/Integration.HyperEVMRamses.t.sol`, non-hermetic, against real Ramses on HyperEVM): the
-  harvest end to end, the safe V3Utils pattern (harvest first in the same multicall: V3Utils gets no RAM), plus
-  `HyperEVMRamsesIncompatibilityTest`, which pins why no other strategy can serve Ramses: AerodromeFarming/
-  PancakeV3Farming can't stake or claim; V3UtilsStrategy can't increase and leaks the position's RAM to V3Utils on
-  exit; SharedV3/SharedAerodrome can't mint, track or claim.
+* **Fork** (`test/integration/Integration.HyperEVMRamses.t.sol`, non-hermetic, against real Ramses on HyperEVM and
+  the configured V3Utils, `v3UtilsAddress`): the harvest end to end; harvest first in the same multicall to charge the
+  farming fee on a V3Utils operation (V3Utils gets no RAM); without a harvest, the configured V3Utils (v3utils#63)
+  passes the RAM to the vault fee-free. Plus `HyperEVMRamsesIncompatibilityTest`, which pins why no other strategy can
+  serve Ramses: AerodromeFarming/PancakeV3Farming can't stake or claim; V3UtilsStrategy can't increase, and the legacy
+  (pre-#63) V3Utils leaks the position's RAM on exit; SharedV3/SharedAerodrome can't mint, track or claim.
 * **Echidna** (`test/echidna-fuzzer/Fuzzer.privateRamses.sol`, config `config.privateRamses.yaml`): a real
   PrivateVault harvesting against the mocks; see `test/echidna-fuzzer/readme.md`.
 

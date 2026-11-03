@@ -28,11 +28,17 @@ import {
 import { IRamsesV3Pool } from "../../contracts/common/interfaces/protocols/ramses/IRamsesV3Pool.sol";
 import { IRamsesGaugeV3 } from "../../contracts/common/interfaces/protocols/ramses/IRamsesGaugeV3.sol";
 
+/// @dev The reward forward of V3Utils since v3utils#63: the reward it passes on for a position manager's positions.
+interface IV3UtilsRewardForward {
+  function positionRewardToken(address nfpm) external view returns (address);
+}
+
 /// @notice Fork base for the Ramses suites against Ramses on HyperEVM (non-hermetic like the other
 ///         Integration.HyperEVM* suites: excluded from the offline fork gate). WHYPE/USDC is a gauged pool whose swap
 ///         fees all go to voters (feeProtocol 100%), so its LPs earn RAM only.
 abstract contract HyperEVMRamsesFork is TestCommon {
-  uint256 internal constant FORK_BLOCK = 49_899_000;
+  /// @dev After the configured V3Utils (`V3_UTILS`) was deployed.
+  uint256 internal constant FORK_BLOCK = 50_268_584;
   uint256 internal constant Q64 = 0x10000000000000000;
 
   address internal constant VOTER = 0x9aab8C415aF5936b09C595B09B1ff15cbaDCD843;
@@ -43,8 +49,12 @@ abstract contract HyperEVMRamsesFork is TestCommon {
   address internal constant HYPER_USDC = 0xb88339CB7199b77E23DB6E890353E22632Ba630f;
   address internal constant WHYPE_USDC_POOL = 0x5a177cF0EfFB7e0e7115D792E587c1A5a9CbC9D4;
   address internal constant WHYPE_USDC_GAUGE = 0x1d21655d65f8ab051eC16010c8F548f0D5C446BC;
-  /// @dev Krystal V3Utils on HyperEVM; whitelists the Ramses position manager and decodes it as `RAMSES_V3`.
-  address internal constant V3_UTILS = 0xb4acbC082b5e7dEd571c98EE4257778a9D784B36;
+  /// @dev Krystal V3Utils on HyperEVM, the one deployments use (`v3UtilsAddress` in configs/config_hyperevm.ts):
+  ///      whitelists the Ramses position manager, decodes it as `RAMSES_V3`, and passes a Ramses position's RAM on to
+  ///      the operation's recipient, fee-free (v3utils#63).
+  address internal constant V3_UTILS = 0x8053e6e8b6CAB476D13060806141BE5bc71Bfc42;
+  /// @dev The V3Utils deployed before v3utils#63, still live: it keeps the RAM a liquidity change pays it.
+  address internal constant LEGACY_V3_UTILS = 0xb4acbC082b5e7dEd571c98EE4257778a9D784B36;
   uint8 internal constant PROTOCOL_RAMSES_V3 = 2;
   int24 internal constant TICK_SPACING = 5;
 
@@ -120,6 +130,15 @@ abstract contract HyperEVMRamsesFork is TestCommon {
     _privateMulticall(vault, targets, calls);
   }
 
+  /// V3Utils instructions that withdraw all of the position's liquidity and swap nothing.
+  function _exitInstructions(uint256 tokenId) internal view returns (IV3Utils.Instructions memory instructions) {
+    (,,,,, uint128 liquidity,,,,) = IRamsesV3PositionManager(RAMSES_NFPM).positions(tokenId);
+    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
+    instructions.protocol = PROTOCOL_RAMSES_V3;
+    instructions.liquidity = liquidity;
+    instructions.deadline = block.timestamp;
+  }
+
   /// The operator delegatecalls each of `targets` from `vault`, in one transaction.
   function _privateMulticall(PrivateVault vault, address[] memory targets, bytes[] memory calls) internal {
     IPrivateCommon.CallType[] memory callTypes = new IPrivateCommon.CallType[](targets.length);
@@ -156,9 +175,9 @@ contract HyperEVMRamsesIntegrationTest is HyperEVMRamsesFork {
     assertEq(IERC721(RAMSES_NFPM).ownerOf(tokenId), address(vault));
   }
 
-  /// The safe way to run a V3Utils operation on a Ramses position: harvest first, in the same multicall. The vault
-  /// gets all the RAM and V3Utils, which holds the NFT during the operation, gets none.
-  function test_private_harvestFirst_thenV3UtilsExit_leaksNoRamToV3Utils() public {
+  /// To charge the farming fee on a V3Utils operation, harvest first in the same multicall: the harvest claims the RAM
+  /// and takes the fee, so V3Utils, which would pass the RAM on fee-free, has none left to claim.
+  function test_private_harvestFirst_thenV3UtilsExit_chargesTheFarmingFee() public {
     (PrivateVault vault, PrivateConfigManager configManager) = _privateVault();
     RamsesFarmingStrategy ramsesStrategy = new RamsesFarmingStrategy(VOTER, address(configManager));
     V3UtilsStrategy v3UtilsStrategy = new V3UtilsStrategy(V3_UTILS);
@@ -169,25 +188,52 @@ contract HyperEVMRamsesIntegrationTest is HyperEVMRamsesFork {
     uint256 earned = gauge.earned(RAM, tokenId);
     assertGt(earned, 0);
     uint256 v3UtilsRamBefore = IERC20(RAM).balanceOf(V3_UTILS);
+    uint64 rewardFeeX64 = uint64(Q64 / 10);
 
-    (,,,,, uint128 liquidity,,,,) = IRamsesV3PositionManager(RAMSES_NFPM).positions(tokenId);
-    IV3Utils.Instructions memory instructions;
-    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
-    instructions.protocol = PROTOCOL_RAMSES_V3;
-    instructions.liquidity = liquidity;
-    instructions.deadline = block.timestamp;
     address[] memory targets = new address[](2);
     targets[0] = address(ramsesStrategy);
     targets[1] = address(v3UtilsStrategy);
     bytes[] memory calls = new bytes[](2);
-    calls[0] = abi.encodeCall(RamsesFarmingStrategy.harvest, (tokenId, 0, 0, false));
-    calls[1] =
-      abi.encodeCall(V3UtilsStrategy.safeTransferNft, (RAMSES_NFPM, tokenId, instructions, new address[](0), false));
+    calls[0] = abi.encodeCall(RamsesFarmingStrategy.harvest, (tokenId, rewardFeeX64, 0, false));
+    calls[1] = abi.encodeCall(
+      V3UtilsStrategy.safeTransferNft, (RAMSES_NFPM, tokenId, _exitInstructions(tokenId), new address[](0), false)
+    );
     _privateMulticall(vault, targets, calls);
 
-    assertEq(IERC20(RAM).balanceOf(address(vault)), earned, "the vault got all the RAM");
+    uint256 fee = Math.mulDiv(earned, rewardFeeX64, Q64);
+    assertGt(fee, 0);
+    assertEq(IERC20(RAM).balanceOf(feeRecipient), fee, "the farming fee was charged");
+    assertEq(IERC20(RAM).balanceOf(address(vault)), earned - fee, "the vault got the rest");
     assertEq(IERC20(RAM).balanceOf(V3_UTILS), v3UtilsRamBefore, "V3Utils got none");
     assertEq(IERC721(RAMSES_NFPM).ownerOf(tokenId), address(vault));
+  }
+
+  /// Without a harvest, the configured V3Utils passes the position's RAM on to the vault in full: none is lost, but no
+  /// farming fee is charged either.
+  function test_private_v3UtilsExit_withoutHarvest_forwardsTheRamToTheVault() public {
+    assertEq(IV3UtilsRewardForward(V3_UTILS).positionRewardToken(RAMSES_NFPM), RAM, "the deployed V3Utils forwards RAM");
+    (PrivateVault vault, PrivateConfigManager configManager) = _privateVault();
+    V3UtilsStrategy strategy = new V3UtilsStrategy(V3_UTILS);
+    _whitelistPrivateTarget(configManager, address(strategy));
+    uint256 tokenId = _mintAs(address(vault));
+    vm.warp(vm.getBlockTimestamp() + 1 days);
+    uint256 earned = gauge.earned(RAM, tokenId);
+    assertGt(earned, 0);
+    uint256 v3UtilsRamBefore = IERC20(RAM).balanceOf(V3_UTILS);
+
+    _privateCall(
+      vault,
+      address(strategy),
+      abi.encodeCall(
+        V3UtilsStrategy.safeTransferNft, (RAMSES_NFPM, tokenId, _exitInstructions(tokenId), new address[](0), false)
+      )
+    );
+
+    assertEq(IERC20(RAM).balanceOf(address(vault)), earned, "the vault got all the RAM");
+    assertEq(IERC20(RAM).balanceOf(V3_UTILS), v3UtilsRamBefore, "V3Utils kept none");
+    assertEq(IERC20(RAM).balanceOf(feeRecipient), 0, "no farming fee");
+    assertEq(IERC721(RAMSES_NFPM).ownerOf(tokenId), address(vault));
+    assertEq(gauge.earned(RAM, tokenId), 0);
   }
 }
 
@@ -408,33 +454,30 @@ contract HyperEVMRamsesIncompatibilityTest is HyperEVMRamsesFork {
     _privateCall(vault, address(strategy), data);
   }
 
-  /// V3Utils holds the NFT while it works on it, so the RAM Ramses pays out on a liquidity change goes to V3Utils,
-  /// not the vault: an exit through V3UtilsStrategy leaks every RAM the position earned since its last claim.
-  function test_private_v3UtilsStrategy_exitLeaksTheVaultsRamToV3Utils() public {
+  /// The V3Utils deployed before v3utils#63 (still live) holds the NFT while it works on it, so the RAM Ramses pays out
+  /// on a liquidity change goes to it, not the vault: an exit through it leaks every RAM the position earned since its
+  /// last claim. With it, harvesting first is mandatory.
+  function test_private_legacyV3Utils_exitLeaksTheVaultsRamToV3Utils() public {
     (PrivateVault vault, PrivateConfigManager configManager) = _privateVault();
-    V3UtilsStrategy strategy = new V3UtilsStrategy(V3_UTILS);
+    V3UtilsStrategy strategy = new V3UtilsStrategy(LEGACY_V3_UTILS);
     _whitelistPrivateTarget(configManager, address(strategy));
     uint256 tokenId = _mintAs(address(vault));
     vm.warp(vm.getBlockTimestamp() + 1 days);
     uint256 earned = gauge.earned(RAM, tokenId);
     assertGt(earned, 0);
-    uint256 v3UtilsRamBefore = IERC20(RAM).balanceOf(V3_UTILS);
+    uint256 v3UtilsRamBefore = IERC20(RAM).balanceOf(LEGACY_V3_UTILS);
 
-    (,,,,, uint128 liquidity,,,,) = IRamsesV3PositionManager(RAMSES_NFPM).positions(tokenId);
-    IV3Utils.Instructions memory instructions;
-    instructions.whatToDo = IV3Utils.WhatToDo.WITHDRAW_AND_COLLECT_AND_SWAP;
-    instructions.protocol = PROTOCOL_RAMSES_V3;
-    instructions.liquidity = liquidity;
-    instructions.deadline = block.timestamp;
     _privateCall(
       vault,
       address(strategy),
-      abi.encodeCall(V3UtilsStrategy.safeTransferNft, (RAMSES_NFPM, tokenId, instructions, new address[](0), false))
+      abi.encodeCall(
+        V3UtilsStrategy.safeTransferNft, (RAMSES_NFPM, tokenId, _exitInstructions(tokenId), new address[](0), false)
+      )
     );
 
     assertEq(IERC721(RAMSES_NFPM).ownerOf(tokenId), address(vault), "the NFT came back");
     assertGt(IERC20(WHYPE).balanceOf(address(vault)), 0, "the principal came back");
-    assertEq(IERC20(RAM).balanceOf(V3_UTILS) - v3UtilsRamBefore, earned, "the position's RAM went to V3Utils");
+    assertEq(IERC20(RAM).balanceOf(LEGACY_V3_UTILS) - v3UtilsRamBefore, earned, "the position's RAM went to V3Utils");
     assertEq(IERC20(RAM).balanceOf(address(vault)), 0, "and none of it to the vault");
     assertEq(gauge.earned(RAM, tokenId), 0);
   }
