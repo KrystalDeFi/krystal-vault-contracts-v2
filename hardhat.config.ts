@@ -89,7 +89,7 @@ const config: HardhatUserConfig = {
       chainId: 999,
     },
     robinhood: {
-      url: `https://rpc.mainnet.chain.robinhood.com`,
+      url: `https://robinhood.api.pocket.network`,
       chainId: 4663,
     },
     // Arc (Circle L1). Public mainnet RPC is not published yet — fill in at launch.
@@ -290,7 +290,7 @@ if (PRIVATE_KEY) {
     hardfork: "cancun",
   };
   config.networks!.robinhood_mainnet = {
-    url: `https://rpc.mainnet.chain.robinhood.com`,
+    url: `https://robinhood.api.pocket.network`,
     chainId: 4663,
     accounts: [PRIVATE_KEY],
     timeout: 60000,

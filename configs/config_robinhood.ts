@@ -34,7 +34,7 @@ const PrivateConfig: Record<string, IConfigPrivate> = {
       enabled: true,
       autoVerifyContract: true,
     },
-    v3UtilsAddress: "0xb4acbC082b5e7dEd571c98EE4257778a9D784B36",
+    v3UtilsAddress: "0x8053e6e8b6cab476d13060806141be5bc71bfc42",
     v4UtilsAddress: "0xCb3d2a42022741B06f9B38459e3DD1Ee9A64D129",
     aerodromeGaugeFactories: [
       "0x6Bdf3B9A782c28D6259356d0Cb7Ae22Ab1368863", // Up (Aerodrome fork)

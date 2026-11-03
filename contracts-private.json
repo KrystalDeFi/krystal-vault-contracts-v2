@@ -69,7 +69,8 @@
     "privateVault": "0xc746cb128fd33f447c389e510efc12eb39d33362",
     "privateVaultFactory": "0xb7166204401cb23dafe02c4aae0a254a4d329adb",
     "privateVaultAutomator": "0xda07b8873f2d41a0f8b2f1a063130436678de2dd",
-    "v3UtilsStrategy": "0x13a4a7d8540c6fca95b46d736ec78bc1d0877b57"
+    "ramsesFarmingStrategy": "0xf39c29a9c826c7a3d362ade7e0382cce8a167abd",
+    "v3UtilsStrategy": "0xaeabdd11d7e2dba67b8f1ce5f37d7f59526b6f9d"
   },
   "polygon_mainnet": {
     "privateConfigManager": "0x4cb65229b25abafdf9e08b0452ec40c20ea4ecba",
@@ -89,7 +90,8 @@
       "0xe27e25d74aa9b7e8a1a88028030c380bac724a8d",
       "0xc85dce4a2b69d4766901bc39850d8de0cc54f62b"
     ],
-    "v3UtilsStrategy": "0xea8809590b90465ede6e0ecd4ac1c1b9f20894da",
+    "ramsesFarmingStrategy": "0x332ac4843e7217b4c0eaee53f29c3badbc5829cd",
+    "v3UtilsStrategy": "0xaeabdd11d7e2dba67b8f1ce5f37d7f59526b6f9d",
     "v4UtilsStrategy": "0xdd66a0ba27b4ae1b960c5597345adfcd266f6bab"
   }
 }
