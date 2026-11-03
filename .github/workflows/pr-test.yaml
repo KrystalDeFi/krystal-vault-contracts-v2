@@ -9,12 +9,14 @@ env:
   OSAKA_CONTRACTS: "PrivateVaultAutomatorSmartWalletOwner|PrivateVaultAutomatorPasskeyOwner|PrivateVaultSmartWalletOwnerFork|PrivateVaultBizFork|PrivateVaultAutomator7702RawSig|PrivateVaultAutomator7702Integration"
   # Disabled integration tests — excluded from the gate EXPLICITLY (not by an in-test
   # skip), so nothing is silently green:
-  #   Katana   -> forks Ronin; no public archive node exists to record.
-  #   HyperEVM -> fork mechanism unreliable (per team decision).
+  #   Katana    -> forks Ronin; no public archive node exists to record.
+  #   HyperEVM  -> fork mechanism unreliable (per team decision).
+  #   Robinhood -> smoke test of the live Ramses config; forks the latest block, so there
+  #                is nothing to record. Run it by hand before a Robinhood deployment.
   # (BizFork is hermetic — pinned to a cached Ethereum block — and runs in the osaka step.)
   # NOTE: --no-match-path is a GLOB (not a regex). Brace expansion excludes exactly
-  # Integration.Katana.t.sol + the 3 Integration.HyperEVM*.t.sol files.
-  NON_HERMETIC_PATH: "test/integration/Integration.{Katana,HyperEVM}*.t.sol"
+  # Integration.Katana.t.sol + the Integration.HyperEVM*.t.sol and Integration.Robinhood*.t.sol files.
+  NON_HERMETIC_PATH: "test/integration/Integration.{Katana,HyperEVM,Robinhood}*.t.sol"
   # Canonical URLs Foundry resolves to a chain-id WITHOUT a live probe, so --offline
   # replays the pinned blocks from the restored cache. Do NOT swap these for
   # non-canonical endpoints (base.merkle.io, base.llamarpc.com, eth.merkle.io, ...) —

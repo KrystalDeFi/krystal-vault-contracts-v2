@@ -31,6 +31,30 @@ Coverage lives in three layers; the checklist below this section is the legacy p
 * **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness,
   `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
 
+### Private Vault: Ramses farming (RamsesFarmingStrategy)
+
+Ramses is supported in private vaults only; shared vaults don't support it.
+
+* **Unit** (`test/unit/RamsesFarmingStrategy.t.sol` against `test/helpers/RamsesMocks.sol`, which reproduce the
+  Ramses position manager / gauge / reward-validator claim semantics): the harvest claims RAM only (xRAM stays in the
+  gauge), takes the operator fees from exactly what arrived (fuzzed: RAM the vault already held is untouched, fee
+  rates past 100% revert), keeps or forwards the rest to the vault owner, and pays and charges nothing on a claim
+  the gauge forfeits.
+* **Fork** (`test/integration/Integration.HyperEVMRamses.t.sol`, non-hermetic, against real Ramses on HyperEVM and
+  the configured V3Utils, `v3UtilsAddress`): the harvest end to end; harvest first in the same multicall to charge the
+  farming fee on a V3Utils operation (V3Utils gets no RAM); without a harvest, the configured V3Utils (v3utils#63)
+  passes the RAM to the vault fee-free. Plus `HyperEVMRamsesIncompatibilityTest`, which pins why no other strategy can
+  serve Ramses: AerodromeFarming/PancakeV3Farming can't stake or claim; V3UtilsStrategy can't increase, and the legacy
+  (pre-#63) V3Utils leaks the position's RAM on exit; SharedV3/SharedAerodrome can't mint, track or claim.
+* **Robinhood config** (`test/integration/Integration.RobinhoodRamses.t.sol`, non-hermetic: forks the latest Robinhood
+  block): the configured Voter (`ramsesVoter`, which Ramses doesn't publish) names the published position manager and
+  RAM, and that position manager claims through it; the configured V3Utils passes a Ramses position's RAM on; the
+  RamsesFarmingStrategy and V3UtilsStrategy recorded in `contracts-private.json` match the config and are whitelisted.
+  `checkRamsesConfig` in `scripts/deployLogic-private.ts` runs the same Voter and V3Utils checks before every Ramses
+  strategy deployment.
+* **Echidna** (`test/echidna-fuzzer/Fuzzer.privateRamses.sol`, config `config.privateRamses.yaml`): a real
+  PrivateVault harvesting against the mocks; see `test/echidna-fuzzer/readme.md`.
+
 ### Create A Vault (legacy private-vault checklist)
 [x] User can create a Vault without any assets
 [x] User can set a principal token from the whitelist, principal can't be changed

@@ -14,6 +14,8 @@ auto_detect_solc = true
 offline = false
 ignored_error_codes = ["license", "code-size"]
 bytecode_hash = 'none'
+# Integration.RobinhoodRamses.t.sol checks the recorded private-vault deployment against the chain.
+fs_permissions = [{ access = "read", path = "./contracts-private.json" }]
 
 [fuzz]
 runs = 256

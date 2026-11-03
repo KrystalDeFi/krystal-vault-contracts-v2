@@ -33,3 +33,13 @@ echidna test/echidna-fuzzer/Fuzzer.sharedVaultFork.sol \
 ```
 
 Both shared-vault configs pre-deploy and link the external libraries (`SharedVaultPreviewLib`, `SharedSwapDataSignature`, and on the fork config the V4/Pancake strategy + valuation libs); new handlers need no config changes unless they pull in a new linked library.
+
+Private-vault Ramses harness (`Fuzzer.privateRamses.sol`, config: `config.privateRamses.yaml`). A real PrivateVault + PrivateConfigManager harvests RAM through RamsesFarmingStrategy against the `test/helpers/RamsesMocks.sol` Ramses stack. Each harvest is checked against what the gauge reported just before it: exact claim, fee and remainder (or the whole claim forfeited inside the anti-sybil window, charging nothing), RAM the vault already held untouched, xRAM never claimed, the NFT never leaving the vault, and reverts only when the fee rates add up past the claim, the pool has no gauge, or the vault doesn't own the position:
+
+```sh
+echidna test/echidna-fuzzer/Fuzzer.privateRamses.sol \
+  --config test/echidna-fuzzer/config.privateRamses.yaml \
+  --contract PrivateRamsesFuzzer
+```
+
+All these configs let crytic-compile `forge clean` before building, which wipes `artifacts/` and `cache_forge/`. To keep them, build into a fresh directory: copy the config with `--foundry-out-directory` pointing at it, add `--skip-clean`, and run with `FOUNDRY_OUT=<dir> FOUNDRY_CACHE_PATH=<dir>-cache`.

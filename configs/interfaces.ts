@@ -25,6 +25,10 @@ export interface IConfigPrivate {
     enabled?: boolean;
     autoVerifyContract?: boolean;
   };
+  privateRamsesFarmingStrategy?: {
+    enabled?: boolean;
+    autoVerifyContract?: boolean;
+  };
   privateMerklStrategy?: {
     enabled?: boolean;
     autoVerifyContract?: boolean;
@@ -45,6 +49,8 @@ export interface IConfigPrivate {
   v4UtilsAddress?: AddressLike;
   aerodromeGaugeFactories?: AddressLike[];
   pancakeV3MasterChef?: AddressLike;
+  /** Ramses' Voter. RamsesFarmingStrategy reads the position manager and RAM from it. */
+  ramsesVoter?: AddressLike;
   merklDistributor?: AddressLike;
   uniswapV4KEMHook?: AddressLike;
 }

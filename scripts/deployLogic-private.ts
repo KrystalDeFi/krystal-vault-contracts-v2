@@ -1,4 +1,4 @@
-import { BaseContract, encodeBytes32String, solidityPacked } from "ethers";
+import { AddressLike, BaseContract, ZeroAddress, encodeBytes32String, resolveAddress, solidityPacked } from "ethers";
 import { ethers, network, run } from "hardhat";
 import { isArray } from "lodash";
 import { commonConfig } from "../configs/config_common";
@@ -12,6 +12,7 @@ import {
 } from "../typechain-types/contracts/private-vault/core";
 import { AerodromeFarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/AerodromeFarmingStrategy";
 import { PancakeV3FarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/PancakeV3FarmingStrategy";
+import { RamsesFarmingStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/RamsesFarmingStrategy";
 import { V3UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv3/V3UtilsStrategy";
 import { V4UtilsStrategy } from "../typechain-types/contracts/private-vault/strategies/lpv4/V4UtilsStrategy";
 import { MerklStrategy } from "../typechain-types/contracts/private-vault/strategies/farm/MerklStrategy";
@@ -40,6 +41,7 @@ export interface PrivateContracts {
   privateVaultAutomator?: PrivateVaultAutomator;
   aerodromeFarmingStrategies?: AerodromeFarmingStrategy[];
   pancakeV3FarmingStrategy?: PancakeV3FarmingStrategy;
+  ramsesFarmingStrategy?: RamsesFarmingStrategy;
   v3UtilsStrategy?: V3UtilsStrategy;
   v4UtilsStrategy?: V4UtilsStrategy;
   privateMerklStrategy?: MerklStrategy;
@@ -94,6 +96,12 @@ async function deployContracts(
     undefined,
     contracts,
   );
+  const ramsesFarmingStrategy = await deployRamsesFarmingStrategyContract(
+    ++step,
+    existingContract,
+    undefined,
+    contracts,
+  );
   const privateMerklStrategy = await deployPrivateMerklStrategyContract(++step, existingContract, undefined, contracts);
   const privateKyberFairFlowStrategy = await deployPrivateKyberFairFlowStrategyContract(
     ++step,
@@ -110,6 +118,7 @@ async function deployContracts(
     privateVaultAutomator: privateVaultAutomator.privateVaultAutomator,
     aerodromeFarmingStrategies: aerodromeFarmingStrategy.aerodromeFarmingStrategies,
     pancakeV3FarmingStrategy: pancakeV3FarmingStrategy.pancakeV3FarmingStrategy,
+    ramsesFarmingStrategy: ramsesFarmingStrategy.ramsesFarmingStrategy,
     privateMerklStrategy: privateMerklStrategy.privateMerklStrategy,
     privateKyberFairFlowStrategy: privateKyberFairFlowStrategy.privateKyberFairFlowStrategy,
     v3UtilsStrategy: v3UtilsStrategy.v3UtilsStrategy,
@@ -136,6 +145,7 @@ async function deployContracts(
     const whitelistedTargets = [
       ...deployedAerodromeStrategies,
       existingContract?.["pancakeV3FarmingStrategy"] || contracts?.pancakeV3FarmingStrategy?.target,
+      existingContract?.["ramsesFarmingStrategy"] || contracts?.ramsesFarmingStrategy?.target,
       existingContract?.["privateMerklStrategy"] || contracts?.privateMerklStrategy?.target,
       existingContract?.["privateKyberFairFlowStrategy"] || contracts?.privateKyberFairFlowStrategy?.target,
       existingContract?.["v3UtilsStrategy"] || contracts?.v3UtilsStrategy?.target,
@@ -317,6 +327,76 @@ export const deployPancakeV3FarmingStrategyContract = async (
   return {
     pancakeV3FarmingStrategy,
   };
+};
+
+export const deployRamsesFarmingStrategyContract = async (
+  step: number,
+  existingContract: Record<string, any> | undefined,
+  customNetworkConfig?: IConfig,
+  contracts?: PrivateContracts,
+): Promise<PrivateContracts> => {
+  const config = { ...networkConfig, ...customNetworkConfig };
+
+  let ramsesFarmingStrategy;
+
+  if (config.privateRamsesFarmingStrategy?.enabled) {
+    if (!config.ramsesVoter) {
+      throw new Error("privateRamsesFarmingStrategy: `ramsesVoter` is required on the network config");
+    }
+    await checkRamsesConfig(config.ramsesVoter, config.v3UtilsAddress);
+    // The constructor reads the position manager and RAM from the Voter.
+    ramsesFarmingStrategy = (await deployContract(
+      `${step} >>`,
+      config.privateRamsesFarmingStrategy?.autoVerifyContract,
+      "RamsesFarmingStrategy",
+      existingContract?.["ramsesFarmingStrategy"],
+      "contracts/private-vault/strategies/farm/RamsesFarmingStrategy.sol:RamsesFarmingStrategy",
+      undefined,
+      ["address", "address"],
+      [config.ramsesVoter, existingContract?.["privateConfigManager"] || contracts?.privateConfigManager?.target],
+    )) as RamsesFarmingStrategy;
+  }
+
+  return {
+    ramsesFarmingStrategy,
+  };
+};
+
+// Ramses doesn't publish every Voter (Robinhood's was read from its position manager's storage), and it pays a
+// position's RAM to V3Utils while V3Utils operates on the position. So before the Ramses strategy is enabled, check on
+// chain that the Voter names a position manager and RAM, and that the configured V3Utils passes that RAM on
+// (v3utils#63) instead of keeping it.
+export const checkRamsesConfig = async (ramsesVoter: AddressLike, v3UtilsAddress?: AddressLike) => {
+  const voter = await ethers.getContractAt(
+    ["function nfpManager() view returns (address)", "function ram() view returns (address)"],
+    await resolveAddress(ramsesVoter),
+  );
+  const [nfpm, ram]: string[] = await Promise.all([voter.nfpManager(), voter.ram()]).catch((e: any) => {
+    throw new Error(
+      `privateRamsesFarmingStrategy: ${ramsesVoter} is not a Ramses Voter: ${e.shortMessage ?? e.message}`,
+    );
+  });
+  if (nfpm === ZeroAddress || ram === ZeroAddress) {
+    throw new Error(`privateRamsesFarmingStrategy: the Voter ${ramsesVoter} names no position manager or RAM`);
+  }
+  if (!v3UtilsAddress) return;
+
+  const v3Utils = await ethers.getContractAt(
+    ["function positionRewardToken(address nfpm) view returns (address)"],
+    await resolveAddress(v3UtilsAddress),
+  );
+  const rewardToken: string = await v3Utils.positionRewardToken(nfpm).catch((e: any) => {
+    throw new Error(
+      `privateRamsesFarmingStrategy: V3Utils ${v3UtilsAddress} has no positionRewardToken (before v3utils#63?): ` +
+        (e.shortMessage ?? e.message),
+    );
+  });
+  if (rewardToken !== ram) {
+    throw new Error(
+      `privateRamsesFarmingStrategy: V3Utils ${v3UtilsAddress} would keep the RAM of Ramses positions ` +
+        `(positionRewardToken(${nfpm}) is ${rewardToken}): call setPositionRewardToken(${nfpm}, ${ram}) on it first`,
+    );
+  }
 };
 
 export const deployPrivateMerklStrategyContract = async (
