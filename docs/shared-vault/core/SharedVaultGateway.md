@@ -352,11 +352,13 @@ function _executeSingleSwap(struct SharedVaultGateway.SwapParams swap, uint256 i
 ### _buildDepositAmounts
 
 ```solidity
-function _buildDepositAmounts(address[4] vaultTokens, uint256[4] vaultTotalBalances, uint256[4] minDepositAmounts, struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256[4] amounts)
+function _buildDepositAmounts(address[4] vaultTokens, uint256[4] vaultTotalBalances, bool isLiveVault, uint256[4] minDepositAmounts, struct SharedVaultGateway.BalanceSnapshot snapshot) internal view returns (uint256[4] amounts)
 ```
 
 _Use per-call gateway balance deltas as `amounts` for `vault.deposit`. `minDepositAmounts[i]` is a
-     post-swap slippage floor: revert if the call delta is below the minimum for that vault token slot._
+     post-swap slippage floor: revert if the call delta is below the minimum for that vault token slot.
+     `isLiveVault` is `totalSupply() > 0`, the same test `SharedVault._deposit` uses: a vault without shares
+     accepts any first-deposit amounts, even when it already holds a token balance._
 
 ### _approveVaultTokens
 

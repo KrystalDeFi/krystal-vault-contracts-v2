@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon, USER, WETH, USDC } from "../TestCommon.t.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
@@ -36,7 +37,7 @@ interface IAeroSwapRouter {
 /// @notice SharedAerodromeStrategy against Aero (the merged Aerodrome + Velodrome, MetaDEX Slipstream) on a Base
 ///         fork after its 2026-10-21 launch. The strategy is unchanged: the Aero NFPM and pools keep the Slipstream
 ///         ABI, so whitelisting the Aero NFPM on the ConfigManager is all it takes.
-contract SharedVaultAeroIntegrationTest is TestCommon {
+contract SharedVaultAeroIntegrationTest is TestCommon, SharedVaultFeeDefaults {
   uint256 constant AERO_FORK_BLOCK = 52_900_000;
 
   address constant AERO_NFPM = 0x4857DB576eE0e45F10525eC59527BfD10beeC60b;
@@ -70,7 +71,14 @@ contract SharedVaultAeroIntegrationTest is TestCommon {
     nfpms[0] = AERO_NFPM;
     configManager = new SharedConfigManager();
     configManager.initialize(
-      vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0)
+      vaultOwner,
+      new address[](0),
+      new address[](0),
+      feeRecipient,
+      DEFAULT_PLATFORM_FEE_BPS,
+      nfpms,
+      new address[](0),
+      new address[](0)
     );
 
     // The swap router is never reached here: every operation below passes no swap data.
@@ -89,7 +97,9 @@ contract SharedVaultAeroIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vaultFactory), 3000e6);
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Aero", vaultTokens, initialAmounts, 0)));
+    vault = SharedVault(
+      payable(vaultFactory.createVault("SharedVault-Aero", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS))
+    );
 
     vm.stopPrank();
   }
