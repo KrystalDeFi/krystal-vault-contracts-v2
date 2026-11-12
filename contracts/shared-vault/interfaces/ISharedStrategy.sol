@@ -57,6 +57,9 @@ interface ISharedStrategy {
   ///      (due to price range mismatch) remain as idle vault balance automatically.
   ///      Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
   ///      MUST return silently — the caller leaves unused tokens as idle.
+  ///      `payable` because the vault delegatecalls this from `deposit{value: ...}`, and DELEGATECALL keeps the
+  ///      caller's `msg.value`; a non-payable implementation reverts every native-ETH deposit into a vault that
+  ///      holds a position (GHSA-7gvj-vm6c-xxqf). Implementations must not read `msg.value`.
   /// @param nfpm NFT Position Manager (or V4 PositionManager) address
   /// @param tokenId Position NFT ID
   /// @param amount0 Max amount of token0 to add
@@ -66,7 +69,8 @@ interface ISharedStrategy {
   ///        unusable side of an off-ratio slice cannot trip the floor. A slice worth zero liquidity is a no-op.
   ///        Pass 0 for no floor (GHSA-8mr4-8944-7fqq).
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
-    external;
+    external
+    payable;
 
   /// @notice Get token amounts for a tracked LP position (liquidity + uncollected fees)
   /// @dev Called via regular CALL (not staticcall) from non-view vault functions such as deposit().

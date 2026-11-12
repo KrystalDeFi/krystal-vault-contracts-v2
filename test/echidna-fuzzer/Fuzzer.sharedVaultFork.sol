@@ -227,7 +227,7 @@ contract ForkCwpTarget is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function exitProportional(
     address nfpm,

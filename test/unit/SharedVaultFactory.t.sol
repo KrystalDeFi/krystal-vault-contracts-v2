@@ -100,7 +100,7 @@ contract MockFactoryStrategy is ISharedStrategy {
     return MockNFPM(nfpm).getTokens(tokenId);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }

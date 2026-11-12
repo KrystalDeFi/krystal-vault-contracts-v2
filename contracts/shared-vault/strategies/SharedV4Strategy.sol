@@ -202,6 +202,7 @@ contract SharedV4Strategy is ISharedStrategy, IFeeTaker {
   ///      callers must pass a conservative `slippageBps` and derive the deposit ratio externally.
   function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external
+    payable
     override
   {
     // GHSA-mqv2-4v6r-rmw6 (1A/1B): collect + charge accrued fees before INCREASE_LIQUIDITY auto-settles

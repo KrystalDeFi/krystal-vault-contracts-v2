@@ -257,7 +257,7 @@ contract MockSharedStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -304,7 +304,7 @@ contract MockBrokenExitStrategy is MockSharedStrategySplitFallback {
     return (_token0[key], _token1[key]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -352,7 +352,7 @@ contract MockBrokenDepositStrategy is MockSharedStrategySplitFallback {
     return (_token0[key], _token1[key]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external pure override {
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override {
     revert("pool rugged");
   }
 
@@ -398,7 +398,7 @@ contract MockMisreportingTokenAddStrategy is MockSharedStrategySplitFallback {
     return (token0Out, token1Out);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -430,7 +430,7 @@ contract MockFailingStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -522,7 +522,7 @@ contract MockDirectPositionCreator is MockSharedStrategySplitFallback {
     return (_token0[nfpm][tokenId], _token1[nfpm][tokenId]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -579,7 +579,7 @@ contract MockLiquidityHookStrategy is MockSharedStrategySplitFallback {
     revert ISharedCommon.UnsupportedLiquidityHook();
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -621,7 +621,7 @@ contract MockRevertingGetPositionAmountsStrategy is MockSharedStrategySplitFallb
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -674,7 +674,7 @@ contract MockWrongCanonicalTokensStrategy is MockSharedStrategySplitFallback {
     return (canonToken0, canonToken1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -1151,7 +1151,7 @@ contract MockEmptyRevertStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -1251,7 +1251,7 @@ contract MockPreCollectStrategy is MockSharedStrategySplitFallback {
     return (_token0[key], _token1[key]);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address nfpm, uint256 tokenId, uint16 ignoredVaultOwnerBps) external override {
     emit LegacyCollectFees(nfpm, tokenId, ignoredVaultOwnerBps);
@@ -1323,7 +1323,7 @@ contract MockDelegatecallWrongCanonTokensStrategy is MockSharedStrategySplitFall
     return (canonToken0, canonToken1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -1360,7 +1360,7 @@ contract MockFalseRemoveStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -1404,7 +1404,7 @@ contract MockCwpFalseRemoveStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -1443,7 +1443,7 @@ contract MockRevertingAmountsRemoveStrategy is MockSharedStrategySplitFallback {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -2140,6 +2140,7 @@ contract MockLPExitStrategy is MockSharedStrategySplitFallback {
 
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
     external
+    payable
     override
   {
     if (amount0 == 0 && amount1 == 0) return;
@@ -2205,7 +2206,7 @@ contract MockCollectFailingStrategy is MockSharedStrategySplitFallback {
     return (t0, t1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external pure override {
     revert("collectFees intentionally fails");
@@ -2282,6 +2283,7 @@ contract MockDropAfterSecondDepositStrategy is MockSharedStrategySplitFallback {
 
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
     external
+    payable
     override
   {
     if (amount0 == 0 && amount1 == 0) return;
@@ -2428,6 +2430,7 @@ contract MockRewardsAwareStrategy is MockSharedStrategySplitFallback {
   ///      (no revert) — so idle leftovers can be verified by the test.
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external
+    payable
     override
   {
     // Record via external CALL (can't use storage under delegatecall without corrupting vault).
@@ -2669,7 +2672,7 @@ contract MockFeeAccrualStrategy is MockSharedStrategySplitFallback {
     c = new PositionChange[](0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address nfpm, uint256 tokenId, uint16) external override {
     (address token0, address token1, uint256 owed0, uint256 owed1) =
@@ -2809,7 +2812,7 @@ contract MockResidualPositionStrategy is MockSharedStrategySplitFallback {
     return (token0, token1);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }
@@ -2888,6 +2891,7 @@ contract MockLPFullExitStrategy is MockSharedStrategySplitFallback {
 
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16)
     external
+    payable
     override
   {
     if (amount0 == 0 && amount1 == 0) return;

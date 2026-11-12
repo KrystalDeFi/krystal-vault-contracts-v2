@@ -104,7 +104,7 @@ contract MockAutomatorStrategy is ISharedStrategy {
     return (address(0), address(0));
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function collectFees(address, uint256, uint16) external override { }
 }

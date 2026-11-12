@@ -364,7 +364,7 @@ contract FuzzLpStrategy is ISharedStrategy {
     changes[0] = PositionChange({ isAdd: true, nfpm: nfpm, tokenId: tokenId, token0: token0, token1: token1 });
   }
 
-  function depositProportional(address, uint256, uint256 amount0, uint256 amount1, uint16) external override {
+  function depositProportional(address, uint256, uint256 amount0, uint256 amount1, uint16) external payable override {
     if (amount0 > 0) IERC20(token0).transfer(address(pool), amount0);
     if (amount1 > 0) IERC20(token1).transfer(address(pool), amount1);
     pool.deposit(nfpm, tokenId, token0, token1, amount0, amount1);
@@ -472,7 +472,7 @@ contract FuzzCwpTarget is ISharedStrategy {
     changes = new PositionChange[](0);
   }
 
-  function depositProportional(address, uint256, uint256, uint256, uint16) external override { }
+  function depositProportional(address, uint256, uint256, uint256, uint16) external payable override { }
 
   function exitProportional(
     address nfpm,

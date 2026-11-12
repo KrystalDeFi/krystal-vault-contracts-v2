@@ -195,6 +195,7 @@ contract SharedPancakeV4Strategy is ISharedStrategy, IFeeTaker {
   ///      single-sided / out-of-range adds pass without spurious reverts.
   function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external
+    payable
     override
   {
     // GHSA-mqv2-4v6r-rmw6 (1A/1B): collect + charge accrued fees before INCREASE_LIQUIDITY auto-settles

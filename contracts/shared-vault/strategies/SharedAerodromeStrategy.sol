@@ -1004,7 +1004,7 @@ contract SharedAerodromeStrategy is ISharedStrategy {
     uint256 amount0,
     uint256 amount1,
     uint16 slippageBps
-  ) external override {
+  ) external payable override {
     if (amount0 == 0 && amount1 == 0) return;
 
     _requireAerodromeNfpm(_nfpm);
