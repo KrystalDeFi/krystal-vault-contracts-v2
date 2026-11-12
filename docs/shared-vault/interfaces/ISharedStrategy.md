@@ -77,7 +77,7 @@ _Called via delegatecall from SharedVault.withdraw so address(this) is the vault
 ### depositProportional
 
 ```solidity
-function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
+function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external payable
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
@@ -86,7 +86,10 @@ _Called via delegatecall from SharedVault.deposit so address(this) is the vault.
      Increases liquidity with the given amounts; tokens not consumed by the position
      (due to price range mismatch) remain as idle vault balance automatically.
      Implementations that cannot increase liquidity (e.g. MasterChef-staked positions)
-     MUST return silently — the caller leaves unused tokens as idle._
+     MUST return silently — the caller leaves unused tokens as idle.
+     `payable` because the vault delegatecalls this from `deposit{value: ...}`, and DELEGATECALL keeps the
+     caller's `msg.value`; a non-payable implementation reverts every native-ETH deposit into a vault that
+     holds a position (GHSA-7gvj-vm6c-xxqf). Implementations must not read `msg.value`._
 
 #### Parameters
 
@@ -96,7 +99,7 @@ _Called via delegatecall from SharedVault.deposit so address(this) is the vault.
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
-| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied to the amounts quoted for the        liquidity that `amount0`/`amount1` can add at the current price (not to the raw amounts), so the        unusable side of an off-ratio slice cannot trip the floor. A slice worth zero liquidity is a no-op.        Pass 0 for no floor (GHSA-8mr4-8944-7fqq). |
 
 ### getPositionAmounts
 
