@@ -424,6 +424,55 @@ contract SharedVaultGatewayTest is TestCommon {
     gateway.swapAndDeposit(params);
   }
 
+  // A vault without shares accepts any first-deposit amounts, even when it already holds a token balance, so the
+  // gateway must forward every configured token to it.
+  function test_swapAndDeposit_firstDeposit_vaultHoldingABalance_depositsEveryToken() public {
+    SharedVault fresh = new SharedVault();
+    fresh.initialize(
+      "Fresh Vault",
+      [address(tokenA), address(tokenB), address(0), address(0)],
+      [uint256(0), uint256(0), uint256(0), uint256(0)],
+      VAULT_OWNER,
+      VAULT_OWNER,
+      address(configManager),
+      address(0),
+      0
+    );
+    GatewayMockERC20(address(tokenA)).mint(address(fresh), 1); // a balance, but no shares yet
+    assertEq(fresh.totalSupply(), 0);
+
+    GatewayMockERC20(address(tokenA)).mint(ALICE, 100e18);
+    GatewayMockERC20(address(tokenB)).mint(address(router), 50e18);
+    _approveGateway(address(tokenA), ALICE);
+
+    SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](1);
+    swaps[0] = SharedVaultGateway.SwapParams({
+      tokenIn: address(tokenA),
+      amountIn: 50e18,
+      tokenOut: address(tokenB),
+      amountOutMin: 50e18,
+      swapData: _buildSwapCalldata(address(tokenA), address(tokenB), 50e18)
+    });
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(fresh)),
+      inputs: _inputs1(address(tokenA), 100e18),
+      swaps: swaps,
+      minDepositAmounts: [uint256(50e18), uint256(50e18), uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    vm.prank(ALICE);
+    uint256 shares = gateway.swapAndDeposit(params);
+
+    assertEq(shares, 10e18, "first depositor receives INITIAL_SHARES");
+    uint256[4] memory bal = fresh.getTotalBalances();
+    assertEq(bal[0], 50e18 + 1, "token A deposited");
+    assertEq(bal[1], 50e18, "token B deposited");
+    assertEq(GatewayMockERC20(address(tokenB)).balanceOf(ALICE), 0, "nothing returned to the depositor");
+  }
+
   function test_swapAndDeposit_revertsWhenSwapBatchExceedsPracticalBound() public {
     SharedVaultGateway.SwapParams[] memory swaps = new SharedVaultGateway.SwapParams[](gateway.MAX_SWAPS() + 1);
 

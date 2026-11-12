@@ -37,7 +37,6 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IHooks } from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import { PositionInfo, PositionInfoLibrary } from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 abstract contract MockSharedStrategySplitFallback is ISharedStrategy {
@@ -2568,21 +2567,6 @@ contract UsdtLikeToken {
   function approve(address spender, uint256 amount) external {
     require(amount == 0 || allowance[msg.sender][spender] == 0, "USDT: approve nonzero");
     allowance[msg.sender][spender] = amount;
-  }
-}
-
-/// @dev EIP-1271 wallet that delegates to an embedded EOA — used to test smart-wallet vault owners.
-contract AuditEip1271Wallet is IERC1271 {
-  bytes4 internal constant MAGIC_VALUE = 0x1626ba7e;
-  address public immutable signer;
-
-  constructor(address _signer) {
-    signer = _signer;
-  }
-
-  function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
-    (address recovered,,) = ECDSA.tryRecover(hash, signature);
-    return recovered == signer ? MAGIC_VALUE : bytes4(0);
   }
 }
 
@@ -10076,10 +10060,12 @@ contract SharedVaultTest is TestCommon {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // W-13: EIP-1271 isValidSignature on SharedVault
+  // W-13: SharedVault does not implement EIP-1271
   // ════════════════════════════════════════════════════════════════════════════
 
-  function test_audit_W13_eip1271_returnsMagic_onValidEOASig() public {
+  /// Owners sign with their own wallet (EOA, Safe, smart wallet or EIP-7702 account), and SharedVaultAutomator
+  /// verifies signatures against `vaultOwner()`, so the vault itself is never a signer.
+  function test_audit_W13_isValidSignature_notImplemented() public {
     (address eoa, uint256 pk) = makeAddrAndKey("eip1271-eoa");
     address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
     uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
@@ -10090,40 +10076,8 @@ contract SharedVaultTest is TestCommon {
 
     bytes32 hash = keccak256("audit-test");
     (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
-    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
-    assertEq(result, bytes4(0x1626ba7e), "MAGIC_VALUE on valid EOA signature");
-  }
-
-  function test_audit_W13_eip1271_returnsZero_onWrongSig() public {
-    (address eoa, uint256 pk) = makeAddrAndKey("eip1271-eoa2");
-    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
-    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    SharedVault v = new SharedVault();
-    tokenA.mint(address(v), 100e18);
-    tokenB.mint(address(v), 100e18);
-    v.initialize("E1271W", toks, init, eoa, OPERATOR, address(configManager), address(0), 0);
-
-    bytes32 hash = keccak256("real");
-    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, keccak256("different"));
-    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
-    assertEq(result, bytes4(0), "zero on wrong signature");
-  }
-
-  function test_audit_W13_eip1271_supportsSmartWalletOwner() public {
-    (address sigEoa, uint256 pk) = makeAddrAndKey("smartWalletSigner");
-    AuditEip1271Wallet sw = new AuditEip1271Wallet(sigEoa);
-
-    address[4] memory toks = [address(tokenA), address(tokenB), address(0), address(0)];
-    uint256[4] memory init = [uint256(100e18), uint256(100e18), uint256(0), uint256(0)];
-    SharedVault v = new SharedVault();
-    tokenA.mint(address(v), 100e18);
-    tokenB.mint(address(v), 100e18);
-    v.initialize("E1271SW", toks, init, address(sw), OPERATOR, address(configManager), address(0), 0);
-
-    bytes32 hash = keccak256("smart-wallet");
-    (uint8 vv, bytes32 r, bytes32 s) = vm.sign(pk, hash);
-    bytes4 result = IERC1271(address(v)).isValidSignature(hash, abi.encodePacked(r, s, vv));
-    assertEq(result, bytes4(0x1626ba7e), "smart-wallet owner validates via EIP-1271 cascade");
+    (bool ok,) = address(v).staticcall(abi.encodeCall(IERC1271.isValidSignature, (hash, abi.encodePacked(r, s, vv))));
+    assertFalse(ok, "SharedVault does not implement isValidSignature");
   }
 
   function test_erc20Permit_permitApprovesSpender() public {

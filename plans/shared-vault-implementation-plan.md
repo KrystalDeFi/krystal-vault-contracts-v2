@@ -36,7 +36,6 @@ The Shared Vault is a multi-depositor ERC20-share vault that holds up to 4 ERC20
 │  • Idle-snapshot withdraw + LP exit (no double-dilution)       │
 │  • Pre-collect fees before idle snapshot (fair distribution)   │
 │  • Position tracking with auto-untrack on full exit            │
-│  • EIP-1271 (vault acts as smart-wallet signer)                │
 │  • FOT-safe: shares from actual delta, not requested amount    │
 └─┬───────────────────────────────────────────────────────────┬──┘
   │ delegatecall (LP ops, exit, deposit-proportional)         │
@@ -263,11 +262,7 @@ Returns the proportional share of `idle + LP principal + (1 − feeRate) × unco
 
 ### EIP-1271
 
-`SharedVault.isValidSignature(hash, sig)` returns `MAGIC_VALUE` if `SignatureChecker.isValidSignatureNow(vaultOwner, hash, sig)`. Supports:
-- Vault owner is an EOA → ECDSA validation.
-- Vault owner is a smart wallet → EIP-1271 cascade (validates against the smart wallet's `isValidSignature`).
-
-The vault itself can therefore act as a smart-wallet signer in any flow that uses `SignatureChecker` (e.g., `SharedVaultAutomator._validateAgentAllowance`).
+`SharedVault` does not implement EIP-1271 and is never a signer. Owners sign with their own wallet: `SharedVaultAutomator` verifies agent allowances and orders against `vaultOwner()` (ECDSA for an EOA, EIP-1271 for a Safe or smart wallet, either for an EIP-7702 account).
 
 ---
 
@@ -395,7 +390,6 @@ V4 implements the fee split inline (`SharedV4Strategy._applyFees`) because V4 us
 | `SHARES_PRECISION` | 1e18 | `SharedVault` |
 | `maxPositions` default | 20 | `SharedConfigManager.initialize` |
 | `minTokenPrecision` default | 5 (→ 0.00001 of any token) | `SharedConfigManager.initialize` |
-| `MAGIC_VALUE` (EIP-1271) | 0x1626ba7e | `SharedVault` |
 
 ---
 
@@ -430,7 +424,7 @@ Integration tests under `test/integration/Integration.SharedVault*.t.sol` cover 
 | `ERC20PermitUpgradeable` | OpenZeppelin | Share token with EIP-2612 |
 | `Clones` | OpenZeppelin | Deterministic factory deploys |
 | `Withdrawable` | `contracts/common/` | Factory + automator + gateway sweep |
-| `SignatureChecker` | OpenZeppelin | EIP-1271 in automator + vault |
+| `SignatureChecker` | OpenZeppelin | EIP-1271 in automator |
 | `AgentAllowanceStructHash` | `common/libraries/strategies/` | EIP-712 for AgentAllowance |
 | `LpUniV3StructHash` | `common/libraries/strategies/` | EIP-712 for UserOrder (LpV3 type) |
 | `CustomEIP712` | `private-vault/core/` | EIP-712 domain separator |

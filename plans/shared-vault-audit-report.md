@@ -126,7 +126,7 @@ Manual byte construction; should use abi.decode directly on calldata slice.
 Plan listed gauge ops; implementation has none. Real-world Aerodrome LPs lose 5–20% APR.
 
 ### W-13: EIP-1271 untested — FIXED
-**Status:** Test suite added for `SharedVault.isValidSignature` covering EOA and smart-wallet signers.
+**Status:** `SharedVault` no longer implements EIP-1271: owners sign with their own wallet and `SharedVaultAutomator` verifies against `vaultOwner()`. The W-13 test asserts that the function is absent.
 
 ### W-14: No V4 fork integration — TESTS ADDED
 **Status:** V4 strategy unit test suite expanded to cover Permit2 cleanup and slippage edge cases. Full fork integration requires V4 RPC; tracked as follow-up.
@@ -177,7 +177,7 @@ Documented inline, but creates non-trivial governance trust assumption.
 | **SushiSwap V3** | MiniChef staking | Documented (not implemented in contract) |
 
 Per-feature gaps:
-- **EIP-1271 (W-13)** — TESTS ADDED
+- **EIP-1271 (W-13)** — NOT IMPLEMENTED (test asserts absence)
 - **FOT/USDT (C-5)** — TESTS ADDED
 - **3-token / 4-token vaults (W-15)** — TESTS ADDED
 - **Reentrancy via swap router (W-16)** — TESTS ADDED

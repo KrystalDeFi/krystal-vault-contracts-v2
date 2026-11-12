@@ -15,9 +15,6 @@ import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
-import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-
 import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 
 import { SafeApprovalLib } from "../../private-vault/libraries/SafeApprovalLib.sol";
@@ -36,7 +33,6 @@ contract SharedVault is
   ReentrancyGuardUpgradeable,
   ERC721Holder,
   ERC1155Holder,
-  IERC1271,
   ISharedVault
 {
   using SafeERC20 for IERC20;
@@ -959,13 +955,6 @@ contract SharedVault is
     require(IERC721(nfpm).ownerOf(tokenId) == address(this), InvalidOperation());
     _addPosition(strategy, nfpm, tokenId, token0, token1);
     emit PositionRecovered(vaultFactory, nfpm, tokenId);
-  }
-
-  // ==================== EIP-1271 ====================
-
-  function isValidSignature(bytes32 hash, bytes memory signature) external view override returns (bytes4) {
-    return
-      SignatureChecker.isValidSignatureNow(vaultOwner, hash, signature) ? IERC1271.isValidSignature.selector : bytes4(0);
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
