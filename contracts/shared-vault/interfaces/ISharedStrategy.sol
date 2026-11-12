@@ -61,8 +61,10 @@ interface ISharedStrategy {
   /// @param tokenId Position NFT ID
   /// @param amount0 Max amount of token0 to add
   /// @param amount1 Max amount of token1 to add
-  /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%). Applied as
-  ///        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor.
+  /// @param slippageBps Slippage tolerance in basis points (e.g. 100 = 1%). Applied to the amounts quoted for the
+  ///        liquidity that `amount0`/`amount1` can add at the current price (not to the raw amounts), so the
+  ///        unusable side of an off-ratio slice cannot trip the floor. A slice worth zero liquidity is a no-op.
+  ///        Pass 0 for no floor (GHSA-8mr4-8944-7fqq).
   function depositProportional(address nfpm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps)
     external;
 

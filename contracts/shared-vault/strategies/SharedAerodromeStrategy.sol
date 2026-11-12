@@ -996,6 +996,8 @@ contract SharedAerodromeStrategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
+  /// @dev GHSA-8mr4-8944-7fqq: same liquidity-quoted guard and slippage floor as `SharedV3Strategy`
+  ///      (and `SharedV4StrategyLib`); the pool is keyed by `tickSpacing` here.
   function depositProportional(
     address _nfpm,
     uint256 tokenId,
@@ -1007,16 +1009,35 @@ contract SharedAerodromeStrategy is ISharedStrategy {
 
     _requireAerodromeNfpm(_nfpm);
 
-    (, , address token0, address token1, , , , , , , , ) = INonfungiblePositionManager(_nfpm).positions(tokenId);
-    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
-    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
+    (, , address token0, address token1, int24 tickSpacing, int24 tickLower, int24 tickUpper, , , , , ) =
+      INonfungiblePositionManager(_nfpm).positions(tokenId);
     uint256 amount0Min;
     uint256 amount1Min;
-    if (slippageBps > 0) {
-      uint256 scale = 10000 - slippageBps;
-      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
-      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    {
+      (uint160 sqrtPriceX96, , , , , ) = ICLPool(_getPool(_nfpm, token0, token1, tickSpacing)).slot0();
+      uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
+      uint160 sqrtUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+      uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceX96,
+        sqrtLower,
+        sqrtUpper,
+        amount0,
+        amount1
+      );
+      if (liquidityToAdd == 0) return;
+      if (slippageBps > 0) {
+        (uint256 expected0, uint256 expected1) = LiquidityAmounts.getAmountsForLiquidity(
+          sqrtPriceX96,
+          sqrtLower,
+          sqrtUpper,
+          liquidityToAdd
+        );
+        amount0Min = FullMath.mulDiv(expected0, 10000 - slippageBps, 10000);
+        amount1Min = FullMath.mulDiv(expected1, 10000 - slippageBps, 10000);
+      }
     }
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(_nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(_nfpm, amount1);
     INonfungiblePositionManager(_nfpm).increaseLiquidity(
       INonfungiblePositionManager.IncreaseLiquidityParams({
         tokenId: tokenId,

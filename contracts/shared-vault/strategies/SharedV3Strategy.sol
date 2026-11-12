@@ -851,9 +851,12 @@ contract SharedV3Strategy is ISharedStrategy {
   }
 
   /// @inheritdoc ISharedStrategy
-  /// @dev `slippageBps` lowers amount mins from desired (e.g. 100 = 1% tolerance). When 0, mins are
-  ///      0 so the pool may consume the usual partial split (see `ISharedStrategy.depositProportional`).
-  ///      Out-of-range positions have one desired amount zero, so that side's min stays 0.
+  /// @dev GHSA-8mr4-8944-7fqq: mirrors `SharedV4StrategyLib.depositProportional`.
+  ///      - The slice is converted to the liquidity it can add at the current price. A slice worth zero liquidity
+  ///        returns early (its tokens stay idle in the vault) instead of reverting the deposit in the pool's `mint`.
+  ///      - `slippageBps` haircuts the amounts quoted for that liquidity, not the raw amounts, so the unusable
+  ///        side of an off-ratio slice cannot trip the NFPM's slippage check at an unchanged price.
+  ///      - `amount*Desired` stay the raw amounts, so the NFPM derives the same liquidity.
   function depositProportional(
     address nfpm,
     uint256 tokenId,
@@ -863,19 +866,37 @@ contract SharedV3Strategy is ISharedStrategy {
   ) external override {
     if (amount0 == 0 && amount1 == 0) return;
 
-    ISharedConfigManager cm = ISharedVault(address(this)).configManager();
-    SharedStrategyGuards.requireWhitelistedNfpm(cm, nfpm);
+    SharedStrategyGuards.requireWhitelistedNfpm(ISharedVault(address(this)).configManager(), nfpm);
 
-    (, , address token0, address token1, , , , , , , , ) = INFPM(nfpm).positions(tokenId);
-    if (amount0 > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0);
-    if (amount1 > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1);
+    (, , address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) = INFPM(nfpm)
+      .positions(tokenId);
     uint256 amount0Min;
     uint256 amount1Min;
-    if (slippageBps > 0) {
-      uint256 scale = 10000 - slippageBps;
-      amount0Min = FullMath.mulDiv(amount0, scale, 10000);
-      amount1Min = FullMath.mulDiv(amount1, scale, 10000);
+    {
+      uint160 sqrtPriceX96 = _poolSqrtPriceX96(_getPool(nfpm, token0, token1, fee));
+      uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
+      uint160 sqrtUpper = TickMath.getSqrtRatioAtTick(tickUpper);
+      uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
+        sqrtPriceX96,
+        sqrtLower,
+        sqrtUpper,
+        amount0,
+        amount1
+      );
+      if (liquidityToAdd == 0) return;
+      if (slippageBps > 0) {
+        (uint256 expected0, uint256 expected1) = LiquidityAmounts.getAmountsForLiquidity(
+          sqrtPriceX96,
+          sqrtLower,
+          sqrtUpper,
+          liquidityToAdd
+        );
+        amount0Min = FullMath.mulDiv(expected0, 10000 - slippageBps, 10000);
+        amount1Min = FullMath.mulDiv(expected1, 10000 - slippageBps, 10000);
+      }
     }
+    if (amount0 > 0) IERC20(token0).safeResetAndApprove(nfpm, amount0);
+    if (amount1 > 0) IERC20(token1).safeResetAndApprove(nfpm, amount1);
     INFPM(nfpm).increaseLiquidity(
       INFPM.IncreaseLiquidityParams({
         tokenId: tokenId,
@@ -1064,6 +1085,16 @@ contract SharedV3Strategy is ISharedStrategy {
   function _getPool(address nfpm, address token0, address token1, uint24 fee) internal view returns (address) {
     address factory = INFPM(nfpm).factory();
     return IUniswapV3Factory(factory).getPool(token0, token1, fee);
+  }
+
+  /// @dev Reads only the first `slot0()` word, like `_positionAmountsSplit`, so pools whose later slot0 fields
+  ///      differ (Uniswap vs Pancake V3) decode the same way.
+  function _poolSqrtPriceX96(address pool) private view returns (uint160 sqrtPriceX96) {
+    (bool success, bytes memory returnedData) = pool.staticcall(abi.encodeWithSignature("slot0()"));
+    require(success && returnedData.length >= 32, ISharedCommon.StrategyCallFailed());
+    assembly {
+      sqrtPriceX96 := mload(add(returnedData, 0x20))
+    }
   }
 
   function _validateVaultToken(address token) internal view {
