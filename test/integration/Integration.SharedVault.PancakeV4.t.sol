@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { TestCommon } from "../TestCommon.t.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -83,7 +84,7 @@ contract PancakeV4RecordingSwapRouter {
   }
 }
 
-contract SharedVaultPancakeV4IntegrationTest is TestCommon {
+contract SharedVaultPancakeV4IntegrationTest is TestCommon, SharedVaultFeeDefaults {
   address internal constant BASE_PANCAKE_V4_POSM = 0x55f4c8abA71A1e923edC303eb4fEfF14608cC226;
   address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
   uint256 internal constant BASE_FORK_BLOCK = 36_953_600;
@@ -154,7 +155,9 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     configManager = new SharedConfigManager();
     address[] memory signers = new address[](1);
     signers[0] = swapDataSigner;
-    configManager.initialize(address(this), targets, new address[](0), feeRecipient, 0, nfpms, swapRouters, signers);
+    configManager.initialize(
+      address(this), targets, new address[](0), feeRecipient, DEFAULT_PLATFORM_FEE_BPS, nfpms, swapRouters, signers
+    );
 
     vault = new SharedVault();
     token0.mint(address(vault), 10 ether);
@@ -169,7 +172,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       address(this),
       address(configManager),
       address(token0),
-      0
+      DEFAULT_VAULT_OWNER_FEE_BPS
     );
 
     token0.mint(address(this), 100 ether);
@@ -270,7 +273,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       address(this),
       address(configManager),
       BASE_WETH,
-      0
+      DEFAULT_VAULT_OWNER_FEE_BPS
     );
 
     uint256 countBefore = nativeVault.getPositionCount();
@@ -358,7 +361,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       address(this),
       address(configManager),
       BASE_WETH,
-      0
+      DEFAULT_VAULT_OWNER_FEE_BPS
     );
 
     IPancakeV4Utils.InputTokenParams[] memory inputs = new IPancakeV4Utils.InputTokenParams[](2);
@@ -1631,6 +1634,74 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     );
   }
 
+  // Fee accrual: LP fees that accrue before a deposit top-up, a compound or a withdraw are charged once, and the
+  // platform fee recipient and the vault owner receive exactly their bps of what the real Pancake V4 CLPositionManager
+  // pays out for the position. Fees accrue through a real pool donation.
+
+  /// A deposit collects the accrued fees before topping the position up, so the split is paid on all of them.
+  function test_feeAccrual_depositTopUp_chargesExactSplitWithRealPancakeV4PositionManager() public {
+    _donatePancakeV4Fees(1 ether, 1 ether);
+    (uint256 fees0, uint256 fees1) = _collectablePancakeV4Fees(tokenId);
+    assertGt(fees0, 0, "precondition: token0 fees accrued");
+    assertGt(fees1, 0, "precondition: token1 fees accrued");
+    FeeRecipientBalances memory before =
+      _feeRecipientBalances(address(token0), address(token1), feeRecipient, vaultOwner);
+
+    _depositAsFeeAccrualHolder();
+
+    _assertFeeSplitPaid(before, address(token0), address(token1), feeRecipient, vaultOwner, fees0, fees1);
+    (uint256 left0, uint256 left1) = _collectablePancakeV4Fees(tokenId);
+    assertEq(left0 + left1, 0, "nothing left owed after the deposit");
+  }
+
+  /// Compounding pays the split on every fee it collects before reinvesting the rest.
+  function test_feeAccrual_compound_chargesExactSplitWithRealPancakeV4PositionManager() public {
+    _donatePancakeV4Fees(1 ether, 1 ether);
+    (uint256 fees0, uint256 fees1) = _collectablePancakeV4Fees(tokenId);
+    assertGt(fees0, 0, "precondition: token0 fees accrued");
+    assertGt(fees1, 0, "precondition: token1 fees accrued");
+    FeeRecipientBalances memory before =
+      _feeRecipientBalances(address(token0), address(token1), feeRecipient, vaultOwner);
+    uint128 liquidityBefore = posm.getPositionLiquidity(tokenId);
+
+    IPancakeV4Utils.CompoundFeesParams memory compoundParams = IPancakeV4Utils.CompoundFeesParams({
+      collectFeesHookData: "",
+      swapParams: new IPancakeV4Utils.SwapParams[](0),
+      increaseParams: IPancakeV4Utils.IncreaseLiquidityParams({
+        minLiquidity: 0, hookData: "", deadline: block.timestamp + 300
+      }),
+      protocolFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    _executePancakeV4Instructions(
+      tokenId,
+      IPancakeV4Utils.Instructions({ action: IPancakeV4Utils.UtilActions.COMPOUND, params: abi.encode(compoundParams) })
+    );
+
+    _assertFeeSplitPaid(before, address(token0), address(token1), feeRecipient, vaultOwner, fees0, fees1);
+    assertGt(posm.getPositionLiquidity(tokenId), liquidityBefore, "net fees compounded into the position");
+    (uint256 left0, uint256 left1) = _collectablePancakeV4Fees(tokenId);
+    assertEq(left0 + left1, 0, "nothing left owed after the compound");
+  }
+
+  /// A withdraw collects every accrued fee before exiting, so a partial withdraw pays the split on all of them.
+  function test_feeAccrual_withdraw_chargesExactSplitWithRealPancakeV4PositionManager() public {
+    uint256 shares = _depositAsFeeAccrualHolder();
+    _donatePancakeV4Fees(1 ether, 1 ether);
+    (uint256 fees0, uint256 fees1) = _collectablePancakeV4Fees(tokenId);
+    assertGt(fees0, 0, "precondition: token0 fees accrued");
+    assertGt(fees1, 0, "precondition: token1 fees accrued");
+    FeeRecipientBalances memory before =
+      _feeRecipientBalances(address(token0), address(token1), feeRecipient, vaultOwner);
+
+    uint256[4] memory mins;
+    vm.prank(depositor);
+    vault.withdraw(shares / 2, mins, false);
+
+    _assertFeeSplitPaid(before, address(token0), address(token1), feeRecipient, vaultOwner, fees0, fees1);
+  }
+
   /// @dev Minimal valid mint params (zero floor) reused by dispatch-guard tests whose revert fires
   ///      before the params body is decoded.
   function _minimalMintParams() internal view returns (IPancakeV4Utils.SwapAndMintParams memory) {
@@ -1720,6 +1791,34 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
     donateRouter.donate(poolKey, amount0, amount1, "");
   }
 
+  /// @dev The LP fees the real Pancake V4 CLPositionManager would pay the vault for `id` right now:
+  ///      DECREASE_LIQUIDITY(0) and TAKE_PAIR sent as the vault, then rolled back.
+  function _collectablePancakeV4Fees(uint256 id) internal returns (uint256 fees0, uint256 fees1) {
+    uint256 snapshot = vm.snapshotState();
+    uint256 before0 = token0.balanceOf(address(vault));
+    uint256 before1 = token1.balanceOf(address(vault));
+    bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x11)); // DECREASE_LIQUIDITY, TAKE_PAIR
+    bytes[] memory params = new bytes[](2);
+    params[0] = abi.encode(id, uint256(0), uint128(0), uint128(0), bytes(""));
+    params[1] = abi.encode(poolKey.currency0, poolKey.currency1, address(vault));
+    vm.prank(address(vault));
+    posm.modifyLiquidities(abi.encode(actions, params), block.timestamp + 1);
+    fees0 = token0.balanceOf(address(vault)) - before0;
+    fees1 = token1.balanceOf(address(vault)) - before1;
+    vm.revertToState(snapshot);
+  }
+
+  /// @dev `depositor` (not the vault owner) deposits 1 ether of each token.
+  function _depositAsFeeAccrualHolder() internal returns (uint256 shares) {
+    token0.mint(depositor, 10 ether);
+    token1.mint(depositor, 10 ether);
+    vm.startPrank(depositor);
+    token0.approve(address(vault), type(uint256).max);
+    token1.approve(address(vault), type(uint256).max);
+    shares = vault.deposit([uint256(1 ether), uint256(1 ether), uint256(0), uint256(0)], 0, 0);
+    vm.stopPrank();
+  }
+
   /// @dev Builds a fresh `SharedVault` whose `vaultTokens` list contains `hopToken` in addition to
   ///      the pool's `token0` / `token1` — the staging ground for both the dangling-input regression
   ///      tests and the supported hop-funded mint/increase flows. Reuses the existing
@@ -1739,7 +1838,7 @@ contract SharedVaultPancakeV4IntegrationTest is TestCommon {
       address(this),
       address(configManager),
       address(token0),
-      0
+      DEFAULT_VAULT_OWNER_FEE_BPS
     );
   }
 
