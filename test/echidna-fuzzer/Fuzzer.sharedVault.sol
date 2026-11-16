@@ -26,6 +26,10 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { FullMath } from "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import { TickMath } from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import { LiquidityAmounts } from "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
 import "./Config.sol";
 
@@ -37,6 +41,11 @@ import { ISharedConfigManager } from "../../contracts/shared-vault/interfaces/IS
 import { ISharedStrategy } from "../../contracts/shared-vault/interfaces/ISharedStrategy.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
 import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
+import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
+import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
+import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
+import { LivenessV3Nfpm } from "../helpers/LivenessV3Mocks.sol";
 
 contract FuzzERC20 {
   string public name;
@@ -195,6 +204,11 @@ contract SharedFuzzPlayer {
 
   function deposit(uint256[4] memory amounts, uint16 slippageBps) external payable returns (uint256 shares) {
     return vault.deposit{ value: msg.value }(amounts, slippageBps, 0);
+  }
+
+  /// @dev Native-ETH deposit paid from this player's own ETH (refunds and unwrapped withdrawals land here).
+  function depositNative(uint256[4] memory amounts, uint16 slippageBps, uint256 value) external returns (uint256 shares) {
+    return vault.deposit{ value: value }(amounts, slippageBps, 0);
   }
 
   /// @dev Receiver overload: shares mint to `receiver` while this player pays the tokens.
@@ -594,6 +608,23 @@ contract SharedVaultFuzzer {
   FuzzERC20 internal sweepJunkToken;
   FuzzERC1155 internal sweepJunk1155;
 
+  // WETH/USDC vault whose positions run the real SharedV3Strategy (vault -> SharedStrategyProxy -> implementation,
+  // the production topology) over the Uniswap-V3-shaped manager in test/helpers/LivenessV3Mocks.sol. It starts with
+  // an in-range position and a range-edge one whose USDC side is a handful of units.
+  SharedVault public v3Vault;
+  FuzzERC20 public v3Usdc;
+  LivenessV3Nfpm public v3Nfpm;
+  SharedStrategyProxy public v3Strategy;
+  SharedFuzzPlayer[2] public v3Players;
+  uint24 internal constant V3_FEE = 500;
+  int24 internal constant V3_TICK = -200_000; // ~2_060 USDC per WETH
+  uint256 internal constant V3_MAX_POSITIONS = 6;
+
+  // Gateway first deposits run against fresh clones of this implementation, over two tokens of their own.
+  SharedVault internal livenessVaultImpl;
+  FuzzERC20 public gatewayFirstA;
+  FuzzERC20 public gatewayFirstB;
+
   constructor() payable {
     swapRouter = new FuzzSwapRouter();
     swapDataSigner = new FuzzSigner();
@@ -607,6 +638,8 @@ contract SharedVaultFuzzer {
     _setupWethVault();
     _setupPrecisionGatewayVault();
     _setupFeeVault();
+    _setupV3Vault();
+    _setupGatewayFirstDeposit();
   }
 
   receive() external payable { }
@@ -1526,6 +1559,9 @@ contract SharedVaultFuzzer {
     uint256[4] memory amounts;
     amounts[0] = _ceilMulDiv(amount, totals[0], totals[1]);
     amounts[1] = amount;
+    // Floor the token leg at getMinDepositAmounts(), as the vault requires for every deposit.
+    uint256 minA = wethVault.getMinDepositAmounts()[0];
+    if (amounts[0] < minA) amounts[0] = minA;
     if (amounts[0] > MAX_18) return;
 
     wethTokenA.mint(address(wethPlayer), amounts[0]);
@@ -1958,11 +1994,14 @@ contract SharedVaultFuzzer {
     uint256 sharesBefore = idleVault.balanceOf(address(player));
 
     uint256[4] memory amounts = [amountA, amountB, uint256(0), uint256(0)];
+    uint256 quoted = idleVault.previewDeposit(amounts);
     uint256 minted;
     try player.deposit(amounts, 0) returns (uint256 shares) {
       minted = shares;
-    } catch {
-      return; // invalid-ratio deposits are covered by idle_deposit's preview assertions
+    } catch (bytes memory reason) {
+      // Invalid-ratio baskets (quoted 0) are idle_deposit's to check; one the preview accepts must deposit.
+      if (quoted > 0) _recordLivenessViolation("roundtrip deposit", reason);
+      return;
     }
     if (minted == 0) return;
 
@@ -2007,11 +2046,14 @@ contract SharedVaultFuzzer {
     uint256 balDBefore = multiD.balanceOf(address(player));
     uint256 sharesBefore = multiVault.balanceOf(address(player));
 
+    uint256 quoted = multiVault.previewDeposit(amounts);
     uint256 minted;
     try player.deposit(amounts, 0) returns (uint256 shares) {
       minted = shares;
-    } catch {
-      return; // ratio rejections are covered by multi_deposit's preview assertions
+    } catch (bytes memory reason) {
+      // Ratio rejections (quoted 0) are multi_deposit's to check; a basket the preview accepts must deposit.
+      if (quoted > 0) _recordLivenessViolation("roundtrip deposit", reason);
+      return;
     }
     if (minted == 0) return;
 
@@ -2068,6 +2110,372 @@ contract SharedVaultFuzzer {
 
     _assertIdleShareConservation();
     _assertPositiveBacking(idleVault);
+  }
+
+  // -------------------------------------------------------------------------
+  // Liveness: calls the vault's own views accept must go through
+  // -------------------------------------------------------------------------
+  //
+  // Forge runs handlers with `[invariant] fail_on_revert = false`, which drops every handler call that reverts with
+  // anything but an `assert` panic. So the live_* handlers RECORD a must-succeed call that reverted (or succeeded
+  // without doing its job) instead of reverting: `assert_liveness_holds` (Echidna, assertion mode) and the forge
+  // driver's invariant require the record to stay empty.
+
+  uint256 public livenessViolations;
+  string public lastLivenessSite;
+  bytes public lastLivenessRevert;
+
+  // Successful liveness calls, so the drivers can show the handlers are not vacuous.
+  uint256 public liveDeposits;
+  uint256 public liveNativeDeposits;
+  uint256 public liveSlippageDeposits;
+  uint256 public liveV3PositionDeposits;
+  uint256 public liveWithdrawals;
+  uint256 public liveGatewayFirstDeposits;
+
+  /// @notice No must-succeed call has reverted (see the section header).
+  function assert_liveness_holds() public view {
+    assert(livenessViolations == 0);
+  }
+
+  /// @notice Selector of the revert data behind the last recorded violation (zero when none or no data).
+  function lastLivenessSelector() external view returns (bytes4) {
+    return _revertSelector(lastLivenessRevert);
+  }
+
+  /// @notice Liveness: a basket the vault's own views accept must deposit. The basket is the proportional slice of
+  ///         `getTotalBalances` for a random share target (rounded up, floored at `getMinDepositAmounts`), sometimes
+  ///         with excess on one slot. Whenever `previewDeposit` quotes shares for it, `deposit` must mint shares to the
+  ///         depositor, through the ERC-20 path or, for a vault with a WETH slot, with the WETH leg sent as msg.value,
+  ///         at a slippage of 0 or up to 5%.
+  function live_deposit(
+    uint8 vaultSeed,
+    uint8 playerSeed,
+    uint256 sizeSeed,
+    uint256 excessSeed,
+    uint16 bpsSeed,
+    bool native
+  ) external {
+    (SharedVault v, SharedFuzzPlayer player) = _livePick(vaultSeed, playerSeed);
+    if (v.paused() || v.configManager().isVaultPaused()) return;
+
+    uint256[4] memory amounts = _liveDepositAmounts(v, sizeSeed, excessSeed);
+    try v.previewDeposit(amounts) returns (uint256 quoted) {
+      if (quoted == 0) return;
+    } catch {
+      return;
+    }
+    (bool funded, uint256 value) = _liveFund(v, player, amounts, native);
+    if (!funded) return;
+
+    uint16 slippageBps = bpsSeed % 4 == 0 ? 0 : uint16(1 + bpsSeed % 500);
+    bool v3Positions = v == v3Vault && v.getPositionCount() > 0;
+    uint256 sharesBefore = v.balanceOf(address(player));
+    uint256 supplyBefore = v.totalSupply();
+    try player.depositNative(amounts, slippageBps, value) returns (uint256 shares) {
+      if (
+        shares == 0 || v.balanceOf(address(player)) != sharesBefore + shares || v.totalSupply() != supplyBefore + shares
+      ) {
+        _recordLivenessViolation("deposit minted other than it returned", "");
+      }
+      liveDeposits++;
+      if (value > 0) liveNativeDeposits++;
+      if (slippageBps > 0) liveSlippageDeposits++;
+      if (v3Positions) liveV3PositionDeposits++;
+    } catch (bytes memory reason) {
+      _recordLivenessViolation(value > 0 ? "native deposit" : "deposit", reason);
+    }
+  }
+
+  /// @notice Liveness: a depositor can withdraw any number of shares from 1 to its whole balance (no output minimums)
+  ///         and receives exactly the amounts `withdraw` returns (the WETH leg as ETH when unwrapping).
+  function live_withdraw(uint8 vaultSeed, uint8 playerSeed, uint256 shareSeed, bool unwrap) external {
+    (SharedVault v, SharedFuzzPlayer player) = _livePick(vaultSeed, playerSeed);
+    address p = address(player);
+    uint256 bal = v.balanceOf(p);
+    if (bal == 0) return;
+    uint256 shares = _liveShares(bal, shareSeed);
+
+    address[4] memory toks = v.getTokens();
+    address vaultWeth = v.weth();
+    uint256[4] memory tokensBefore;
+    for (uint256 i; i < 4; i++) {
+      if (toks[i] != address(0)) tokensBefore[i] = IERC20(toks[i]).balanceOf(p);
+    }
+    uint256 ethBefore = p.balance;
+    uint256 supplyBefore = v.totalSupply();
+    uint256[4] memory mins;
+
+    try player.withdraw(shares, mins, unwrap) returns (uint256[4] memory got) {
+      bool paid = v.balanceOf(p) == bal - shares && v.totalSupply() == supplyBefore - shares;
+      uint256 ethGot;
+      for (uint256 i; i < 4; i++) {
+        if (toks[i] == address(0)) continue;
+        if (unwrap && toks[i] == vaultWeth) {
+          ethGot = got[i];
+          paid = paid && IERC20(toks[i]).balanceOf(p) == tokensBefore[i];
+        } else {
+          paid = paid && IERC20(toks[i]).balanceOf(p) == tokensBefore[i] + got[i];
+        }
+      }
+      if (!paid || p.balance != ethBefore + ethGot) _recordLivenessViolation("withdraw paid other than it returned", "");
+      liveWithdrawals++;
+    } catch (bytes memory reason) {
+      _recordLivenessViolation("withdraw", reason);
+    }
+  }
+
+  /// @dev Adversarial pre-state: donate 1 wei up to 0.001 token of one vault token straight to a vault.
+  function live_donate(uint8 vaultSeed, uint8 slotSeed, uint256 amountSeed) external {
+    (SharedVault v,) = _livePick(vaultSeed, 0);
+    address token = v.getTokens()[slotSeed % v.tokenCount()];
+    uint256 dec = FuzzERC20(token).decimals();
+    uint256 amount = 1 + amountSeed % (dec > 3 ? 10 ** (dec - 3) : 1);
+    if (token == address(weth)) {
+      if (address(this).balance < amount) return;
+      weth.deposit{ value: amount }();
+      weth.transfer(address(v), amount);
+    } else {
+      FuzzERC20(token).mint(address(v), amount);
+    }
+  }
+
+  /// @notice Liveness: a vault's first deposit through the gateway goes through even when dust was donated into some
+  ///         of its slots first. Each call takes a fresh share-less clone, donates into a random subset of its two
+  ///         slots, then deposits a positive amount of both tokens with `minDepositAmounts` set to those amounts: the
+  ///         vault must receive both in full and mint the depositor its fixed initial share count.
+  function live_gateway_first_deposit_after_donation(
+    uint8 donateMask,
+    uint256 donationSeed,
+    uint256 amountASeed,
+    uint256 amountBSeed
+  ) external {
+    SharedVault v = SharedVault(payable(Clones.clone(address(livenessVaultImpl))));
+    address[4] memory toks = [address(gatewayFirstA), address(gatewayFirstB), address(0), address(0)];
+    uint256[4] memory none;
+    v.initialize("GatewayFirst", toks, none, address(this), address(this), address(configManager), address(0), 0);
+
+    uint256 dustA = donateMask & 1 == 0 ? 0 : 1 + donationSeed % 1e15;
+    uint256 dustB = donateMask & 2 == 0 ? 0 : 1 + (donationSeed >> 128) % 1e3;
+    if (dustA > 0) gatewayFirstA.mint(address(v), dustA);
+    if (dustB > 0) gatewayFirstB.mint(address(v), dustB);
+
+    uint256 amountA = _bound(amountASeed, 1, MAX_18);
+    uint256 amountB = _bound(amountBSeed, 1, MAX_6);
+    gatewayFirstA.mint(address(this), amountA);
+    gatewayFirstB.mint(address(this), amountB);
+
+    SharedVaultGateway.SwapAndDepositParams memory params = SharedVaultGateway.SwapAndDepositParams({
+      vault: ISharedVault(address(v)),
+      inputs: _gatewayInputs2(address(gatewayFirstA), amountA, address(gatewayFirstB), amountB),
+      swaps: new SharedVaultGateway.SwapParams[](0),
+      minDepositAmounts: [amountA, amountB, uint256(0), uint256(0)],
+      slippageBps: 0,
+      minShares: 0,
+      sweepTokens: new address[](0)
+    });
+
+    try gateway.swapAndDeposit(params) returns (uint256 shares) {
+      if (
+        shares != INITIAL_SHARES || v.balanceOf(address(this)) != shares
+          || gatewayFirstA.balanceOf(address(v)) != dustA + amountA
+          || gatewayFirstB.balanceOf(address(v)) != dustB + amountB
+      ) {
+        _recordLivenessViolation("gateway first deposit minted or pulled other than expected", "");
+      }
+      liveGatewayFirstDeposits++;
+    } catch (bytes memory reason) {
+      _recordLivenessViolation("gateway first deposit", reason);
+    }
+  }
+
+  /// @dev Position-creating pre-state: the vault owner mints a V3 position from 1-26% of each idle token over a random
+  ///      range around the price (in range, range-edge or one-sided) through SharedV3Strategy's SWAP_AND_MINT.
+  function v3_mint_position(uint8 lowerSeed, uint8 widthSeed, uint256 amount0Seed, uint256 amount1Seed) external {
+    if (v3Vault.getPositionCount() >= V3_MAX_POSITIONS) return;
+    int24 tickLower = V3_TICK - 3000 + int24(uint24(lowerSeed % 61)) * 100;
+    int24 tickUpper = tickLower + 100 + int24(uint24(widthSeed % 60)) * 100;
+    uint256 idle0 = weth.balanceOf(address(v3Vault));
+    uint256 idle1 = v3Usdc.balanceOf(address(v3Vault));
+    uint256 amount0 = idle0 / 100 + amount0Seed % (idle0 / 4 + 1);
+    uint256 amount1 = idle1 / 100 + amount1Seed % (idle1 / 4 + 1);
+    try v3Vault.execute(_v3MintActions(tickLower, tickUpper, amount0, amount1)) { } catch { }
+  }
+
+  /// @dev Swapping pre-state: the operator swaps up to half of one idle token for the other through the whitelisted
+  ///      router (signed swap data) at up to 5% off the pool price, moving the idle mix away from the positions' ratio.
+  function v3_swap_idle(bool wethToUsdc, uint256 amountSeed, uint16 skewSeed) external {
+    (address tokenIn, address tokenOut) =
+      wethToUsdc ? (address(weth), address(v3Usdc)) : (address(v3Usdc), address(weth));
+    uint256 idleIn = IERC20(tokenIn).balanceOf(address(v3Vault));
+    if (idleIn < 2) return;
+    uint256 amountIn = 1 + amountSeed % (idleIn / 2);
+    (uint160 sqrtPrice,,,,,,) = v3Nfpm.pool().slot0();
+    uint256 priceX192 = uint256(sqrtPrice) * sqrtPrice;
+    uint256 amountOut =
+      wethToUsdc ? FullMath.mulDiv(amountIn, priceX192, 1 << 192) : FullMath.mulDiv(amountIn, 1 << 192, priceX192);
+    amountOut = FullMath.mulDiv(amountOut, 9500 + skewSeed % 1001, 10_000);
+    if (amountOut == 0) return;
+    if (tokenOut == address(weth)) {
+      if (address(this).balance < amountOut) return;
+      weth.deposit{ value: amountOut }();
+      weth.transfer(address(swapRouter), amountOut);
+    } else {
+      v3Usdc.mint(address(swapRouter), amountOut);
+    }
+
+    bytes memory swapCalldata = abi.encodeCall(FuzzSwapRouter.swap, (tokenIn, tokenOut, amountIn, amountOut));
+    swapCalldata = _signedSwapData(v3Vault, address(swapRouter), tokenIn, tokenOut, amountIn, amountOut, swapCalldata);
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(swapRouter),
+      data: abi.encode(tokenIn, tokenOut, amountIn, amountOut, swapCalldata),
+      callType: ISharedCommon.CallType.CALL
+    });
+    try v3Vault.execute(actions) { } catch { }
+  }
+
+  function _recordLivenessViolation(string memory site, bytes memory reason) internal {
+    livenessViolations++;
+    lastLivenessSite = site;
+    lastLivenessRevert = reason;
+  }
+
+  /// @dev Shares to withdraw out of `bal`: the whole balance a quarter of the time, otherwise a log-scale pick in
+  ///      [1, bal] that reaches single shares as often as large parts.
+  function _liveShares(uint256 bal, uint256 seed) internal pure returns (uint256) {
+    if (seed % 4 == 0) return bal;
+    uint256 cap = bal >> ((seed >> 2) % 64);
+    return cap <= 1 ? 1 : 1 + (seed >> 8) % cap;
+  }
+
+  /// @dev The vaults and depositors the liveness handlers drive; the V3 vault (real strategy) gets the most weight.
+  function _livePick(uint8 vaultSeed, uint8 playerSeed) internal view returns (SharedVault, SharedFuzzPlayer) {
+    uint256 k = vaultSeed % 8;
+    if (k == 0) return (idleVault, idlePlayers[playerSeed % 3]);
+    if (k == 1) return (multiVault, multiPlayers[playerSeed % 2]);
+    if (k == 2) return (lpVault, lpPlayer);
+    if (k == 3) return (wethVault, wethPlayer);
+    if (k == 4) return (feeVault, feePlayer);
+    return (v3Vault, v3Players[playerSeed % 2]);
+  }
+
+  /// @dev Proportional basket for a random share target, from the vault's own views: ceil(target * totals[i] / supply)
+  ///      floored at getMinDepositAmounts()[i]. The target spans about twice the supply down to a single share
+  ///      (log scale), so small targets bind on the per-token minimums. A third of the time one slot gets up to 10x
+  ///      excess, which the vault trims back to its ratio. A first deposit (no supply) is one fresh amount per token.
+  function _liveDepositAmounts(SharedVault v, uint256 sizeSeed, uint256 excessSeed)
+    internal
+    view
+    returns (uint256[4] memory amounts)
+  {
+    address[4] memory toks = v.getTokens();
+    uint256 supply = v.totalSupply();
+    if (supply == 0) {
+      for (uint256 i; i < 4; i++) {
+        if (toks[i] != address(0)) {
+          amounts[i] = 1 + (sizeSeed >> (i * 64)) % (10 ** uint256(FuzzERC20(toks[i]).decimals()));
+        }
+      }
+      return amounts;
+    }
+
+    uint256[4] memory totals = v.getTotalBalances();
+    uint256[4] memory mins = v.getMinDepositAmounts();
+    uint256 target = (2 * supply) >> (sizeSeed % 64);
+    target = 1 + target / 2 + (sizeSeed >> 8) % (target / 2 + 1);
+    for (uint256 i; i < 4; i++) {
+      if (toks[i] == address(0) || totals[i] == 0) continue;
+      uint256 slice = FullMath.mulDivRoundingUp(target, totals[i], supply);
+      amounts[i] = slice < mins[i] ? mins[i] : slice;
+    }
+    if (excessSeed % 3 == 0) {
+      uint256 j = (excessSeed >> 2) % 4;
+      if (amounts[j] > 0) amounts[j] += FullMath.mulDiv(amounts[j], (excessSeed >> 8) % 1000, 100) + 1;
+    }
+  }
+
+  /// @dev Tops the depositor up to `amounts` (only the shortfall, so leftovers are reused). Mock tokens are minted; the
+  ///      WETH mock is only ever obtained by wrapping, so it stays ETH-backed. With `native` and a WETH vault, the WETH
+  ///      leg is returned as the msg.value to send instead. `funded` is false when the harness is out of ETH.
+  function _liveFund(SharedVault v, SharedFuzzPlayer player, uint256[4] memory amounts, bool native)
+    internal
+    returns (bool funded, uint256 value)
+  {
+    address[4] memory toks = v.getTokens();
+    address p = address(player);
+    for (uint256 i; i < 4; i++) {
+      if (amounts[i] == 0) continue;
+      if (toks[i] == address(weth)) {
+        if (native && v.weth() == address(weth)) {
+          value = amounts[i];
+          if (p.balance < value) {
+            if (address(this).balance < value - p.balance) return (false, 0);
+            (bool sent,) = p.call{ value: value - p.balance }("");
+            if (!sent) return (false, 0);
+          }
+        } else {
+          uint256 have = weth.balanceOf(p);
+          if (have < amounts[i]) {
+            if (address(this).balance < amounts[i] - have) return (false, 0);
+            weth.deposit{ value: amounts[i] - have }();
+            weth.transfer(p, amounts[i] - have);
+          }
+        }
+      } else {
+        uint256 have = FuzzERC20(toks[i]).balanceOf(p);
+        if (have < amounts[i]) FuzzERC20(toks[i]).mint(p, amounts[i] - have);
+      }
+    }
+    funded = true;
+  }
+
+  function _v3MintActions(int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
+    internal
+    view
+    returns (ISharedVault.Action[] memory actions)
+  {
+    address[] memory approveTokens = new address[](2);
+    approveTokens[0] = address(weth);
+    approveTokens[1] = address(v3Usdc);
+    uint256[] memory approveAmounts = new uint256[](2);
+    approveAmounts[0] = amount0;
+    approveAmounts[1] = amount1;
+
+    IV3Utils.SwapAndMintParams memory params = IV3Utils.SwapAndMintParams({
+      protocol: 0,
+      nfpm: address(v3Nfpm),
+      token0: address(weth),
+      token1: address(v3Usdc),
+      fee: V3_FEE,
+      tickSpacing: 0,
+      tickLower: tickLower,
+      tickUpper: tickUpper,
+      protocolFeeX64: 0,
+      gasFeeX64: 0,
+      amount0: amount0,
+      amount1: amount1,
+      amount2: 0,
+      recipient: address(0),
+      deadline: block.timestamp + 300,
+      swapSourceToken: address(0),
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      poolDeployer: address(0)
+    });
+
+    actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action({
+      target: address(v3Strategy),
+      data: bytes.concat(abi.encode(uint8(0)), abi.encode(params, approveTokens, approveAmounts, uint256(0))),
+      callType: ISharedCommon.CallType.DELEGATECALL
+    });
   }
 
   // Assertion-mode standalone checks. These are deliberately assert-based
@@ -2319,6 +2727,59 @@ contract SharedVaultFuzzer {
     feePlayer = new SharedFuzzPlayer(feeVault, toks);
     feeA.mint(address(feePlayer), 1e30);
     feeB.mint(address(feePlayer), 1e30);
+  }
+
+  function _setupV3Vault() internal {
+    v3Usdc = new FuzzERC20("V3Usdc", "V3U", 6);
+    v3Nfpm = new LivenessV3Nfpm(address(weth), address(v3Usdc), V3_FEE);
+
+    SharedV3Strategy implementation = new SharedV3Strategy(address(swapRouter));
+    SharedStrategyBeacon beacon = new SharedStrategyBeacon(address(implementation), address(this));
+    v3Strategy = new SharedStrategyProxy(address(beacon));
+    SharedConfigManager cm = _newConfig(new address[](0), new address[](0));
+    _whitelist(cm, address(v3Strategy), address(v3Nfpm));
+    _whitelistSwapRouter(cm, address(swapRouter));
+
+    // Price just above tick V3_TICK: a [V3_TICK, V3_TICK + 6000] position holding 20 WETH holds ~15.5 USDC units, so
+    // the integer principal the vault scales its top-ups by is off the pool's ratio by a few percent.
+    uint160 sqrtLower = TickMath.getSqrtRatioAtTick(V3_TICK);
+    uint128 edgeLiquidity =
+      LiquidityAmounts.getLiquidityForAmount0(sqrtLower, TickMath.getSqrtRatioAtTick(V3_TICK + 6000), 20e18);
+    v3Nfpm.pool().setPrice(sqrtLower + uint160((uint256(155) << 96) / (10 * uint256(edgeLiquidity))), V3_TICK);
+
+    // Seeded through real wraps so the WETH mock stays ETH-backed (see _setupWethVault).
+    v3Vault = new SharedVault();
+    weth.deposit{ value: 50 ether }();
+    weth.transfer(address(v3Vault), 50 ether);
+    v3Usdc.mint(address(v3Vault), 200_000e6);
+    address[4] memory toks = [address(weth), address(v3Usdc), address(0), address(0)];
+    uint256[4] memory init = [uint256(50 ether), uint256(200_000e6), uint256(0), uint256(0)];
+    v3Vault.initialize("V3Shared", toks, init, address(this), address(this), address(cm), address(weth), 0);
+
+    v3Vault.execute(_v3MintActions(V3_TICK - 2000, V3_TICK + 2000, 10e18, 100_000e6)); // in range
+    v3Vault.execute(_v3MintActions(V3_TICK, V3_TICK + 6000, 20e18, 1000e6)); // range edge
+    assert(v3Vault.getPositionCount() == 2);
+
+    // Both players start as depositors (~12.5% of the supply each), so withdrawals are live from the first call. Like
+    // any deposit the vault's views accept, these are recorded rather than reverting the setup if they fail.
+    for (uint256 i; i < 2; i++) {
+      v3Players[i] = new SharedFuzzPlayer(v3Vault, toks);
+      uint256[4] memory amounts = _liveDepositAmounts(v3Vault, 3, 1);
+      (bool funded,) = _liveFund(v3Vault, v3Players[i], amounts, false);
+      assert(funded);
+      try v3Players[i].deposit(amounts, 0) returns (uint256) { }
+      catch (bytes memory reason) {
+        _recordLivenessViolation("seed deposit", reason);
+      }
+    }
+  }
+
+  function _setupGatewayFirstDeposit() internal {
+    livenessVaultImpl = new SharedVault();
+    gatewayFirstA = new FuzzERC20("GatewayFirstA", "GFA", 18);
+    gatewayFirstB = new FuzzERC20("GatewayFirstB", "GFB", 6);
+    gatewayFirstA.approve(address(gateway), type(uint256).max);
+    gatewayFirstB.approve(address(gateway), type(uint256).max);
   }
 
   function _newConfig(address[] memory targets, address[] memory nfpms) internal returns (SharedConfigManager cm) {

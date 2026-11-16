@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 import { TestCommon, USER, WETH, USDC, NFPM } from "../TestCommon.t.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -107,7 +108,7 @@ contract GatewayIntegrationFotToken is GatewayIntegrationMockERC20 {
 // ─── Test contract
 // ────────────────────────────────────────────────────────────
 
-contract SharedVaultGatewayIntegrationTest is TestCommon {
+contract SharedVaultGatewayIntegrationTest is TestCommon, SharedVaultFeeDefaults {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
   SharedConfigManager public configManager;
@@ -147,7 +148,16 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     configManager = new SharedConfigManager();
     // No swap routers needed in configManager — the gateway has its own independent swapRouter
-    configManager.initialize(vaultOwner, targets, new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
+    configManager.initialize(
+      vaultOwner,
+      targets,
+      new address[](0),
+      feeRecipient,
+      DEFAULT_PLATFORM_FEE_BPS,
+      nfpms,
+      new address[](0),
+      new address[](0)
+    );
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
@@ -158,7 +168,11 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vaultFactory), 3000e6);
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Gateway-Test", vaultTokens, initialAmounts, 0)));
+    vault = SharedVault(
+      payable(vaultFactory.createVault(
+          "SharedVault-Gateway-Test", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS
+        ))
+    );
 
     vm.stopPrank();
 
@@ -547,7 +561,14 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
 
     SharedConfigManager localConfig = new SharedConfigManager();
     localConfig.initialize(
-      address(this), new address[](0), new address[](0), feeRecipient, 0, new address[](0), new address[](0), new address[](0)
+      address(this),
+      new address[](0),
+      new address[](0),
+      feeRecipient,
+      DEFAULT_PLATFORM_FEE_BPS,
+      new address[](0),
+      new address[](0),
+      new address[](0)
     );
 
     address[4] memory vaultTokens = [address(fot), address(paired), address(0), address(0)];
@@ -560,7 +581,7 @@ contract SharedVaultGatewayIntegrationTest is TestCommon {
       vaultOwner,
       address(localConfig),
       address(0),
-      0
+      DEFAULT_VAULT_OWNER_FEE_BPS
     );
 
     address player = makeAddr("fotGatewayPlayer");

@@ -25,11 +25,43 @@ Coverage lives in three layers; the checklist below this section is the legacy p
   `StateLibrary`'s extsload slot math is exercised for real),
   and the preview-vs-applyFees wei-parity fuzz (`SharedVaultPreviewFeeParity.t.sol`, incl. the
   previewWithdraw owner-bps pre-clamp pin).
+* **Cross-family parity** (`test/unit/SharedV3AerodromeFamilyParity.t.sol` /
+  `SharedV4PancakeFamilyParity.t.sol`, mirrored twins over `test/helpers/StrategyFamilyParity.sol`):
+  - **What runs:** the real SharedVault and strategies over protocol-faithful mocks built on the upstream
+    pool libraries: `test/helpers/FaithfulV3Mocks.sol` for Uniswap V3 / Slipstream,
+    `FaithfulV4Mocks.sol`, `FaithfulPancakeV4Mocks.sol`, and `FaithfulTokens.sol`.
+  - **Checks, identical for every family:**
+    - off-ratio top-ups at slippage 0, 0.5% and 5%;
+    - zero-liquidity slices are no-ops;
+    - native-ETH deposits into a vault holding a position;
+    - valuation against the pool ledger;
+    - platform and owner fees charged exactly once on every fee-realizing path.
+  - **New checks** go in the abstract base, so all four families run them.
+* **Liveness invariants** (`invariant_liveness` in `SharedVaultFuzzerInvariants.t.sol`, the fork liveness
+  invariant in `SharedVaultForkFuzzerInvariants.t.sol`):
+  - **What must succeed:**
+    - deposits whose amounts the vault's own preview accepts: ERC-20 and native ETH, slippage 0 and > 0,
+      including into vaults that hold positions;
+    - withdrawals of any held amount;
+    - gateway first deposits.
+  - **How violations are caught:** with `fail_on_revert = false` a reverting handler is ignored, so handlers
+    record violations in a ghost counter that the invariant requires to stay at zero. Put new must-succeed
+    calls on the same pattern.
+  - **Fork harness:** after setup it points the deployed SharedV3Strategy beacon at the locally compiled
+    strategy.
 * **Integration** (`test/integration/Integration.SharedVault*.t.sol`): fork tests per protocol
   (V3/Sushi/Pancake V3, Aerodrome, Uniswap V4, Pancake V4), multi-protocol vaults, gateway, automator,
   and the vault `CALL` swap path.
-* **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness,
-  `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
+  - **Fees:** harnesses default to non-zero platform and vault-owner fees (`test/helpers/SharedVaultFeeDefaults.sol`).
+    Keep new harnesses non-zero.
+  - **Fee accrual:** each family's `*feeAccrual*` tests accrue LP fees before a deposit top-up, a compound and a
+    withdraw. They assert the exact platform and owner split from what the position manager pays out.
+  - **Fork state:** every fork read must be in `test/fixtures/rpc-cache`. forge 1.7.1 fetches missing state
+    live even with `--offline`, and `vm.store` fetches the original value too. Check new fork tests with
+    `HOME` pointed at a directory whose `.foundry/cache/rpc` holds only the committed fixtures, then
+    confirm the run added nothing to it.
+* **Echidna** (`test/echidna-fuzzer/Fuzzer.sharedVault.sol` mock harness, with the `assert_liveness_holds`
+  property; `Fuzzer.sharedVaultFork.sol` Base-fork harness): see `test/echidna-fuzzer/readme.md`.
 
 ### Private Vault: Ramses farming (RamsesFarmingStrategy)
 

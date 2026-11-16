@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 import { TestCommon, WETH, USDC, NFPM } from "../TestCommon.t.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -39,7 +40,7 @@ contract MockAutomatorSwapRouter {
 // ─── Test contract
 // ────────────────────────────────────────────────────────────
 
-contract SharedVaultAutomatorIntegrationTest is TestCommon {
+contract SharedVaultAutomatorIntegrationTest is TestCommon, SharedVaultFeeDefaults {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
   SharedConfigManager public configManager;
@@ -97,7 +98,9 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     configManager = new SharedConfigManager();
     address[] memory signers = new address[](1);
     signers[0] = swapDataSigner;
-    configManager.initialize(vaultOwner, targets, callers, feeRecipient, 0, nfpms, routers, signers);
+    configManager.initialize(
+      vaultOwner, targets, callers, feeRecipient, DEFAULT_PLATFORM_FEE_BPS, nfpms, routers, signers
+    );
 
     vaultImplementation = new SharedVault();
     vaultFactory = new SharedVaultFactory();
@@ -107,7 +110,11 @@ contract SharedVaultAutomatorIntegrationTest is TestCommon {
     IERC20(USDC).approve(address(vaultFactory), 3000e6);
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-Automator-Test", vaultTokens, initialAmounts, 0)));
+    vault = SharedVault(
+      payable(vaultFactory.createVault(
+          "SharedVault-Automator-Test", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS
+        ))
+    );
 
     vm.stopPrank();
   }

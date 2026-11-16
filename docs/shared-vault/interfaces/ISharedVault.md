@@ -314,8 +314,7 @@ _**Custody / trust:** When `operator` is non-zero, the position NFT is transferr
      to `operator`. The vault owner initiates `dropPosition` but **cannot** unilaterally retrieve the
      NFT on-chain afterward—only `recoverPosition`, callable by `operator` only, returns custody to the
      vault. There is no alternative on-chain path for the vault owner if the operator is unavailable or
-     compromised (unlike the no-`operator` case: the NFT stays in the vault and may be recovered via
-     `sweepERC721`). Assume the operator is trusted for NFT custody between drop and recover._
+     compromised. Assume the operator is trusted for NFT custody between drop and recover._
 
 #### Parameters
 

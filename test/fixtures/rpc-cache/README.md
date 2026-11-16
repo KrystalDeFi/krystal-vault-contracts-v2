@@ -51,6 +51,17 @@ a missing-cache error, a test started reading state not in these files. Refresh:
 If you add a fork test on a **new block or chain**, add it to the arrays in
 `scripts/regen-fork-cache.sh` and re-run.
 
+A missing slot does not always fail the job. forge 1.7.x fetches state that isn't
+cached from the RPC URL even with `--offline`, and `vm.store` reads the original value
+first. So a test can pass in CI while silently reading live state. To check that the
+committed files cover a change:
+
+1. Run the suite with `HOME` pointed at a temp directory whose `.foundry/cache/rpc` is a
+   copy of this tree. On macOS, also symlink `~/Library/Application Support/svm` so
+   forge finds solc.
+2. Decompress each block file with `zstd -dc` and compare its `accounts` and `storage`
+   keys with the committed file. Any addition is state the fixtures are missing.
+
 ## Version note
 
 These files are a Foundry cache-format artifact. If CI's Foundry changes the

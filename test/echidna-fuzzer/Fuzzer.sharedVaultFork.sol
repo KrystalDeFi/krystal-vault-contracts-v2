@@ -6,7 +6,9 @@ pragma solidity ^0.8.28;
  *
  * This is intentionally separate from Fuzzer.sharedVault.sol. The mock harness
  * is for high-volume accounting edge cases; this fork harness exercises the
- * real SharedV3Strategy, real Base Uniswap V3 NFPM, and real V3Utils path.
+ * deployed SharedV3Strategy proxy (its beacon pointed at the repo's
+ * SharedV3Strategy, like the factory's vault implementation), the real Base
+ * Uniswap V3 NFPM, and the real V3Utils path.
  *
  * ECHIDNA_RPC_URL must point at Base, not Ethereum mainnet. The constants below
  * use deployed shared-vault infrastructure from contracts-shared.json at Base
@@ -38,6 +40,9 @@ import { ISharedVaultFactory } from "../../contracts/shared-vault/interfaces/ISh
 import { SharedConfigManager } from "../../contracts/shared-vault/core/SharedConfigManager.sol";
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { SharedSwapDataSignature } from "../../contracts/shared-vault/libraries/SharedSwapDataSignature.sol";
+import { SharedV3Strategy } from "../../contracts/shared-vault/strategies/SharedV3Strategy.sol";
+import { SharedStrategyBeacon } from "../../contracts/shared-vault/strategies/SharedStrategyBeacon.sol";
+import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/SharedStrategyProxy.sol";
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
 
 // ─── V4 imports (Currency / PoolKey / IHooks)
@@ -136,12 +141,27 @@ contract SharedVaultForkPlayer {
     IERC20(token1).approve(address(_vault), type(uint256).max);
   }
 
+  /// @dev Receives refunds of excess native ETH and unwrapped withdrawals.
+  receive() external payable { }
+
   function deposit(uint256[4] memory amounts, uint16 slippageBps) external returns (uint256 shares) {
     return vault.deposit(amounts, slippageBps, 0);
   }
 
+  /// @dev Deposit with the WETH leg sent as msg.value (0 for the ERC-20 path).
+  function depositWithValue(uint256[4] memory amounts, uint16 slippageBps) external payable returns (uint256 shares) {
+    return vault.deposit{ value: msg.value }(amounts, slippageBps, 0);
+  }
+
   function withdraw(uint256 shares, uint256[4] memory minAmounts) external returns (uint256[4] memory amounts) {
     return vault.withdraw(shares, minAmounts, false);
+  }
+
+  function withdrawUnwrap(uint256 shares, uint256[4] memory minAmounts, bool unwrap)
+    external
+    returns (uint256[4] memory amounts)
+  {
+    return vault.withdraw(shares, minAmounts, unwrap);
   }
 }
 
@@ -342,6 +362,18 @@ contract SharedVaultForkFuzzer {
   ///      handler can confirm the upgrade actually took effect.
   address public localVaultImplementation;
   SharedConfigManager public localConfigManager;
+  /// @dev Locally-compiled SharedV3Strategy the beacon behind BASE_SHARED_V3_STRATEGY_PROXY points at after
+  ///      `_upgradeV3StrategyToLocalSource()`.
+  address public localV3StrategyImplementation;
+
+  // Liveness record (see the liveness section): a must-succeed call that reverted, and how many calls went through.
+  uint256 public livenessViolations;
+  string public lastLivenessSite;
+  bytes public lastLivenessRevert;
+  uint256 public liveDeposits;
+  uint256 public liveNativeDeposits;
+  uint256 public liveSlippageDeposits;
+  uint256 public liveWithdrawals;
 
   // ─── V4 security-regression harness
   // ──────────────────────────────────────────
@@ -419,6 +451,23 @@ contract SharedVaultForkFuzzer {
     assert(IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).configManager() == address(freshConfig));
   }
 
+  /// @dev Strategy counterpart of `_upgradeVaultImplementationToLocalSource`: point the beacon behind
+  ///      BASE_SHARED_V3_STRATEGY_PROXY at a locally-compiled SharedV3Strategy, so the base vault's Uniswap V3
+  ///      positions run the repo's strategy code against the real NFPM and pool. The proxy and its whitelisting stay as
+  ///      deployed. The strategy's immutable swapRouter is the fork mock router: no handler sends the strategy swap
+  ///      data. `implementation` is written to its storage slot (1, after Ownable's `_owner`) rather than through
+  ///      `setImplementation`, so the switch reads no other beacon state. `_ensureReady` runs it after minting the
+  ///      initial position (through the deployed implementation) and creating the players; every later call through
+  ///      the proxy runs the local build.
+  function _upgradeV3StrategyToLocalSource() internal {
+    if (address(forkSwapRouter) == address(0)) forkSwapRouter = new ForkSwapRouter();
+    SharedStrategyBeacon beacon = SharedStrategyProxy(payable(BASE_SHARED_V3_STRATEGY_PROXY)).beacon();
+    SharedV3Strategy freshImpl = new SharedV3Strategy(address(forkSwapRouter));
+    vm.store(address(beacon), bytes32(uint256(1)), bytes32(uint256(uint160(address(freshImpl)))));
+    assert(beacon.implementation() == address(freshImpl));
+    localV3StrategyImplementation = address(freshImpl);
+  }
+
   function _newForkConfigManager() internal returns (SharedConfigManager cm) {
     address[] memory targets = new address[](1);
     targets[0] = BASE_SHARED_V3_STRATEGY_PROXY;
@@ -452,6 +501,7 @@ contract SharedVaultForkFuzzer {
       _dealERC20(BASE_WETH, address(players[i]), 50 ether);
       _dealERC20(BASE_USDC, address(players[i]), 150_000e6);
     }
+    _upgradeV3StrategyToLocalSource();
 
     _assertTrackedPositionOwnedByVault(vault);
     _assertShareConservation();
@@ -946,11 +996,15 @@ contract SharedVaultForkFuzzer {
     _topUpERC20(BASE_USDC, address(players[idx]), usdcIn);
 
     uint256[4] memory amounts = [wethIn, usdcIn, uint256(0), uint256(0)];
+    uint256 quoted = vault.previewDeposit(amounts);
     uint256 shares;
     try players[idx].deposit(amounts, 0) returns (uint256 s) {
       shares = s;
-    } catch {
-      return; // ratio rounding can reject; the proportionality invariant only fires on success
+    } catch (bytes memory reason) {
+      // Ratio rounding can reject a basket, which the preview then quotes 0 for; one it accepts must deposit.
+      // The proportionality invariant only fires on success.
+      if (quoted > 0) _recordLivenessViolation("proportional deposit", reason);
+      return;
     }
     if (shares == 0) return;
 
@@ -990,10 +1044,13 @@ contract SharedVaultForkFuzzer {
     _topUpERC20(BASE_USDC, address(players[idx]), usdcIn);
 
     uint256[4] memory amounts = [wethIn, usdcIn, uint256(0), uint256(0)];
+    uint256 quoted = vault.previewDeposit(amounts);
     uint256 shares;
     try players[idx].deposit(amounts, 100) returns (uint256 s) {
       shares = s;
-    } catch {
+    } catch (bytes memory reason) {
+      // A basket the preview accepts must deposit.
+      if (quoted > 0) _recordLivenessViolation("roundtrip deposit", reason);
       return;
     }
     if (shares == 0) return;
@@ -1050,8 +1107,10 @@ contract SharedVaultForkFuzzer {
       // The small discrepancy between those two paths is bounded by the configured fee.
       assert(_withinPct(wethBack, expectedWeth, 100));
       assert(_withinPct(usdcBack, expectedUsdc, 100));
-    } catch {
-      return; // partial withdraw can validly revert (e.g. exit drops below per-token min)
+    } catch (bytes memory reason) {
+      // A partial withdrawal with no output minimums must go through.
+      _recordLivenessViolation("partial withdraw", reason);
+      return;
     }
 
     _assertShareConservation();
@@ -1191,6 +1250,140 @@ contract SharedVaultForkFuzzer {
 
     _assertShareConservation();
     _assertVaultBacked(vault);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Liveness: calls the base vault's own views accept must go through
+  //
+  // Forge runs handlers with `[invariant] fail_on_revert = false`, which drops every handler call that reverts with
+  // anything but an `assert` panic. So these handlers RECORD a must-succeed call that reverted (or went through
+  // without doing its job) instead of reverting:
+  // `assert_fork_liveness_holds` (Echidna) and the forge driver require the record to stay empty. Players are funded
+  // by writing their token balances.
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  /// @notice Liveness: a basket the base vault's own views accept must deposit. The basket is the proportional slice
+  ///         of `getTotalBalances` for a random share target (rounded up, floored at `getMinDepositAmounts`),
+  ///         sometimes with excess on one slot. Whenever `previewDeposit` quotes shares for it, the deposit must mint
+  ///         shares to the player, through the ERC-20 path or with the WETH leg as msg.value, at 0 or up to 5%
+  ///         slippage, while the vault holds its Uniswap V3 position.
+  function fork_live_deposit(uint8 idx, uint256 sizeSeed, uint256 excessSeed, uint16 bpsSeed, bool native) external {
+    _ensureReady();
+    SharedVaultForkPlayer player = players[idx % players.length];
+    uint256[4] memory amounts = _forkLiveDepositAmounts(sizeSeed, excessSeed);
+    try vault.previewDeposit(amounts) returns (uint256 quoted) {
+      if (quoted == 0) return;
+    } catch {
+      return;
+    }
+
+    uint256 value = native && address(this).balance >= amounts[0] ? amounts[0] : 0;
+    if (value == 0) _topUpERC20(BASE_WETH, address(player), amounts[0]);
+    _topUpERC20(BASE_USDC, address(player), amounts[1]);
+
+    uint16 slippageBps = bpsSeed % 4 == 0 ? 0 : uint16(1 + bpsSeed % 500);
+    IERC20 shareToken = IERC20(address(vault));
+    uint256 sharesBefore = shareToken.balanceOf(address(player));
+    uint256 supplyBefore = shareToken.totalSupply();
+    try player.depositWithValue{ value: value }(amounts, slippageBps) returns (uint256 shares) {
+      if (
+        shares == 0 || shareToken.balanceOf(address(player)) != sharesBefore + shares
+          || shareToken.totalSupply() != supplyBefore + shares
+      ) {
+        _recordLivenessViolation("deposit minted other than it returned", "");
+      }
+      liveDeposits++;
+      if (value > 0) liveNativeDeposits++;
+      if (slippageBps > 0) liveSlippageDeposits++;
+    } catch (bytes memory reason) {
+      _recordLivenessViolation(value > 0 ? "native deposit" : "deposit", reason);
+    }
+  }
+
+  /// @notice Liveness: a player can withdraw any number of shares from 1 to its whole balance (no output minimums) and
+  ///         receives exactly what `withdraw` returns, the WETH leg as ETH when unwrapping.
+  function fork_live_withdraw(uint8 idx, uint256 shareSeed, bool unwrap) external {
+    _ensureReady();
+    address p = address(players[idx % players.length]);
+    IERC20 shareToken = IERC20(address(vault));
+    uint256 bal = shareToken.balanceOf(p);
+    if (bal == 0) return;
+    // The whole balance a quarter of the time, otherwise a log-scale pick in [1, bal] down to single shares.
+    uint256 shares = bal;
+    if (shareSeed % 4 != 0) {
+      uint256 cap = bal >> ((shareSeed >> 2) % 64);
+      shares = cap <= 1 ? 1 : 1 + (shareSeed >> 8) % cap;
+    }
+
+    uint256 wethBefore = IERC20(BASE_WETH).balanceOf(p);
+    uint256 usdcBefore = IERC20(BASE_USDC).balanceOf(p);
+    uint256 ethBefore = p.balance;
+    uint256 supplyBefore = shareToken.totalSupply();
+    uint256[4] memory mins;
+
+    try SharedVaultForkPlayer(payable(p)).withdrawUnwrap(shares, mins, unwrap) returns (uint256[4] memory got) {
+      bool paid = shareToken.balanceOf(p) == bal - shares && shareToken.totalSupply() == supplyBefore - shares
+        && IERC20(BASE_USDC).balanceOf(p) == usdcBefore + got[1];
+      if (unwrap) paid = paid && p.balance == ethBefore + got[0] && IERC20(BASE_WETH).balanceOf(p) == wethBefore;
+      else paid = paid && IERC20(BASE_WETH).balanceOf(p) == wethBefore + got[0] && p.balance == ethBefore;
+      if (!paid) _recordLivenessViolation("withdraw paid other than it returned", "");
+      liveWithdrawals++;
+    } catch (bytes memory reason) {
+      _recordLivenessViolation("withdraw", reason);
+    }
+  }
+
+  /// @dev Adversarial pre-state: donate 1 wei up to 0.001 WETH, or 1 to 1_000 USDC units, straight to the base vault.
+  function fork_live_donate(bool usdc, uint256 amountSeed) external {
+    _ensureReady();
+    if (usdc) _topUpERC20(BASE_USDC, address(vault), 1 + amountSeed % 1e3);
+    else _topUpERC20(BASE_WETH, address(vault), 1 + amountSeed % 1e15);
+  }
+
+  /// @notice No must-succeed call has reverted (see the liveness section).
+  function assert_fork_liveness_holds() public view {
+    assert(livenessViolations == 0);
+  }
+
+  /// @notice Selector of the revert data behind the last recorded violation (zero when none or no data).
+  function lastLivenessSelector() external view returns (bytes4 selector) {
+    bytes memory reason = lastLivenessRevert;
+    if (reason.length < 4) return bytes4(0);
+    assembly {
+      selector := mload(add(reason, 32))
+    }
+  }
+
+  function _recordLivenessViolation(string memory site, bytes memory reason) internal {
+    livenessViolations++;
+    lastLivenessSite = site;
+    lastLivenessRevert = reason;
+  }
+
+  /// @dev Proportional basket for a random share target, from the base vault's own views: ceil(target * totals[i] /
+  ///      supply) floored at getMinDepositAmounts()[i]. The target spans about twice the supply down to a single share
+  ///      (log scale), so small targets bind on the per-token minimums. A third of the time one slot gets up to 10x
+  ///      excess, which the vault trims back to its ratio.
+  function _forkLiveDepositAmounts(uint256 sizeSeed, uint256 excessSeed)
+    internal
+    view
+    returns (uint256[4] memory amounts)
+  {
+    uint256 supply = IERC20(address(vault)).totalSupply();
+    if (supply == 0) return amounts;
+    uint256[4] memory totals = vault.getTotalBalances();
+    uint256[4] memory mins = vault.getMinDepositAmounts();
+    uint256 target = (2 * supply) >> (sizeSeed % 64);
+    target = 1 + target / 2 + (sizeSeed >> 8) % (target / 2 + 1);
+    for (uint256 i; i < 2; i++) {
+      if (totals[i] == 0) continue;
+      uint256 slice = _ceilMulDiv(target, totals[i], supply);
+      amounts[i] = slice < mins[i] ? mins[i] : slice;
+    }
+    if (excessSeed % 3 == 0) {
+      uint256 j = (excessSeed >> 2) % 2;
+      amounts[j] += (amounts[j] * ((excessSeed >> 8) % 1000)) / 100 + 1;
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -1925,6 +2118,17 @@ contract SharedVaultForkFuzzer {
     if (!forkReady) return;
     assert(localVaultImplementation != address(0));
     assert(IForkFactoryUpgrade(BASE_SHARED_VAULT_FACTORY).vaultImplementation() == localVaultImplementation);
+  }
+
+  /// @notice Property: the V3 strategy beacon still points at the locally-compiled implementation the harness
+  ///         installed in `_ensureReady`, so the base vault's positions run the repo's SharedV3Strategy.
+  function assert_fork_uses_local_v3_strategy() public view {
+    if (!forkReady) return;
+    assert(localV3StrategyImplementation != address(0));
+    assert(
+      SharedStrategyProxy(payable(BASE_SHARED_V3_STRATEGY_PROXY)).beacon().implementation()
+        == localV3StrategyImplementation
+    );
   }
 
   function assert_fork_position_owned_when_tracked() public view {

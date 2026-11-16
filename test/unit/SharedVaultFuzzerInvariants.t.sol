@@ -155,5 +155,141 @@ contract SharedVaultFuzzerInvariantsTest is Test {
 
     fuzzer.lp_withdraw_never_dilutes_remaining_holders(4321);
     fuzzer.fee_withdraw_never_dilutes_remaining_holders(246);
+
+    // The roundtrips' deposits were baskets the preview accepts, so neither may have been recorded as reverting.
+    assertEq(fuzzer.livenessViolations(), 0, "a roundtrip deposit the preview accepted reverted");
+  }
+}
+
+/// @title Liveness invariants over the mock harness
+/// @notice Forge runs invariants with `[invariant] fail_on_revert = false`, so a handler call that reverts with
+///         anything but an `assert` panic is dropped: no campaign could fail on a valid deposit or withdrawal that
+///         reverts. The harness's `live_*` handlers record such a call in a ghost counter instead, and
+///         `invariant_liveness` requires it to stay at zero while the campaign interleaves them with dust donations, V3
+///         position mints, operator swaps and the idle / multi-token roundtrip handlers. The harness's other handlers
+///         keep their deterministic drivers and the Echidna campaign. The tests below drive the paths that matter
+///         most on every run, rather than whenever the campaign happens to pick them.
+contract SharedVaultLivenessInvariantsTest is Test {
+  SharedVaultFuzzer internal fuzzer;
+
+  // `vaultSeed` values for the harness's liveness handlers (SharedVaultFuzzer._livePick).
+  uint8 internal constant IDLE = 0;
+  uint8 internal constant MULTI = 1;
+  uint8 internal constant LP = 2;
+  uint8 internal constant WETH_VAULT = 3;
+  uint8 internal constant FEE = 4;
+  uint8 internal constant V3 = 5;
+
+  function setUp() public {
+    address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+    vm.deal(predicted, 1_000_000 ether);
+    fuzzer = new SharedVaultFuzzer();
+
+    // The liveness handlers, the pre-state handlers and the two roundtrip handlers that record a deposit the preview
+    // accepted but that reverted.
+    bytes4[] memory selectors = new bytes4[](8);
+    selectors[0] = SharedVaultFuzzer.live_deposit.selector;
+    selectors[1] = SharedVaultFuzzer.live_withdraw.selector;
+    selectors[2] = SharedVaultFuzzer.live_gateway_first_deposit_after_donation.selector;
+    selectors[3] = SharedVaultFuzzer.live_donate.selector;
+    selectors[4] = SharedVaultFuzzer.v3_mint_position.selector;
+    selectors[5] = SharedVaultFuzzer.v3_swap_idle.selector;
+    selectors[6] = SharedVaultFuzzer.idle_roundtrip_no_profit.selector;
+    selectors[7] = SharedVaultFuzzer.multi_roundtrip_no_profit.selector;
+    targetContract(address(fuzzer));
+    targetSelector(FuzzSelector({ addr: address(fuzzer), selectors: selectors }));
+  }
+
+  /// @notice No deposit the vault's own views accept, no withdrawal of 1 share up to a whole balance and no gateway
+  ///         first deposit ever reverted.
+  function invariant_liveness() public view {
+    _assertLive();
+  }
+
+  /// @notice Deposits into the vault whose positions run the real SharedV3Strategy (an in-range and a range-edge
+  ///         position): half the supply through the ERC-20 path at 0 slippage and with the WETH leg as msg.value at
+  ///         0.5%, a minimum-size native deposit, and a quarter of the supply with excess USDC at 1%.
+  function test_liveness_native_and_slippage_deposits_into_v3_positions() public {
+    fuzzer.live_deposit(V3, 0, 1, 1, 0, false);
+    fuzzer.live_deposit(V3, 1, 1, 1, 49, true);
+    fuzzer.live_deposit(V3, 0, 63, 1, 49, true);
+    fuzzer.live_deposit(V3, 1, 2, 1284, 99, false); // 1284: +5% on the USDC slot
+
+    _assertLive();
+    assertEq(fuzzer.liveDeposits(), 4, "every deposit ran");
+    assertEq(fuzzer.liveV3PositionDeposits(), 4, "into a vault holding V3 positions");
+    assertEq(fuzzer.liveNativeDeposits(), 2, "two with msg.value");
+    assertEq(fuzzer.liveSlippageDeposits(), 3, "three with slippage > 0");
+  }
+
+  /// @notice Withdrawals of a single share, part of a balance and a whole balance, with and without unwrapping the WETH
+  ///         leg, out of the V3, WETH, LP and fee vaults (the fee vault with rewards pending).
+  function test_liveness_withdrawals_from_one_share_to_whole_balance() public {
+    fuzzer.live_deposit(V3, 0, 1, 1, 0, false);
+    fuzzer.live_deposit(V3, 1, 2, 1, 0, true);
+    fuzzer.live_deposit(WETH_VAULT, 0, 1, 1, 0, true);
+    fuzzer.live_deposit(LP, 0, 1, 1, 49, false);
+    fuzzer.live_deposit(FEE, 0, 1, 1, 0, false);
+    fuzzer.fee_accrue_rewards(3e18, 2e18);
+
+    fuzzer.live_withdraw(V3, 0, 1, true); // 1 share
+    fuzzer.live_withdraw(V3, 1, (uint256(1e18) << 8) | 5, true); // 1e18 + 1 shares, part of the balance
+    fuzzer.live_withdraw(V3, 0, 0, false); // whole balance
+    fuzzer.live_withdraw(WETH_VAULT, 0, 0, true);
+    fuzzer.live_withdraw(LP, 0, 1, false);
+    fuzzer.live_withdraw(FEE, 0, 0, false);
+
+    _assertLive();
+    assertEq(fuzzer.liveWithdrawals(), 6, "every withdrawal ran");
+  }
+
+  /// @notice Deposits and withdrawals stay live in every vault after dust donations into each slot, operator swaps that
+  ///         move the V3 vault's idle mix, and new one-sided, range-edge and in-range V3 positions.
+  function test_liveness_after_donations_swaps_and_new_positions() public {
+    for (uint8 v; v <= V3; v++) {
+      fuzzer.live_donate(v, 0, 0); // 1 wei
+      fuzzer.live_donate(v, 1, type(uint256).max); // up to 0.001 token
+    }
+    fuzzer.idle_roundtrip_no_profit(0, 3e18, 6e18);
+    fuzzer.multi_roundtrip_no_profit(1, 2e18);
+    fuzzer.v3_swap_idle(true, 7e18, 0);
+    fuzzer.v3_swap_idle(false, 30_000e6, 1000);
+    fuzzer.v3_mint_position(0, 5, 0, 0); // below the price: USDC only
+    fuzzer.v3_mint_position(30, 0, 0, 0); // starts at the current tick
+    fuzzer.v3_mint_position(35, 10, 0, 0); // above the price: WETH only
+    fuzzer.v3_mint_position(20, 20, 1e18, 5e9); // in range
+    assertEq(fuzzer.v3Vault().getPositionCount(), 6, "four positions minted");
+
+    for (uint8 v; v <= V3; v++) {
+      fuzzer.live_deposit(v, 0, 1, 1, 49, true);
+      fuzzer.live_deposit(v, 1, 40, 0, 0, false);
+      fuzzer.live_withdraw(v, 0, 1, true);
+      fuzzer.live_withdraw(v, 1, 0, false);
+    }
+
+    _assertLive();
+    assertEq(fuzzer.liveDeposits(), 12, "every deposit ran");
+    assertEq(fuzzer.liveWithdrawals(), 12, "every withdrawal ran");
+  }
+
+  /// @notice The gateway's first deposit into a share-less vault goes through with dust donated into one slot, the
+  ///         other, both or neither.
+  function test_liveness_gateway_first_deposit_after_donation() public {
+    for (uint8 mask; mask < 4; mask++) {
+      fuzzer.live_gateway_first_deposit_after_donation(mask, 12_345 | (uint256(777) << 128), 5e18, 3e9);
+    }
+
+    _assertLive();
+    assertEq(fuzzer.liveGatewayFirstDeposits(), 4, "every first deposit ran");
+  }
+
+  function _assertLive() internal view {
+    assertEq(
+      fuzzer.livenessViolations(),
+      0,
+      string.concat(
+        "liveness: ", fuzzer.lastLivenessSite(), " reverted with ", vm.toString(fuzzer.lastLivenessRevert())
+      )
+    );
   }
 }

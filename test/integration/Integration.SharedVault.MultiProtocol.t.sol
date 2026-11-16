@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { console } from "forge-std/console.sol";
 import { TestCommon, USER, WETH, USDC, NFPM, PANCAKE_NFPM } from "../TestCommon.t.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
@@ -23,7 +24,7 @@ import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lp
 ///         Validates that UniswapV3 and PancakeSwap V3 positions coexist correctly via SharedV3Strategy.
 ///         Both protocols share the same strategy implementation; separate beacon+proxy pairs give
 ///         independent whitelist control (revoking one doesn't affect the other).
-contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
+contract SharedVaultMultiProtocolIntegrationTest is TestCommon, SharedVaultFeeDefaults {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
   // Uniswap V3 WETH/USDC 0.05% pool on Base
@@ -69,7 +70,16 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     nfpms[0] = NFPM;
     nfpms[1] = PANCAKE_NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
+    configManager.initialize(
+      vaultOwner,
+      new address[](0),
+      new address[](0),
+      feeRecipient,
+      DEFAULT_PLATFORM_FEE_BPS,
+      nfpms,
+      new address[](0),
+      new address[](0)
+    );
 
     lpFeeTaker = new LpFeeTaker();
     // Single implementation shared by both protocol proxies
@@ -96,7 +106,11 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(2 ether), 6000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-MultiProtocol", vaultTokens, initialAmounts, 0)));
+    vault = SharedVault(
+      payable(vaultFactory.createVault(
+          "SharedVault-MultiProtocol", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS
+        ))
+    );
 
     vm.stopPrank();
   }
@@ -427,9 +441,9 @@ contract SharedVaultMultiProtocolIntegrationTest is TestCommon {
     );
 
     SharedVault vault2 = SharedVault(
-      payable(
-        vaultFactory.createVault{ value: wethAmt }("MultiProtocol-AtomicCreate", vaultTokens, initialAmounts, 0, actions)
-      )
+      payable(vaultFactory.createVault{ value: wethAmt }(
+          "MultiProtocol-AtomicCreate", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS, actions
+        ))
     );
 
     assertEq(vault2.getPositionCount(), 2, "vault created with 2 LP positions atomically");

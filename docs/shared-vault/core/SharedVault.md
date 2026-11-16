@@ -559,21 +559,6 @@ _See `ISharedVault.recoverPosition` re `token0` / `token1` and vault token valid
 | token0 | address | Pool token0 (must be a configured vault token) |
 | token1 | address | Pool token1 (must be a configured vault token) |
 
-### isValidSignature
-
-```solidity
-function isValidSignature(bytes32 hash, bytes signature) external view returns (bytes4)
-```
-
-_Should return whether the signature provided is valid for the provided data_
-
-#### Parameters
-
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| hash | bytes32 | Hash of the data to be signed |
-| signature | bytes | Signature byte array associated with _data |
-
 ### supportsInterface
 
 ```solidity

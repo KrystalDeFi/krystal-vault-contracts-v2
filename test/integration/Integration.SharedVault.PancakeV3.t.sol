@@ -6,6 +6,7 @@ import { TestCommon, USER, WETH, USDC, PANCAKE_NFPM as NFPM } from "../TestCommo
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 
 import { SharedVault } from "../../contracts/shared-vault/core/SharedVault.sol";
 import { ISharedVault } from "../../contracts/shared-vault/interfaces/ISharedVault.sol";
@@ -18,8 +19,11 @@ import { SharedStrategyProxy } from "../../contracts/shared-vault/strategies/Sha
 import { LpFeeTaker } from "../../contracts/public-vault/strategies/lpUniV3/LpFeeTaker.sol";
 
 import { IV3Utils } from "../../contracts/private-vault/interfaces/strategies/lpv3/IV3Utils.sol";
+import { SharedVaultFeeDefaults } from "../helpers/SharedVaultFeeDefaults.sol";
 
 interface INFPMPositions {
+  function factory() external view returns (address);
+
   function positions(
     uint256 tokenId
   )
@@ -46,7 +50,7 @@ interface INFPMPositions {
 ///         same IUniswapV3Factory.getPool(address,address,uint24) selector, same increaseLiquidity struct.
 ///         The only PancakeSwap quirk (non-canonical slot0 encoding) is already handled in SharedV3Strategy
 ///         via staticcall + assembly, so no dedicated strategy is needed.
-contract SharedVaultPancakeV3IntegrationTest is TestCommon {
+contract SharedVaultPancakeV3IntegrationTest is TestCommon, SharedVaultFeeDefaults {
   address constant V3_UTILS = 0xFb61514860896FCC667E8565eACC1993Fafd97Af;
 
   // PancakeSwap V3 WETH/USDC 0.01% pool on Base — protocol=0 (Uniswap V3-compatible ABI)
@@ -81,7 +85,16 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
     address[] memory nfpms = new address[](1);
     nfpms[0] = NFPM;
     configManager = new SharedConfigManager();
-    configManager.initialize(vaultOwner, new address[](0), new address[](0), feeRecipient, 0, nfpms, new address[](0), new address[](0));
+    configManager.initialize(
+      vaultOwner,
+      new address[](0),
+      new address[](0),
+      feeRecipient,
+      DEFAULT_PLATFORM_FEE_BPS,
+      nfpms,
+      new address[](0),
+      new address[](0)
+    );
 
     lpFeeTaker = new LpFeeTaker();
     v3Strategy = new SharedV3Strategy(V3_UTILS);
@@ -102,7 +115,11 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
 
     address[4] memory vaultTokens = [WETH, USDC, address(0), address(0)];
     uint256[4] memory initialAmounts = [uint256(1 ether), 3000e6, 0, 0];
-    vault = SharedVault(payable(vaultFactory.createVault("SharedVault-PancakeV3", vaultTokens, initialAmounts, 0)));
+    vault = SharedVault(
+      payable(vaultFactory.createVault(
+          "SharedVault-PancakeV3", vaultTokens, initialAmounts, DEFAULT_VAULT_OWNER_FEE_BPS
+        ))
+    );
 
     vm.stopPrank();
   }
@@ -348,8 +365,144 @@ contract SharedVaultPancakeV3IntegrationTest is TestCommon {
   }
 
   // =========================================================
+  // Fee accrual (as in Integration.SharedVault.t.sol): LP fees that accrue before a deposit top-up, a compound or a
+  // withdraw are charged once, and the platform fee recipient and the vault owner receive exactly their bps of
+  // what the PancakeSwap V3 NFPM pays out for the position. Fees accrue by raising the pool's global fee growth.
+  // =========================================================
+
+  /// Across a deposit top-up and the withdraw that follows it, whichever of the two collects the fees accrued
+  /// before the deposit, the platform fee recipient and the vault owner receive exactly one split of them, and
+  /// nothing is left owed on the position.
+  function test_pancake_feeAccrual_depositTopUp_chargesExactSplitOnce() public {
+    uint256 tokenId = _mintFeeAccrualPosition();
+    _accrueFeesOnPosition(tokenId);
+    (uint256 fees0, uint256 fees1) = _collectableV3Fees(NFPM, tokenId, address(vault));
+    assertGt(fees0, 0, "precondition: WETH fees accrued");
+    assertGt(fees1, 0, "precondition: USDC fees accrued");
+    FeeRecipientBalances memory before = _feeRecipientBalances(WETH, USDC, feeRecipient, vaultOwner);
+
+    (address holder, uint256 shares) = _depositAsFeeAccrualHolder();
+    uint256[4] memory mins;
+    vm.prank(holder);
+    vault.withdraw(shares / 2, mins, false);
+
+    _assertFeeSplitPaid(before, WETH, USDC, feeRecipient, vaultOwner, fees0, fees1);
+    (uint256 left0, uint256 left1) = _collectableV3Fees(NFPM, tokenId, address(vault));
+    assertEq(left0 + left1, 0, "nothing left owed after the withdraw");
+  }
+
+  /// Compounding pays the split on every fee it collects before reinvesting the rest, leaving nothing owed.
+  function test_pancake_feeAccrual_compound_chargesExactSplit() public {
+    uint256 tokenId = _mintFeeAccrualPosition();
+    _accrueFeesOnPosition(tokenId);
+    (uint256 fees0, uint256 fees1) = _collectableV3Fees(NFPM, tokenId, address(vault));
+    assertGt(fees0, 0, "precondition: WETH fees accrued");
+    assertGt(fees1, 0, "precondition: USDC fees accrued");
+    FeeRecipientBalances memory before = _feeRecipientBalances(WETH, USDC, feeRecipient, vaultOwner);
+    (,,,,,,, uint128 liquidityBefore,,,,) = INFPMPositions(NFPM).positions(tokenId);
+
+    _compoundFeeAccrualPosition(tokenId);
+
+    _assertFeeSplitPaid(before, WETH, USDC, feeRecipient, vaultOwner, fees0, fees1);
+    (,,,,,,, uint128 liquidityAfter,,,,) = INFPMPositions(NFPM).positions(tokenId);
+    assertGt(liquidityAfter, liquidityBefore, "net fees compounded into the position");
+    (uint256 left0, uint256 left1) = _collectableV3Fees(NFPM, tokenId, address(vault));
+    assertEq(left0 + left1, 0, "nothing left owed after the compound");
+  }
+
+  /// A withdraw collects every accrued fee before exiting, so a partial withdraw pays the split on all of them.
+  function test_pancake_feeAccrual_withdraw_chargesExactSplit() public {
+    uint256 tokenId = _mintFeeAccrualPosition();
+    (address holder, uint256 shares) = _depositAsFeeAccrualHolder();
+    _accrueFeesOnPosition(tokenId);
+    (uint256 fees0, uint256 fees1) = _collectableV3Fees(NFPM, tokenId, address(vault));
+    assertGt(fees0, 0, "precondition: WETH fees accrued");
+    assertGt(fees1, 0, "precondition: USDC fees accrued");
+    FeeRecipientBalances memory before = _feeRecipientBalances(WETH, USDC, feeRecipient, vaultOwner);
+
+    uint256[4] memory mins;
+    vm.prank(holder);
+    vault.withdraw(shares / 2, mins, false);
+
+    _assertFeeSplitPaid(before, WETH, USDC, feeRecipient, vaultOwner, fees0, fees1);
+  }
+
+  // =========================================================
   // Helpers
   // =========================================================
+
+  /// @dev PancakeSwap V3 pool storage slot of `feeGrowthGlobal0X128` (its Slot0 takes two slots because
+  ///      `feeProtocol` is a uint32; `feeGrowthGlobal1X128` is the next slot).
+  uint256 internal constant PANCAKE_V3_FEE_GROWTH_GLOBAL0_SLOT = 2;
+
+  function _mintFeeAccrualPosition() internal returns (uint256 tokenId) {
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] =
+      ISharedVault.Action(address(proxy), _swapAndMintData(0.5 ether, 1500e6), ISharedCommon.CallType.DELEGATECALL);
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+    tokenId = IERC721Enumerable(NFPM).tokenOfOwnerByIndex(address(vault), 0);
+  }
+
+  /// @dev Accrues about 0.01 WETH and 30 USDC of fees (near the pool price) to the vault's full-range position.
+  function _accrueFeesOnPosition(uint256 tokenId) internal {
+    address pool = IUniswapV3Factory(INFPMPositions(NFPM).factory()).getPool(WETH, USDC, FEE_TIER);
+    (,,,,,,, uint128 liquidity,,,,) = INFPMPositions(NFPM).positions(tokenId);
+    _accrueV3PoolFees(pool, PANCAKE_V3_FEE_GROWTH_GLOBAL0_SLOT, liquidity, 0.01 ether, 30e6);
+  }
+
+  /// @dev A holder other than the vault owner deposits at the vault's ratio.
+  function _depositAsFeeAccrualHolder() internal returns (address holder, uint256 shares) {
+    holder = makeAddr("pancakeRoundTripDepositor");
+    setErc20Balance(WETH, holder, 100 ether);
+    setErc20Balance(USDC, holder, 200_000e6);
+    uint256[4] memory totalBals = vault.getTotalBalances();
+    uint256 wethIn = 0.5 ether;
+    uint256 usdcIn = (wethIn * totalBals[1]) / totalBals[0] + 1;
+    vm.startPrank(holder);
+    IERC20(WETH).approve(address(vault), type(uint256).max);
+    IERC20(USDC).approve(address(vault), type(uint256).max);
+    shares = vault.deposit([wethIn, usdcIn, uint256(0), 0], 0, 0);
+    vm.stopPrank();
+  }
+
+  function _compoundFeeAccrualPosition(uint256 tokenId) internal {
+    IV3Utils.Instructions memory instructions = IV3Utils.Instructions({
+      whatToDo: IV3Utils.WhatToDo.COMPOUND_FEES,
+      protocol: 0,
+      targetToken: address(0),
+      amountRemoveMin0: 0,
+      amountRemoveMin1: 0,
+      amountIn0: 0,
+      amountOut0Min: 0,
+      swapData0: "",
+      amountIn1: 0,
+      amountOut1Min: 0,
+      swapData1: "",
+      tickLower: 0,
+      tickUpper: 0,
+      compoundFees: true,
+      liquidity: 0,
+      amountAddMin0: 0,
+      amountAddMin1: 0,
+      deadline: block.timestamp + 300,
+      recipient: address(vault),
+      unwrap: false,
+      liquidityFeeX64: 0,
+      performanceFeeX64: 0,
+      gasFeeX64: 0
+    });
+    ISharedVault.Action[] memory actions = new ISharedVault.Action[](1);
+    actions[0] = ISharedVault.Action(
+      address(proxy),
+      bytes.concat(
+        abi.encode(SharedV3Strategy.OperationType.EXECUTE_INSTRUCTIONS), abi.encode(NFPM, tokenId, instructions)
+      ),
+      ISharedCommon.CallType.DELEGATECALL
+    );
+    vm.prank(vaultOwner);
+    vault.execute(actions);
+  }
 
   function _swapAndMintData(uint256 amount0, uint256 amount1) internal view returns (bytes memory) {
     address[] memory approveTokens = new address[](2);

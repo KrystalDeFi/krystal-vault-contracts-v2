@@ -74,7 +74,7 @@ _Executes the encoded instruction bytes inline against the position; despite the
 ### depositProportional
 
 ```solidity
-function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external
+function depositProportional(address posm, uint256 tokenId, uint256 amount0, uint256 amount1, uint16 slippageBps) external payable
 ```
 
 Add a proportional share of tokens to an existing LP position during vault deposit.
@@ -100,7 +100,7 @@ _Uses `INCREASE_LIQUIDITY` + `CLOSE_CURRENCY` so the PositionManager pulls the e
 | tokenId | uint256 | Position NFT ID |
 | amount0 | uint256 | Max amount of token0 to add |
 | amount1 | uint256 | Max amount of token1 to add |
-| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied as        amountMin = FullMath.mulDiv(amount, 10000 - slippageBps, 10000). Pass 0 for no floor. |
+| slippageBps | uint16 | Slippage tolerance in basis points (e.g. 100 = 1%). Applied to the amounts quoted for the        liquidity that `amount0`/`amount1` can add at the current price (not to the raw amounts), so the        unusable side of an off-ratio slice cannot trip the floor. A slice worth zero liquidity is a no-op.        Pass 0 for no floor (GHSA-8mr4-8944-7fqq). |
 
 ### collectFees
 
